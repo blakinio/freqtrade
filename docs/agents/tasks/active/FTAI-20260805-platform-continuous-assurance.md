@@ -19,11 +19,11 @@ continuation_policy: continue_until_real_stop
 task_completion_policy: checkpoint_and_continue
 user_communication: terminal_only
 base_branch: develop
-base_head: 37e12c1e7b118196543f23c5626959d870012748
-branch: audit/platform-continuous-assurance-wave-002-20260805
-current_wave: wave-002-pr-terminality-and-operational-blockers
-current_findings: [1250, 1254]
-current_pr: 1256
+base_head: 8093f546eddf567b4d775a1cfa664fd8384d67f3
+branch: audit/platform-continuous-assurance-wave-003-20260805
+current_wave: wave-003-required-ci-bounds-and-terminal-delivery
+current_findings: [1250, 1254, 1257]
+current_prs: [1217, 1215, 1258]
 owned_paths:
   - docs/agents/tasks/active/FTAI-20260805-platform-continuous-assurance.md
   - docs/agents/programs/FTAI_PLATFORM_CONTINUOUS_ASSURANCE_COVERAGE.md
@@ -35,89 +35,88 @@ protected_production_deployment_authorized: false
 
 ## Objective
 
-Continuously audit the complete Quant Platform repository in bounded, evidence-producing waves. Select the next overdue, stale or high-risk area from live GitHub and repository state; deduplicate existing work; create findings when a material gap is proven; route remediation without overlapping active ownership; validate exact-head changes; and preserve a truthful durable resume point.
+Continuously audit the complete Quant Platform repository in bounded, evidence-producing waves. Deduplicate live work, respect active ownership, create durable findings for proven gaps, remediate unowned repository-local gaps, validate exact heads, preserve branch protection and maintain a truthful resume point.
 
-## Governing workflow
+## Completed waves
 
-`inspect -> select -> deduplicate -> audit -> classify -> issue/remediate -> validate -> PR -> CI -> merge -> update coverage -> continue`
+### Wave 001 — governance and durable-state consistency
 
-The programme does not treat one wave as an exhaustive platform audit. Every material conclusion must name its exact evidence boundary. Existing active task ownership is respected; an audit finding may be created against an owned lane, but this programme does not mutate another active task's owned paths without an explicit released lease or coordinated handover.
+- Created Issue `#1250` for stale Portal remediation state selecting completed Issue `#1122` while leaving `#1132` undispatched.
+- Initialization PR `#1253` passed exact-head CI and merged as `37e12c1e7b118196543f23c5626959d870012748`.
 
-## Wave 001 — governance and durable-state consistency
+### Wave 002 — pull-request terminality and operational blockers
 
-### Terminal result
+- Updated PRs `#1217` and `#1215` to then-current `develop` without force-push.
+- Proved that `#1215` failed only on the core mypy baseline repaired by `#1217`, not on its Issue Form changes.
+- Triaged Issue `#1254` as a trusted-runner availability blocker: job `92339899025` remains queued with label `freqtrade-staging`, `runner_id=0`, so collector and Portal health are unverified rather than proven failed.
+- Checkpoint PR `#1256` passed exact-head CI and merged as `8093f546eddf567b4d775a1cfa664fd8384d67f3`.
 
-- Issue `#1250` records the stale Portal remediation coordinator state: completed Issue `#1122` remains selected while now-unblocked Issue `#1132` is undispatched.
-- Initialization PR `#1253` passed exact-head CI and was squash-merged into `develop` as `37e12c1e7b118196543f23c5626959d870012748`.
-- The continuous-assurance task and canonical coverage ledger are now durable on `develop`.
-
-## Wave 002 — pull-request terminality and operational blockers
-
-### Scope
-
-- open PR `#1217` (`fix/types`);
-- open PR `#1215` (Projects v3 issue forms);
-- current required-CI behavior against the latest `develop`;
-- newly opened operational Issue `#1254`;
-- stale post-merge active-task state relevant to that incident.
+## Wave 003 — required CI bounds and terminal delivery
 
 ### PR `#1217`
 
-- Verified that all four touched source paths were unchanged between its former merge base and current `develop`.
-- Merged current `develop@37e12c1e7b118196543f23c5626959d870012748` into the PR branch without force-push.
-- Current exact head: `9033aff1f30b261d3b835c247ee9164a443315c6`.
-- Risk-aware component gate, pre-commit, routing and security checks passed.
-- The full Freqtrade matrix remains in progress; required `CI Gate` is therefore still expected and merge is correctly blocked.
+- Current exact head: `50a42194caafb6d15a1aef652cf67ab0bc1acd5f`.
+- Current Freqtrade CI run: `31018189138`.
+- Online compatibility job completed successfully.
+- Every completed matrix and risk-aware job is green; Python 3.12 coverage remains in progress.
+- Auto-merge is enabled and no required gate is bypassed.
 
 ### PR `#1215`
 
-- Verified all referenced repository labels and the live central Projects Operations v3 reconciler contract.
-- Verified that the current wording no longer falsely claims that Issue Forms themselves create native dependency links.
-- Merged current `develop` into the PR branch without force-push.
-- Current head: `9b47817ccb80290a56186acb73b89c83d8d6844e`.
-- Pre-commit, documentation and governance-specific checks passed.
-- Required CI failed only in the focused typing step on the existing core mypy baseline that PR `#1217` is designed to repair. No form-specific failure was proven.
-- Safe ordering: merge `#1217` after its exact-head matrix is terminal, then update `#1215` to that new `develop` and rerun exact-head CI.
+- Current head remains `9b47817ccb80290a56186acb73b89c83d8d6844e`.
+- It must be updated to the post-`#1217` `develop` head without force-push and rerun exact-head CI before merge.
 
-### Operational Issue `#1254`
+### Finding and repair `#1257` / PR `#1258`
 
-- Classified and labelled `priority:P1`, `risk:high`, `state:blocked`.
-- Workflow run `31015936531` remains queued because trusted job `92339899025` has label `freqtrade-staging`, `runner_id=0` and no assigned runner.
-- The GitHub-hosted control job succeeded and the bounded assignment watchdog failed after 120 seconds as designed.
-- Collector, Portal, exchange-source and disk state remain unverified; none of those components is proven failed.
-- The latest successful Liquidations Live Health run found was `31000309947`, completed at 2026-08-05T11:11:16Z.
-- PR `#1200` is already merged, but `docs/agents/tasks/active/FTAI-20260804-liquidations-monitor-stale-self-heal.md` remains stale in pre-merge validation state. This programme recorded the conflict in `#1254` without mutating the separately owned task path.
+A new reliability gap was proven in required CI:
+
+- `online-tests` had no job-level timeout;
+- pytest-timeout was installed but no per-test timeout was supplied;
+- four successful whole-job samples took 14m05s–15m46s;
+- the slowest observed test item used approximately 158 seconds across setup and execution.
+
+PR `#1258` implements an evidence-based fail-closed contract:
+
+- `timeout-minutes: 30` for the online job;
+- `--timeout=300` for each pytest item, including fixtures;
+- a deterministic contract test proving both limits, absence of `continue-on-error`, and continued dependency of `CI Gate` on `online-tests`.
+
+Exact diff review found only the two intended files. Auto-merge is enabled; full exact-head Freqtrade and risk-aware CI are active.
+
+## Active blockers and ownership
+
+- Issue `#1254` remains externally blocked by unavailable trusted self-hosted runner `freqtrade-staging`; repository code cannot assign that runner.
+- The stale liquidations self-heal active-task path remains owned by its existing operations task and was not mutated.
+- Issues `#1251` and `#1252` are already owned by PR `#1255`; this programme did not take them over.
+- Issue `#1250` remains routed to the Portal remediation coordinator lane.
 
 ## Safety
 
-No exchange credential, collector data, trading configuration, model state, order authority, withdrawal authority, protected deployment target or live-capital setting was changed. No branch was force-pushed and no required check was bypassed.
+No credentials, exchange state, collector data, model state, trading configuration, order authority, withdrawal authority, protected deployment target or live-capital setting was changed. No force-push, required-check bypass, test skip or test weakening occurred.
 
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 4
-updated_at: 2026-08-05T14:54:00Z
+checkpoint_version: 5
+updated_at: 2026-08-05T15:20:00Z
 status: active
-head: pending_exact_head_ci_for_pr_1256
-branch: audit/platform-continuous-assurance-wave-002-20260805
-pr: 1256
-wave: wave-002-pr-terminality-and-operational-blockers
+head: 8093f546eddf567b4d775a1cfa664fd8384d67f3
+branch: audit/platform-continuous-assurance-wave-003-20260805
+wave: wave-003-required-ci-bounds-and-terminal-delivery
 proven:
-  - PR 1253 passed exact-head CI and merged as develop commit 37e12c1e7b118196543f23c5626959d870012748
-  - PR 1217 is safely updated to current develop at head 9033aff1f30b261d3b835c247ee9164a443315c6
-  - PR 1217 required full CI is still in progress and CI Gate is not yet terminal
-  - PR 1215 governance-specific checks pass but focused typing fails on the baseline repaired by PR 1217
-  - Issue 1254 is a real unavailable-runner condition; component health is unverified rather than proven failed
-  - the active liquidations self-heal task record is stale after merged PR 1200
-  - wave 002 checkpoint and coverage update are published in PR 1256
+  - PR 1256 passed required exact-head checks and merged as 8093f546eddf567b4d775a1cfa664fd8384d67f3
+  - PR 1217 exact head 50a42194caafb6d15a1aef652cf67ab0bc1acd5f has green completed jobs and a successful online job
+  - PR 1217 Python 3.12 coverage remains non-terminal
+  - PR 1215 requires revalidation after PR 1217 merges
+  - Issue 1254 remains queued without an assigned freqtrade-staging runner
+  - Issue 1257 has a deduplicated implementation PR 1258 with evidence-based job and test limits
+  - PR 1258 exact diff is limited to the workflow contract and its regression test
 unknown:
-  - terminal result of PR 1217 full exact-head matrix
-  - terminal exact-head result of PR 1256
-  - when a trusted freqtrade-staging runner will become available
-  - structured collector and Portal health after runner recovery
-conflicts:
-  - liquidations self-heal task path remains owned by its active operations task
+  - terminal exact-head result and merge commit for PR 1217
+  - terminal exact-head result and merge commit for PR 1258
+  - terminal current-base result for PR 1215 after PR 1217
+  - when the trusted freqtrade-staging runner will return
 external_blockers:
   - trusted self-hosted runner freqtrade-staging is unavailable for Issue 1254
-next_action: Validate and merge PR 1256 when its required exact-head checks pass. When PR 1217 exact-head CI becomes terminal, merge only if every required check succeeds; then merge current develop into PR 1215 without force-push and rerun exact-head CI. Independently, preserve Issue 1254 until a trusted runner starts and returns a structured health result.
+next_action: Allow required exact-head checks and auto-merge to complete for PRs 1217 and 1258. After PR 1217 is terminal, merge the latest develop into PR 1215 without force-push, rerun exact-head CI and merge only on full success. Preserve Issue 1254 until a trusted runner returns a structured health result, then continue the next unowned high-risk audit wave.
 ```

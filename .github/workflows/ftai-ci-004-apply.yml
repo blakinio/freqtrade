@@ -25,54 +25,116 @@ jobs:
           activate-environment: true
           python-version: "3.13"
           enable-cache: false
-      - name: Apply bounded core-light contract
+      - name: Apply workflow and routing changes
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
           import re
 
-          workflow_path = Path('.github/workflows/ci.yml')
-          workflow = workflow_path.read_text(encoding='utf-8')
+          workflow_path = Path(".github/workflows/ci.yml")
+          workflow = workflow_path.read_text(encoding="utf-8")
+          old_condition = (
+              "    if: needs.classify.outputs.core_light == 'true' "
+              "&& needs.classify.outputs.core_matrix != 'true'"
+          )
+          if workflow.count(old_condition) != 1:
+              raise SystemExit("core-light condition did not match exactly once")
           workflow = workflow.replace(
-              "    if: needs.classify.outputs.core_light == 'true' && needs.classify.outputs.core_matrix != 'true'",
+              old_condition,
               "    if: needs.classify.outputs.core_light == 'true'",
               1,
           )
+          old_cache = '          cache-suffix: "core-light-3.13"'
+          if workflow.count(old_cache) != 1:
+              raise SystemExit("core-light cache suffix did not match exactly once")
           workflow = workflow.replace(
-              '          cache-suffix: "core-light-3.13"',
+              old_cache,
               '          cache-suffix: "core-light-v2-3.13"',
               1,
           )
           workflow, install_count = re.subn(
               r"          uv pip install pytest==9\.1\.1[^\n]*",
-              "          uv pip install pytest==9.1.1 pytest-asyncio==1.4.0 pytest-mock==3.15.1 pytest-timeout==2.4.0 pytest-xdist==3.8.0 time-machine==3.2.0 ruff==0.15.20 mypy==2.1.0",
+              (
+                  "          uv pip install pytest==9.1.1 pytest-asyncio==1.4.0 "
+                  "pytest-mock==3.15.1 pytest-timeout==2.4.0 pytest-xdist==3.8.0 "
+                  "time-machine==3.2.0 ruff==0.15.20 mypy==2.1.0"
+              ),
               workflow,
               count=1,
           )
           if install_count != 1:
-              raise SystemExit('core-light dependency line was not replaced exactly once')
-          workflow, run_count = re.subn(
+              raise SystemExit("core-light dependency line did not match exactly once")
+          workflow, validation_count = re.subn(
               r"      - name: Core unit validation without optional ML and optimization suites\n.*?(?=\n  pre-commit:)",
               "      - name: Bounded core smoke validation\n        run: python tools/ci/run_core_light.py\n",
               workflow,
               count=1,
               flags=re.S,
           )
-          if run_count != 1:
-              raise SystemExit('core-light test block was not replaced exactly once')
-          workflow_path.write_text(workflow, encoding='utf-8')
+          if validation_count != 1:
+              raise SystemExit("core-light validation block did not match exactly once")
+          workflow_path.write_text(workflow, encoding="utf-8")
 
-          classifier_path = Path('tools/ci/change_classifier.py')
-          classifier = classifier_path.read_text(encoding='utf-8')
-          old = '        "core_light": core and not docs_only,'
-          new = '        "core_light": (core or full) and not docs_only,'
-          if classifier.count(old) != 1:
-              raise SystemExit('core_light classifier expression did not match exactly once')
-          classifier_path.write_text(classifier.replace(old, new, 1), encoding='utf-8')
+          classifier_path = Path("tools/ci/change_classifier.py")
+          classifier = classifier_path.read_text(encoding="utf-8")
+          old_classifier = '        "core_light": core and not docs_only,'
+          if classifier.count(old_classifier) != 1:
+              raise SystemExit("core-light classifier expression did not match exactly once")
+          classifier_path.write_text(
+              classifier.replace(
+                  old_classifier,
+                  '        "core_light": (core or full) and not docs_only,',
+                  1,
+              ),
+              encoding="utf-8",
+          )
 
-          Path('tools/ci/core-light-tests.txt').write_text(
-              """# Deterministic smoke targets for non-critical core changes.
+          tests_path = Path("tests/ci/test_change_classifier.py")
+          tests = tests_path.read_text(encoding="utf-8")
+          replacements = (
+              (
+                  '    assert result["full"]\n    assert result["core_matrix"]\n'
+                  '    assert result["closure_e2e"]',
+                  '    assert result["full"]\n    assert result["core_light"]\n'
+                  '    assert result["core_matrix"]\n    assert result["closure_e2e"]',
+              ),
+              (
+                  '    assert result["full"]\n    assert result["core_matrix"]\n\n\n'
+                  'def test_protected_branch_push_and_release_are_full()',
+                  '    assert result["full"]\n    assert result["core_light"]\n'
+                  '    assert result["core_matrix"]\n\n\n'
+                  'def test_protected_branch_push_and_release_are_full()',
+              ),
+              (
+                  '    assert push["full"] and release["full"]',
+                  '    assert push["full"] and release["full"]\n'
+                  '    assert push["core_light"] and release["core_light"]',
+              ),
+              (
+                  '    assert result["full"]\n    assert result["core_matrix"]\n'
+                  '    assert result["exact_image"]',
+                  '    assert result["full"]\n    assert result["core_light"]\n'
+                  '    assert result["core_matrix"]\n    assert result["exact_image"]',
+              ),
+              (
+                  '    assert result["full"] and result["core_matrix"] and '
+                  'result["closure_e2e"]',
+                  '    assert result["full"] and result["core_light"]\n'
+                  '    assert result["core_matrix"] and result["closure_e2e"]',
+              ),
+          )
+          for old, new in replacements:
+              if old not in tests:
+                  raise SystemExit(f"classifier test insertion point missing: {old!r}")
+              tests = tests.replace(old, new, 1)
+          tests_path.write_text(tests, encoding="utf-8")
+          PY
+      - name: Write bounded core-light manifest and runner
+        shell: bash
+        run: |
+          cat > tools/ci/core-light-tests.txt <<'EOF'
+          # Deterministic smoke targets for non-critical core changes.
           # Critical exchange, data, persistence, RPC, strategy, FreqAI and optimize paths
           # are routed to the complete core matrix instead.
           tests/test_arguments.py
@@ -90,12 +152,11 @@ jobs:
           tests/plugins/test_percentchangepairlist.py
           tests/plugins/test_remotepairlist.py
           tests/util
-          """.replace('          ', ''),
-              encoding='utf-8',
-          )
+          EOF
+          sed -i 's/^          //' tools/ci/core-light-tests.txt
 
-          Path('tools/ci/run_core_light.py').write_text(
-              '''#!/usr/bin/env python3
+          cat > tools/ci/run_core_light.py <<'PYFILE'
+          #!/usr/bin/env python3
           """Run the deterministic, dependency-light core smoke suite."""
 
           from __future__ import annotations
@@ -114,7 +175,9 @@ jobs:
 
           def load_targets(path: Path = MANIFEST_PATH) -> list[str]:
               targets: list[str] = []
-              for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+              for line_number, raw_line in enumerate(
+                  path.read_text(encoding="utf-8").splitlines(), 1
+              ):
                   target = raw_line.split("#", 1)[0].strip()
                   if not target:
                       continue
@@ -183,12 +246,14 @@ jobs:
 
           if __name__ == "__main__":
               raise SystemExit(main())
-          '''.replace('          ', ''),
-              encoding='utf-8',
-          )
-
-          Path('tests/ci/test_core_light_dependency_contract.py').write_text(
-              '''from pathlib import Path
+          PYFILE
+          sed -i 's/^          //' tools/ci/run_core_light.py
+          chmod +x tools/ci/run_core_light.py
+      - name: Write deterministic contract tests
+        shell: bash
+        run: |
+          cat > tests/ci/test_core_light_dependency_contract.py <<'PYFILE'
+          from pathlib import Path
 
           import pytest
 
@@ -259,30 +324,8 @@ jobs:
                   "run: pytest --random-order --cov=freqtrade --cov=freqtrade_client "
                   "--cov-config=.coveragerc"
               ) in workflow
-          '''.replace('          ', ''),
-              encoding='utf-8',
-          )
-
-          tests_path = Path('tests/ci/test_change_classifier.py')
-          tests = tests_path.read_text(encoding='utf-8')
-          replacements = {
-              '    assert result["full"]\n    assert result["core_matrix"]\n    assert result["closure_e2e"]':
-                  '    assert result["full"]\n    assert result["core_light"]\n    assert result["core_matrix"]\n    assert result["closure_e2e"]',
-              '    assert result["full"]\n    assert result["core_matrix"]\n\n\ndef test_protected_branch_push_and_release_are_full()':
-                  '    assert result["full"]\n    assert result["core_light"]\n    assert result["core_matrix"]\n\n\ndef test_protected_branch_push_and_release_are_full()',
-              '    assert push["full"] and release["full"]':
-                  '    assert push["full"] and release["full"]\n    assert push["core_light"] and release["core_light"]',
-              '    assert result["full"]\n    assert result["core_matrix"]\n    assert result["exact_image"]':
-                  '    assert result["full"]\n    assert result["core_light"]\n    assert result["core_matrix"]\n    assert result["exact_image"]',
-              '    assert result["full"] and result["core_matrix"] and result["closure_e2e"]':
-                  '    assert result["full"] and result["core_light"]\n    assert result["core_matrix"] and result["closure_e2e"]',
-          }
-          for old, new in replacements.items():
-              if old not in tests:
-                  raise SystemExit(f'classifier test insertion point missing: {old!r}')
-              tests = tests.replace(old, new, 1)
-          tests_path.write_text(tests, encoding='utf-8')
-          PY
+          PYFILE
+          sed -i 's/^          //' tests/ci/test_core_light_dependency_contract.py
       - name: Install bounded validation environment
         run: |
           uv pip install -r requirements.txt

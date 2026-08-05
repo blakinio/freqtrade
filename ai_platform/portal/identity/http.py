@@ -10,7 +10,13 @@ from pydantic import BaseModel, ConfigDict
 from ai_platform.portal.control_plane.api import create_app
 from ai_platform.portal.control_plane.context import IdentityContextProvider
 from ai_platform.portal.control_plane.database import SessionFactory
-from ai_platform.portal.identity.repository import IdentityConflictError, IdentityNotFoundError
+from ai_platform.portal.identity.oidc import OidcProtocolError, OidcProviderUnavailable
+from ai_platform.portal.identity.repository import (
+    IdentityConflictError,
+    IdentityNotFoundError,
+    IdentityReplayConflictError,
+    IdentityReplayStateError,
+)
 from ai_platform.portal.identity.schema import (
     BackchannelLogoutResult,
     MembershipCreate,
@@ -98,6 +104,37 @@ def register_identity_routes(  # noqa: C901
         return JSONResponse(
             status_code=status.HTTP_403_FORBIDDEN,
             content={"detail": str(exc)},
+        )
+
+    @app.exception_handler(OidcProtocolError)
+    async def oidc_protocol_error_handler(
+        _request: Request,
+        _exc: OidcProtocolError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"detail": "OIDC protocol input is invalid"},
+        )
+
+    @app.exception_handler(OidcProviderUnavailable)
+    async def oidc_provider_error_handler(
+        _request: Request,
+        _exc: OidcProviderUnavailable,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            content={"detail": "OIDC provider is unavailable"},
+        )
+
+    @app.exception_handler(IdentityReplayConflictError)
+    @app.exception_handler(IdentityReplayStateError)
+    async def identity_replay_error_handler(
+        _request: Request,
+        _exc: IdentityReplayConflictError | IdentityReplayStateError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={"detail": "OIDC logout replay conflict"},
         )
 
     @app.exception_handler(ValueError)
@@ -192,11 +229,14 @@ def register_identity_routes(  # noqa: C901
     async def backchannel_logout(request: Request) -> BackchannelLogoutResult:
         content_type = request.headers.get("content-type", "")
         if "application/x-www-form-urlencoded" not in content_type:
-            raise IdentityAuthenticationError("back-channel logout requires form encoding")
-        values = parse_qs((await request.body()).decode("utf-8"), strict_parsing=True)
+            raise OidcProtocolError("back-channel logout requires form encoding")
+        try:
+            values = parse_qs((await request.body()).decode("utf-8"), strict_parsing=True)
+        except (UnicodeDecodeError, ValueError) as exc:
+            raise OidcProtocolError("back-channel logout form is invalid") from exc
         tokens = values.get("logout_token", [])
         if len(tokens) != 1 or not tokens[0]:
-            raise IdentityAuthenticationError("logout_token is required")
+            raise OidcProtocolError("logout_token is required")
         return service.handle_backchannel_logout(tokens[0])
 
     @app.post(

@@ -346,13 +346,15 @@ class IdentityRepository:
         self.session.flush()
 
     def purge_expired_logout_replays(self, now: datetime) -> int:
-        result = self.session.execute(
-            delete(OidcLogoutReplayRow).where(
+        statement = (
+            delete(OidcLogoutReplayRow)
+            .where(
                 OidcLogoutReplayRow.status == "completed",
                 OidcLogoutReplayRow.retention_until <= now,
             )
+            .returning(OidcLogoutReplayRow.replay_key_hash)
         )
-        return int(result.rowcount or 0)
+        return len(self.session.scalars(statement).all())
 
     def create_session(
         self,
@@ -390,7 +392,7 @@ class IdentityRepository:
         return row
 
     def get_session(self, session_id_hash: str) -> PortalSessionRow | None:
-        return self.session.get(PortalSessionRow, session_id_hash)
+        return self.session.get(OidcLogoutReplayRow, session_id_hash) if False else self.session.get(PortalSessionRow, session_id_hash)
 
     def touch_session(
         self,

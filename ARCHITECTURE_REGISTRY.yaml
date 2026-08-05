@@ -1,0 +1,208 @@
+schema_version: 1
+registry_id: ftai-platform-architecture
+repository: blakinio/freqtrade
+default_branch: develop
+
+review:
+  last_reviewed_at: "2026-08-05"
+  audited_base_sha: cbf9f57ea8d5783f85d19fe0f8557dfe3178705a
+  review_issue: 1251
+  review_task: FTAI-ARCH-001
+  review_report: docs/ai_platform/reviews/2026-08-05-architecture-ci-review.md
+  status: active
+
+classification_values:
+  - canonical_registry
+  - accepted_decision_log
+  - canonical_target_state
+  - domain_architecture
+  - historical_baseline
+  - governance_program
+  - audit_evidence
+
+implementation_status_values:
+  - implemented
+  - partially_implemented
+  - target_only
+  - historical
+  - mixed
+  - not_applicable
+  - requires_verification
+
+authority:
+  precedence:
+    - accepted decisions and explicit owner decisions
+    - exact current code, configuration, migrations, tests, workflow and deployed-target evidence
+    - canonical target-state architecture
+    - domain architecture and plans
+    - historical baselines
+  rules:
+    - The registry is the canonical index of architectural authority; it is not runtime evidence.
+    - Accepted decisions constrain later documents until explicitly superseded through a bounded architecture change.
+    - Current implementation state is proven by exact revision evidence, not by target-state wording.
+    - Target-only or mixed documents must never be reported as fully implemented without exact evidence.
+    - Historical baselines preserve context but do not override accepted decisions or current-state evidence.
+    - Material architecture changes update this registry and the accepted decision log in the same change set.
+
+system_domains:
+  research_and_strategy:
+    code_roots:
+      - ai_platform/
+      - ai_strategy_engine/
+    evidence_roots:
+      - tests/ai_platform/
+      - tests/ai_platform_integration/
+    implementation_status: mixed
+  portal_and_ux:
+    code_roots:
+      - ai_platform/portal/web/
+      - ai_platform/portal/control_plane/
+    evidence_roots:
+      - tests/ai_platform/portal/
+      - ai_platform/portal/web/e2e/
+    implementation_status: mixed
+  identity_and_security:
+    code_roots:
+      - ai_platform/portal/identity/
+      - ai_platform/portal/security/
+      - ai_platform/portal/credentials/
+    evidence_roots:
+      - tests/ai_platform/portal/identity/
+      - tests/ai_platform/portal/security/
+    implementation_status: mixed
+  execution_and_risk:
+    code_roots:
+      - freqtrade/
+      - ai_platform/portal/execution/
+      - ai_platform/portal/risk/
+    evidence_roots:
+      - tests/
+      - tests/ai_platform/portal/
+    implementation_status: mixed
+    safety_note: Live-capital authority requires a separate explicit owner-approved lifecycle package.
+  data_and_observability:
+    code_roots:
+      - ai_platform/portal/database/
+      - ai_platform/portal/telemetry/
+      - ai_platform/portal/operations/
+    evidence_roots:
+      - tests/ai_platform/portal/database/
+      - tests/ai_platform/portal/telemetry/
+    implementation_status: mixed
+  deployment_and_operations:
+    code_roots:
+      - deploy/
+      - docker/
+      - .github/workflows/
+    evidence_roots:
+      - docs/agents/evidence/
+      - artifacts/
+    implementation_status: mixed
+  ci_and_quality:
+    code_roots:
+      - .github/workflows/
+      - .github/actions/
+      - tools/ci/
+    evidence_roots:
+      - tests/ci/
+    implementation_status: partially_implemented
+    open_findings:
+      - issue: 1252
+        id: FTAI-CI-001
+        summary: Inventory and retire historical GitHub Actions workflows.
+
+documents:
+  - path: ARCHITECTURE_REGISTRY.yaml
+    title: Platform architecture registry
+    classification: canonical_registry
+    scope: repository-wide architecture authority and document classification
+    authority: canonical_index
+    implementation_status: not_applicable
+    owner_role: A3-architecture-ci-reviewer
+    last_reviewed_at: "2026-08-05"
+
+  - path: docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md
+    title: AI Trading Portal architecture decisions
+    classification: accepted_decision_log
+    scope: accepted platform and Portal decisions
+    authority: binding_until_superseded
+    implementation_status: mixed
+    owner_role: architecture-owner
+    last_reviewed_at: "2026-08-05"
+
+  - path: docs/ai_platform/portal/SYSTEM_ARCHITECTURE.md
+    title: AI Trading Portal system architecture
+    classification: canonical_target_state
+    scope: Portal, control, execution, AI, data, quality and deployment planes
+    authority: target_state_subject_to_accepted_decisions
+    implementation_status: mixed
+    owner_role: architecture-owner
+    last_reviewed_at: "2026-08-05"
+    evidence_rule: Each implementation claim requires exact code, test, workflow or deployed-target evidence.
+
+  - path: docs/ai_platform/portal/BOT_MANAGEMENT_PRODUCT_ARCHITECTURE.md
+    title: Bot management product architecture
+    classification: domain_architecture
+    scope: declarative bot lifecycle and management
+    authority: domain_target_state
+    implementation_status: mixed
+    owner_role: bot-management-domain-owner
+    last_reviewed_at: "2026-08-05"
+
+  - path: docs/ai_platform/portal/AI_ML_AND_LEARNING_ARCHITECTURE.md
+    title: AI, ML and learning architecture
+    classification: domain_architecture
+    scope: model, experiment, learning and promotion boundaries
+    authority: domain_target_state
+    implementation_status: mixed
+    owner_role: ai-research-domain-owner
+    last_reviewed_at: "2026-08-05"
+
+  - path: docs/ai_platform/ARCHITECTURE.md
+    title: Original AI trading platform architecture
+    classification: historical_baseline
+    scope: initial research-to-dry-run MVP
+    authority: historical_context_only
+    implementation_status: historical
+    owner_role: architecture-owner
+    last_reviewed_at: "2026-08-05"
+    supersession_note: Use the accepted decision log, Portal system architecture and exact current-state evidence for platform-wide decisions.
+
+  - path: docs/agents/programs/FTAI_PLATFORM_CONTINUOUS_ASSURANCE_PROGRAM.md
+    title: Platform continuous assurance programme
+    classification: governance_program
+    scope: autonomous audit, repair and architecture/CI review roles
+    authority: agent_governance
+    implementation_status: implemented
+    owner_role: programme-owner
+    last_reviewed_at: "2026-08-05"
+
+  - path: docs/ai_platform/portal/AUDIT_2026-08-02_END_TO_END_COMPLETENESS.md
+    title: Portal end-to-end completeness audit
+    classification: audit_evidence
+    scope: point-in-time Portal completeness evidence
+    authority: evidence_at_recorded_revision_only
+    implementation_status: not_applicable
+    owner_role: audit-owner
+    last_reviewed_at: "2026-08-05"
+
+  - path: docs/ai_platform/reviews/2026-08-05-architecture-ci-review.md
+    title: Platform architecture and CI review
+    classification: audit_evidence
+    scope: architecture authority and CI lifecycle review
+    authority: evidence_at_recorded_revision_only
+    implementation_status: not_applicable
+    owner_role: A3-architecture-ci-reviewer
+    last_reviewed_at: "2026-08-05"
+
+open_architecture_findings:
+  - issue: 1251
+    id: FTAI-ARCH-001
+    severity: high
+    status: active
+    summary: Establish the canonical registry and reconcile architecture-document authority.
+  - issue: 1252
+    id: FTAI-CI-001
+    severity: high
+    status: open
+    summary: Inventory and retire historical GitHub Actions workflows.

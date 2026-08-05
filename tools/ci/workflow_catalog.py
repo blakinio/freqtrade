@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Inventory, classify, and safely retire GitHub Actions workflow records."""
 
-# This module is a bounded GitHub API client; its URL handling is constrained by the configured API base.
+# This module is a bounded GitHub API client.
+# Its URL handling is constrained by the configured API base.
 # ruff: noqa: I001, S310
 
 from __future__ import annotations

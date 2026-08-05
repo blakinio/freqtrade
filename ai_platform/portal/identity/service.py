@@ -1,15 +1,22 @@
 from __future__ import annotations
 
-from datetime import datetime
+import hashlib
+import json
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from ai_platform.portal.identity import service_base
+from ai_platform.portal.identity.oidc import OidcLogoutIdentity
 from ai_platform.portal.identity.repository import (
     IdentityNotFoundError,
     IdentityRepository,
     session_view,
 )
-from ai_platform.portal.identity.schema import CompletedLogin, PrincipalStatus
+from ai_platform.portal.identity.schema import (
+    BackchannelLogoutResult,
+    CompletedLogin,
+    PrincipalStatus,
+)
 from ai_platform.portal.security.authorization import permissions_for_roles
 
 
@@ -24,7 +31,7 @@ SESSION_COOKIE_NAME = service_base.SESSION_COOKIE_NAME
 
 
 class IdentityService(service_base.IdentityService):
-    """Identity service with an attributable, fail-closed OIDC callback lifecycle."""
+    """Identity service with attributable, replay-safe OIDC lifecycles."""
 
     def complete_login(self, *, code: str, state: str) -> CompletedLogin:
         if not code or not state:
@@ -176,6 +183,56 @@ class IdentityService(service_base.IdentityService):
                 )
                 raise
 
+    def handle_backchannel_logout(self, logout_token: str) -> BackchannelLogoutResult:
+        identity = self._oidc.validate_backchannel_logout(logout_token)
+        replay_key_hash = _logout_replay_key(identity)
+        request_fingerprint = _logout_request_fingerprint(identity)
+        now = self._now()
+
+        with self._session_factory() as session:
+            repository = IdentityRepository(session)
+            claim = repository.claim_logout_replay(
+                replay_key_hash=replay_key_hash,
+                issuer=identity.issuer,
+                client_id=identity.client_id,
+                jti=identity.jti,
+                request_fingerprint=request_fingerprint,
+                now=now,
+            )
+            if not claim.owner:
+                row = claim.row
+                result = BackchannelLogoutResult(
+                    revoked_sessions=row.revoked_sessions,
+                    processed_at=_utc(row.processed_at),
+                )
+                session.commit()
+                return result
+
+            count = repository.revoke_sessions_for_idp_identity(
+                issuer=identity.issuer,
+                subject=identity.subject,
+                idp_session_id=identity.idp_session_id,
+                now=now,
+            )
+            self._audit(
+                repository,
+                action="identity.backchannel_logout",
+                actor_id=_logout_actor_id(identity.issuer),
+                principal_id=None,
+                result="success",
+                reason=f"revoked:{count}",
+                now=now,
+                correlation_id=replay_key_hash[:36],
+            )
+            repository.complete_logout_replay(
+                claim.row,
+                revoked_sessions=count,
+                processed_at=now,
+                completed_at=now,
+            )
+            session.commit()
+            return BackchannelLogoutResult(revoked_sessions=count, processed_at=now)
+
     def _record_login_denial(
         self,
         *,
@@ -211,6 +268,45 @@ class IdentityService(service_base.IdentityService):
         }:
             return "membership_unavailable"
         return "identity_resolution_failed"
+
+
+def _canonical_digest(payload: dict[str, str | None]) -> str:
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _logout_replay_key(identity: OidcLogoutIdentity) -> str:
+    return _canonical_digest(
+        {
+            "issuer": identity.issuer,
+            "client_id": identity.client_id,
+            "jti": identity.jti,
+        }
+    )
+
+
+def _logout_request_fingerprint(identity: OidcLogoutIdentity) -> str:
+    return _canonical_digest(
+        {
+            "issuer": identity.issuer,
+            "client_id": identity.client_id,
+            "jti": identity.jti,
+            "subject": identity.subject,
+            "idp_session_id": identity.idp_session_id,
+        }
+    )
+
+
+def _logout_actor_id(issuer: str) -> str:
+    return f"idp:{hashlib.sha256(issuer.encode()).hexdigest()}"
+
+
+def _utc(value: datetime | None) -> datetime:
+    if value is None:
+        raise RuntimeError("terminal logout replay result is incomplete")
+    if value.tzinfo is None or value.utcoffset() is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 __all__ = [

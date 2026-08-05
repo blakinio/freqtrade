@@ -660,7 +660,8 @@ def _load_liquid20_live_root_once(  # noqa: C901
     )
     if state_heartbeat != observed_at_ms:
         raise CandidatePaperRuntimeOperatorError("Liquid20 heartbeat identity mismatch")
-    age_ms = now_ms - observed_at_ms
+    validation_at_ms = suffix_available_at_ms()
+    age_ms = validation_at_ms - observed_at_ms
     if age_ms < 0:
         raise CandidatePaperRuntimeOperatorError("Liquid20 live pointer is from the future")
     if age_ms > maximum_age_ms:

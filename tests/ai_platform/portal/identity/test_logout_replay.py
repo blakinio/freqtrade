@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from fastapi.testclient import TestClient
-from sqlalchemy import func, select
+from sqlalchemy import Engine, func, select
 
 from ai_platform.portal.contracts.identity import RoleName
 from ai_platform.portal.control_plane.database import (
@@ -81,7 +81,7 @@ def _service(
     database_path: Path,
     oidc: ReplayOidcClient,
     clock: MutableClock,
-) -> tuple[IdentityService, object]:
+) -> tuple[IdentityService, Engine]:
     engine = build_engine(f"sqlite+pysqlite:///{database_path}")
     create_schema(engine)
     session_factory = build_session_factory(engine)

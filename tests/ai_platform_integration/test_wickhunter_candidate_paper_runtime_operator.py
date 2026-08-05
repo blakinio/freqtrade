@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
@@ -1059,6 +1060,91 @@ def test_run_once_fetches_mark_for_open_position_outside_universe(
         operator.run_once(observed_at_ms=NOW_MS)
 
     assert fetched == ["BTCUSDT", "ETHUSDT"]
+
+
+def test_run_once_bounds_parallel_public_market_fetches_and_preserves_result_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class StopAfterCompose(RuntimeError):
+        pass
+
+    symbols = tuple(f"ASSET{index}USDT" for index in range(10))
+    events: list[dict[str, object]] = []
+    for index, symbol in enumerate(symbols):
+        events.extend(
+            (
+                _event(
+                    f"event-history-{index}",
+                    symbol=symbol,
+                    received_at_ms=NOW_MS - 3_600_000,
+                ),
+                _event(
+                    f"event-current-{index}",
+                    symbol=symbol,
+                    received_at_ms=NOW_MS - 1_000,
+                ),
+            )
+        )
+    service = _service()
+    captured_tick: object | None = None
+
+    def stop_after_compose(tick: object) -> None:
+        nonlocal captured_tick
+        captured_tick = tick
+        raise StopAfterCompose
+
+    service.step = stop_after_compose
+    root = _write_live_root(tmp_path / "parallel-liquid20", events=events)
+    runtime_operator = CandidatePaperRuntimeOperator(
+        service=cast(Any, service),
+        liquid20_root_path=root.resolve(),
+        health_path=(tmp_path / "parallel-health.json").resolve(),
+        operator_commit=CODE_SHA,
+    )
+    lock = threading.Lock()
+    release = threading.Event()
+    started = 0
+    active = 0
+    maximum_active = 0
+    fetched: list[str] = []
+
+    def fake_market_snapshot(
+        *,
+        symbol: str,
+        observed_at_ms: int,
+        base_url: str,
+        opener: object,
+    ) -> PublicMarketSnapshot:
+        del base_url, opener
+        nonlocal started, active, maximum_active
+        with lock:
+            started += 1
+            active += 1
+            maximum_active = max(maximum_active, active)
+            fetched.append(symbol)
+            if started >= 4:
+                release.set()
+        if not release.wait(timeout=2):
+            raise AssertionError("public market fetches did not overlap")
+        with lock:
+            active -= 1
+        return _market(symbol=symbol, observed_at_ms=observed_at_ms)
+
+    monkeypatch.setattr(
+        operator_module,
+        "fetch_public_market_snapshot",
+        fake_market_snapshot,
+    )
+    with pytest.raises(StopAfterCompose):
+        runtime_operator.run_once(observed_at_ms=NOW_MS)
+
+    assert maximum_active >= 4
+    assert maximum_active <= operator_module.MAX_PUBLIC_MARKET_WORKERS
+    assert set(fetched) == set(symbols)
+    assert captured_tick is not None
+    mark_prices = cast(Any, captured_tick).mark_prices
+    assert tuple(symbol for symbol, _price in mark_prices) == tuple(sorted(symbols))
 
 
 def test_operator_refuses_non_paper_binding(tmp_path: Path) -> None:

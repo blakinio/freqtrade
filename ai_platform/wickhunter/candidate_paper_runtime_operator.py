@@ -10,6 +10,7 @@ import tempfile
 import time
 from collections import deque
 from collections.abc import Callable, Mapping
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
@@ -49,6 +50,7 @@ HEALTH_SCHEMA_VERSION = "wickhunter-paper-runtime-operator-health-v1"
 DEFAULT_PUBLIC_MARKET_BASE_URL = "https://fapi.binance.com"
 DEFAULT_POLL_SECONDS = 600
 DEFAULT_MAX_SOURCE_AGE_MS = 300_000
+MAX_PUBLIC_MARKET_WORKERS = 8
 MAX_INPUT_BYTES = 16 * 1024 * 1024
 MAX_HTTP_BYTES = 1024 * 1024
 MAX_LIVE_EVENTS = 20_000
@@ -1448,6 +1450,29 @@ class CandidatePaperRuntimeOperator:
         payload["health_sha256"] = canonical_sha256(payload)
         return payload
 
+    def _fetch_public_market_snapshots(
+        self,
+        *,
+        symbols: tuple[str, ...],
+        observed_at_ms: int,
+    ) -> tuple[PublicMarketSnapshot, ...]:
+        def fetch(symbol: str) -> PublicMarketSnapshot:
+            return fetch_public_market_snapshot(
+                symbol=symbol,
+                observed_at_ms=observed_at_ms,
+                base_url=self.public_market_base_url,
+                opener=self.opener,
+            )
+
+        if self.opener is not None or len(symbols) <= 2:
+            return tuple(fetch(symbol) for symbol in symbols)
+        workers = min(MAX_PUBLIC_MARKET_WORKERS, len(symbols))
+        with ThreadPoolExecutor(
+            max_workers=workers,
+            thread_name_prefix="wickhunter-public-market",
+        ) as executor:
+            return tuple(executor.map(fetch, symbols))
+
     def run_once(self, *, observed_at_ms: int | None = None) -> int:
         now_ms = time.time_ns() // 1_000_000 if observed_at_ms is None else observed_at_ms
         request = self.service.binding.request
@@ -1468,14 +1493,9 @@ class CandidatePaperRuntimeOperator:
                 }
             )
         )
-        markets = tuple(
-            fetch_public_market_snapshot(
-                symbol=symbol,
-                observed_at_ms=now_ms,
-                base_url=self.public_market_base_url,
-                opener=self.opener,
-            )
-            for symbol in market_symbols
+        markets = self._fetch_public_market_snapshots(
+            symbols=market_symbols,
+            observed_at_ms=now_ms,
         )
         tick = self._compose_tick(
             liquid20=liquid20,

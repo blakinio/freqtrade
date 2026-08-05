@@ -10,13 +10,13 @@ programme: WickHunter
 phase: WH-09
 issue: 1144
 mode: implementation
-status: validating
+status: implementing
 execution_mode: github
 validation_level: full
 base_branch: develop
-base_sha: c1d1f9f3db5e95e245c297f3d29be079533db301
-branch: fix/wickhunter-wh09-pointer-availability-clock-20260805-v1
-product_pr: 1231
+base_sha: 7e191cebc71118a2dee32dceeec49a47153dd8f8
+branch: fix/wickhunter-wh09-public-market-concurrency-20260805-v1
+product_pr: pending
 helper_pr: 1147
 cleanup_pr: 1182
 cleanup_merge_sha: db0daa1e0edf145b71f166a6fea8cff9acc4c820
@@ -27,7 +27,7 @@ final_executor_sha: 93137630cfdf6b6198a68f69ea47b2753652a08b
 owner: sole WH-09 persistent PAPER runtime operator producer
 task_kind: implementation
 completion_claim: partial_producer
-next_action: validate bounded pointer availability on exact head, merge PR 1231, then deploy a fresh v9 PAPER activation with retry-stable reads and collision-safe networking
+next_action: validate bounded public-market concurrency, merge the repair, then deploy a fresh v10 PAPER activation and begin the prospective acceptance window
 ```
 
 ## Goal and completion boundary
@@ -286,3 +286,9 @@ PR #1227 establishes one monotonic origin for the complete bounded acquisition s
 Trusted Synology deployment run `30998850353` proved that a newly published Liquid20 pointer can become visible after snapshot acquisition starts. The producer assigns `collector_heartbeat_at_ms` while atomically writing the run state and live pointer, but the consumer compared that heartbeat with the immutable caller `now_ms` captured before the bounded read. A pointer already available at validation time could therefore be rejected as future-dated.
 
 PR #1231 validates pointer freshness against the same bounded availability clock anchored by caller wall time plus monotonic elapsed acquisition time and shared across all retries. Heartbeats genuinely later than the validation point still fail closed, maximum age is enforced at validation time, committed rows remain bound to the atomically published heartbeat, active suffix rows remain validated and excluded until committed, and completed runs retain exact equality. Deterministic regressions cover both sides of the pointer boundary. Failed v8 identities are retired; the next deployment must use fresh v9 identities.
+
+## First-generation public-market concurrency repair
+
+Trusted Synology deployment v9 run `31001468857` built the exact operator and constrained gateway images, passed Liquid20 smoke validation, published a fresh zero-authority activation and started the operator. The operator stayed alive but produced neither generation 1 nor fail-closed health during the bounded 20-minute first-generation gate. The only blocking work after successful initialization is the public market acquisition path, which performed four HTTPS requests sequentially for every selected Liquid20 symbol: up to 80 serial requests for the canonical top-20 universe.
+
+This repair keeps every request allowlisted, credential-free, redirect-free and individually time-bounded, but executes independent symbol acquisitions through a bounded eight-worker pool. `executor.map` preserves the deterministic input/result order, injected test openers remain sequential, exceptions still fail closed, and no journal mutation occurs until the complete market tuple has succeeded. A focused regression proves at least four overlapping acquisitions, enforces the worker ceiling and verifies stable sorted mark output. Failed v9 identities are retired; the next deployment must use fresh v10 activation, state, journal, container and network identities.

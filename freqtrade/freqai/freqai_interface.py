@@ -417,9 +417,7 @@ class IFreqaiModel(ABC):
         """
         labels = dk.label_list + dk.unique_class_list
         predictions = DataFrame(0, index=range(len(dataframe_backtest)), columns=labels)
-        do_preds: NDArray[np.int_] = np.zeros(
-            len(dataframe_backtest), dtype=np.int_
-        )
+        do_preds: NDArray[np.int_] = np.zeros(len(dataframe_backtest), dtype=np.int_)
         dk.DI_values = np.zeros(len(dataframe_backtest))
 
         labels_mean = dk.data.setdefault("labels_mean", {})

@@ -3,8 +3,9 @@ PairList manager class
 """
 
 import logging
+from collections.abc import Callable
 from functools import partial
-from typing import Callable, cast
+from typing import cast
 
 from cachetools import LRUCache, cached
 

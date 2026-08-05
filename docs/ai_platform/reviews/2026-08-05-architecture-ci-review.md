@@ -5,8 +5,10 @@
 - repository: `blakinio/freqtrade`
 - audited branch: `develop`
 - audited base SHA: `cbf9f57ea8d5783f85d19fe0f8557dfe3178705a`
+- review branch synchronized with: `develop@37e12c1e7b118196543f23c5626959d870012748`
 - review task: `FTAI-ARCH-001`
 - review Issue: #1251
+- review PR: #1255
 - CI remediation Issue: #1252
 - role: A3 Architecture and CI Reviewer
 
@@ -26,11 +28,13 @@ The review inspected:
 
 Claims below are limited to evidence visible at the audited revision or through the GitHub API on 2026-08-05.
 
+After the review began, PR #1253 merged continuous-assurance Wave 001 as `37e12c1e7b118196543f23c5626959d870012748`. The review branch was synchronized with that exact head. The new coverage ledger is registered as programme governance; it does not replace the missing architecture registry or overlap the A3-owned review paths.
+
 ## Executive result
 
 | Area | Result | Severity | Action |
 | --- | --- | --- | --- |
-| Architecture source of truth | Material gap | High | Registry and ADR-019 in review PR; Issue #1251 |
+| Architecture source of truth | Material gap | High | Registry and ADR-019 in PR #1255; Issue #1251 |
 | Core CI routing design | Positive control | — | Preserve central classifier and gates |
 | Workflow-file validation | Positive but bounded | — | Preserve; extend in separate repair |
 | GitHub Actions catalog lifecycle | Material gap | High | Issue #1252 |
@@ -45,7 +49,7 @@ Verified evidence:
 1. `docs/ai_platform/ARCHITECTURE.md` describes the original research-to-dry-run MVP. It intentionally excludes reinforcement learning, futures/leverage and broader platform complexity from that MVP.
 2. `docs/ai_platform/portal/SYSTEM_ARCHITECTURE.md` defines a broader target architecture spanning the Portal/UX plane, control plane, event transport, isolated execution runtimes, AI/research, data, quality and deployment evolution.
 3. `docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md` contains accepted ADR-001 through ADR-018 and therefore already acts as a binding decision log.
-4. The root `ARCHITECTURE_REGISTRY.yaml` required by the continuous-assurance A3 role is absent on the audited base.
+4. The root `ARCHITECTURE_REGISTRY.yaml` required by the continuous-assurance A3 role is absent on the audited base and remained absent after Wave 001 merged.
 5. No existing machine-readable index classifies architecture documents as current-state evidence, target-state intent, domain architecture, historical baseline or point-in-time audit evidence.
 
 Consequence:
@@ -115,12 +119,12 @@ Issue #1252 requires a complete catalog, ownership and lifecycle registry, safe 
 
 ## CI state at review time
 
-The most recent audited `develop` commit was `cbf9f57ea8d5783f85d19fe0f8557dfe3178705a`. GitHub had started both:
+The initial audited `develop` commit was `cbf9f57ea8d5783f85d19fe0f8557dfe3178705a`. GitHub had started both:
 
 - `Freqtrade CI`;
 - `Risk-aware component CI`.
 
-Those runs were still in progress at the observation point. This report does not convert an in-progress state into a pass or failure.
+Those runs were still in progress at the observation point. This report does not convert an in-progress state into a pass or failure. PR #1255 requires its own exact-head checks before merge.
 
 ## Access limitations
 
@@ -132,16 +136,17 @@ Those runs were still in progress at the observation point. This report does not
 
 - Issue #1251 records the architecture-registry finding and review chain.
 - Issue #1252 records the separate CI workflow-lifecycle remediation.
-- `ARCHITECTURE_REGISTRY.yaml` becomes the canonical architecture index.
+- PR #1255 adds `ARCHITECTURE_REGISTRY.yaml` as the canonical architecture index.
 - ADR-019 defines source-of-truth precedence and implementation-evidence rules.
 - `docs/ai_platform/ARCHITECTURE.md` remains available as historical context but is not platform-wide current authority.
+- The Wave 001 coverage ledger is registered as bounded programme governance at its recorded exact head.
 
 ## Review verdict
 
 ```yaml
 review_result: MATERIAL_FINDINGS_RECORDED
 architecture_registry_present_on_audited_base: false
-architecture_registry_added_in_review_branch: true
+architecture_registry_added_in_review_pr: true
 accepted_decision_log_present: true
 central_ci_routing: retained
 workflow_file_validator: retained_but_bounded
@@ -149,6 +154,8 @@ actions_catalog_total_count_observed: 589
 material_findings:
   - FTAI-ARCH-001
   - FTAI-CI-001
+review_pr: 1255
+synchronized_base_sha: 37e12c1e7b118196543f23c5626959d870012748
 workflow_mutations_performed: false
 production_operations: none
 live_capital_operations: none

@@ -1,0 +1,46 @@
+name: Temporary format repair
+
+on:
+  push:
+    branches:
+      - fix/core-mypy-2-1-compat
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-format-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: fix/core-mypy-2-1-compat
+          fetch-depth: 0
+
+      - name: Apply exact Ruff format and remove this workflow
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("freqtrade/persistence/trade_model.py")
+          content = path.read_text(encoding="utf-8")
+          old = """            total_profit = sum(\n                (t.close_profit_abs or 0.0)\n                for t in LocalTrade.get_trades_proxy(is_open=False)\n            )\n"""
+          new = """            total_profit = sum(\n                (t.close_profit_abs or 0.0) for t in LocalTrade.get_trades_proxy(is_open=False)\n            )\n"""
+          if content.count(old) != 1:
+              raise SystemExit("trade_model.py: expected one exact Ruff-format target")
+          path.write_text(content.replace(old, new), encoding="utf-8")
+          Path(".github/workflows/temporary-format-repair.yml").unlink()
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "style(types): apply Ruff formatting"
+          git push origin HEAD:fix/core-mypy-2-1-compat

@@ -392,7 +392,7 @@ class IdentityRepository:
         return row
 
     def get_session(self, session_id_hash: str) -> PortalSessionRow | None:
-        return self.session.get(OidcLogoutReplayRow, session_id_hash) if False else self.session.get(PortalSessionRow, session_id_hash)
+        return self.session.get(PortalSessionRow, session_id_hash)
 
     def touch_session(
         self,

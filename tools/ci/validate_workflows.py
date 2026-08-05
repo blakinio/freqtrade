@@ -155,7 +155,9 @@ def _parse_date(value: Any, *, field: str, failures: list[str]) -> date | None:
         return None
 
 
-def validate_workflow_registry(root: Path, current_paths: set[str]) -> list[str]:
+def validate_workflow_registry(  # noqa: C901
+    root: Path, current_paths: set[str]
+) -> list[str]:
     failures: list[str] = []
     registry_path = root / REGISTRY_PATH
     if not registry_path.is_file():

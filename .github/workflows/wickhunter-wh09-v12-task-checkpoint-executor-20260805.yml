@@ -1,0 +1,207 @@
+name: WickHunter WH09 v12 task checkpoint executor
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-v12-task-checkpoint-executor-20260805.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-wh09-v12-task-checkpoint-executor
+  cancel-in-progress: false
+
+env:
+  EXPECTED_BASE_SHA: 108eff8149f3c5dba77bfcdeaea0c63c8a22b551
+  PRODUCT_BRANCH: docs/wickhunter-wh09-v12-deployment-checkpoint-20260805
+  PRODUCT_PR: "1276"
+  PRODUCT_PLACEHOLDER: .github/wh09-v12-task-update-request.txt
+  TASK_PATH: docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md
+
+jobs:
+  checkpoint:
+    name: Publish canonical v12 checkpoint
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact helper request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v11.0.0
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate bounded helper request
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$EXPECTED_BASE_SHA" ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          [[ "$(git rev-parse HEAD)" == "$HEAD_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-wh09-v12-task-checkpoint-executor-20260805.yml'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected helper diff:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+
+      - name: Materialize task-only checkpoint
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch --no-tags origin "$PRODUCT_BRANCH"
+          git switch --force-create "$PRODUCT_BRANCH" "origin/$PRODUCT_BRANCH"
+          [[ "$(git merge-base "$EXPECTED_BASE_SHA" HEAD)" == "$EXPECTED_BASE_SHA" ]]
+          expected_before=$'A\t.github/wh09-v12-task-update-request.txt'
+          actual_before="$(git diff --name-status "$EXPECTED_BASE_SHA" HEAD)"
+          [[ "$actual_before" == "$expected_before" ]] || {
+            printf 'Expected product request:\n%s\nActual:\n%s\n' "$expected_before" "$actual_before" >&2
+            exit 1
+          }
+          export TASK_PATH PRODUCT_PR
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          import re
+
+          path = Path(os.environ["TASK_PATH"])
+          text = path.read_text(encoding="utf-8")
+          replacements = {
+              "status: implementing": "status: waiting",
+              "base_sha: c33648acfd86a0352836498103857b601b5f486f": "base_sha: 108eff8149f3c5dba77bfcdeaea0c63c8a22b551",
+              "branch: fix/wickhunter-wh09-candidate-authorization-boundary-20260805-v1": "branch: docs/wickhunter-wh09-v12-deployment-checkpoint-20260805",
+              "product_pr: pending": "product_pr: 1263",
+              "validated_implementation_head: 5d02cf6350126438cd9c7217dbf24bcab05828e8": "validated_implementation_head: 108eff8149f3c5dba77bfcdeaea0c63c8a22b551",
+              "completion_claim: partial_producer": "completion_claim: deployed_waiting_prospective_acceptance",
+              "next_action: validate and merge the candidate-authorization producer-boundary repair, then deploy a fresh v12 PAPER activation and begin the prospective acceptance window": "next_action: keep v12 PAPER runtime active through 2026-08-06T17:45:07.561Z, then collect and independently verify the complete WH-09 acceptance package",
+          }
+          for old, new in replacements.items():
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"expected one canonical field, found {count}: {old}")
+              text = text.replace(old, new)
+
+          anchor = "product_pr: 1263\n"
+          metadata = (
+              f"checkpoint_pr: {os.environ['PRODUCT_PR']}\n"
+              "repair_merge_sha: 108eff8149f3c5dba77bfcdeaea0c63c8a22b551\n"
+              "deployment_pr: 1274\n"
+              "deployment_run: 31024416013\n"
+              "deployment_artifact: 8939021431\n"
+              "activation_name: wickhunter-wh09-activation-20260805-v12-108eff81\n"
+              "runtime_run_id: b895197c49550bd57a50fed93dda4ebbc5938839c17302ad086cce5fa4fedf14\n"
+              "runtime_binding_id: 79ed4f7a3d211704d95b0304b633ba96512e44f4dedaa6ebaf37732397160702\n"
+              "prospective_window_start_ms: 1785948307561\n"
+              "prospective_window_end_ms: 1786038307561\n"
+          )
+          if metadata.strip() in text:
+              raise SystemExit("checkpoint metadata already present")
+          text = text.replace(anchor, anchor + metadata, 1)
+
+          recovery = """## Recovery checkpoint
+
+```yaml
+recovery:
+  policy_version: 1
+  generation: 5
+  session_id: wickhunter-wh09-20260805T1852+0200
+  session_started_at: 2026-08-05T18:52:00+02:00
+  checkpointed_at: 2026-08-05T18:52:00+02:00
+  last_progress_at: 2026-08-05T18:52:00+02:00
+  phase: prospective PAPER acceptance observation
+  exact_head: 108eff8149f3c5dba77bfcdeaea0c63c8a22b551
+  pull_request: 1276
+  active_operation: persistent v12 PAPER observation window
+  external_run_ids: [31024416013]
+  operation_started_at: 2026-08-05T16:45:07.561Z
+  wait_deadline_at: 2026-08-06T17:45:07.561Z
+  check_generation: wh09-v12-b895197c-prospective-window
+  checks_used: 0
+  status: waiting
+  safe_to_resume: true
+  resume_condition: window end has passed and the exact v12 runtime remains available for immutable acceptance collection
+  next_action: Collect the complete journal, health, exercise and consumer evidence; verify every WH-09 criterion independently; keep the explicit owner decision separate.
+```
+"""
+          pattern = re.compile(r"## Recovery checkpoint\n\n```yaml\n.*?\n```\n", re.DOTALL)
+          text, count = pattern.subn(recovery, text, count=1)
+          if count != 1:
+              raise SystemExit("canonical recovery checkpoint not found exactly once")
+
+          marker = "## v12 trusted deployment and restart checkpoint"
+          if marker in text:
+              raise SystemExit("v12 checkpoint section already present")
+          section = """
+
+## v12 trusted deployment and restart checkpoint
+
+The candidate-authorization producer-boundary repair passed fresh exact-head CI and merged
+through PR #1263 as `108eff8149f3c5dba77bfcdeaea0c63c8a22b551`. Request-only deployment PR #1274 then
+ran on the trusted `freqtrade-synology-staging` runner as workflow run `31024416013` and
+closed without merge after reaching a terminal successful deployment result. Its materializer
+PR #1269 also closed without merge.
+
+The fresh immutable activation is:
+
+- activation `wickhunter-wh09-activation-20260805-v12-108eff81`;
+- run ID `b895197c49550bd57a50fed93dda4ebbc5938839c17302ad086cce5fa4fedf14`;
+- binding ID `79ed4f7a3d211704d95b0304b633ba96512e44f4dedaa6ebaf37732397160702`;
+- journal identity `b2ffc66df1196c33ecf2f91c76ef3e3dd7862367a70f75db7e653d848a52a3d0`;
+- prospective window `1785948307561..1786038307561`, equivalent to
+  `2026-08-05T16:45:07.561Z..2026-08-06T17:45:07.561Z`.
+
+Bounded evidence artifact `8939021431`, named `wickhunter-wh09-deployment-1274` with digest
+`sha256:9172054434130e924727c1cacdcf6faa0f1968a4043976b1470a7fb6369131d9`, proves a
+self-hashed healthy generation 1 before a real operator restart and self-hashed healthy
+generation 2 afterwards with the same run, binding and exact operator commit. Post-restart
+egress was revalidated: only the exact Binance Futures TLS path was reachable, while
+nonallowlisted DNS and direct external egress remained blocked. Model and data drift were
+healthy and the circuit breaker was inactive at this deployment checkpoint.
+
+The runtime remains PAPER-only and persistent for prospective observation. Protected holdout
+access, automatic promotion, trading credentials, order adapter, execution and live-capital
+authority remain absent, and `orders_submitted=0`. This checkpoint does not complete WH-09:
+Issue #1144 remains open until the full prospective duration, snapshot/gap/freshness,
+decision/risk/parity, breaker/drift/stale-source/restart, drawdown and consumer criteria are
+collected in an immutable package, independently verified and followed by a separate explicit
+owner decision.
+"""
+          path.write_text(text.rstrip() + section + "\n", encoding="utf-8")
+          PY
+          rm "$PRODUCT_PLACEHOLDER"
+          git add "$TASK_PATH" "$PRODUCT_PLACEHOLDER"
+          expected_after=$'M\tdocs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md'
+          actual_after="$(git diff --cached --name-status "$EXPECTED_BASE_SHA")"
+          [[ "$actual_after" == "$expected_after" ]] || {
+            printf 'Expected final task-only diff:\n%s\nActual:\n%s\n' "$expected_after" "$actual_after" >&2
+            exit 1
+          }
+          git commit -m "docs(wickhunter): record WH09 v12 deployment checkpoint"
+          product_sha="$(git rev-parse HEAD)"
+          git push origin "HEAD:refs/heads/$PRODUCT_BRANCH"
+          echo "product_sha=$product_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Publish summary
+        shell: bash
+        env:
+          PRODUCT_SHA: ${{ steps.publish.outputs.product_sha }}
+        run: |
+          {
+            echo "## WH09 v12 task checkpoint published"
+            echo
+            echo "- Product PR: \`#$PRODUCT_PR\`"
+            echo "- Product SHA: \`$PRODUCT_SHA\`"
+            echo "- Final scope: \`$TASK_PATH\`"
+            echo "- Runtime status: \`waiting prospective acceptance\`"
+          } >> "$GITHUB_STEP_SUMMARY"

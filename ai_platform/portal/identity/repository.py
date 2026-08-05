@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import Select, select, update
+from sqlalchemy import Select, delete, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -274,6 +274,12 @@ class IdentityRepository:
         client_id: str,
         jti: str,
         request_fingerprint: str,
+        token_type: str,
+        signing_key_id: str,
+        signing_algorithm: str,
+        issued_at: datetime,
+        token_expires_at: datetime,
+        retention_until: datetime,
         now: datetime,
     ) -> LogoutReplayClaim:
         candidate = OidcLogoutReplayRow(
@@ -282,6 +288,12 @@ class IdentityRepository:
             client_id=client_id,
             jti=jti,
             request_fingerprint=request_fingerprint,
+            token_type=token_type,
+            signing_key_id=signing_key_id,
+            signing_algorithm=signing_algorithm,
+            issued_at=issued_at,
+            token_expires_at=token_expires_at,
+            retention_until=retention_until,
             status="processing",
             revoked_sessions=None,
             processed_at=None,
@@ -332,6 +344,15 @@ class IdentityRepository:
         row.processed_at = processed_at
         row.completed_at = completed_at
         self.session.flush()
+
+    def purge_expired_logout_replays(self, now: datetime) -> int:
+        result = self.session.execute(
+            delete(OidcLogoutReplayRow).where(
+                OidcLogoutReplayRow.status == "completed",
+                OidcLogoutReplayRow.retention_until <= now,
+            )
+        )
+        return int(result.rowcount or 0)
 
     def create_session(
         self,
@@ -470,16 +491,23 @@ class IdentityRepository:
         idp_session_id: str | None,
         now: datetime,
     ) -> int:
-        principal = None
+        if subject is None and idp_session_id is None:
+            return 0
+        query = (
+            select(PortalSessionRow)
+            .join(
+                IdentityPrincipalRow,
+                IdentityPrincipalRow.principal_id == PortalSessionRow.principal_id,
+            )
+            .where(
+                IdentityPrincipalRow.issuer == issuer,
+                PortalSessionRow.revoked_at.is_(None),
+            )
+        )
         if subject is not None:
-            principal = self.get_principal_by_external_identity(issuer, subject)
-        query = select(PortalSessionRow).where(PortalSessionRow.revoked_at.is_(None))
+            query = query.where(IdentityPrincipalRow.subject == subject)
         if idp_session_id is not None:
             query = query.where(PortalSessionRow.idp_session_id == idp_session_id)
-        elif principal is not None:
-            query = query.where(PortalSessionRow.principal_id == principal.principal_id)
-        else:
-            return 0
         rows = self.session.scalars(query).all()
         actor_id = f"idp:{issuer}"
         return sum(

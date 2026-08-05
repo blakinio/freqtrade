@@ -1,5 +1,8 @@
 # AI Trading Platform Architecture
 
+> [!IMPORTANT]
+> **Status: historical baseline for the original research-to-dry-run MVP.** This document preserves the initial scope and design constraints. It is not the canonical platform-wide current-state architecture. Begin with `ARCHITECTURE_REGISTRY.yaml`, then use `docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md`, `docs/ai_platform/portal/SYSTEM_ARCHITECTURE.md` and exact revision evidence. Target-state documentation alone does not prove implementation or authorize production/live-capital operation.
+
 ## 1. Mission
 
 Build a reproducible research-to-execution platform on top of Freqtrade that can discover, train, validate, rank, and operate trading strategies without giving an ML model unrestricted control over capital.

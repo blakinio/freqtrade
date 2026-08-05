@@ -262,3 +262,24 @@ A single canonical production origin prevents conflicting hostnames across DNS, 
 Consequence:
 
 Future production-ingress, identity and deployment work must treat `https://quant.molehill.cloud` as the target external origin or explicitly replace this ADR through a bounded architecture change.
+
+## ADR-019 — Architecture authority uses a registry and exact implementation evidence
+
+Status: `accepted`
+
+Decision:
+
+- The repository-root `ARCHITECTURE_REGISTRY.yaml` is the canonical index of architecture documents, domains, authority and review state.
+- This accepted decision log remains binding until a decision is explicitly superseded through a bounded architecture change.
+- Exact current code, configuration, migrations, tests, workflow results and deployed-target evidence determine implementation state.
+- A target-state or domain architecture document may define approved direction, but it must not be reported as implemented solely because it is accepted or documented.
+- Historical baseline documents preserve context and constraints from their original scope; they do not override accepted decisions or exact current-state evidence.
+- Material architecture changes update the registry and this decision log in the same change set, including migration impact and affected domains.
+
+Reason:
+
+The platform has evolved beyond its original research MVP and now contains several architecture documents with different scopes. Without explicit authority and implementation-state rules, valid historical or target-state documents can be mistaken for current platform truth.
+
+Consequence:
+
+Architecture reviews and autonomous agents must begin with `ARCHITECTURE_REGISTRY.yaml`, follow its authority order, and cite exact evidence for every current-state claim. Documentation alone never creates runtime, production, credential, trading or live-capital authority.

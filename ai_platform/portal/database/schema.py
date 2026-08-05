@@ -32,6 +32,13 @@ EXPECTED_SCHEMA_REVISION = "20260805_02_oidc_logout_replay"
 MIGRATION_TABLE_NAME = "portal_schema_migrations"
 OIDC_LOGOUT_REPLAY_TABLE_NAME = "portal_oidc_logout_replays"
 _POSTGRES_MIGRATION_LOCK_ID = 1_122_202_608_03
+_POSTGRES_STRING_CAST_RE = re.compile(
+    r"::(?:character varying|varchar|text)(?:\[\])?"
+)
+_POSTGRES_ANY_ARRAY_RE = re.compile(
+    r"\b(?P<column>[a-z_][a-z0-9_]*)\s*=\s*any\s*"
+    r"\(\s*array\[(?P<values>[^\]]+)\]\s*\)"
+)
 
 _migration_metadata = MetaData()
 _schema_migrations = Table(
@@ -170,6 +177,19 @@ def _canonical_sql(value: object | None) -> str | None:
     return normalized
 
 
+def _canonical_check_sql(value: object | None) -> str | None:
+    normalized = _canonical_sql(value)
+    if normalized is None:
+        return None
+    normalized = _POSTGRES_STRING_CAST_RE.sub("", normalized)
+    normalized = _POSTGRES_ANY_ARRAY_RE.sub(
+        lambda match: f"{match.group('column')} in ({match.group('values')})",
+        normalized,
+    )
+    normalized = normalized.replace(") or (", " or ")
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
 def _type_token(column_type: Any, dialect: Any) -> str:
     try:
         compiled = column_type.compile(dialect=dialect)
@@ -224,7 +244,9 @@ def _expected_table_snapshot(table: Table, dialect: Any) -> dict[str, Any]:
                 }
             )
         elif isinstance(constraint, CheckConstraint):
-            checks.append({"name": constraint.name, "sql": _canonical_sql(constraint.sqltext)})
+            checks.append(
+                {"name": constraint.name, "sql": _canonical_check_sql(constraint.sqltext)}
+            )
     indexes = [
         {
             "name": index.name,
@@ -351,7 +373,7 @@ def _actual_table_snapshot(connection: Any, table_name: str) -> dict[str, Any]:
     checks = [
         {
             "name": constraint.get("name"),
-            "sql": _canonical_sql(constraint.get("sqltext")),
+            "sql": _canonical_check_sql(constraint.get("sqltext")),
         }
         for constraint in reflected_checks
     ]

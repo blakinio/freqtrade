@@ -235,6 +235,46 @@ def test_live_root_reads_only_committed_active_prefix(tmp_path: Path) -> None:
     }
 
 
+def test_live_root_accepts_suffix_available_during_bounded_snapshot_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _write_live_root(tmp_path / "active-suffix-during-read")
+    pointer = json.loads((root / "live-state-v1.json").read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    run_id = str(state["run_id"])
+    suffix = _event("event-during-read", received_at_ms=NOW_MS + 500)
+    with (root / "runs" / run_id / "binance-usdm.ndjson").open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(suffix, sort_keys=True) + "\n")
+    monotonic_values = iter((10_000_000_000, 10_600_000_000))
+    monkeypatch.setattr(operator_module.time, "monotonic_ns", lambda: next(monotonic_values))
+
+    snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+    assert "event-during-read" not in {event.source_event_id for event in snapshot.events}
+
+
+def test_live_root_rejects_suffix_later_than_bounded_snapshot_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _write_live_root(tmp_path / "active-suffix-after-read")
+    pointer = json.loads((root / "live-state-v1.json").read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    run_id = str(state["run_id"])
+    suffix = _event("event-after-read", received_at_ms=NOW_MS + 601)
+    with (root / "runs" / run_id / "binance-usdm.ndjson").open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(suffix, sort_keys=True) + "\n")
+    monotonic_values = iter((10_000_000_000, 10_600_000_000))
+    monkeypatch.setattr(operator_module.time, "monotonic_ns", lambda: next(monotonic_values))
+
+    with pytest.raises(
+        CandidatePaperRuntimeOperatorError,
+        match="unavailable at live observation time",
+    ):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
 @pytest.mark.parametrize(
     ("mutation", "message"),
     (
@@ -245,10 +285,12 @@ def test_live_root_reads_only_committed_active_prefix(tmp_path: Path) -> None:
 )
 def test_live_root_rejects_invalid_uncommitted_active_suffix(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
     mutation: str,
     message: str,
 ) -> None:
     root = _write_live_root(tmp_path / f"active-suffix-{mutation}")
+    monkeypatch.setattr(operator_module.time, "monotonic_ns", lambda: 10_000_000_000)
     pointer = json.loads((root / "live-state-v1.json").read_text(encoding="utf-8"))
     state = cast(dict[str, object], pointer["state"])
     run_id = str(state["run_id"])

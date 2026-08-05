@@ -9,7 +9,7 @@ import re
 import tempfile
 import time
 from collections import deque
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
@@ -340,7 +340,7 @@ def _read_committed_jsonl_tail(  # noqa: C901
     allow_uncommitted_suffix: bool,
     source: str,
     observed_at_ms: int,
-    suffix_available_at_ms: int,
+    suffix_available_at_ms: Callable[[], int],
 ) -> tuple[dict[str, Any], ...]:
     if path.is_symlink() or not path.is_file():
         raise CandidatePaperRuntimeOperatorError(f"{field} must be a regular file")
@@ -386,7 +386,7 @@ def _read_committed_jsonl_tail(  # noqa: C901
                 _parse_live_source_event(
                     row,
                     source=source,
-                    observed_at_ms=suffix_available_at_ms,
+                    observed_at_ms=suffix_available_at_ms(),
                 )
     except CandidatePaperRuntimeOperatorError:
         raise
@@ -562,7 +562,7 @@ def _read_live_source_events(
     source: str,
     source_row: dict[str, Any],
     observed_at_ms: int,
-    snapshot_read_at_ms: int,
+    suffix_available_at_ms: Callable[[], int],
     history_start_ms: int,
     allow_uncommitted_suffix: bool,
 ) -> tuple[LiquidationEvent, ...]:
@@ -594,7 +594,7 @@ def _read_live_source_events(
         allow_uncommitted_suffix=allow_uncommitted_suffix and configured,
         source=source,
         observed_at_ms=observed_at_ms,
-        suffix_available_at_ms=snapshot_read_at_ms,
+        suffix_available_at_ms=suffix_available_at_ms,
     )
     if events_written == 0:
         if source_row.get("last_event_received_at_ms") is not None:
@@ -633,6 +633,14 @@ def _load_liquid20_live_root_once(  # noqa: C901
         raise CandidatePaperRuntimeOperatorError(
             "Liquid20 live root must be an absolute regular directory"
         )
+    snapshot_started_ns = time.monotonic_ns()
+
+    def suffix_available_at_ms() -> int:
+        elapsed_ns = time.monotonic_ns() - snapshot_started_ns
+        if elapsed_ns < 0:
+            raise CandidatePaperRuntimeOperatorError("Liquid20 snapshot clock moved backwards")
+        return now_ms + elapsed_ns // 1_000_000
+
     pointer = _read_bounded_json(root / LIVE_POINTER_NAME, field="Liquid20 live pointer")
     if pointer.get("schema_version") != 1:
         raise CandidatePaperRuntimeOperatorError("Liquid20 live pointer schema mismatch")
@@ -711,7 +719,7 @@ def _load_liquid20_live_root_once(  # noqa: C901
                     source=source,
                     source_row=source_row,
                     observed_at_ms=observed_at_ms,
-                    snapshot_read_at_ms=now_ms,
+                    suffix_available_at_ms=suffix_available_at_ms,
                     history_start_ms=history_start_ms,
                     allow_uncommitted_suffix=historical_run_id == run_id,
                 )

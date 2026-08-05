@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from tools.ci.branch_hygiene import BranchFacts, _next_link, evaluate_branch
+from tools.ci.branch_hygiene import (
+    BranchFacts,
+    _next_link,
+    evaluate_branch,
+    evaluate_live_revalidation,
+)
 
 
 def facts(**overrides: object) -> BranchFacts:
@@ -81,6 +86,32 @@ def test_multiple_reasons_are_preserved() -> None:
         "open_pull_request",
         "contains_unmerged_unique_commits",
         "keep_pattern",
+    )
+
+
+def test_live_revalidation_passes_when_state_is_unchanged() -> None:
+    decision = evaluate_live_revalidation(
+        facts(),
+        live_head_sha="a" * 40,
+        live_protected=False,
+        live_has_open_pull_request=False,
+    )
+    assert decision.eligible is True
+    assert decision.reasons == ()
+
+
+def test_live_revalidation_fails_closed_on_races() -> None:
+    decision = evaluate_live_revalidation(
+        facts(),
+        live_head_sha="b" * 40,
+        live_protected=True,
+        live_has_open_pull_request=True,
+    )
+    assert decision.eligible is False
+    assert decision.reasons == (
+        "head_moved_after_inventory",
+        "became_protected_after_inventory",
+        "open_pull_request_after_inventory",
     )
 
 

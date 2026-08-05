@@ -421,7 +421,7 @@ def calculate_sortino(
 
     down_stdev = np.std(trades.loc[trades["profit_abs"] < 0, "profit_abs"] / starting_balance)
 
-    return _calculate_annualized_ratio(expected_returns_mean, down_stdev)
+    return _calculate_annualized_ratio(expected_returns_mean, float(down_stdev))
 
 
 def calculate_sortino_from_balance(
@@ -445,7 +445,7 @@ def calculate_sortino_from_balance(
     expected_returns_mean = daily_returns.mean()
     downside_returns = daily_returns[daily_returns < 0]
     down_stdev = downside_returns.std(ddof=0)
-    return _calculate_annualized_ratio(expected_returns_mean, down_stdev)
+    return _calculate_annualized_ratio(expected_returns_mean, float(down_stdev))
 
 
 def calculate_sharpe(
@@ -468,7 +468,7 @@ def calculate_sharpe(
     expected_returns_mean = total_profit.sum() / days_period
     up_stdev = np.std(total_profit)
 
-    return _calculate_annualized_ratio(expected_returns_mean, up_stdev)
+    return _calculate_annualized_ratio(expected_returns_mean, float(up_stdev))
 
 
 def calculate_sharpe_from_balance(
@@ -491,7 +491,7 @@ def calculate_sharpe_from_balance(
 
     expected_returns_mean = daily_returns.mean()
     up_stdev = daily_returns.std(ddof=0)
-    return _calculate_annualized_ratio(expected_returns_mean, up_stdev)
+    return _calculate_annualized_ratio(expected_returns_mean, float(up_stdev))
 
 
 def calculate_max_drawdown_from_balance(

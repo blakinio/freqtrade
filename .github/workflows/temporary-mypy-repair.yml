@@ -1,0 +1,78 @@
+name: Temporary mypy repair
+
+on:
+  push:
+    branches:
+      - fix/core-mypy-2-1-compat
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-mypy-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: fix/core-mypy-2-1-compat
+          fetch-depth: 0
+
+      - name: Apply exact type repairs and remove this workflow
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              "freqtrade/data/metrics.py": [
+                  (
+                      "    return _calculate_annualized_ratio(expected_returns_mean, down_stdev)\n",
+                      "    return _calculate_annualized_ratio(expected_returns_mean, float(down_stdev))\n",
+                  ),
+                  (
+                      "    return _calculate_annualized_ratio(expected_returns_mean, up_stdev)\n",
+                      "    return _calculate_annualized_ratio(expected_returns_mean, float(up_stdev))\n",
+                  ),
+              ],
+              "freqtrade/persistence/trade_model.py": [
+                  ("                t.close_profit_abs  # type: ignore\n", "                t.close_profit_abs\n"),
+              ],
+              "freqtrade/plugins/pairlistmanager.py": [
+                  ("from functools import partial\n", "from functools import partial\nfrom typing import Callable, cast\n"),
+                  (
+                      "            tickers = self._get_cached_tickers()\n",
+                      "            cached_tickers = cast(Callable[[], Tickers], self._get_cached_tickers)\n            tickers = cached_tickers()\n",
+                  ),
+              ],
+              "freqtrade/freqai/freqai_interface.py": [
+                  (
+                      "        do_preds = np.zeros(len(dataframe_backtest), dtype=np.int_)\n",
+                      "        do_preds: NDArray[np.int_] = np.zeros(\n            len(dataframe_backtest), dtype=np.int_\n        )\n",
+                  ),
+              ],
+          }
+
+          for filename, changes in replacements.items():
+              path = Path(filename)
+              content = path.read_text(encoding="utf-8")
+              for old, new in changes:
+                  count = content.count(old)
+                  if count != 1:
+                      raise SystemExit(f"{filename}: expected one exact match, found {count}")
+                  content = content.replace(old, new)
+              path.write_text(content, encoding="utf-8")
+
+          Path(".github/workflows/temporary-mypy-repair.yml").unlink()
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(types): restore mypy 2.1 compatibility"
+          git push origin HEAD:fix/core-mypy-2-1-compat

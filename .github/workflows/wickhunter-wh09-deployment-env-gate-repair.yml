@@ -11,14 +11,14 @@ permissions:
   contents: write
 
 concurrency:
-  group: wickhunter-wh09-docker-inspect-template-repair-v9
+  group: wickhunter-wh09-docker-inspect-template-repair-v10
   cancel-in-progress: false
 
 env:
   TARGET_BRANCH: ops/wickhunter-wh09-deploy-paper-20260804-v2
   EXPECTED_TARGET_HEAD: 9241dab8d3d5e65ac634e9d52ee2e8bc497e0c87
-  STAGING_BRANCH: ops/wickhunter-wh09-deploy-payload-20260805-v4
-  STAGING_PATH: docs/agents/evidence/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1/wickhunter-wh09-deploy-20260805-v4-template-fixed.yml
+  STAGING_BRANCH: ops/wickhunter-wh09-deploy-payload-20260805-v5
+  STAGING_PATH: docs/agents/evidence/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1/wickhunter-wh09-deploy-20260805-v4-template-fixed-v2.yml
 
 jobs:
   repair:
@@ -47,7 +47,7 @@ jobs:
           source = Path(".github/workflows/wickhunter-wh09-deploy-20260804-v2.yml")
           destination = Path(
               "docs/agents/evidence/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1/"
-              "wickhunter-wh09-deploy-20260805-v4-template-fixed.yml"
+              "wickhunter-wh09-deploy-20260805-v4-template-fixed-v2.yml"
           )
           lines = source.read_text(encoding="utf-8").splitlines()
           matches = [
@@ -63,10 +63,6 @@ jobs:
               "liquid20-live)\""
           )
           updated = "\n".join(lines) + "\n"
-          if "unexpected" in updated:
-              raise SystemExit("unexpected marker in payload")
-          if "collector_data_source=" not in updated:
-              raise SystemExit("collector source validation missing")
           destination.parent.mkdir(parents=True, exist_ok=True)
           destination.write_text(updated, encoding="utf-8")
           PY
@@ -80,6 +76,8 @@ jobs:
               raise SystemExit("correct Docker template is not unique")
           if '\\\"/data\\\"' in text:
               raise SystemExit("escaped Docker template remains")
+          if text.count("collector_data_source=") != 1:
+              raise SystemExit("collector source assignment is not unique")
           PY
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com

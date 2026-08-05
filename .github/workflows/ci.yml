@@ -106,7 +106,7 @@ jobs:
       - name: Install bounded core dependencies
         run: |
           uv pip install -r requirements.txt
-          uv pip install pytest==9.1.1 pytest-asyncio==1.4.0 pytest-mock==3.15.1 pytest-timeout==2.4.0 time-machine==3.2.0 ruff==0.15.20 mypy==2.1.0
+          uv pip install pytest==9.1.1 pytest-asyncio==1.4.0 pytest-mock==3.15.1 pytest-timeout==2.4.0 pytest-xdist==3.8.0 time-machine==3.2.0 ruff==0.15.20 mypy==2.1.0
           uv pip install --no-deps -e ft_client/
           uv pip install --no-deps -e .
       - name: Compile and lint core
@@ -308,6 +308,7 @@ jobs:
     needs: classify
     if: needs.classify.outputs.online == 'true'
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -328,7 +329,9 @@ jobs:
       - name: Tests incl. ccxt compatibility tests
         env:
           CI_WEB_PROXY: http://152.67.66.8:13128
-        run: pytest --random-order --longrun --durations 20 -n auto
+        run: >-
+          pytest --random-order --longrun --durations 20 -n auto
+          --timeout=300
 
   build:
     name: "Build distributions"

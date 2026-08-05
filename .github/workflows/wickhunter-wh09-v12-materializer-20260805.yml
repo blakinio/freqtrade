@@ -1,0 +1,143 @@
+name: WickHunter WH09 v12 deployment materializer
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-v12-materializer-20260805.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-wh09-v12-materializer
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: .github/workflows/wickhunter-wh09-v12-materializer-20260805.yml
+  EXPECTED_BASE_SHA: 108eff8149f3c5dba77bfcdeaea0c63c8a22b551
+  SOURCE_REQUEST_SHA: 53b5216001fbc2fa453dc82e41035f9a4137b7ae
+  SOURCE_WORKFLOW_PATH: .github/workflows/wickhunter-wh09-deploy-20260805-v11.yml
+  PRODUCT_BRANCH: ops/wickhunter-wh09-deploy-paper-20260805-v12
+  PRODUCT_WORKFLOW_PATH: .github/workflows/wickhunter-wh09-deploy-20260805-v12.yml
+
+jobs:
+  materialize:
+    name: Materialize exact v12 request branch
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact materializer request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v11.0.0
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate bounded request
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$EXPECTED_BASE_SHA" ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          [[ "$(git rev-parse HEAD)" == "$HEAD_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-wh09-v12-materializer-20260805.yml'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected exact request:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+
+      - name: Publish exact v12 deployment branch
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch --no-tags origin "$EXPECTED_BASE_SHA" "$SOURCE_REQUEST_SHA"
+          git cat-file -e "$SOURCE_REQUEST_SHA:$SOURCE_WORKFLOW_PATH"
+          if git ls-remote --exit-code --heads origin "$PRODUCT_BRANCH" >/dev/null 2>&1; then
+            echo "product branch already exists: $PRODUCT_BRANCH" >&2
+            exit 1
+          fi
+          git switch --detach "$EXPECTED_BASE_SHA"
+          git switch -c "$PRODUCT_BRANCH"
+          mkdir -p "$(dirname "$PRODUCT_WORKFLOW_PATH")"
+          git show "$SOURCE_REQUEST_SHA:$SOURCE_WORKFLOW_PATH" > "$PRODUCT_WORKFLOW_PATH"
+          python3 - "$PRODUCT_WORKFLOW_PATH" <<'PY'
+          from pathlib import Path
+          import sys
+
+          path = Path(sys.argv[1])
+          text = path.read_text(encoding="utf-8")
+          replacements = {
+              "WickHunter WH09 fresh PAPER deployment v11": "WickHunter WH09 fresh PAPER deployment v12",
+              ".github/workflows/wickhunter-wh09-deploy-20260805-v11.yml": ".github/workflows/wickhunter-wh09-deploy-20260805-v12.yml",
+              "wickhunter-wh09-deploy-v11": "wickhunter-wh09-deploy-v12",
+              "cbf9f57ea8d5783f85d19fe0f8557dfe3178705a": "108eff8149f3c5dba77bfcdeaea0c63c8a22b551",
+              "wickhunter-wh09-activation-20260805-v11-cbf9f57e": "wickhunter-wh09-activation-20260805-v12-108eff81",
+              "wickhunter-paper-v11": "wickhunter-paper-v12",
+              "wickhunter-paper-runtime-v11": "wickhunter-paper-runtime-v12",
+              "wickhunter-wh09-egress-v11": "wickhunter-wh09-egress-v12",
+              "wickhunter-wh09-internal-v11": "wickhunter-wh09-internal-v12",
+              "/wickhunter-paper-runtime/v11": "/wickhunter-paper-runtime/v12",
+          }
+          for old, new in replacements.items():
+              count = text.count(old)
+              if count < 1:
+                  raise SystemExit(f"missing required source token: {old}")
+              text = text.replace(old, new)
+          forbidden = (
+              "wickhunter-wh09-activation-20260805-v11-cbf9f57e",
+              "wickhunter-paper-v11",
+              "wickhunter-paper-runtime-v11",
+              "wickhunter-wh09-egress-v11",
+              "wickhunter-wh09-internal-v11",
+              "/wickhunter-paper-runtime/v11",
+              "cbf9f57ea8d5783f85d19fe0f8557dfe3178705a",
+          )
+          present = [token for token in forbidden if token in text]
+          if present:
+              raise SystemExit(f"stale v11 identity remains: {present}")
+          required = (
+              "EXPECTED_BASE_SHA: 108eff8149f3c5dba77bfcdeaea0c63c8a22b551",
+              "IMPLEMENTATION_SHA: 108eff8149f3c5dba77bfcdeaea0c63c8a22b551",
+              "ACTIVATION_NAME: wickhunter-wh09-activation-20260805-v12-108eff81",
+              "BOT_INSTANCE: wickhunter-paper-v12",
+              "OPERATOR_CONTAINER: wickhunter-paper-runtime-v12",
+              "GATEWAY_CONTAINER: wickhunter-wh09-egress-v12",
+              "INTERNAL_NETWORK: wickhunter-wh09-internal-v12",
+          )
+          missing = [token for token in required if token not in text]
+          if missing:
+              raise SystemExit(f"v12 materialization incomplete: {missing}")
+          path.write_text(text, encoding="utf-8")
+          PY
+          git add "$PRODUCT_WORKFLOW_PATH"
+          [[ "$(git diff --cached --name-only)" == "$PRODUCT_WORKFLOW_PATH" ]]
+          git commit -m "ops(wickhunter): deploy fresh WH09 PAPER runtime v12"
+          product_sha="$(git rev-parse HEAD)"
+          git push origin "HEAD:refs/heads/$PRODUCT_BRANCH"
+          echo "product_sha=$product_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Publish summary
+        shell: bash
+        env:
+          PRODUCT_SHA: ${{ steps.publish.outputs.product_sha }}
+        run: |
+          {
+            echo "## WickHunter WH09 v12 request materialized"
+            echo
+            echo "- Base and implementation: \`$EXPECTED_BASE_SHA\`"
+            echo "- Product branch: \`$PRODUCT_BRANCH\`"
+            echo "- Product SHA: \`$PRODUCT_SHA\`"
+            echo "- Product workflow: \`$PRODUCT_WORKFLOW_PATH\`"
+            echo "- Source request: \`$SOURCE_REQUEST_SHA\`"
+          } >> "$GITHUB_STEP_SUMMARY"

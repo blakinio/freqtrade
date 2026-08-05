@@ -6,7 +6,7 @@ base_branch: develop
 base_sha: e9c04506f8dce9df26ae63006229e0d48f1f4209
 created: 2026-08-05
 updated: 2026-08-05
-related_pr: pending
+related_pr: "1243"
 programme_lane: freqtrade-assurance
 task_kind: documentation
 execution_mode: github
@@ -59,16 +59,16 @@ Persist three reusable, short-command-resolvable agent roles for platform audit,
 ```yaml
 checkpoint_version: 1
 policy_version: 2
-updated_at: 2026-08-05T13:35:00Z
-head: UNKNOWN
+updated_at: 2026-08-05T13:48:00Z
+head: d1e8d15f7896c101686960fea3edf0fcf2163627
 branch: docs/platform-continuous-assurance-agents-20260805
-pr: none
+pr: 1243
 status: validating
-phase: implement
+phase: validate
 session_id: agent-20260805-platform-assurance-bootstrap
 session_role: implementer
 execution_mode: github
-lease_expires_at: 2026-08-05T14:20:00Z
+lease_expires_at: 2026-08-05T14:33:00Z
 context_pressure: medium
 context_growth: stable
 decomposition_decision: single
@@ -86,11 +86,12 @@ proven:
   - repository already provides programme, type, priority, risk and queue-state labels required by the protocol
   - repository execution policy defines 45-minute leases and 30-minute checkpoint cadence
   - assignee identity alone cannot distinguish several agent sessions using the same GitHub account
+  - PR 1243 changes exactly the five declared documentation and governance paths
 derived:
   - the authoritative repair lock must use unique claim_id and session_id values plus task, branch and PR state
   - optional area labels improve navigation but machine-readable Issue metadata must remain authoritative
 unknown:
-  - candidate commit and pull request identifiers before publication
+  - final required CI result for the exact PR head
 conflicts:
   - none
 first_failure:
@@ -106,17 +107,17 @@ changed_paths:
   - docs/agents/tasks/active/FTAI-20260805-platform-continuous-assurance-bootstrap.md
 validation:
   - command: parse docs/agents/PROJECT_LANES.json as JSON
-    result: NOT_RUN
-    evidence: candidate tree not yet published
-  - command: fresh documentation and governance audit
-    result: NOT_RUN
-    evidence: candidate tree not yet published
+    result: PASS
+    evidence: schema version 2 parsed with six lanes and freqtrade-assurance as the new first matching lane
+  - command: fresh documentation and governance audit of PR 1243
+    result: PASS
+    evidence: exactly three role prompts; short commands resolve through live state; claims handle same-account races; missing-module and safety boundaries are explicit; no material finding open
   - command: required exact-head CI
     result: NOT_RUN
-    evidence: candidate tree not yet published
+    evidence: pending on the published PR head
 blockers:
   - none
-next_action: publish the candidate tree, open the pull request and validate the exact head
+next_action: verify required CI on the exact current PR head and merge only after every closeout gate passes
 ```
 
 ## Safety

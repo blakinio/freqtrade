@@ -1,0 +1,344 @@
+name: WickHunter WH09 fresh PAPER deployment v12
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-deploy-20260805-v12.yml"
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: wickhunter-wh09-deploy-v12
+  cancel-in-progress: false
+
+jobs:
+  runner_probe:
+    name: Prove trusted deployment runner eligibility
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 5
+    steps:
+      - name: Confirm trusted runner
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" ]]
+          docker version >/dev/null
+          test -S /var/run/docker.sock
+
+  deploy:
+    needs: runner_probe
+    name: Deploy and restart-verify hardened WH09 PAPER runtime
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 75
+    steps:
+      - name: Check out exact deployment request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v11.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Download reviewed v12 deployment source
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: wickhunter-wh09-v12-deployment-workflow
+          path: ${{ runner.temp }}/wickhunter-wh09-v12-source
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 31023241736
+
+      - name: Verify source and prepare exact deployment scripts
+        shell: bash
+        env:
+          SOURCE_WORKFLOW: ${{ runner.temp }}/wickhunter-wh09-v12-source/wickhunter-wh09-deploy-20260805-v12.yml
+        run: |
+          set -euo pipefail
+          [[ "$(sha256sum "$SOURCE_WORKFLOW" | awk '{print $1}')" == "25019d75000c76ac1f97f8fb40565654852bf456d39218634f74f077b051f40b" ]]
+          export SOURCE_WORKFLOW
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+
+          source = Path(os.environ["SOURCE_WORKFLOW"])
+          lines = source.read_text(encoding="utf-8").splitlines()
+          env_start = lines.index("env:") + 1
+          jobs_start = lines.index("jobs:")
+          values: dict[str, str] = {}
+          for line in lines[env_start:jobs_start]:
+              if not line.strip():
+                  continue
+              if not line.startswith("  ") or line.startswith("    "):
+                  raise SystemExit(f"unexpected source env line: {line!r}")
+              key, raw = line.strip().split(":", 1)
+              value = raw.strip()
+              if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                  value = value[1:-1]
+              if "\n" in value or "\r" in value:
+                  raise SystemExit("multiline environment value rejected")
+              values[key] = value
+          required_values = {
+              "WORKFLOW_PATH": ".github/workflows/wickhunter-wh09-deploy-20260805-v12.yml",
+              "EXPECTED_BASE_SHA": "108eff8149f3c5dba77bfcdeaea0c63c8a22b551",
+              "IMPLEMENTATION_SHA": "108eff8149f3c5dba77bfcdeaea0c63c8a22b551",
+              "ACTIVATION_NAME": "wickhunter-wh09-activation-20260805-v12-108eff81",
+              "BOT_INSTANCE": "wickhunter-paper-v12",
+              "OPERATOR_CONTAINER": "wickhunter-paper-runtime-v12",
+              "GATEWAY_CONTAINER": "wickhunter-wh09-egress-v12",
+              "INTERNAL_NETWORK": "wickhunter-wh09-internal-v12",
+          }
+          for key, expected in required_values.items():
+              if values.get(key) != expected:
+                  raise SystemExit(f"source identity mismatch: {key}")
+          with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as handle:
+              for key in sorted(values):
+                  handle.write(f"{key}={values[key]}\n")
+
+          destination = Path(os.environ["RUNNER_TEMP"]) / "wickhunter-wh09-v12-scripts"
+          destination.mkdir(mode=0o700, parents=True, exist_ok=False)
+          names = (
+              "Validate exact request and closed authority",
+              "Build exact operator and constrained gateway images",
+              "Deploy fresh activation and persistent runtime",
+          )
+          for index, name in enumerate(names, start=1):
+              marker = f"      - name: {name}"
+              try:
+                  start = lines.index(marker)
+              except ValueError as exc:
+                  raise SystemExit(f"missing reviewed step: {name}") from exc
+              run_index = next(
+                  i for i in range(start + 1, len(lines)) if lines[i] == "        run: |"
+              )
+              body: list[str] = []
+              for line in lines[run_index + 1 :]:
+                  if line.startswith("      - name:"):
+                      break
+                  if line and not line.startswith("          "):
+                      raise SystemExit(f"unexpected indentation in reviewed step {name}")
+                  body.append(line[10:] if line else "")
+              if not body or body[0] != "set -euo pipefail":
+                  raise SystemExit(f"reviewed step shape changed: {name}")
+              path = destination / f"{index:02d}.sh"
+              path.write_text("\n".join(body) + "\n", encoding="utf-8")
+              path.chmod(0o500)
+          PY
+
+      - name: Validate exact request and closed authority
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: bash "$RUNNER_TEMP/wickhunter-wh09-v12-scripts/01.sh"
+
+      - name: Build exact operator and constrained gateway images
+        shell: bash
+        run: bash "$RUNNER_TEMP/wickhunter-wh09-v12-scripts/02.sh"
+
+      - name: Deploy fresh activation and persistent runtime
+        id: deploy_runtime
+        shell: bash
+        run: bash "$RUNNER_TEMP/wickhunter-wh09-v12-scripts/03.sh"
+
+      - name: Prove restart continuity and revalidate egress
+        id: restart
+        shell: bash
+        run: |
+          set -euo pipefail
+          state_runner="$RUNNER_STATE_ROOT/wickhunter-paper-runtime/v12"
+          operator_state_runner="$state_runner/operator/$ACTIVATION_NAME"
+          health_path="$operator_state_runner/health.json"
+          report_path="$RUNNER_TEMP/wickhunter-wh09-deployment-terminal.json"
+          pre_restart="$RUNNER_TEMP/wickhunter-wh09-health-pre-restart.json"
+          post_restart="$RUNNER_TEMP/wickhunter-wh09-health-post-restart.json"
+          [[ -f "$health_path" && ! -L "$health_path" && -f "$report_path" ]]
+          cp "$health_path" "$pre_restart"
+          before_generation="$(python3 - "$pre_restart" "$IMPLEMENTATION_SHA" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          claimed = payload.pop("health_sha256", None)
+          canonical = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+          if claimed != hashlib.sha256(canonical.encode("utf-8")).hexdigest():
+              raise SystemExit("pre-restart health self-hash mismatch")
+          if payload.get("status") != "healthy" or payload.get("operator_commit") != sys.argv[2]:
+              raise SystemExit("pre-restart health identity mismatch")
+          if any((
+              payload.get("trading_credentials_present") is not False,
+              payload.get("order_adapter_present") is not False,
+              payload.get("execution_enabled") is not False,
+              payload.get("orders_submitted") != 0,
+              payload.get("live_capital_authorized") is not False,
+          )):
+              raise SystemExit("pre-restart authority is not closed")
+          print(payload["generation"])
+          PY
+          )"
+          before_mtime="$(stat -c '%Y' "$health_path")"
+          before_started_at="$(docker inspect --format '{{.State.StartedAt}}' "$OPERATOR_CONTAINER")"
+          sleep 2
+          docker restart --time 30 "$OPERATOR_CONTAINER" >/dev/null
+
+          after_generation=""
+          after_started_at=""
+          after_mtime=""
+          for _ in $(seq 1 60); do
+            state="$(docker inspect --format '{{.State.Status}}' "$OPERATOR_CONTAINER" 2>/dev/null || true)"
+            if [[ "$state" == "exited" || "$state" == "dead" ]]; then
+              docker logs --tail 200 "$OPERATOR_CONTAINER" >&2 2>&1 || true
+              echo "operator exited during restart verification" >&2
+              exit 1
+            fi
+            current_started_at="$(docker inspect --format '{{.State.StartedAt}}' "$OPERATOR_CONTAINER" 2>/dev/null || true)"
+            current_mtime="$(stat -c '%Y' "$health_path" 2>/dev/null || echo 0)"
+            if [[ "$current_started_at" != "$before_started_at" && "$current_mtime" -gt "$before_mtime" ]]; then
+              if current_generation="$(python3 - "$health_path" "$IMPLEMENTATION_SHA" "$before_generation" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          claimed = payload.pop("health_sha256", None)
+          canonical = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+          if claimed != hashlib.sha256(canonical.encode("utf-8")).hexdigest():
+              raise SystemExit(1)
+          generation = payload.get("generation")
+          if (
+              payload.get("status") != "healthy"
+              or payload.get("operator_commit") != sys.argv[2]
+              or not isinstance(generation, int)
+              or generation < int(sys.argv[3])
+              or payload.get("trading_credentials_present") is not False
+              or payload.get("order_adapter_present") is not False
+              or payload.get("execution_enabled") is not False
+              or payload.get("orders_submitted") != 0
+              or payload.get("live_capital_authorized") is not False
+          ):
+              raise SystemExit(1)
+          print(generation)
+          PY
+              )"; then
+                after_generation="$current_generation"
+                after_started_at="$current_started_at"
+                after_mtime="$current_mtime"
+                break
+              fi
+            fi
+            sleep 10
+          done
+          [[ -n "$after_generation" ]]
+          cp "$health_path" "$post_restart"
+
+          docker exec --interactive "$OPERATOR_CONTAINER" python - <<'PY'
+          import socket
+          import ssl
+
+          try:
+              socket.getaddrinfo("example.com", 443)
+          except socket.gaierror:
+              pass
+          else:
+              raise SystemExit("post-restart operator resolved a non-allowlisted hostname")
+          try:
+              socket.create_connection(("1.1.1.1", 443), timeout=2)
+          except OSError:
+              pass
+          else:
+              raise SystemExit("post-restart operator reached a direct external address")
+          context = ssl.create_default_context()
+          with socket.create_connection(("fapi.binance.com", 443), timeout=15) as raw:
+              with context.wrap_socket(raw, server_hostname="fapi.binance.com") as secure:
+                  if secure.version() is None:
+                      raise SystemExit("post-restart allowlisted TLS path failed")
+          PY
+
+          docker inspect "$OPERATOR_CONTAINER" "$GATEWAY_CONTAINER" > "$RUNNER_TEMP/wickhunter-wh09-container-inspect-post-restart.json"
+          export BEFORE_GENERATION="$before_generation" AFTER_GENERATION="$after_generation"
+          export BEFORE_STARTED_AT="$before_started_at" AFTER_STARTED_AT="$after_started_at"
+          export BEFORE_MTIME="$before_mtime" AFTER_MTIME="$after_mtime"
+          python3 - "$report_path" "$post_restart" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          report_path = Path(sys.argv[1])
+          report = json.loads(report_path.read_text(encoding="utf-8"))
+          health = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          report["health"] = health
+          report["restart_verification"] = {
+              "verified": True,
+              "generation_before": int(os.environ["BEFORE_GENERATION"]),
+              "generation_after": int(os.environ["AFTER_GENERATION"]),
+              "started_at_before": os.environ["BEFORE_STARTED_AT"],
+              "started_at_after": os.environ["AFTER_STARTED_AT"],
+              "health_mtime_before": int(os.environ["BEFORE_MTIME"]),
+              "health_mtime_after": int(os.environ["AFTER_MTIME"]),
+              "post_restart_egress_revalidated": True,
+          }
+          report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
+          run_id="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["activation"]["run_id"])' "$report_path")"
+          window_end_ms="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["activation"]["window_end_ms"])' "$report_path")"
+          {
+            echo "run_id=$run_id"
+            echo "window_end_ms=$window_end_ms"
+            echo "generation_before=$before_generation"
+            echo "generation_after=$after_generation"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish deployment summary
+        shell: bash
+        env:
+          RUN_ID_VALUE: ${{ steps.restart.outputs.run_id }}
+          WINDOW_END_VALUE: ${{ steps.restart.outputs.window_end_ms }}
+          GENERATION_BEFORE_VALUE: ${{ steps.restart.outputs.generation_before }}
+          GENERATION_AFTER_VALUE: ${{ steps.restart.outputs.generation_after }}
+        run: |
+          {
+            echo "## WickHunter WH09 fresh PAPER deployment v12"
+            echo
+            echo "- Implementation: \`108eff8149f3c5dba77bfcdeaea0c63c8a22b551\`"
+            echo "- Run: \`$RUN_ID_VALUE\`"
+            echo "- Generation before restart: \`$GENERATION_BEFORE_VALUE\`"
+            echo "- Generation after restart: \`$GENERATION_AFTER_VALUE\`"
+            echo "- Window end ms: \`$WINDOW_END_VALUE\`"
+            echo "- Status: \`deployed_waiting_prospective_acceptance\`"
+            echo "- Credentials/order adapter/execution/orders/live capital: \`absent\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload bounded deployment evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v11.0.1
+        with:
+          name: wickhunter-wh09-deployment-${{ github.event.pull_request.number }}
+          path: |
+            ${{ runner.temp }}/wickhunter-wh09-deployment-terminal.json
+            ${{ runner.temp }}/wickhunter-wh09-activation.json
+            ${{ runner.temp }}/wickhunter-wh09-health-pre-restart.json
+            ${{ runner.temp }}/wickhunter-wh09-health-post-restart.json
+            ${{ runner.temp }}/wickhunter-wh09-container-inspect.json
+            ${{ runner.temp }}/wickhunter-wh09-container-inspect-post-restart.json
+          if-no-files-found: error
+          retention-days: 30

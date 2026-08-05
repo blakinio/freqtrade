@@ -105,7 +105,7 @@ jobs:
         run: >-
           python -m pip install --disable-pip-version-check
           -r deploy/synology/portal-oidc/requirements.txt
-          pytest==8.4.1
+          pytest==8.4.1 jsonschema
 
       - name: Run SQLite schema authority tests
         env:
@@ -151,7 +151,7 @@ jobs:
         run: >-
           python -m pip install --disable-pip-version-check
           -r deploy/synology/portal-oidc/requirements.txt
-          pytest==8.4.1
+          pytest==8.4.1 jsonschema
 
       - name: Prove PostgreSQL migration, replay and recovery boundaries
         env:

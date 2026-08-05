@@ -6,14 +6,15 @@ repository: blakinio/freqtrade
 base_branch: develop
 branch: chore/FTAI-GOV-001-repository-policy-20260805
 issue: 1264
+pull_request: 1270
 project_lane: freqtrade-assurance
 phase: validate
 session_id: chat-20260805-1742
-session_role: implementer
+session_role: validator
 execution_mode: chat
-execution_reason: GitHub-only bounded repository policy and focused Python changes
+execution_reason: GitHub-only exact-diff audit and required CI validation
 policy_version: 2
-task_kind: implementation
+task_kind: validation
 context_pressure: medium
 context_growth: stable
 context_score: 8
@@ -60,14 +61,14 @@ safety:
   - no branch protection or required check is weakened
   - no deployment, credential, trading, withdrawal or live-capital operation
 invocation_started_at: 2026-08-05T17:37:00+02:00
-last_progress_at: 2026-08-05T17:58:00+02:00
+last_progress_at: 2026-08-05T18:12:00+02:00
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
 repair_cycles_for_current_gate: 0
 context_reconstruction_attempts: 0
 stall_warnings: 0
-next_action: open the pull request and verify focused and exact-head required CI
+next_action: verify exact-head focused validation and required CI for PR #1270
 ---
 
 # FTAI-GOV-001 durable task record
@@ -78,9 +79,18 @@ The live repository has one collaborator, `blakinio`. Therefore one required app
 
 Runtime E2E is not applicable because the task changes repository governance and deterministic CI policy rather than application behavior. Focused tests, the exact final diff, the required `CI Gate`, review-thread state and terminal PR lifecycle are the applicable outcome evidence.
 
+## Fresh audit
+
+A fresh exact-diff audit found and repaired two material branch-pruning hazards before final validation:
+
+- squash-merged evidence is accepted only when the exact branch head was merged directly into `develop`;
+- apply mode re-reads the live head, protection flag and open-PR state immediately before deletion and fails closed when state changed after inventory.
+
+No unresolved material audit finding remains in the owned diff.
+
 ## Focused validation
 
 - Pre-persistence Python compile validation: PASS.
 - Pre-persistence focused policy tests: 28 passed.
-- Exact branch-head focused validation and repository CI: pending through the pull request.
+- Exact branch-head focused validation and repository CI: pending through PR #1270.
 - No branch deletion, workflow creation or native GitHub settings mutation was executed.

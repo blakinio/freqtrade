@@ -98,6 +98,7 @@ jobs:
               if required not in text:
                   raise SystemExit(f"missing closed-authority evidence: {required}")
           PY
+          git add -N "$OUTPUT_PATH"
           expected="$OUTPUT_PATH"
           actual="$(git diff --name-only origin/develop | sort)"
           [[ "$actual" == "$expected" ]]

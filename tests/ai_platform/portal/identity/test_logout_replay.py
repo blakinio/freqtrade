@@ -111,7 +111,7 @@ def _seed_active_session(service: IdentityService, now: datetime) -> None:
         tenant_id="tenant-a",
         roles=(RoleName.ADMIN,),
     )
-    with service._session_factory() as session:  # noqa: SLF001
+    with service._session_factory() as session:
         IdentityRepository(session).create_session(
             session_id_hash="session-hash",
             csrf_token_hash="csrf-hash",
@@ -129,7 +129,7 @@ def _seed_active_session(service: IdentityService, now: datetime) -> None:
 
 
 def _counts(service: IdentityService) -> tuple[int, int, int]:
-    with service._session_factory() as session:  # noqa: SLF001
+    with service._session_factory() as session:
         return (
             int(session.scalar(select(func.count()).select_from(OidcLogoutReplayRow)) or 0),
             int(session.scalar(select(func.count()).select_from(SessionRevocationRow)) or 0),
@@ -205,7 +205,7 @@ def test_logout_http_contract_is_non_enumerating(tmp_path: Path) -> None:
     oidc = ReplayOidcClient()
     service, engine = _service(tmp_path / "http.db", oidc, clock)
     client = TestClient(
-        create_identity_enabled_app(service._session_factory, service),  # noqa: SLF001
+        create_identity_enabled_app(service._session_factory, service),
         base_url="https://testserver",
     )
     try:

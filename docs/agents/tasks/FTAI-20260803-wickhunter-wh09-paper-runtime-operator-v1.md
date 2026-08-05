@@ -14,9 +14,9 @@ status: validating
 execution_mode: github
 validation_level: full
 base_branch: develop
-base_sha: 47b917812b96c0f03a18ff7d9d50cddeb8700a72
-branch: fix/wickhunter-wh09-snapshot-read-clock-20260805-v1
-product_pr: 1220
+base_sha: 4fde185ada8cadb97abf4e831a72204a09b63ecc
+branch: fix/wickhunter-wh09-retry-clock-20260805-v1
+product_pr: 1227
 helper_pr: 1147
 cleanup_pr: 1182
 cleanup_merge_sha: db0daa1e0edf145b71f166a6fea8cff9acc4c820
@@ -27,7 +27,7 @@ final_executor_sha: 93137630cfdf6b6198a68f69ea47b2753652a08b
 owner: sole WH-09 persistent PAPER runtime operator producer
 task_kind: implementation
 completion_claim: partial_producer
-next_action: validate the bounded snapshot read-clock repair on exact head, merge PR 1220, then deploy a fresh v6 PAPER activation
+next_action: validate the retry-stable snapshot clock on exact head, merge PR 1227, then deploy a fresh v8 PAPER activation with the collision-safe network contract
 ```
 
 ## Goal and completion boundary
@@ -274,3 +274,9 @@ regression continues to fail closed.
 Trusted Synology deployment run `30990749793` proved a second active-suffix timing boundary. The complete Liquid20 multi-run scan took about 66 seconds, and a valid file-ahead row was appended after snapshot start but before the reader consumed it. Comparing that row with the caller's snapshot-start `now_ms` therefore failed before activation even though the row was genuinely available at read time and remained excluded from decisions.
 
 PR #1220 derives the discarded active-suffix availability boundary from the immutable snapshot-start wall time plus monotonic elapsed read time. Committed rows remain bound to the atomically published collector heartbeat, completed runs retain exact count equality, every suffix row remains schema/value/source validated and excluded until committed, and a receipt still later than its bounded read point fails closed. Deterministic regressions cover both sides of that boundary. Failed v5 state identities are retired; the next deployment must use fresh v6 identities.
+
+## Retry-stable snapshot clock repair
+
+Trusted Synology deployment run `30996827219` validated the explicit-subnet network repair and then proved that the active-suffix availability clock still reset across transient snapshot retries. The outer loader retained the original caller `now_ms`, while every call to `_load_liquid20_live_root_once()` established a new monotonic origin. Time spent in earlier reads and retry sleeps was therefore discarded, allowing the suffix boundary to move backwards on a later attempt.
+
+PR #1227 establishes one monotonic origin for the complete bounded acquisition sequence and passes the resulting availability callback through every retry. Committed rows remain bound to the atomically published heartbeat, active file-ahead suffix rows remain fully validated and excluded until state commits them, completed runs retain exact equality, and fixed caller-time pointer freshness semantics remain unchanged. A deterministic regression forces a publication retry and proves that elapsed time from the first attempt is retained.

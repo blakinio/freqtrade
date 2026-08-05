@@ -628,19 +628,12 @@ def _load_liquid20_live_root_once(  # noqa: C901
     *,
     now_ms: int,
     maximum_age_ms: int,
+    suffix_available_at_ms: Callable[[], int],
 ) -> Liquid20Snapshot:
     if not root.is_absolute() or root.is_symlink() or not root.is_dir():
         raise CandidatePaperRuntimeOperatorError(
             "Liquid20 live root must be an absolute regular directory"
         )
-    snapshot_started_ns = time.monotonic_ns()
-
-    def suffix_available_at_ms() -> int:
-        elapsed_ns = time.monotonic_ns() - snapshot_started_ns
-        if elapsed_ns < 0:
-            raise CandidatePaperRuntimeOperatorError("Liquid20 snapshot clock moved backwards")
-        return now_ms + elapsed_ns // 1_000_000
-
     pointer = _read_bounded_json(root / LIVE_POINTER_NAME, field="Liquid20 live pointer")
     if pointer.get("schema_version") != 1:
         raise CandidatePaperRuntimeOperatorError("Liquid20 live pointer schema mismatch")
@@ -815,6 +808,14 @@ def _load_liquid20_live_root(
     now_ms: int,
     maximum_age_ms: int,
 ) -> Liquid20Snapshot:
+    snapshot_started_ns = time.monotonic_ns()
+
+    def suffix_available_at_ms() -> int:
+        elapsed_ns = time.monotonic_ns() - snapshot_started_ns
+        if elapsed_ns < 0:
+            raise CandidatePaperRuntimeOperatorError("Liquid20 snapshot clock moved backwards")
+        return now_ms + elapsed_ns // 1_000_000
+
     last_error: _TransientLiquid20SnapshotError | None = None
     for attempt in range(LIVE_SNAPSHOT_READ_ATTEMPTS):
         try:
@@ -822,6 +823,7 @@ def _load_liquid20_live_root(
                 root,
                 now_ms=now_ms,
                 maximum_age_ms=maximum_age_ms,
+                suffix_available_at_ms=suffix_available_at_ms,
             )
         except _TransientLiquid20SnapshotError as exc:
             last_error = exc

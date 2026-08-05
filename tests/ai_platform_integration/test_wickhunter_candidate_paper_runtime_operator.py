@@ -384,6 +384,44 @@ def test_live_root_retries_mid_publication_pointer_state_mismatch(
     assert snapshot.observed_at_ms == NOW_MS + 100
 
 
+def test_live_root_retry_preserves_suffix_availability_clock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _write_live_root(tmp_path / "retry-suffix-clock")
+    pointer_path = root / "live-state-v1.json"
+    pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    run_id = str(state["run_id"])
+    suffix = _event("event-after-first-attempt", received_at_ms=NOW_MS + 1_500)
+    with (root / "runs" / run_id / "binance-usdm.ndjson").open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(suffix, sort_keys=True) + "\n")
+
+    run_state_path = root / "runs" / run_id / "run-state-v1.json"
+    newer_state = json.loads(run_state_path.read_text(encoding="utf-8"))
+    newer_state["collector_heartbeat_at_ms"] = NOW_MS + 100
+    run_state_path.write_text(
+        json.dumps(newer_state, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    def publish_pointer(_seconds: float) -> None:
+        pointer["collector_heartbeat_at_ms"] = NOW_MS + 100
+        pointer["state"] = newer_state
+        pointer_path.write_text(
+            json.dumps(pointer, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+    monotonic_values = iter((10_000_000_000, 12_000_000_000))
+    monkeypatch.setattr(operator_module.time, "monotonic_ns", lambda: next(monotonic_values))
+    monkeypatch.setattr(operator_module.time, "sleep", publish_pointer)
+
+    snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS + 100)
+
+    assert "event-after-first-attempt" not in {event.source_event_id for event in snapshot.events}
+
+
 def test_live_root_persistent_mid_publication_mismatch_fails_closed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

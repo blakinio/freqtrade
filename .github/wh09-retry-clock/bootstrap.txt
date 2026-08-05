@@ -1,1 +1,0 @@
-Temporary branch bootstrap. The exact repair executor removes this path before product validation.

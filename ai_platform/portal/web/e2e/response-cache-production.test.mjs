@@ -12,16 +12,20 @@ let output = "";
 
 before(async () => {
   assert.equal(existsSync(".next/BUILD_ID"), true, "production build is required before this test");
-  server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "--hostname", host, "--port", String(port)], {
-    env: {
-      ...process.env,
-      PORTAL_WEB_DATA_MODE: "fixture",
-      PORTAL_ENVIRONMENT: "test",
-      PORTAL_IDENTITY_FIXTURE_MODE: "enabled",
-      PORTAL_IDENTITY_TRANSPORT_MODE: "https",
+  server = spawn(
+    process.execPath,
+    ["node_modules/next/dist/bin/next", "start", "--hostname", host, "--port", String(port)],
+    {
+      env: {
+        ...process.env,
+        PORTAL_WEB_DATA_MODE: "fixture",
+        PORTAL_ENVIRONMENT: "test",
+        PORTAL_IDENTITY_FIXTURE_MODE: "enabled",
+        PORTAL_IDENTITY_TRANSPORT_MODE: "https",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
     },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  );
   server.stdout.on("data", (chunk) => {
     output += chunk.toString();
   });
@@ -77,8 +81,9 @@ test("production immutable Next assets retain framework cache policy", async () 
   const asset = await fetch(new URL(source, baseURL));
   assert.equal(asset.status, 200);
   const directives = cacheDirectives(asset.headers);
-  assert.equal(directives.has("private"), false);
-  assert.equal(directives.has("no-store"), false);
+  assert.equal(directives.includes("public"), true);
+  assert.equal(directives.includes("immutable"), true);
+  assert.equal(directives.some((directive) => directive.startsWith("max-age=")), true);
 });
 
 async function waitForServer() {
@@ -99,16 +104,12 @@ async function waitForServer() {
 }
 
 function assertPrivateNoStore(headers) {
-  const directives = cacheDirectives(headers);
-  assert.equal(directives.has("private"), true, "Cache-Control must include private");
-  assert.equal(directives.has("no-store"), true, "Cache-Control must include no-store");
+  assert.deepEqual(cacheDirectives(headers), ["private", "no-store"]);
 }
 
 function cacheDirectives(headers) {
-  return new Set(
-    (headers.get("cache-control") ?? "")
-      .split(",")
-      .map((directive) => directive.trim().toLowerCase())
-      .filter(Boolean),
-  );
+  return (headers.get("cache-control") ?? "")
+    .split(",")
+    .map((directive) => directive.trim().toLowerCase())
+    .filter(Boolean);
 }

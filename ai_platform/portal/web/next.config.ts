@@ -4,7 +4,7 @@ import { privateNoStoreResponseHeaders } from "./lib/response-cache-policy";
 import { invariantSecurityHeaders } from "./lib/security-headers";
 
 const dynamicResponseSource =
-  "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)";
+  "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)";
 
 const nextConfig: NextConfig = {
   output: "standalone",

@@ -11,7 +11,7 @@ status: active
 priority: high
 prompting_standard_version: 2.1
 execution_policy_version: 2
-context_pressure: low
+context_pressure: medium
 decomposition_decision: bounded_waves
 execution_mode: github_only
 run_scope: autonomous_program
@@ -19,11 +19,13 @@ continuation_policy: continue_until_real_stop
 task_completion_policy: checkpoint_and_continue
 user_communication: terminal_only
 base_branch: develop
-base_head: 5dadfe32c7cc2ba7af95652b06c4e0624d2f11b4
-branch: audit/platform-continuous-assurance-wave-003-20260805
-current_wave: wave-003-required-ci-bounds-and-terminal-delivery
-current_findings: [1250, 1254, 1257]
-current_prs: [1215, 1258, 1259]
+base_head: 35ee3e5672c1773a10f80f09e2d7c2b23bc21d95
+branch: audit/platform-continuous-assurance-wave-005-20260806
+current_wave: wave-005-terminal-reconciliation-and-current-base-gates
+current_findings: []
+resolved_findings: [1250, 1251, 1252, 1254, 1257, 1264, 1265, 1272, 1282]
+current_prs: [1215, 1284, 1293]
+superseded_checkpoints: [1273]
 owned_paths:
   - docs/agents/tasks/active/FTAI-20260805-platform-continuous-assurance.md
   - docs/agents/programs/FTAI_PLATFORM_CONTINUOUS_ASSURANCE_COVERAGE.md
@@ -35,88 +37,96 @@ protected_production_deployment_authorized: false
 
 ## Objective
 
-Continuously audit the complete Quant Platform repository in bounded, evidence-producing waves. Deduplicate live work, respect active ownership, create durable findings for proven gaps, remediate unowned repository-local gaps, validate exact heads, preserve branch protection and maintain a truthful resume point.
+Continuously audit the complete Quant Platform repository in bounded, evidence-producing waves. Deduplicate live work, respect active ownership, create durable findings for proven gaps, validate exact heads, preserve branch protection and maintain a truthful resume point.
 
-## Completed waves
+## Terminal evidence reconstructed in Wave 005
 
-### Wave 001 — governance and durable-state consistency
+- PR `#1217` merged as `5dadfe32c7cc2ba7af95652b06c4e0624d2f11b4`.
+- Issue `#1257` / PR `#1258` merged as `3b1ae6271405d87dc616070ea617c63bd62c1e21` with bounded online CI.
+- PR `#1259` merged as `74d1ba5ca603d7b116a36f966592fac7f49cee08`.
+- Issue `#1265` / PR `#1271` merged as `29aa61d97472cd3ef4cdcb85171bf55b7d168ed9` with focused-core xdist repair.
+- Issue `#1250` / PR `#1275` merged as `8ee4f6b2527b7bffb7d6967adb3c0f1abd1be56b` with Portal coordinator reconciliation.
+- Issue `#1251` / PR `#1255` merged as `7fe304c098aa69b523ec33cf37909a20d5953df0` with canonical architecture authority.
+- Issue `#1252` / PR `#1261` merged as `c4e9a94a84e86e9ad6b26f9b14fb11d2e9de7ac4` with workflow lifecycle governance.
+- Issue `#1264` / PR `#1270` merged as `f595d633fd09d4df58b391e28e979d29d1436d1a` with repository contribution policy.
+- Issue `#1282` / PR `#1283` merged as `3efa46ae7d953ca38c83a7bca27537680fed94d5` with optional XGBoost isolation.
+- Issue `#1272` completed GitHub-native security hardening. PR `#1292` archived its task and merged as current `develop@35ee3e5672c1773a10f80f09e2d7c2b23bc21d95` after Freqtrade CI, risk-aware CI, CodeQL and zizmor passed.
 
-- Created Issue `#1250` for stale Portal remediation state selecting completed Issue `#1122` while leaving `#1132` undispatched.
-- Initialization PR `#1253` passed exact-head CI and merged as `37e12c1e7b118196543f23c5626959d870012748`.
+PR `#1273` contains a stale, merge-conflicted Wave 004 checkpoint. PR `#1293` supersedes it on exact current `develop`; no force-update is permitted.
 
-### Wave 002 — pull-request terminality and operational blockers
+## Active gates
 
-- Updated PRs `#1217` and `#1215` without force-push and proved their ordering dependency.
-- Triaged Issue `#1254` as a trusted-runner availability blocker: job `92339899025` remains queued with label `freqtrade-staging`, `runner_id=0`; collector and Portal health are unverified rather than proven failed.
-- Checkpoint PR `#1256` passed exact-head CI and merged as `8093f546eddf567b4d775a1cfa664fd8384d67f3`.
+### PR `#1215` — waiting for current-base validation
 
-## Wave 003 — required CI bounds and terminal delivery
+The two Issue Forms and pull-request template remain clear within the audited three-path scope. Its prior focused-core failure was caused by the separate optional XGBoost boundary, now resolved through PR `#1283`.
 
-### PR `#1217` — terminal
+Required action: merge-forward PR `#1215` to current `develop` while preserving exactly its three owned blobs, then require a fresh actual focused-core pass. Do not rerun unchanged head `132ad4ba37b766ea641bbd17f84178d4acaea48d`.
 
-- Exact-head CI passed and branch protection auto-merged the PR.
-- Squash merge commit: `5dadfe32c7cc2ba7af95652b06c4e0624d2f11b4`.
-- The mypy 2.1 baseline is repaired without changing trading, persistence, API, UI or deployment semantics.
+### Issue `#1132` / PR `#1284` — active identity repair
 
-### PR `#1215` — current-base validation active
+Existing ownership covers the OIDC back-channel logout replay implementation and its identity/schema paths. The bounded read-only diff audit found no proven material implementation defect and did not take ownership.
 
-- Updated without force-push to exact head `d4cd9e0a512c12abee9ef5c2482c570aba50e8fc`, based on `develop@5dadfe32c7cc2ba7af95652b06c4e0624d2f11b4`.
-- Security analysis passed.
-- Required Freqtrade and risk-aware CI runs `31019942269` and `31019943035` are queued.
-- Auto-merge is enabled and remains subject to all required checks.
+Exact head `d63f6073d413c2a5dce6735c4be3fbecc4318068` has successful risk-aware CI, workflow security analysis, online validation and Python 3.11–3.13 lanes. Freqtrade CI run `31078169298` failed `Core tests (ubuntu-24.04, 3.14)`, so `CI Gate` also failed. The exact Python 3.14 root cause remains `UNKNOWN` until the owner inspects the failing output.
 
-### Finding and repair `#1257` / PR `#1258`
+Independent final audit, exact current-base CI and separately authorized protected Authentik acceptance remain outstanding.
 
-The required online CI lane had neither a job-level timeout nor an explicit per-test timeout. Four successful whole-job samples took 14m05s–15m46s, and the slowest observed test item used approximately 158 seconds across setup and execution.
+## Findings and ownership
 
-PR `#1258` implements an evidence-based fail-closed contract:
+No new atomic material finding was created in this bounded wave. Existing work already owns both non-terminal boundaries:
 
-- `timeout-minutes: 30` for `online-tests`;
-- `--timeout=300` for each pytest item, including fixtures;
-- a deterministic contract test proving both limits, absence of `continue-on-error`, and continued dependency of `CI Gate` on `online-tests`.
-
-The branch was updated without force-push to exact head `4351c01fa5ae1d04773062f95ee5909c892a7b4b`, based on `develop@5dadfe32c7cc2ba7af95652b06c4e0624d2f11b4`. Fresh Freqtrade, risk-aware and security validation is queued. Auto-merge is enabled.
-
-### Checkpoint PR `#1259`
-
-- The checkpoint branch was merged forward to `develop@5dadfe32c7cc2ba7af95652b06c4e0624d2f11b4` without force-push.
-- This record supersedes the earlier non-terminal description of PR `#1217`.
-- PR `#1259` must pass exact-head CI before merge.
-
-## Active blockers and ownership
-
-- Issue `#1254` remains externally blocked by unavailable trusted self-hosted runner `freqtrade-staging`; repository code cannot assign that runner.
-- The stale liquidations self-heal active-task path remains owned by its existing operations task and was not mutated.
-- Issues `#1251` and `#1252` are owned by PR `#1255`; this programme did not take them over.
-- Issue `#1250` remains routed to the Portal remediation coordinator lane.
+- PR `#1215`: merge-forward and current-base validation;
+- Issue `#1132` / PR `#1284`: active identity repair and failed required Python 3.14 lane.
 
 ## Safety
 
-No credentials, exchange state, collector data, model state, trading configuration, order authority, withdrawal authority, protected deployment target or live-capital setting was changed. No force-push, required-check bypass, test skip or test weakening occurred.
+No credentials, exchange state, collector data, model state, trading configuration, order authority, withdrawal authority, protected deployment target or live-capital setting was changed. No force-push, required-check bypass, branch deletion, test skip or test weakening occurred.
 
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 6
-updated_at: 2026-08-05T15:25:00Z
+checkpoint_version: 12
+updated_at: 2026-08-06T10:08:27Z
 status: active
-head: 5dadfe32c7cc2ba7af95652b06c4e0624d2f11b4
-branch: audit/platform-continuous-assurance-wave-003-20260805
-pr: 1259
-wave: wave-003-required-ci-bounds-and-terminal-delivery
+head: 47199b328b0c29ce1cf80a14bf8d2e09c6cad6f9
+base_head: 35ee3e5672c1773a10f80f09e2d7c2b23bc21d95
+branch: audit/platform-continuous-assurance-wave-005-20260806
+pr: 1293
+wave: wave-005-terminal-reconciliation-and-current-base-gates
 proven:
-  - PR 1217 passed exact-head CI and merged as 5dadfe32c7cc2ba7af95652b06c4e0624d2f11b4
-  - PR 1215 is updated to current develop at d4cd9e0a512c12abee9ef5c2482c570aba50e8fc with fresh exact-head CI queued and auto-merge enabled
-  - Issue 1254 remains queued without an assigned freqtrade-staging runner
-  - Issue 1257 has implementation PR 1258 with evidence-based job and test limits
-  - PR 1258 is updated to current develop at 4351c01fa5ae1d04773062f95ee5909c892a7b4b with fresh exact-head CI queued and auto-merge enabled
-  - checkpoint PR 1259 is reconciled to the post-1217 develop baseline
+  - Wave 004 architecture, workflow, CI dependency, Portal coordinator and repository-governance repairs are merged
+  - Issue 1272 is completed and develop is 35ee3e5672c1773a10f80f09e2d7c2b23bc21d95
+  - PR 1215 has no material three-path content finding and requires current-base validation after PR 1283
+  - PR 1284 head d63f6073d413c2a5dce6735c4be3fbecc4318068 passed risk-aware and security validation but failed required Python 3.14 CI
+  - PR 1293 persists the current-base checkpoint and supersedes PR 1273
 unknown:
-  - terminal exact-head result and merge commit for PR 1215
-  - terminal exact-head result and merge commit for PR 1258
-  - terminal exact-head result and merge commit for PR 1259
-  - when the trusted freqtrade-staging runner will return
-external_blockers:
-  - trusted self-hosted runner freqtrade-staging is unavailable for Issue 1254
-next_action: Allow required exact-head checks and auto-merge to complete for PRs 1215 and 1258. Validate and merge PR 1259 only after its current content passes exact-head CI. Preserve Issue 1254 until a trusted runner returns a structured health result, then continue the next unowned high-risk audit wave.
+  - terminal current-base CI and merge result for PR 1215
+  - exact Python 3.14 failure cause and terminal exact-head result for PR 1284
+  - protected Authentik acceptance outcome for Issues 1132 and 1137
+blockers:
+  - PR 1215 must be merge-forwarded before a meaningful rerun
+  - PR 1284 must resolve or classify the failed required Python 3.14 lane
+next_action: Merge-forward PR 1215 to current develop while preserving its three owned files and run fresh exact-head focused-core validation. In parallel, inspect PR 1284 run 31078169298 Python 3.14 failure and complete its independent final audit without taking ownership.
+```
+
+## Recovery checkpoint
+
+```yaml
+recovery:
+  policy_version: 1
+  generation: 5
+  session_id: assurance-20260806T100642Z
+  session_started_at: 2026-08-06T10:03:39Z
+  checkpointed_at: 2026-08-06T10:08:27Z
+  last_progress_at: 2026-08-06T10:08:27Z
+  phase: terminal_reconciliation_and_current_base_gates
+  exact_head: 47199b328b0c29ce1cf80a14bf8d2e09c6cad6f9
+  pull_request: 1293
+  active_operation: exact-head documentation and governance CI
+  external_run_ids: [31078169298]
+  check_generation: wave-005-generation-2
+  checks_used: 1
+  status: active
+  safe_to_resume: true
+  resume_condition: PR 1293 or either PR 1215/1284 changes state
+  next_action: Reconstruct live exact heads before mutation; preserve existing PR ownership and do not duplicate Issue 1132 work.
 ```

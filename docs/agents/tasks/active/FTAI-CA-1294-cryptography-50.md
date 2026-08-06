@@ -6,30 +6,31 @@ programme_id: FTAI-20260805-platform-continuous-assurance
 issue: 1294
 owner: repair-worker-1294-20260806T104000Z
 claim_id: ftaica-1294-20260806T104000Z-gpt56a
-status: investigating
+status: implementing
 current_mode: CLAIM_DIAGNOSE_REPAIR_VALIDATE_CLOSE
 execution_mode: github_only
 base_branch: develop
 source_pr: 1291
 branch: repair/1294-cryptography-50
 branch_base_head: ae8231e30cd6f2619d4b2b13d340299a86e69a4b
-preferred_delivery_pr: 1291
-delivery_mode: reused_existing_if_safe
+preferred_delivery_pr: superseding_atomic_repair
+delivery_mode: supersede_dependabot_with_evidence
 priority: P1
 risk: medium
 invocation_started_at: 2026-08-06T10:40:00Z
-last_progress_at: 2026-08-06T10:49:00Z
-lease_expires_at: 2026-08-06T11:25:00Z
+last_progress_at: 2026-08-06T11:01:00Z
+lease_expires_at: 2026-08-06T11:55:00Z
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 0
+repair_cycles_for_current_gate: 1
 context_reconstruction_attempts: 0
 stall_warnings: 0
 conflict_groups:
   - global-python-deps
 owned_paths:
   - requirements.txt
+  - pyproject.toml
   - docs/agents/tasks/active/FTAI-CA-1294-cryptography-50.md
 shared_paths: []
 forbidden_paths:
@@ -47,36 +48,57 @@ forbidden_paths:
 - Reuse PR #1291 when safe; create no competing PR unless the Dependabot branch is technically unsuitable and supersession is documented.
 - Validate the exact final head with Freqtrade CI, risk-aware CI, CodeQL and zizmor.
 
-## Out of scope
+## Diagnosis
 
-- Trading logic, strategies, exchange integrations and live-capital controls.
-- Production deployment or protected-environment operations.
-- Required-check weakening, test skips, resolver-error suppression or dependency downgrade used only to obtain green CI.
-- Unrelated dependency upgrades or repository cleanup.
+Exact logs from jobs `92576870866` and `92576870872` prove the resolver failure is not an interpreter, wheel or transitive constraint incompatibility. Repository configuration sets:
 
-## Hierarchy of truth
+```toml
+[tool.uv]
+exclude-newer = "1 week"
+```
 
-1. Governing `AGENTS.md` hierarchy and trusted `develop` governance.
-2. Issue #1294 acceptance criteria.
-3. Exact GitHub Actions logs and immutable run/job metadata.
-4. Exact PR #1291 diff and branch state.
-5. Upstream primary package metadata and release/security documentation.
+`uv` therefore filtered `cryptography==50.0.0` because the package was published on `2026-07-31T14:23:33.331Z`, later than the run's effective cutoff `2026-07-30T08:41:01Z`.
+
+The bounded repair preserves the global supply-chain age gate and adds only:
+
+```toml
+[tool.uv.exclude-newer-package]
+cryptography = false
+```
+
+This matches the repository's existing package-specific exception model for `ccxt` and permits the explicitly reviewed security release without disabling the age policy globally.
+
+## Security applicability
+
+```yaml
+classification: UNKNOWN
+direct_repository_reachability: NOT_FOUND
+searched_symbols:
+  - pkcs7_decrypt_der
+  - PKCS7
+  - cryptography.hazmat
+reason: No direct repository call site was found, but transitive deployment-dependency reachability has not yet been proven absent on the repaired installed graph.
+```
+
+## Delivery decision
+
+PR #1291 contains the required version bump, but Dependabot states that editing its branch removes/reduces automatic ownership and that recreate may overwrite manual edits. The repair also requires a repository-owned `pyproject.toml` change. One atomic superseding repair PR will therefore preserve the exact version bump plus the minimal configuration exception; #1291 will be closed only after the superseding PR exists and its unique work is verified present.
 
 ## Required tests and evidence
 
-- Exact failed-job logs or a bounded reproduction that identifies the first actionable resolver/build error.
-- Supported Python matrix installation and test success on the final repair head.
+- Exact failed-job logs or a bounded reproduction identifying the first actionable resolver/build error.
+- Supported Python matrix installation and tests on the final repair head.
 - Risk-aware component CI PASS.
 - CodeQL PASS.
 - zizmor PASS.
 - Independent audit with no open material finding.
-- E2E: `NOT_APPLICABLE` only if documented as a dependency-delivery change with no user journey requiring separate E2E.
+- E2E: `NOT_APPLICABLE` because this is dependency-resolution delivery with no user-facing journey.
 
 ## Risks
 
-- `cryptography` 50 may have changed interpreter support or binary-wheel availability.
-- Editing the Dependabot branch may prevent automatic rebases; diagnose before choosing delivery mutation.
-- Global dependency ownership prevents concurrent writes to dependency manifests.
+- Global dependency ownership overlaps the independently open aiohttp Dependabot PR #1290 at `requirements.txt`; final integration requires a fresh mergeability/rebase check.
+- `cryptography` 50 deprecates FFDH APIs; CI must detect any runtime/test incompatibility.
+- Security applicability remains `UNKNOWN` until the repaired installed dependency graph is examined or stronger evidence is recorded.
 
 ## Stop conditions
 
@@ -88,15 +110,17 @@ forbidden_paths:
 ## Checkpoint
 
 ```yaml
-phase: claimed
+phase: repair_ready_for_pr
 proven:
-  - Issue 1294 had no prior claim comments
-  - this claim is the earliest live claim
-  - agent:ready was removed after claim verification
-  - dedicated worker branch was created from PR 1291 exact head
+  - Issue 1294 claim is authoritative and agent:ready was removed
+  - exact root cause is uv exclude-newer filtering
+  - repair diff in pyproject.toml is one added package exception
+  - cryptography 50 version bump from PR 1291 is preserved
+  - no open PR or active task owns pyproject.toml
+  - no direct vulnerable PKCS7 call site was found in repository code
 unknown:
-  - exact install failure
-  - CVE applicability
-  - whether PR 1291 can remain the final delivery vehicle
-next_action: Inspect failing workflow job logs 92576870866 and 92576870872 and record the first actionable installation error.
+  - transitive dependency reachability of vulnerable PKCS7 decrypt APIs
+  - exact-head CI outcome after repair
+  - final merge ordering with PR 1290
+next_action: Open one atomic superseding repair PR, verify its diff, close obsolete PR 1291, and observe exact-head CI.
 ```

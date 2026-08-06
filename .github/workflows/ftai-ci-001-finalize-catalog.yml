@@ -1,0 +1,159 @@
+name: FTAI-CI-001 final workflow catalog
+
+on:
+  push:
+    branches:
+      - feat/FTAI-CI-001-workflow-lifecycle-20260805
+    paths:
+      - .github/workflows/ftai-ci-001-finalize-catalog.yml
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: read
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: feat/FTAI-CI-001-workflow-lifecycle-20260805
+          fetch-depth: 0
+      - name: Install validation dependencies
+        run: python -m pip install --disable-pip-version-check PyYAML==6.0.3 pytest==9.1.1 ruff==0.15.20
+      - name: Apply fail-closed retirement corrections
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          catalog_path = Path("tools/ci/workflow_catalog.py")
+          catalog = catalog_path.read_text(encoding="utf-8")
+          old_safe = '''    latest_run = record.get("latest_run")
+              if isinstance(latest_run, dict) and latest_run.get("status") in ACTIVE_RUN_STATES:
+                  return False
+              return record.get("open_pr") is None
+          '''.replace("              ", "")
+          new_safe = '''    latest_run = record.get("latest_run")
+              if isinstance(latest_run, dict):
+                  if latest_run.get("lookup_error"):
+                      return False
+                  status = latest_run.get("status")
+                  if not isinstance(status, str):
+                      return False
+                  if status in ACTIVE_RUN_STATES:
+                      return False
+              elif latest_run is not None:
+                  return False
+              return record.get("open_pr") is None
+          '''.replace("              ", "")
+          if catalog.count(old_safe) != 1:
+              raise SystemExit("safe retirement block did not match exactly once")
+          catalog_path.write_text(catalog.replace(old_safe, new_safe, 1), encoding="utf-8")
+
+          validator_path = Path("tools/ci/validate_workflows.py")
+          validator = validator_path.read_text(encoding="utf-8")
+          old_validator = '''            if not isinstance(summary, dict):
+                          failures.append(f"{CATALOG_PATH}: missing summary")
+                      elif summary.get("unknown_active") != 0:
+                          failures.append(f"{CATALOG_PATH}: unknown active workflow records remain")
+          '''.replace("                          ", "")
+          new_validator = '''            if not isinstance(summary, dict):
+                          failures.append(f"{CATALOG_PATH}: missing summary")
+                      else:
+                          if summary.get("unknown_active") != 0:
+                              failures.append(f"{CATALOG_PATH}: unknown active workflow records remain")
+                          if summary.get("retirement_failures") != 0:
+                              failures.append(f"{CATALOG_PATH}: workflow retirement failures remain")
+          '''.replace("                          ", "")
+          if validator.count(old_validator) != 1:
+              raise SystemExit("catalog validation block did not match exactly once")
+          validator_path.write_text(
+              validator.replace(old_validator, new_validator, 1), encoding="utf-8"
+          )
+
+          tests_path = Path("tests/ci/test_workflow_catalog.py")
+          tests = tests_path.read_text(encoding="utf-8")
+          active_case = '''    assert not _safe_to_disable(
+                  {
+                      "classification": "historical_deleted",
+                      "state_before": "active",
+                      "latest_run": {"status": "in_progress"},
+                      "open_pr": None,
+                  }
+              )
+          '''.replace("              ", "")
+          guarded_cases = active_case + '''    assert not _safe_to_disable(
+                  {
+                      "classification": "historical_deleted",
+                      "state_before": "active",
+                      "latest_run": {"lookup_error": "GitHub unavailable"},
+                      "open_pr": None,
+                  }
+              )
+              assert not _safe_to_disable(
+                  {
+                      "classification": "historical_deleted",
+                      "state_before": "active",
+                      "latest_run": {},
+                      "open_pr": None,
+                  }
+              )
+          '''.replace("              ", "")
+          if tests.count(active_case) != 1:
+              raise SystemExit("active-run safety test did not match exactly once")
+          tests = tests.replace(active_case, guarded_cases, 1)
+          old_summary = '''        '{"summary": {"unknown_active": 0}}\\n', encoding="utf-8"
+          '''.replace("          ", "")
+          new_summary = '''        '{"summary": {"unknown_active": 0, "retirement_failures": 1}}\\n',
+                  encoding="utf-8",
+              )
+              failures = validate_workflow_registry(tmp_path, {".github/workflows/ci.yml"})
+              assert any("missing from" in failure for failure in failures)
+              assert any("retirement failures remain" in failure for failure in failures)
+          '''.replace("              ", "")
+          old_tail = old_summary + '''    )
+              failures = validate_workflow_registry(tmp_path, {".github/workflows/ci.yml"})
+              assert any("missing from" in failure for failure in failures)
+          '''.replace("              ", "")
+          if tests.count(old_tail) != 1:
+              raise SystemExit("validator test tail did not match exactly once")
+          tests_path.write_text(tests.replace(old_tail, new_summary, 1), encoding="utf-8")
+          PY
+      - name: Format and test safety changes
+        run: |
+          ruff format tools/ci/workflow_catalog.py tools/ci/validate_workflows.py tests/ci/test_workflow_catalog.py
+          ruff check tools/ci/workflow_catalog.py tools/ci/validate_workflows.py tests/ci/test_workflow_catalog.py
+          python -m compileall -q tools/ci tests/ci
+          python -m pytest -q -o addopts='' --confcutdir=tests/ci tests/ci/test_workflow_catalog.py
+      - name: Refresh and retire workflow catalog
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python tools/ci/workflow_catalog.py \
+            --repository blakinio/freqtrade \
+            --root . \
+            --output docs/agents/evidence/FTAI-CI-001/workflow-catalog.json \
+            --registry .github/workflow-registry.yaml \
+            --retire \
+            --self-workflow-path .github/workflows/ftai-ci-001-finalize-catalog.yml \
+            --workers 8
+      - name: Validate generated governance state
+        run: |
+          mv .github/workflows/ftai-ci-001-finalize-catalog.yml /tmp/ftai-ci-001-finalize-catalog.yml
+          python tools/ci/validate_workflows.py
+          git diff --check
+      - name: Commit final catalog and safety controls
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            .github/workflow-registry.yaml \
+            docs/agents/evidence/FTAI-CI-001/workflow-catalog.json \
+            tests/ci/test_workflow_catalog.py \
+            tools/ci/validate_workflows.py \
+            tools/ci/workflow_catalog.py
+          git commit -m "fix(ci): finalize fail-closed workflow lifecycle catalog"
+          git push origin HEAD:feat/FTAI-CI-001-workflow-lifecycle-20260805

@@ -6,6 +6,7 @@ repository: blakinio/freqtrade
 base_branch: develop
 branch: ci/FTAI-GOV-002-codeql-20260806
 issue: 1272
+pull_request: 1288
 project_lane: freqtrade-assurance
 phase: final_ci
 session_id: chat-20260806-governance-closeout
@@ -39,8 +40,29 @@ safety:
   - no branch protection or required check is weakened
   - no placeholder collaborator is added
   - no credential, deployment, trading, withdrawal or live-capital operation
-last_progress_at: 2026-08-06T09:39:00+02:00
-next_action: validate and merge the CodeQL PR, then persist WAITING state for the remaining GitHub administrator actions
+last_progress_at: 2026-08-06T09:55:00+02:00
+recovery:
+  policy_version: 1
+  generation: 1
+  session_id: chat-20260806-governance-closeout
+  session_started_at: 2026-08-06T09:39:00+02:00
+  checkpointed_at: 2026-08-06T09:55:00+02:00
+  last_progress_at: 2026-08-06T09:55:00+02:00
+  phase: final exact-head CI for explicit CodeQL and governance documentation
+  exact_head: resolve from live PR #1288 after this checkpoint commit
+  pull_request: 1288
+  active_operation: verify CodeQL, required CI, component routing and zizmor; merge when green
+  external_run_ids:
+    - 31082721381
+    - 31082725745
+    - 31082726484
+    - 31082720178
+  check_generation: post-checkpoint-final-head
+  status: active
+  safe_to_resume: true
+  resume_condition: all required checks complete on the unchanged live PR #1288 head
+  next_action: verify the new exact-head checks and merge PR #1288 when every required gate passes
+next_action: verify the new exact-head checks and merge PR #1288 when every required gate passes
 ---
 
 # FTAI-GOV-002 durable task record
@@ -51,10 +73,19 @@ The repository-managed portion adds explicit CodeQL scanning for Python and Java
 
 The remaining Issue #1272 controls require GitHub administrator mutations unavailable through the connected integration. Private vulnerability reporting is verified disabled; repository metadata remains upstream-oriented; topics are empty; and only one direct administrator exists. Dependabot-alert and CodeQL-default-setup endpoints return `403 Resource not accessible by integration`.
 
-## Validation plan
+## Validation evidence
 
-- validate workflow syntax, registry completeness, action pins and permissions;
-- execute CodeQL for both declared languages on the exact PR head;
-- run required repository CI and workflow security analysis;
-- inspect review threads and merge only on a green unchanged head;
-- update this record to `waiting` after merge with exactly one administrator next action.
+- Final diff before this checkpoint contains exactly four intended paths.
+- CodeQL actions and checkout are pinned to exact 40-character commits.
+- CodeQL covers Python and JavaScript/TypeScript on pull requests, protected branches, weekly schedule and manual dispatch.
+- The workflow lifecycle registry includes CodeQL as a canonical active workflow.
+- The initial one-shot bootstrap attempts failed before repository mutation; the final bounded bootstrap succeeded, registered CodeQL and removed itself from the final diff.
+- No native security setting, branch protection, collaborator, deployment, credential, trading, withdrawal or live-capital state was changed.
+
+## Remaining closeout
+
+- verify exact-head CodeQL, required CI, component routing and zizmor;
+- inspect review threads and reviews;
+- merge PR #1288 only on a green unchanged head;
+- persist a post-merge `waiting` checkpoint for the remaining administrator actions;
+- update Issue #1272 with exact delivered and blocked state.

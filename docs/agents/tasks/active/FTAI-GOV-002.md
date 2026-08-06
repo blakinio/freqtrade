@@ -1,16 +1,19 @@
 ---
 task_id: FTAI-GOV-002
 title: Enable GitHub-native security settings
-status: validating
+status: waiting
 repository: blakinio/freqtrade
 base_branch: develop
-branch: ci/FTAI-GOV-002-codeql-20260806
+implementation_branch: ci/FTAI-GOV-002-codeql-20260806
+checkpoint_branch: docs/FTAI-GOV-002-waiting-20260806
 issue: 1272
-pull_request: 1288
+implementation_pull_request: 1288
+implementation_head: 34c33654d42c916a5bd7f09feca1136c64e5a34c
+implementation_merge: 0091f901ef6055a12888e456fa0c6126c6fdd5f6
 project_lane: freqtrade-assurance
-phase: final_ci
+phase: administrator_wait
 session_id: chat-20260806-governance-closeout
-session_role: implementation-and-closeout
+session_role: closeout
 execution_mode: github
 policy_version: 2
 task_kind: infrastructure
@@ -25,12 +28,8 @@ feature_scope:
   frontend_required: false
   integration_required: true
   e2e_required: false
-  completion_claim: internal_only
-owned_paths:
-  - .github/workflows/codeql.yml
-  - .github/workflow-registry.yaml
-  - docs/ci/GITHUB_NATIVE_SECURITY_ADMIN.md
-  - docs/agents/tasks/active/FTAI-GOV-002.md
+  completion_claim: repository_managed_portion_complete
+owned_paths: []
 acceptance:
   - explicit CodeQL scanning covers Python and JavaScript/TypeScript
   - CodeQL workflow is pinned and present in the canonical workflow registry
@@ -40,52 +39,54 @@ safety:
   - no branch protection or required check is weakened
   - no placeholder collaborator is added
   - no credential, deployment, trading, withdrawal or live-capital operation
-last_progress_at: 2026-08-06T09:55:00+02:00
-recovery:
-  policy_version: 1
-  generation: 1
-  session_id: chat-20260806-governance-closeout
-  session_started_at: 2026-08-06T09:39:00+02:00
-  checkpointed_at: 2026-08-06T09:55:00+02:00
-  last_progress_at: 2026-08-06T09:55:00+02:00
-  phase: final exact-head CI for explicit CodeQL and governance documentation
-  exact_head: resolve from live PR #1288 after this checkpoint commit
-  pull_request: 1288
-  active_operation: verify CodeQL, required CI, component routing and zizmor; merge when green
-  external_run_ids:
-    - 31082721381
-    - 31082725745
-    - 31082726484
-    - 31082720178
-  check_generation: post-checkpoint-final-head
-  status: active
+last_progress_at: 2026-08-06T10:18:00+02:00
+waiting:
+  blocker: connected GitHub integration exposes no mutation for repository security toggles, repository metadata, collaborators or rulesets; a second trusted maintainer identity is also not authorized
+  external_owner: blakinio
   safe_to_resume: true
-  resume_condition: all required checks complete on the unchanged live PR #1288 head
-  next_action: verify the new exact-head checks and merge PR #1288 when every required gate passes
-next_action: verify the new exact-head checks and merge PR #1288 when every required gate passes
+  resume_condition: owner completes the administrator checklist in docs/ci/GITHUB_NATIVE_SECURITY_ADMIN.md and identifies a second trusted maintainer
+  next_action: Repository owner completes the administrator checklist in docs/ci/GITHUB_NATIVE_SECURITY_ADMIN.md, identifies a second trusted maintainer, and then requests verification of Issue #1272.
+next_action: Repository owner completes the administrator checklist in docs/ci/GITHUB_NATIVE_SECURITY_ADMIN.md, identifies a second trusted maintainer, and then requests verification of Issue #1272.
 ---
 
 # FTAI-GOV-002 durable task record
 
-## Current outcome
+## Repository-managed result
 
-The repository-managed portion adds explicit CodeQL scanning for Python and JavaScript/TypeScript and records it in the canonical workflow lifecycle registry.
+PR #1288 merged explicit CodeQL scanning for Python and JavaScript/TypeScript, registered the workflow as a canonical active entry and added the administrator runbook. The implementation merged into `develop` as `0091f901ef6055a12888e456fa0c6126c6fdd5f6`.
 
-The remaining Issue #1272 controls require GitHub administrator mutations unavailable through the connected integration. Private vulnerability reporting is verified disabled; repository metadata remains upstream-oriented; topics are empty; and only one direct administrator exists. Dependabot-alert and CodeQL-default-setup endpoints return `403 Resource not accessible by integration`.
+## Exact-head validation
 
-## Validation evidence
+```yaml
+implementation_head: 34c33654d42c916a5bd7f09feca1136c64e5a34c
+result: PASS
+checks:
+  - CodeQL Security Analysis run 31082786047
+  - Freqtrade CI run 31082786144
+  - Risk-aware component CI run 31082786222
+  - GitHub Actions Security Analysis with zizmor run 31082785993
+audit:
+  result: PASS
+  material_findings_open: 0
+  changed_paths: 4
+reviews:
+  unresolved_threads: 0
+  requested_changes: 0
+e2e:
+  result: PASS
+  evidence:
+    - component backend integration
+    - Chromium desktop and responsive journeys
+    - universal Portal backend and Chromium journeys
+```
 
-- Final diff before this checkpoint contains exactly four intended paths.
-- CodeQL actions and checkout are pinned to exact 40-character commits.
-- CodeQL covers Python and JavaScript/TypeScript on pull requests, protected branches, weekly schedule and manual dispatch.
-- The workflow lifecycle registry includes CodeQL as a canonical active workflow.
-- The initial one-shot bootstrap attempts failed before repository mutation; the final bounded bootstrap succeeded, registered CodeQL and removed itself from the final diff.
-- No native security setting, branch protection, collaborator, deployment, credential, trading, withdrawal or live-capital state was changed.
+## Verified administrator blocker
 
-## Remaining closeout
+- Private vulnerability reporting is disabled.
+- Repository topics are empty and the description still identifies upstream Freqtrade.
+- Exactly one direct collaborator exists: `blakinio`, with administrator permission.
+- Dependabot-alert and CodeQL-default-setup inspection return `403 Resource not accessible by integration`.
+- The connected GitHub tool exposes no supported mutation for these security settings, repository metadata, collaborator invitations or ruleset changes.
+- A second independent maintainer cannot be invented or selected by the implementing agent.
 
-- verify exact-head CodeQL, required CI, component routing and zizmor;
-- inspect review threads and reviews;
-- merge PR #1288 only on a green unchanged head;
-- persist a post-merge `waiting` checkpoint for the remaining administrator actions;
-- update Issue #1272 with exact delivered and blocked state.
+The task therefore remains `waiting`, not `completed`. Repository-owned paths and implementation ownership are released. Issue #1272 remains the canonical open administrator checklist.

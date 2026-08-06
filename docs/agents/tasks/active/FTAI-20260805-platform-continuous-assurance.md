@@ -11,20 +11,21 @@ status: active
 priority: high
 prompting_standard_version: 2.1
 execution_policy_version: 2
-context_pressure: medium
-decomposition_decision: bounded_waves
 execution_mode: github_only
 run_scope: autonomous_program
 continuation_policy: continue_until_real_stop
 task_completion_policy: checkpoint_and_continue
 user_communication: terminal_only
 base_branch: develop
-base_head: 35ee3e5672c1773a10f80f09e2d7c2b23bc21d95
-branch: audit/platform-continuous-assurance-wave-005-20260806
-current_wave: wave-005-terminal-reconciliation-and-current-base-gates
-current_findings: []
+base_head: 3a3320646709991b2ef513a81d4a2b457ef155dc
+branch: audit/platform-continuous-assurance-wave-006-20260806
+checkpoint_pr: 1295
+checkpoint_parent: ec87aa9df4d3d70f4b5c12f5b3fb5d5918faebf2
+current_wave: wave-006-open-pr-terminality-and-dependency-safety
+current_findings: [1294]
 resolved_findings: [1250, 1251, 1252, 1254, 1257, 1264, 1265, 1272, 1282]
-current_prs: [1215, 1284, 1293]
+active_product_prs: [1215, 1276, 1284, 1290, 1291]
+completed_checkpoints: [1253, 1256, 1259, 1293]
 superseded_checkpoints: [1273]
 owned_paths:
   - docs/agents/tasks/active/FTAI-20260805-platform-continuous-assurance.md
@@ -39,43 +40,65 @@ protected_production_deployment_authorized: false
 
 Continuously audit the complete Quant Platform repository in bounded, evidence-producing waves. Deduplicate live work, respect active ownership, create durable findings for proven gaps, validate exact heads, preserve branch protection and maintain a truthful resume point.
 
-## Terminal evidence reconstructed in Wave 005
+## Prior terminal checkpoint
 
-- PR `#1217` merged as `5dadfe32c7cc2ba7af95652b06c4e0624d2f11b4`.
-- Issue `#1257` / PR `#1258` merged as `3b1ae6271405d87dc616070ea617c63bd62c1e21` with bounded online CI.
-- PR `#1259` merged as `74d1ba5ca603d7b116a36f966592fac7f49cee08`.
-- Issue `#1265` / PR `#1271` merged as `29aa61d97472cd3ef4cdcb85171bf55b7d168ed9` with focused-core xdist repair.
-- Issue `#1250` / PR `#1275` merged as `8ee4f6b2527b7bffb7d6967adb3c0f1abd1be56b` with Portal coordinator reconciliation.
-- Issue `#1251` / PR `#1255` merged as `7fe304c098aa69b523ec33cf37909a20d5953df0` with canonical architecture authority.
-- Issue `#1252` / PR `#1261` merged as `c4e9a94a84e86e9ad6b26f9b14fb11d2e9de7ac4` with workflow lifecycle governance.
-- Issue `#1264` / PR `#1270` merged as `f595d633fd09d4df58b391e28e979d29d1436d1a` with repository contribution policy.
-- Issue `#1282` / PR `#1283` merged as `3efa46ae7d953ca38c83a7bca27537680fed94d5` with optional XGBoost isolation.
-- Issue `#1272` completed GitHub-native security hardening. PR `#1292` archived its task and merged as current `develop@35ee3e5672c1773a10f80f09e2d7c2b23bc21d95` after Freqtrade CI, risk-aware CI, CodeQL and zizmor passed.
+PR `#1293` passed exact-head gates and merged as `3a3320646709991b2ef513a81d4a2b457ef155dc`. It reconciled prior architecture, workflow, Portal, security and current-base state and superseded stale PR `#1273`.
 
-PR `#1273` contains a stale, merge-conflicted Wave 004 checkpoint. PR `#1293` supersedes it on exact current `develop`; no force-update is permitted.
+## Wave 006 — complete open-PR inventory
 
-## Active gates
+Every open non-checkpoint PR was inspected against its exact changed paths, ownership and latest required CI.
 
-### PR `#1215` — waiting for current-base validation
+### PR `#1215` — `WAITING_CURRENT_BASE`
 
-The two Issue Forms and pull-request template remain clear within the audited three-path scope. Its prior focused-core failure was caused by the separate optional XGBoost boundary, now resolved through PR `#1283`.
+- Scope remains exactly two Issue Forms and the pull-request template.
+- No material content finding exists within the three paths.
+- Head `132ad4ba37b766ea641bbd17f84178d4acaea48d` predates merged repair PR `#1283` and current `develop`.
+- Required: merge-forward without force-push, preserve exactly the three blobs and run fresh actual focused-core validation.
 
-Required action: merge-forward PR `#1215` to current `develop` while preserving exactly its three owned blobs, then require a fresh actual focused-core pass. Do not rerun unchanged head `132ad4ba37b766ea641bbd17f84178d4acaea48d`.
+### PR `#1276` — `WAITING_PROSPECTIVE_ACCEPTANCE`
 
-### Issue `#1132` / PR `#1284` — active identity repair
+- One-path task checkpoint head: `b8cf23b2a833edac9214303574116d31cc44a197`.
+- Fresh Freqtrade CI `31032802100` and risk-aware CI `31032804258` passed.
+- PAPER deployment/restart and zero-authority evidence is already independently verified.
+- The acceptance window ends at `2026-08-06T17:45:07.561Z`; completion and merge before that time are prohibited.
 
-Existing ownership covers the OIDC back-channel logout replay implementation and its identity/schema paths. The bounded read-only diff audit found no proven material implementation defect and did not take ownership.
+### Issue `#1132` / PR `#1284` — `UNKNOWN_REQUIRED_GATE`
 
-Exact head `d63f6073d413c2a5dce6735c4be3fbecc4318068` has successful risk-aware CI, workflow security analysis, online validation and Python 3.11–3.13 lanes. Freqtrade CI run `31078169298` failed `Core tests (ubuntu-24.04, 3.14)`, so `CI Gate` also failed. The exact Python 3.14 root cause remains `UNKNOWN` until the owner inspects the failing output.
+- Existing identity/schema ownership remains authoritative.
+- Head `d63f6073d413c2a5dce6735c4be3fbecc4318068` passes risk-aware CI, workflow security analysis, online validation and Python 3.11–3.13 lanes.
+- Freqtrade CI run `31078169298` fails the Python 3.14 core lane and final gate.
+- Bounded read-only diff review found no proven material implementation defect; the exact failure cause remains unknown.
 
-Independent final audit, exact current-base CI and separately authorized protected Authentik acceptance remain outstanding.
+### PR `#1290` — `CI_MERGE_READY`
 
-## Findings and ownership
+- Head `3411e37b609ef056147d614a65423dcdb1e5e05d` changes only `requirements.txt`: `aiohttp==3.14.1` to `3.14.3`.
+- Freqtrade CI `31089483628`, risk-aware CI `31089483590`, CodeQL and zizmor passed.
+- No material finding; PR is labeled `ci:merge-ready`. Normal dependency ownership and branch protection remain authoritative.
 
-No new atomic material finding was created in this bounded wave. Existing work already owns both non-terminal boundaries:
+### Issue `#1294` / PR `#1291` — `FINDING_OPEN`
 
-- PR `#1215`: merge-forward and current-base validation;
-- Issue `#1132` / PR `#1284`: active identity repair and failed required Python 3.14 lane.
+- Head `ae8231e30cd6f2619d4b2b13d340299a86e69a4b` changes only `requirements.txt`: `cryptography==49.0.0` to `50.0.0`.
+- Risk-aware CI, CodeQL and zizmor pass.
+- Freqtrade CI runs `31085233214` and `31089481871` fail before tests; bounded-core, online and matrix jobs fail during dependency installation.
+- Exact resolver/build cause is unavailable in job metadata and remains `UNKNOWN`.
+- Issue `#1294` owns diagnosis, compatible security-update delivery and separate `CVE-2026-69247` applicability classification.
+- Labels: `priority:P1`, `risk:medium`, `type:repair`, `programme:audit-repair`, `dependencies`, `python`, `agent:ready`, `governance:managed`.
+- PR `#1291` remains the preferred repair vehicle; no duplicate repair PR was created.
+
+## Findings summary
+
+```yaml
+new_findings:
+  critical: 0
+  high: 0
+  medium: 1
+  low: 0
+issues_created: [1294]
+bootstrap_prs_created: []
+merge_ready_prs: [1290]
+waiting_prs: [1215, 1276]
+failed_required_gate_prs: [1284, 1291]
+```
 
 ## Safety
 
@@ -84,28 +107,31 @@ No credentials, exchange state, collector data, model state, trading configurati
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 12
-updated_at: 2026-08-06T10:08:27Z
+checkpoint_version: 14
+updated_at: 2026-08-06T10:17:50Z
 status: active
-head: 47199b328b0c29ce1cf80a14bf8d2e09c6cad6f9
-base_head: 35ee3e5672c1773a10f80f09e2d7c2b23bc21d95
-branch: audit/platform-continuous-assurance-wave-005-20260806
-pr: 1293
-wave: wave-005-terminal-reconciliation-and-current-base-gates
+base_head: 3a3320646709991b2ef513a81d4a2b457ef155dc
+branch: audit/platform-continuous-assurance-wave-006-20260806
+pr: 1295
+checkpoint_parent: ec87aa9df4d3d70f4b5c12f5b3fb5d5918faebf2
+wave: wave-006-open-pr-terminality-and-dependency-safety
 proven:
-  - Wave 004 architecture, workflow, CI dependency, Portal coordinator and repository-governance repairs are merged
-  - Issue 1272 is completed and develop is 35ee3e5672c1773a10f80f09e2d7c2b23bc21d95
-  - PR 1215 has no material three-path content finding and requires current-base validation after PR 1283
-  - PR 1284 head d63f6073d413c2a5dce6735c4be3fbecc4318068 passed risk-aware and security validation but failed required Python 3.14 CI
-  - PR 1293 persists the current-base checkpoint and supersedes PR 1273
+  - PR 1293 passed exact-head gates and merged as 3a3320646709991b2ef513a81d4a2b457ef155dc
+  - all five remaining open non-checkpoint PRs were inspected
+  - PR 1290 is one-path, exact-head green and labeled ci:merge-ready
+  - PR 1291 fails required installation gates and Issue 1294 owns the repair
+  - PR 1276 is truthfully waiting until 2026-08-06T17:45:07.561Z
+  - PR 1215 requires current-base merge-forward and PR 1284 requires Python 3.14 diagnosis
 unknown:
-  - terminal current-base CI and merge result for PR 1215
-  - exact Python 3.14 failure cause and terminal exact-head result for PR 1284
-  - protected Authentik acceptance outcome for Issues 1132 and 1137
+  - exact cryptography 50 installation failure cause and CVE applicability
+  - terminal current-base result for PR 1215
+  - exact Python 3.14 failure cause and terminal result for PR 1284
+  - prospective WH-09 acceptance after the window ends
 blockers:
-  - PR 1215 must be merge-forwarded before a meaningful rerun
-  - PR 1284 must resolve or classify the failed required Python 3.14 lane
-next_action: Merge-forward PR 1215 to current develop while preserving its three owned files and run fresh exact-head focused-core validation. In parallel, inspect PR 1284 run 31078169298 Python 3.14 failure and complete its independent final audit without taking ownership.
+  - Issue 1294 dependency diagnosis and repair
+  - active owners must terminalize PRs 1215 and 1284
+  - PR 1276 cannot truthfully complete before its prospective window ends
+next_action: Dispatch Issue 1294 to the repair lane. Preserve existing owners for PRs 1215, 1276 and 1284; after state changes, reconstruct exact heads and select the widest unowned high-risk product domain.
 ```
 
 ## Recovery checkpoint
@@ -113,20 +139,21 @@ next_action: Merge-forward PR 1215 to current develop while preserving its three
 ```yaml
 recovery:
   policy_version: 1
-  generation: 5
-  session_id: assurance-20260806T100642Z
-  session_started_at: 2026-08-06T10:03:39Z
-  checkpointed_at: 2026-08-06T10:08:27Z
-  last_progress_at: 2026-08-06T10:08:27Z
-  phase: terminal_reconciliation_and_current_base_gates
-  exact_head: 47199b328b0c29ce1cf80a14bf8d2e09c6cad6f9
-  pull_request: 1293
-  active_operation: exact-head documentation and governance CI
-  external_run_ids: [31078169298]
-  check_generation: wave-005-generation-2
-  checks_used: 1
+  generation: 6
+  session_id: assurance-20260806T101610Z
+  session_started_at: 2026-08-06T10:12:39Z
+  checkpointed_at: 2026-08-06T10:17:50Z
+  last_progress_at: 2026-08-06T10:17:50Z
+  phase: open_pr_terminality_and_dependency_safety
+  base_head: 3a3320646709991b2ef513a81d4a2b457ef155dc
+  checkpoint_parent: ec87aa9df4d3d70f4b5c12f5b3fb5d5918faebf2
+  pull_request: 1295
+  active_operation: exact-head checkpoint CI
+  external_run_ids: [31089483628, 31089481871, 31078169298, 31032802100]
+  check_generation: wave-006-generation-2
+  checks_used: 4
   status: active
   safe_to_resume: true
-  resume_condition: PR 1293 or either PR 1215/1284 changes state
-  next_action: Reconstruct live exact heads before mutation; preserve existing PR ownership and do not duplicate Issue 1132 work.
+  resume_condition: PR 1295 or any open delivery PR changes exact head/state
+  next_action: Reconstruct all open PRs before mutation; never duplicate Issue 1294 or existing product ownership.
 ```

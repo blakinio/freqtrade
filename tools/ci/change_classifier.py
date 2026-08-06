@@ -169,7 +169,7 @@ def classify(
         "ci_architecture": categories["ci_architecture"],
         "high_risk": high_risk,
         "full": full,
-        "core_light": core and not docs_only,
+        "core_light": (core or full) and not docs_only,
         "core_matrix": full or dependency_or_critical,
         "compatibility_sweep": full or dependency_or_critical,
         "online": full or dependency_or_critical,

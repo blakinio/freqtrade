@@ -4,7 +4,7 @@ status: review_ready
 branch: review/FTAI-ARCH-001-architecture-ci-20260805
 base_branch: develop
 base_sha: cbf9f57ea8d5783f85d19fe0f8557dfe3178705a
-synchronized_base_sha: f595d633fd09d4df58b391e28e979d29d1436d1a
+synchronized_base_sha: 8bc117ff4e9774c3400fcfb53e7f3f72659a1f7a
 created: 2026-08-05
 updated: 2026-08-06
 related_issue: "1251"
@@ -49,7 +49,7 @@ Create the missing canonical architecture registry, reconcile document authority
 - repository: `blakinio/freqtrade`
 - audited branch: `develop`
 - exact audited SHA: `cbf9f57ea8d5783f85d19fe0f8557dfe3178705a`
-- review branch synchronized with: `develop@f595d633fd09d4df58b391e28e979d29d1436d1a`
+- review branch synchronized with: `develop@8bc117ff4e9774c3400fcfb53e7f3f72659a1f7a`
 - review issue: #1251
 - review PR: #1255
 - CI remediation issue: #1252
@@ -84,7 +84,7 @@ Create the missing canonical architecture registry, reconcile document authority
 - registered architecture paths were verified from repository state or files added by PR #1255;
 - ADR numbering remains unique and ordered through ADR-019;
 - documentation and Issue/PR references were checked;
-- branch was synchronized with `develop@f595d633fd09d4df58b391e28e979d29d1436d1a` after repository-governance PR #1270 merged.
+- branch was synchronized with `develop@8bc117ff4e9774c3400fcfb53e7f3f72659a1f7a` after the unrelated repository-governance task archive merged.
 
 ## Remaining closeout gate
 

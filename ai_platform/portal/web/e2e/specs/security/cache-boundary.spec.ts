@@ -7,6 +7,14 @@ import { expect, test } from "../../fixtures/test.fixture";
 
 const representativeStatuses = [200, 401, 403, 404, 409, 500] as const;
 
+interface FixtureBot {
+  bot_id: string;
+  spec: {
+    config_revision: number;
+    [key: string]: unknown;
+  };
+}
+
 test.describe("Portal authenticated response cache boundary", {
   tag: [tags.critical, tags.security],
 }, () => {
@@ -21,7 +29,7 @@ test.describe("Portal authenticated response cache boundary", {
     }
   });
 
-  test("documents, redirects and API success/error responses are private no-store", async ({
+  test("documents, redirects and API success/error responses are exactly private no-store", async ({
     identity,
     page,
   }) => {
@@ -56,6 +64,38 @@ test.describe("Portal authenticated response cache boundary", {
     const notFound = await page.request.get("/api/route-that-does-not-exist");
     expect(notFound.status()).toBe(404);
     assertPrivateNoStore(notFound.headers());
+
+    const botInventory = await page.request.get("/api/bots");
+    expect(botInventory.status()).toBe(200);
+    assertPrivateNoStore(botInventory.headers());
+    const bots = (await botInventory.json()) as FixtureBot[];
+    expect(bots.length).toBeGreaterThan(0);
+    const bot = bots[0]!;
+
+    const conflict = await page.request.post(
+      `/api/bots/${encodeURIComponent(bot.bot_id)}/revisions`,
+      {
+        headers: identity.csrfHeaders(),
+        data: {
+          spec: {
+            ...bot.spec,
+            config_revision: bot.spec.config_revision + 2,
+          },
+        },
+      },
+    );
+    expect(conflict.status()).toBe(409);
+    assertPrivateNoStore(conflict.headers());
+
+    const serverError = await page.request.post("/api/bots", {
+      headers: {
+        ...identity.csrfHeaders(),
+        "content-type": "application/json",
+      },
+      data: "{",
+    });
+    expect(serverError.status()).toBe(502);
+    assertPrivateNoStore(serverError.headers());
   });
 
   test("logout response and browser history cannot restore protected content", async ({
@@ -112,9 +152,9 @@ test.describe("Portal authenticated response cache boundary", {
 });
 
 function assertPrivateNoStore(headers: Record<string, string>): void {
-  const directives = cacheDirectives(headers);
-  expect(directives).toContain("private");
-  expect(directives).toContain("no-store");
+  expect(cacheDirectives(headers)).toEqual(cacheDirectives({
+    "cache-control": PRIVATE_NO_STORE_CACHE_CONTROL,
+  }));
 }
 
 function cacheDirectives(headers: Record<string, string>): string[] {

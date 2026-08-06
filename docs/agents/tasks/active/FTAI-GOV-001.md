@@ -68,16 +68,16 @@ recovery:
   checkpointed_at: 2026-08-06T08:25:00+02:00
   last_progress_at: 2026-08-06T08:25:00+02:00
   phase: final exact-head CI after synchronization with develop
-  exact_head: 32226d878f57ffe115ea42ff443cc96f080e9ece
+  exact_head: resolve from live PR #1270 after this checkpoint commit
   pull_request: 1270
   active_operation: verify exact-head CI, mark ready and merge
   external_run_ids: []
   check_generation: post-develop-3030cf4-sync
   status: active
   safe_to_resume: true
-  resume_condition: required checks complete on exact head 32226d878f57ffe115ea42ff443cc96f080e9ece
-  next_action: publish synchronized head, verify all required checks, merge PR #1270 and archive task
-next_action: publish synchronized head, verify all required checks, merge PR #1270 and archive task
+  resume_condition: all required checks complete on the live PR #1270 head
+  next_action: verify all required checks, mark PR #1270 ready, merge and archive task
+next_action: verify all required checks, mark PR #1270 ready, merge and archive task
 ---
 
 # FTAI-GOV-001 durable task record
@@ -95,7 +95,7 @@ Runtime E2E is not applicable because the task changes repository governance and
 - Fresh exact-diff audit: PASS after repairing default-branch evidence and deletion-race handling.
 - Exact-head `44ea3d5cd15c8dc6046cdd8526208bb0d1cdcdf6`: full CI PASS before base synchronization.
 - Exact-head `041d529e2c2e1f547a9c2b465ad0d31d01e4c14d`: Freqtrade CI, Risk-aware component CI and zizmor PASS.
-- `develop` later advanced to `3030cf4914cc093a6b8c546efd7e4cc5fb69457b`; a conflict-free merge tree preserves every current `develop` path plus the exact ten governance paths.
-- New synchronized head: `32226d878f57ffe115ea42ff443cc96f080e9ece`.
+- `develop` advanced to `3030cf4914cc093a6b8c546efd7e4cc5fb69457b`; a conflict-free merge tree preserves every current `develop` path plus the exact ten governance paths.
+- Synchronization ancestry includes merge commits `32226d878f57ffe115ea42ff443cc96f080e9ece` and `2fb44590f72792730ded75f469b26745567b274c`; the authoritative final head is the live head of PR #1270 after this checkpoint commit.
 - Review submissions and review threads previously inspected: none.
 - No branch deletion, workflow creation, native security-setting mutation, deployment, credential, trading, withdrawal or live-capital action was executed.

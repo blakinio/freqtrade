@@ -4,9 +4,9 @@ status: review_ready
 branch: review/FTAI-ARCH-001-architecture-ci-20260805
 base_branch: develop
 base_sha: cbf9f57ea8d5783f85d19fe0f8557dfe3178705a
-synchronized_base_sha: 37e12c1e7b118196543f23c5626959d870012748
+synchronized_base_sha: 3030cf4914cc093a6b8c546efd7e4cc5fb69457b
 created: 2026-08-05
-updated: 2026-08-05
+updated: 2026-08-06
 related_issue: "1251"
 related_pr: "1255"
 review_role: A3-architecture-ci-reviewer
@@ -49,7 +49,7 @@ Create the missing canonical architecture registry, reconcile document authority
 - repository: `blakinio/freqtrade`
 - audited branch: `develop`
 - exact audited SHA: `cbf9f57ea8d5783f85d19fe0f8557dfe3178705a`
-- review branch synchronized with: `develop@37e12c1e7b118196543f23c5626959d870012748`
+- review branch synchronized with: `develop@3030cf4914cc093a6b8c546efd7e4cc5fb69457b`
 - review issue: #1251
 - review PR: #1255
 - CI remediation issue: #1252
@@ -58,7 +58,7 @@ Create the missing canonical architecture registry, reconcile document authority
 
 1. Architecture truth is fragmented between a historical research MVP document, a broader Portal target architecture and an accepted Portal decision log.
 2. The required root `ARCHITECTURE_REGISTRY.yaml` is absent on the audited base and on synchronized `develop` before this review PR.
-3. GitHub Actions reports 589 workflow catalog records, including historical temporary/agent workflow paths reported active but absent from the current `develop` workflow directory.
+3. GitHub Actions reported hundreds of historical workflow catalog records, including temporary and agent paths absent from the current workflow directory.
 4. Current workflow validation covers checked-in workflow files and central routing contracts, but not historical Actions-catalog lifecycle or temporary-workflow expiry.
 
 ## Review outputs
@@ -67,12 +67,12 @@ Create the missing canonical architecture registry, reconcile document authority
 - ADR-019 in the existing accepted decision log;
 - explicit historical-scope banner on the original architecture document;
 - dated review report;
-- separate bounded remediation Issue #1252;
-- draft PR #1255 synchronized with the latest observed `develop` head.
+- separate bounded remediation Issue #1252 and PR #1261;
+- PR #1255 synchronized with the current observed `develop` head.
 
 ## Safety and ownership
 
-- no `.github/workflows/**` mutation;
+- no `.github/workflows/**` mutation in this architecture PR;
 - no deployment or protected-target mutation;
 - no exchange credential or live-capital operation;
 - no delivery-lane implementation;
@@ -84,11 +84,11 @@ Create the missing canonical architecture registry, reconcile document authority
 - registered architecture paths were verified from repository state or files added by PR #1255;
 - ADR numbering remains unique and ordered through ADR-019;
 - documentation and Issue/PR references were checked;
-- branch was synchronized with `develop@37e12c1e7b118196543f23c5626959d870012748` after concurrent assurance Wave 001 merged.
+- branch was synchronized with `develop@3030cf4914cc093a6b8c546efd7e4cc5fb69457b` after the bounded core-light CI correction merged.
 
 ## Remaining closeout gate
 
-Exact-head GitHub CI and review must complete before merge. The task remains `review_ready`; ownership is not released.
+Exact-head GitHub CI and review must complete before merge. The task remains `review_ready`; ownership is not released until PR #1255 merges.
 
 ## Closeout state
 

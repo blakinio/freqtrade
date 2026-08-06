@@ -11,10 +11,10 @@ JOURNAL_IDENTITY="b2ffc66df1196c33ecf2f91c76ef3e3dd7862367a70f75db7e653d848a52a3
 WINDOW_START_MS="1785948307561"
 WINDOW_END_MS="1786038307561"
 OPERATOR_CONTAINER="wickhunter-paper-runtime-v12"
-CANDIDATE_ROOT="/volume1/docker/freqtrade/state/wickhunter-candidate-materialization/packages/wickhunter-candidate-materialization-20260803-v2-626087ca45d6"
-ACTIVATION_ROOT="/volume1/docker/freqtrade/state/wickhunter-paper-runtime/v12/activations/wickhunter-wh09-activation-20260805-v12-108eff81"
-JOURNAL_ROOT="/volume1/docker/freqtrade/state/wickhunter-paper-runtime/v12/journals/wickhunter-wh09-activation-20260805-v12-108eff81"
-HEALTH_ROOT="/volume1/docker/freqtrade/state/wickhunter-paper-runtime/v12/operator/wickhunter-wh09-activation-20260805-v12-108eff81"
+CANDIDATE_SOURCE="/volume1/docker/freqtrade/state/wickhunter-candidate-materialization/packages/wickhunter-candidate-materialization-20260803-v2-626087ca45d6"
+ACTIVATION_SOURCE="/volume1/docker/freqtrade/state/wickhunter-paper-runtime/v12/activations/wickhunter-wh09-activation-20260805-v12-108eff81"
+JOURNAL_SOURCE="/volume1/docker/freqtrade/state/wickhunter-paper-runtime/v12/journals/wickhunter-wh09-activation-20260805-v12-108eff81"
+HEALTH_SOURCE="/volume1/docker/freqtrade/state/wickhunter-paper-runtime/v12/operator/wickhunter-wh09-activation-20260805-v12-108eff81"
 
 : "${BASE_SHA:?BASE_SHA is required}"
 : "${HEAD_SHA:?HEAD_SHA is required}"
@@ -24,6 +24,38 @@ HEALTH_ROOT="/volume1/docker/freqtrade/state/wickhunter-paper-runtime/v12/operat
 : "${RUNNER_TEMP:?RUNNER_TEMP is required}"
 : "${GITHUB_OUTPUT:?GITHUB_OUTPUT is required}"
 : "${GITHUB_STEP_SUMMARY:?GITHUB_STEP_SUMMARY is required}"
+
+output="$RUNNER_TEMP/wickhunter-wh09-v12-terminal"
+candidate_copy="$RUNNER_TEMP/wickhunter-wh09-v12-candidate-copy"
+activation_copy="$RUNNER_TEMP/wickhunter-wh09-v12-activation-copy"
+journal_before="$RUNNER_TEMP/wickhunter-wh09-v12-journal-before"
+journal_copy="$RUNNER_TEMP/wickhunter-wh09-v12-journal-copy"
+rm -rf "$output" "$candidate_copy" "$activation_copy" "$journal_before" "$journal_copy"
+install -d -m 0777 "$output" "$candidate_copy" "$activation_copy" "$journal_before" "$journal_copy"
+echo "output=$output" >> "$GITHUB_OUTPUT"
+
+suffix="${GITHUB_RUN_ID:-manual}-${GITHUB_RUN_ATTEMPT:-1}-$$"
+candidate_volume="wh09-candidate-$suffix"
+activation_volume="wh09-activation-$suffix"
+journal_volume="wh09-journal-$suffix"
+output_volume="wh09-output-$suffix"
+seed_containers=()
+eval_container=""
+extract_container=""
+
+cleanup() {
+  local status=$?
+  set +e
+  [[ -z "$eval_container" ]] || docker rm -f "$eval_container" >/dev/null 2>&1
+  [[ -z "$extract_container" ]] || docker rm -f "$extract_container" >/dev/null 2>&1
+  for container in "${seed_containers[@]}"; do
+    docker rm -f "$container" >/dev/null 2>&1
+  done
+  docker volume rm -f "$candidate_volume" "$activation_volume" "$journal_volume" "$output_volume" >/dev/null 2>&1
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'status=$?; printf "WH09_COLLECTOR_FAILURE line=%s exit=%s command=%q\n" "$LINENO" "$status" "$BASH_COMMAND" >&2; exit "$status"' ERR
 
 [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
 [[ "$RUNNER_OS_VALUE" == "Linux" ]]
@@ -42,81 +74,47 @@ now_ms="$(date +%s%3N)"
 [[ "$now_ms" -ge "$WINDOW_END_MS" ]]
 [[ $((WINDOW_END_MS - WINDOW_START_MS)) -ge 86400000 ]]
 
-output="$RUNNER_TEMP/wickhunter-wh09-v12-terminal"
-journal_copy="$RUNNER_TEMP/wickhunter-wh09-v12-journal-copy"
-rm -rf "$output" "$journal_copy"
-install -d -m 0777 "$output"
-install -d -m 0777 "$journal_copy"
-
-for path in "$CANDIDATE_ROOT" "$ACTIVATION_ROOT" "$JOURNAL_ROOT" "$HEALTH_ROOT"; do
-  [[ "$path" == /* && -d "$path" && ! -L "$path" ]]
-done
-[[ -f "$HEALTH_ROOT/health.json" && ! -L "$HEALTH_ROOT/health.json" ]]
-docker inspect "$OPERATOR_CONTAINER" >/dev/null
+docker inspect "$OPERATOR_CONTAINER" > "$output/container-inspect.json"
 image_id="$(docker inspect --format '{{.Image}}' "$OPERATOR_CONTAINER")"
 [[ "$image_id" == "$EXPECTED_IMAGE_ID" ]]
 
-export IMPLEMENTATION_SHA ACTIVATION_NAME RUN_ID BINDING_ID JOURNAL_IDENTITY
-export WINDOW_START_MS WINDOW_END_MS OPERATOR_CONTAINER HEALTH_ROOT
-export OUTPUT_ROOT="$output" IMAGE_ID="$image_id"
+INSPECT="$output/container-inspect.json" \
+CANDIDATE_SOURCE="$CANDIDATE_SOURCE" \
+ACTIVATION_SOURCE="$ACTIVATION_SOURCE" \
+JOURNAL_SOURCE="$JOURNAL_SOURCE" \
+HEALTH_SOURCE="$HEALTH_SOURCE" \
 python3 - <<'PY'
-import hashlib
 import json
 import os
 from pathlib import Path
 
-health_path = Path(os.environ["HEALTH_ROOT"]) / "health.json"
-health = json.loads(health_path.read_text(encoding="utf-8"))
-claimed = health.pop("health_sha256", None)
-canonical = json.dumps(health, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
-if claimed != hashlib.sha256(canonical.encode("utf-8")).hexdigest():
-    raise SystemExit("health self-hash mismatch")
+payload = json.loads(Path(os.environ["INSPECT"]).read_text(encoding="utf-8"))
+if not isinstance(payload, list) or len(payload) != 1:
+    raise SystemExit("unexpected docker inspect payload")
+container = payload[0]
 expected = {
-    "operator_commit": os.environ["IMPLEMENTATION_SHA"],
-    "binding_id": os.environ["BINDING_ID"],
-    "run_id": os.environ["RUN_ID"],
-    "window_start_ms": int(os.environ["WINDOW_START_MS"]),
-    "window_end_ms": int(os.environ["WINDOW_END_MS"]),
-    "protected_holdout_accessed": False,
-    "automatic_promotion_enabled": False,
-    "trading_credentials_present": False,
-    "order_adapter_present": False,
-    "execution_enabled": False,
-    "orders_submitted": 0,
-    "live_capital_authorized": False,
+    "/runtime/candidate": (os.environ["CANDIDATE_SOURCE"], False),
+    "/runtime/activation": (os.environ["ACTIVATION_SOURCE"], False),
+    "/runtime/journal": (os.environ["JOURNAL_SOURCE"], True),
+    "/runtime/operator": (os.environ["HEALTH_SOURCE"], True),
 }
-for key, value in expected.items():
-    if health.get(key) != value:
-        raise SystemExit(f"health identity or authority mismatch: {key}")
-output = Path(os.environ["OUTPUT_ROOT"])
-(output / "terminal-health.json").write_text(
-    json.dumps({**health, "health_sha256": claimed}, indent=2, sort_keys=True) + "\n",
-    encoding="utf-8",
-)
-provenance = {
-    "container": os.environ["OPERATOR_CONTAINER"],
-    "image_id": os.environ["IMAGE_ID"],
-    "implementation_sha": os.environ["IMPLEMENTATION_SHA"],
-    "activation_name": os.environ["ACTIVATION_NAME"],
-    "run_id": os.environ["RUN_ID"],
-    "binding_id": os.environ["BINDING_ID"],
-    "journal_identity": os.environ["JOURNAL_IDENTITY"],
-    "window_start_ms": int(os.environ["WINDOW_START_MS"]),
-    "window_end_ms": int(os.environ["WINDOW_END_MS"]),
-    "source_journal_mutated": False,
-    "network_used_for_evaluation": False,
-    "protected_holdout_accessed": False,
-    "automatic_promotion_enabled": False,
-    "trading_credentials_present": False,
-    "order_adapter_present": False,
-    "execution_enabled": False,
-    "orders_submitted": 0,
-    "live_capital_authorized": False,
+actual = {
+    mount["Destination"]: (mount["Source"], bool(mount["RW"]))
+    for mount in container.get("Mounts", [])
+    if mount.get("Destination") in expected
 }
-(output / "collection-provenance.json").write_text(
-    json.dumps(provenance, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-)
+if actual != expected:
+    raise SystemExit(f"operator mount identity mismatch: {actual!r}")
 PY
+
+# The self-hosted runner is containerized and does not expose Synology host
+# paths directly. Copy through the Docker API from the exact operator instead.
+docker cp "$OPERATOR_CONTAINER:/runtime/candidate/." "$candidate_copy/"
+docker cp "$OPERATOR_CONTAINER:/runtime/activation/." "$activation_copy/"
+docker cp "$OPERATOR_CONTAINER:/runtime/journal/." "$journal_before/"
+docker cp "$OPERATOR_CONTAINER:/runtime/operator/health.json" "$output/health.json"
+sleep 3
+docker cp "$OPERATOR_CONTAINER:/runtime/journal/." "$journal_copy/"
 
 manifest() {
   local root="$1"
@@ -150,17 +148,98 @@ Path(os.environ["DESTINATION"]).write_text(
 PY
 }
 
-manifest "$JOURNAL_ROOT" "$RUNNER_TEMP/journal-manifest-before.json"
-sleep 3
-manifest "$JOURNAL_ROOT" "$RUNNER_TEMP/journal-manifest-after.json"
+manifest "$journal_before" "$RUNNER_TEMP/journal-manifest-before.json"
+manifest "$journal_copy" "$RUNNER_TEMP/journal-manifest-after.json"
 cmp "$RUNNER_TEMP/journal-manifest-before.json" "$RUNNER_TEMP/journal-manifest-after.json"
-cp -a "$JOURNAL_ROOT/." "$journal_copy/"
-manifest "$journal_copy" "$output/journal-source-manifest.json"
-cmp "$RUNNER_TEMP/journal-manifest-after.json" "$output/journal-source-manifest.json"
-chmod -R a+rwX "$journal_copy"
+cp "$RUNNER_TEMP/journal-manifest-after.json" "$output/journal-source-manifest.json"
+
+export IMPLEMENTATION_SHA ACTIVATION_NAME RUN_ID BINDING_ID JOURNAL_IDENTITY
+export WINDOW_START_MS WINDOW_END_MS OPERATOR_CONTAINER
+export OUTPUT_ROOT="$output" IMAGE_ID="$image_id"
+python3 - <<'PY'
+import hashlib
+import json
+import os
+from pathlib import Path
+
+health_path = Path(os.environ["OUTPUT_ROOT"]) / "health.json"
+health = json.loads(health_path.read_text(encoding="utf-8"))
+claimed = health.pop("health_sha256", None)
+canonical = json.dumps(health, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+if claimed != hashlib.sha256(canonical.encode("utf-8")).hexdigest():
+    raise SystemExit("health self-hash mismatch")
+expected = {
+    "operator_commit": os.environ["IMPLEMENTATION_SHA"],
+    "binding_id": os.environ["BINDING_ID"],
+    "run_id": os.environ["RUN_ID"],
+    "window_start_ms": int(os.environ["WINDOW_START_MS"]),
+    "window_end_ms": int(os.environ["WINDOW_END_MS"]),
+    "protected_holdout_accessed": False,
+    "automatic_promotion_enabled": False,
+    "trading_credentials_present": False,
+    "order_adapter_present": False,
+    "execution_enabled": False,
+    "orders_submitted": 0,
+    "live_capital_authorized": False,
+}
+for key, value in expected.items():
+    if health.get(key) != value:
+        raise SystemExit(f"health identity or authority mismatch: {key}")
+output = Path(os.environ["OUTPUT_ROOT"])
+(output / "terminal-health.json").write_text(
+    json.dumps({**health, "health_sha256": claimed}, indent=2, sort_keys=True) + "\n",
+    encoding="utf-8",
+)
+health_path.unlink()
+provenance = {
+    "container": os.environ["OPERATOR_CONTAINER"],
+    "image_id": os.environ["IMAGE_ID"],
+    "implementation_sha": os.environ["IMPLEMENTATION_SHA"],
+    "activation_name": os.environ["ACTIVATION_NAME"],
+    "run_id": os.environ["RUN_ID"],
+    "binding_id": os.environ["BINDING_ID"],
+    "journal_identity": os.environ["JOURNAL_IDENTITY"],
+    "window_start_ms": int(os.environ["WINDOW_START_MS"]),
+    "window_end_ms": int(os.environ["WINDOW_END_MS"]),
+    "source_journal_mutated": False,
+    "network_used_for_evaluation": False,
+    "protected_holdout_accessed": False,
+    "automatic_promotion_enabled": False,
+    "trading_credentials_present": False,
+    "order_adapter_present": False,
+    "execution_enabled": False,
+    "orders_submitted": 0,
+    "live_capital_authorized": False,
+}
+(output / "collection-provenance.json").write_text(
+    json.dumps(provenance, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+)
+PY
+
+docker volume create "$candidate_volume" >/dev/null
+docker volume create "$activation_volume" >/dev/null
+docker volume create "$journal_volume" >/dev/null
+docker volume create "$output_volume" >/dev/null
+
+seed_volume() {
+  local volume="$1"
+  local source="$2"
+  local name="wh09-seed-${suffix}-${#seed_containers[@]}"
+  docker create --name "$name" -v "$volume:/seed" --entrypoint /bin/true "$image_id" >/dev/null
+  seed_containers+=("$name")
+  docker cp "$source/." "$name:/seed/"
+  docker rm "$name" >/dev/null
+  seed_containers=("${seed_containers[@]:0:${#seed_containers[@]}-1}")
+}
+
+seed_volume "$candidate_volume" "$candidate_copy"
+seed_volume "$activation_volume" "$activation_copy"
+seed_volume "$journal_volume" "$journal_copy"
 
 finalized_at_ms="$(date +%s%3N)"
-docker run --rm --interactive \
+eval_container="wh09-evaluate-$suffix"
+docker create --interactive \
+  --name "$eval_container" \
   --network none \
   --read-only \
   --cap-drop ALL \
@@ -168,12 +247,14 @@ docker run --rm --interactive \
   --tmpfs /tmp:rw,noexec,nosuid,size=64m \
   -e PYTHONDONTWRITEBYTECODE=1 \
   -e FINALIZED_AT_MS="$finalized_at_ms" \
-  -v "$CANDIDATE_ROOT:/candidate:ro" \
-  -v "$ACTIVATION_ROOT:/activation:ro" \
-  -v "$journal_copy:/journal:rw" \
-  -v "$output:/out:rw" \
+  -v "$candidate_volume:/candidate:ro" \
+  -v "$activation_volume:/activation:ro" \
+  -v "$journal_volume:/journal:rw" \
+  -v "$output_volume:/out:rw" \
   --entrypoint python \
-  "$image_id" - <<'PY'
+  "$image_id" - >/dev/null
+
+docker start --attach --interactive "$eval_container" <<'PY'
 from pathlib import Path
 import os
 
@@ -234,6 +315,14 @@ if result.report.outcome is PaperValidationOutcome.READY_FOR_OWNER_REVIEW:
     )
 PY
 
+docker rm "$eval_container" >/dev/null
+eval_container=""
+extract_container="wh09-extract-$suffix"
+docker create --name "$extract_container" -v "$output_volume:/out:ro" --entrypoint /bin/true "$image_id" >/dev/null
+docker cp "$extract_container:/out/." "$output/"
+docker rm "$extract_container" >/dev/null
+extract_container=""
+
 outcome="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["outcome"])' "$output/terminal-summary.json")"
 blockers="$(python3 -c 'import json,sys; print(",".join(json.load(open(sys.argv[1]))["blocker_codes"]))' "$output/terminal-summary.json")"
 
@@ -272,7 +361,6 @@ test -s "$output/artifact-sha256.txt"
 } >> "$GITHUB_STEP_SUMMARY"
 
 {
-  echo "output=$output"
   echo "outcome=$outcome"
   echo "blockers=$blockers"
 } >> "$GITHUB_OUTPUT"

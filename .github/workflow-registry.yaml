@@ -1,7 +1,8 @@
 {
   "canonical_entry_points": [
-    ".github/workflows/ci.yml",
     ".github/workflows/ci-components.yml",
+    ".github/workflows/ci.yml",
+    ".github/workflows/codeql.yml",
     ".github/workflows/zizmor_action.yml"
   ],
   "generated_at": "2026-08-06T06:57:40.780532+00:00",
@@ -525,6 +526,26 @@
         "pull_request",
         "push",
         "release",
+        "schedule",
+        "workflow_dispatch"
+      ]
+    },
+    {
+      "classification": "canonical",
+      "lifecycle": "active",
+      "name": "CodeQL Security Analysis",
+      "owner": "platform-ci",
+      "path": ".github/workflows/codeql.yml",
+      "permissions": {
+        "contents": "read",
+        "packages": "read",
+        "security-events": "write"
+      },
+      "review_date": "2027-02-02",
+      "risk_class": "low",
+      "triggers": [
+        "pull_request",
+        "push",
         "schedule",
         "workflow_dispatch"
       ]

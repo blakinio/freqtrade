@@ -4,7 +4,7 @@ import base64
 import hashlib
 import ipaddress
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 from urllib.parse import urlencode, urlparse
 
@@ -15,6 +15,15 @@ from ai_platform.portal.identity.schema import OidcIdentity
 
 
 OIDC_HTTP_USER_AGENT = "Freqtrade-Portal-OIDC/1.0"
+_MAX_ISSUER_LENGTH = 1024
+_MAX_CLIENT_ID_LENGTH = 255
+_MAX_LOGOUT_JTI_LENGTH = 255
+_MAX_LOGOUT_IDENTITY_LENGTH = 512
+_MAX_SIGNING_KEY_ID_LENGTH = 255
+_MAX_SIGNING_ALGORITHM_LENGTH = 32
+_DEFAULT_LOGOUT_MAX_TOKEN_AGE_SECONDS = 300
+_DEFAULT_LOGOUT_CLOCK_SKEW_SECONDS = 60
+_DEFAULT_LOGOUT_REPLAY_RETENTION_SECONDS = 900
 
 
 class OidcProtocolError(RuntimeError):
@@ -34,6 +43,10 @@ class OidcClientConfig:
     scopes: tuple[str, ...] = ("openid", "profile", "email")
     timeout_seconds: float = 10.0
     allow_insecure_local_http: bool = False
+    logout_max_token_age_seconds: int = _DEFAULT_LOGOUT_MAX_TOKEN_AGE_SECONDS
+    logout_clock_skew_seconds: int = _DEFAULT_LOGOUT_CLOCK_SKEW_SECONDS
+    logout_replay_retention_seconds: int = _DEFAULT_LOGOUT_REPLAY_RETENTION_SECONDS
+    require_logout_token_typ: bool = False
 
     def __post_init__(self) -> None:
         _validate_configured_url(
@@ -48,11 +61,43 @@ class OidcClientConfig:
         )
         if not self.client_id or not self.client_secret:
             raise ValueError("OIDC client credentials are required")
+        if len(self.issuer) > _MAX_ISSUER_LENGTH:
+            raise ValueError("OIDC issuer is too long")
+        if len(self.client_id) > _MAX_CLIENT_ID_LENGTH:
+            raise ValueError("OIDC client ID is too long")
+        _validate_bounded_seconds(
+            self.logout_max_token_age_seconds,
+            label="OIDC logout maximum token age",
+            minimum=1,
+            maximum=3600,
+        )
+        _validate_bounded_seconds(
+            self.logout_clock_skew_seconds,
+            label="OIDC logout clock skew",
+            minimum=0,
+            maximum=300,
+        )
+        _validate_bounded_seconds(
+            self.logout_replay_retention_seconds,
+            label="OIDC logout replay retention",
+            minimum=60,
+            maximum=86400,
+        )
+        if self.logout_replay_retention_seconds < self.logout_clock_skew_seconds:
+            raise ValueError("OIDC logout replay retention must cover clock skew")
 
 
 @dataclass(frozen=True)
 class OidcLogoutIdentity:
     issuer: str
+    client_id: str
+    jti: str
+    issued_at: datetime
+    expires_at: datetime
+    retention_until: datetime
+    token_type: str
+    signing_key_id: str
+    signing_algorithm: str
     subject: str | None
     idp_session_id: str | None
 
@@ -146,20 +191,22 @@ class PyJwtOidcClient:
         id_token = payload.get("id_token")
         if not isinstance(id_token, str) or not id_token:
             raise OidcProtocolError("OIDC token response did not contain an ID token")
-        claims = self._validate_jwt(
+        claims, _header = self._validate_jwt(
             id_token,
             require_nonce=True,
             require_subject=True,
             expected_nonce=expected_nonce,
+            leeway_seconds=0,
         )
         return _identity_from_claims(self.issuer, claims)
 
     def validate_backchannel_logout(self, logout_token: str) -> OidcLogoutIdentity:
-        claims = self._validate_jwt(
+        claims, header = self._validate_jwt(
             logout_token,
             require_nonce=False,
             require_subject=False,
             expected_nonce=None,
+            leeway_seconds=self.config.logout_clock_skew_seconds,
         )
         events = claims.get("events")
         if not isinstance(events, dict) or (
@@ -168,16 +215,72 @@ class PyJwtOidcClient:
             raise OidcProtocolError("logout token is missing the back-channel logout event")
         if "nonce" in claims:
             raise OidcProtocolError("logout token must not contain nonce")
-        subject = claims.get("sub")
-        sid = claims.get("sid")
-        if not isinstance(subject, str):
-            subject = None
-        if not isinstance(sid, str):
-            sid = None
+        jti = _required_bounded_claim(
+            claims,
+            "jti",
+            maximum_length=_MAX_LOGOUT_JTI_LENGTH,
+            label="logout token jti",
+        )
+        subject = _optional_bounded_claim(
+            claims,
+            "sub",
+            maximum_length=_MAX_LOGOUT_IDENTITY_LENGTH,
+            label="logout token subject",
+        )
+        sid = _optional_bounded_claim(
+            claims,
+            "sid",
+            maximum_length=_MAX_LOGOUT_IDENTITY_LENGTH,
+            label="logout token sid",
+        )
         if subject is None and sid is None:
             raise OidcProtocolError("logout token must contain sub or sid")
+
+        issued_at = _numeric_date(claims, "iat", label="logout token iat")
+        expires_at = _numeric_date(claims, "exp", label="logout token exp")
+        now = datetime.now(UTC)
+        maximum_age = timedelta(seconds=self.config.logout_max_token_age_seconds)
+        clock_skew = timedelta(seconds=self.config.logout_clock_skew_seconds)
+        if expires_at <= issued_at:
+            raise OidcProtocolError("logout token expiration must follow issuance")
+        if expires_at - issued_at > maximum_age:
+            raise OidcProtocolError("logout token lifetime exceeds policy")
+        if issued_at > now + clock_skew:
+            raise OidcProtocolError("logout token issuance is in the future")
+        if now - issued_at > maximum_age + clock_skew:
+            raise OidcProtocolError("logout token is older than policy allows")
+        if expires_at < now - clock_skew:
+            raise OidcProtocolError("logout token is expired")
+
+        token_type = _logout_token_type(
+            header,
+            require_explicit=self.config.require_logout_token_typ,
+        )
+        signing_key_id = _required_bounded_header(
+            header,
+            "kid",
+            maximum_length=_MAX_SIGNING_KEY_ID_LENGTH,
+            label="logout token signing key ID",
+        )
+        signing_algorithm = _required_bounded_header(
+            header,
+            "alg",
+            maximum_length=_MAX_SIGNING_ALGORITHM_LENGTH,
+            label="logout token signing algorithm",
+        )
+        retention_until = expires_at + timedelta(
+            seconds=self.config.logout_replay_retention_seconds
+        )
         return OidcLogoutIdentity(
             issuer=self.issuer,
+            client_id=self.config.client_id,
+            jti=jti,
+            issued_at=issued_at,
+            expires_at=expires_at,
+            retention_until=retention_until,
+            token_type=token_type,
+            signing_key_id=signing_key_id,
+            signing_algorithm=signing_algorithm,
             subject=subject,
             idp_session_id=sid,
         )
@@ -236,7 +339,8 @@ class PyJwtOidcClient:
         require_nonce: bool,
         require_subject: bool,
         expected_nonce: str | None,
-    ) -> dict[str, Any]:
+        leeway_seconds: int,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         try:
             header = jwt.get_unverified_header(encoded)
         except jwt.PyJWTError as exc:
@@ -278,13 +382,107 @@ class PyJwtOidcClient:
                 algorithms=[algorithm],
                 audience=self.config.client_id,
                 issuer=self.issuer,
+                leeway=leeway_seconds,
                 options={"require": required},
             )
         except jwt.PyJWTError as exc:
             raise OidcProtocolError("OIDC JWT validation failed") from exc
         if require_nonce and claims.get("nonce") != expected_nonce:
             raise OidcProtocolError("OIDC nonce mismatch")
-        return dict(claims)
+        return dict(claims), dict(header)
+
+
+def _required_bounded_claim(
+    claims: dict[str, Any],
+    key: str,
+    *,
+    maximum_length: int,
+    label: str,
+) -> str:
+    value = claims.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise OidcProtocolError(f"{label} is required")
+    if len(value) > maximum_length:
+        raise OidcProtocolError(f"{label} is too long")
+    return value
+
+
+def _optional_bounded_claim(
+    claims: dict[str, Any],
+    key: str,
+    *,
+    maximum_length: int,
+    label: str,
+) -> str | None:
+    value = claims.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise OidcProtocolError(f"{label} is invalid")
+    if len(value) > maximum_length:
+        raise OidcProtocolError(f"{label} is too long")
+    return value
+
+
+def _required_bounded_header(
+    header: dict[str, Any],
+    key: str,
+    *,
+    maximum_length: int,
+    label: str,
+) -> str:
+    value = header.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise OidcProtocolError(f"{label} is required")
+    if len(value) > maximum_length:
+        raise OidcProtocolError(f"{label} is too long")
+    return value
+
+
+def _logout_token_type(
+    header: dict[str, Any],
+    *,
+    require_explicit: bool,
+) -> str:
+    value = header.get("typ")
+    if value is None:
+        if require_explicit:
+            raise OidcProtocolError("logout token typ must be logout+jwt")
+        return "untyped"
+    if not isinstance(value, str):
+        raise OidcProtocolError("logout token typ is invalid")
+    normalized = value.lower()
+    if normalized == "logout+jwt":
+        return "logout+jwt"
+    if normalized == "jwt" and not require_explicit:
+        return "legacy+jwt"
+    raise OidcProtocolError("logout token typ must be logout+jwt")
+
+
+def _numeric_date(
+    claims: dict[str, Any],
+    key: str,
+    *,
+    label: str,
+) -> datetime:
+    value = claims.get(key)
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise OidcProtocolError(f"{label} is invalid")
+    try:
+        return datetime.fromtimestamp(value, tz=UTC)
+    except (OverflowError, OSError, ValueError) as exc:
+        raise OidcProtocolError(f"{label} is invalid") from exc
+
+
+def _validate_bounded_seconds(
+    value: int,
+    *,
+    label: str,
+    minimum: int,
+    maximum: int,
+) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or not minimum <= value <= maximum:
+        raise ValueError(f"{label} must be between {minimum} and {maximum} seconds")
 
 
 def _json_headers() -> dict[str, str]:

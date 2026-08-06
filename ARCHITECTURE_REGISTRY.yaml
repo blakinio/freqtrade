@@ -4,9 +4,9 @@ repository: blakinio/freqtrade
 default_branch: develop
 
 review:
-  last_reviewed_at: "2026-08-05"
+  last_reviewed_at: "2026-08-06"
   audited_base_sha: cbf9f57ea8d5783f85d19fe0f8557dfe3178705a
-  synchronized_base_sha: 37e12c1e7b118196543f23c5626959d870012748
+  synchronized_base_sha: 3030cf4914cc093a6b8c546efd7e4cc5fb69457b
   review_issue: 1251
   review_task: FTAI-ARCH-001
   review_pr: 1255
@@ -121,7 +121,7 @@ documents:
     authority: canonical_index
     implementation_status: not_applicable
     owner_role: A3-architecture-ci-reviewer
-    last_reviewed_at: "2026-08-05"
+    last_reviewed_at: "2026-08-06"
 
   - path: docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md
     title: AI Trading Portal architecture decisions
@@ -205,7 +205,7 @@ documents:
     authority: evidence_at_recorded_revision_only
     implementation_status: not_applicable
     owner_role: A3-architecture-ci-reviewer
-    last_reviewed_at: "2026-08-05"
+    last_reviewed_at: "2026-08-06"
 
 open_architecture_findings:
   - issue: 1251

@@ -1,5 +1,5 @@
 name: Classify CI changes
-description: Apply the repository-wide changed-path and risk routing contract.
+description: Apply the repository-wide changed-path, PR-title and risk routing contract.
 inputs:
   event_name:
     description: GitHub event name.
@@ -64,6 +64,9 @@ runs:
         INPUT_REF_NAME: ${{ inputs.ref_name }}
       run: |
         set -euo pipefail
+        if [[ "$INPUT_EVENT_NAME" == "pull_request" ]]; then
+          python tools/ci/validate_pr_title.py --event "$GITHUB_EVENT_PATH"
+        fi
         args=(
           --event "$INPUT_EVENT_NAME"
           --action "$INPUT_EVENT_ACTION"

@@ -16,9 +16,9 @@ import {
 } from "@/lib/identity";
 import {
   applyBrowserSecurityHeaders,
-  BrowserSecurityContext,
   createBrowserSecurityContext,
 } from "@/lib/security-headers";
+import type { BrowserSecurityContext } from "@/lib/security-headers";
 
 const publicPaths = new Set([
   "/login",

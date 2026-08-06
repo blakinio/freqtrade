@@ -12,7 +12,7 @@ has been accepted.
 |---|---|---|
 | Per-request CSP nonce and enforced CSP | Next.js Proxy (`proxy.ts`) | Repository-enforced by #1303 |
 | Invariant framing, MIME, referrer, permissions and cross-origin headers | Next.js application (`next.config.ts` plus Proxy) | Repository-enforced by #1303 |
-| Authenticated downstream cache directives | Portal response/cache helper and BFF handlers | Deferred to #1304 |
+| Authenticated downstream cache directives | Portal response-cache helper through Next.js Proxy | Repository-enforced by #1304 |
 | HSTS and public HTTPS edge behavior | Approved public edge (Cloudflare/Synology boundary) | `EXTERNAL_ACCEPTANCE_REQUIRED` in #1305 |
 | Direct-origin bypass denial | Protected deployment/edge acceptance | `EXTERNAL_ACCEPTANCE_REQUIRED` in #1305 |
 
@@ -92,10 +92,32 @@ compatible defense for older clients.
 
 ## Cache boundary
 
-CSP and invariant headers do not prove safe downstream caching. Explicit `private, no-store`
-coverage for authenticated HTML, BFF success/error responses and identity/session redirects is
-owned by #1304. An upstream `fetch(..., { cache: "no-store" })` is not accepted as browser/CDN
-response policy.
+Every dynamic request handled by the Next.js Proxy receives the exact downstream response policy:
+
+```text
+Cache-Control: private, no-store
+```
+
+The single authority is `lib/response-cache-policy.ts`; `proxy.ts` applies it together with the CSP
+and invariant browser headers. The policy covers:
+
+- authenticated and anonymous dynamic HTML documents;
+- protected redirects and denied responses;
+- same-origin BFF/API success, validation, unauthorized, forbidden, not-found, conflict and 5xx
+  responses;
+- login, callback, session, logout and fixture/test identity responses.
+
+Applying the policy to anonymous login and error documents prevents identity transaction or failure
+state from becoming shared-cacheable. Public immutable Next.js static/image assets are excluded from
+the Proxy matcher and retain their framework-owned cache behavior.
+
+An upstream `fetch(..., { cache: "no-store" })` controls only the server-side fetch cache and is not
+accepted as browser/CDN response policy. A route or helper must not replace the downstream policy
+with a public or shared-cache directive.
+
+Browser-history verification proves that after fixture logout a protected page is requested again
+and redirected to login rather than restored from prior authenticated state. Tenant switching is
+subject to the same session-bound revalidation rule.
 
 ## Verification
 
@@ -104,7 +126,12 @@ Repository verification includes:
 - production-policy unit assertions inside the Playwright security suite;
 - fresh nonce comparison across independent requests;
 - rendered Next script nonce equality with the response CSP;
-- document, protected redirect, API error and static asset header assertions;
+- document, protected redirect, API success/error and static asset header assertions;
+- status-independent cache-policy assertions for 200, 401, 403, 404, 409 and 5xx responses;
+- direct-origin cache assertions for login documents, protected redirects, unauthorized/forbidden
+  API responses, authenticated session success and authenticated not-found responses;
+- browser back/forward verification after logout;
+- proof that static Next assets are not assigned the authenticated `private, no-store` policy;
 - lint, typecheck, production build, direct-origin Playwright security tests and required exact-head
   CI/security scanning.
 

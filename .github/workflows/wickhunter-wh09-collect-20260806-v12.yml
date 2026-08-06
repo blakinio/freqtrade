@@ -41,7 +41,7 @@ jobs:
           RUNNER_NAME_VALUE: ${{ runner.name }}
           RUNNER_OS_VALUE: ${{ runner.os }}
           RUNNER_ARCH_VALUE: ${{ runner.arch }}
-        run: bash .github/scripts/wickhunter-wh09-collect-v12.sh
+        run: bash -x .github/scripts/wickhunter-wh09-collect-v12.sh
 
       - name: Upload bounded terminal evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v11.0.1

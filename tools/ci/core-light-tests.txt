@@ -1,0 +1,18 @@
+# Deterministic smoke targets for non-critical core changes.
+# Critical exchange, data, persistence, RPC, strategy, FreqAI and optimize paths
+# remain covered by the complete core matrix.
+tests/test_arguments.py
+tests/test_configuration.py
+tests/test_directory_operations.py
+tests/test_log_setup.py
+tests/test_main.py
+tests/test_misc.py
+tests/test_strategy_updater.py
+tests/test_timerange.py
+tests/commands/test_build_config.py
+tests/commands/test_startup_time.py
+tests/plugins/test_pairinformationfilter.py
+tests/plugins/test_pairlocks.py
+tests/plugins/test_percentchangepairlist.py
+tests/plugins/test_remotepairlist.py
+tests/util

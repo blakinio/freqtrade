@@ -86,9 +86,9 @@ jobs:
         run: python tools/ci/validate_workflows.py
 
   core-light:
-    name: "Focused core compile, typing and unit validation"
+    name: "Bounded core compile, typing and smoke validation"
     needs: classify
-    if: needs.classify.outputs.core_light == 'true' && needs.classify.outputs.core_matrix != 'true'
+    if: needs.classify.outputs.core_light == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -102,7 +102,7 @@ jobs:
           enable-cache: true # zizmor: ignore[cache-poisoning] - test-only cache
           python-version: "3.13"
           cache-dependency-glob: "requirements.txt"
-          cache-suffix: "core-light-3.13"
+          cache-suffix: "core-light-v2-3.13"
       - name: Install bounded core dependencies
         run: |
           uv pip install -r requirements.txt
@@ -116,13 +116,8 @@ jobs:
           ruff format --check freqtrade ft_client
       - name: Focused typing
         run: mypy --ignore-missing-imports --follow-imports=skip freqtrade ft_client
-      - name: Core unit validation without optional ML and optimization suites
-        run: >-
-          pytest -q --durations 20 -n auto
-          --ignore=tests/ai_platform
-          --ignore=tests/ai_platform_integration
-          --ignore=tests/freqai
-          --ignore=tests/optimize
+      - name: Bounded core smoke validation
+        run: python tools/ci/run_core_light.py
 
   pre-commit:
     name: "Pre-commit checks"
@@ -405,11 +400,7 @@ jobs:
           [[ "$ROUTING_RESULT" == "success" ]]
           [[ "$PRECOMMIT_RESULT" == "success" ]]
           require_success "$DOCS_SCOPE" "$DOCS_RESULT" "Documentation build"
-          if [[ "$CORE_MATRIX_SCOPE" == "true" ]]; then
-            require_success false "$CORE_LIGHT_RESULT" "Focused core validation"
-          else
-            require_success "$CORE_LIGHT_SCOPE" "$CORE_LIGHT_RESULT" "Focused core validation"
-          fi
+          require_success "$CORE_LIGHT_SCOPE" "$CORE_LIGHT_RESULT" "Bounded core validation"
           require_success "$CORE_MATRIX_SCOPE" "$CORE_MATRIX_RESULT" "Core compatibility matrix"
           require_success "$COMPATIBILITY_SCOPE" "$EXHAUSTIVE_RESULT" "Exhaustive compatibility sweep"
           require_success "$ONLINE_SCOPE" "$ONLINE_RESULT" "Online compatibility"

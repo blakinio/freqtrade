@@ -56,7 +56,10 @@ def test_rejects_complete_dimension_with_open_blocker(tmp_path: Path) -> None:
     control = ledger["records"]["cross_cutting_controls"][0]
     control[3][0] = "COMPLETE"
     _write(path, ledger)
-    assert any("cannot be COMPLETE with open blockers" in error for error in validator.validate(tmp_path))
+    assert any(
+        "cannot be COMPLETE with open blockers" in error
+        for error in validator.validate(tmp_path)
+    )
 
 
 def test_rejects_unlinked_open_audit_issue(tmp_path: Path) -> None:

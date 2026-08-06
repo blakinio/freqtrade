@@ -51,6 +51,22 @@ def test_retirement_requires_absent_file_and_no_live_owner() -> None:
     )
     assert not _safe_to_disable(
         {
+            "classification": "historical_deleted",
+            "state_before": "active",
+            "latest_run": {"lookup_error": "GitHub unavailable"},
+            "open_pr": None,
+        }
+    )
+    assert not _safe_to_disable(
+        {
+            "classification": "historical_deleted",
+            "state_before": "active",
+            "latest_run": {},
+            "open_pr": None,
+        }
+    )
+    assert not _safe_to_disable(
+        {
             "classification": "bounded_diagnostic",
             "state_before": "active",
             "latest_run": {"status": "completed"},
@@ -88,7 +104,9 @@ def test_registry_rejects_unregistered_current_workflow(tmp_path: Path) -> None:
     catalog = tmp_path / "docs" / "agents" / "evidence" / "FTAI-CI-001"
     catalog.mkdir(parents=True)
     (catalog / "workflow-catalog.json").write_text(
-        '{"summary": {"unknown_active": 0}}\n', encoding="utf-8"
+        '{"summary": {"unknown_active": 0, "retirement_failures": 1}}\n',
+        encoding="utf-8",
     )
     failures = validate_workflow_registry(tmp_path, {".github/workflows/ci.yml"})
     assert any("missing from" in failure for failure in failures)
+    assert any("retirement failures remain" in failure for failure in failures)

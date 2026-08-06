@@ -250,8 +250,11 @@ def validate_workflow_registry(  # noqa: C901
             summary = catalog.get("summary") if isinstance(catalog, dict) else None
             if not isinstance(summary, dict):
                 failures.append(f"{CATALOG_PATH}: missing summary")
-            elif summary.get("unknown_active") != 0:
-                failures.append(f"{CATALOG_PATH}: unknown active workflow records remain")
+            else:
+                if summary.get("unknown_active") != 0:
+                    failures.append(f"{CATALOG_PATH}: unknown active workflow records remain")
+                if summary.get("retirement_failures") != 0:
+                    failures.append(f"{CATALOG_PATH}: workflow retirement failures remain")
     return failures
 
 

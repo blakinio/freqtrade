@@ -380,7 +380,15 @@ def _safe_to_disable(record: dict[str, Any]) -> bool:
     if record.get("state_before") != "active":
         return False
     latest_run = record.get("latest_run")
-    if isinstance(latest_run, dict) and latest_run.get("status") in ACTIVE_RUN_STATES:
+    if isinstance(latest_run, dict):
+        if latest_run.get("lookup_error"):
+            return False
+        status = latest_run.get("status")
+        if not isinstance(status, str):
+            return False
+        if status in ACTIVE_RUN_STATES:
+            return False
+    elif latest_run is not None:
         return False
     return record.get("open_pr") is None
 

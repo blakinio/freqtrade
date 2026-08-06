@@ -4,7 +4,7 @@
     ".github/workflows/ci-components.yml",
     ".github/workflows/zizmor_action.yml"
   ],
-  "generated_at": "2026-08-05T15:17:33.977372+00:00",
+  "generated_at": "2026-08-06T06:57:40.780532+00:00",
   "governance": {
     "catalog_evidence": "docs/agents/evidence/FTAI-CI-001/workflow-catalog.json",
     "review_interval_days": 180,
@@ -12,7 +12,7 @@
   },
   "repository": "blakinio/freqtrade",
   "schema_version": 1,
-  "source_head": "72a71b49076b58e5be00c87def5f493d135cf80d",
+  "source_head": "db8f9db71421c8b578fc4da45a3c90334badf459",
   "workflows": [
     {
       "classification": "canonical",
@@ -23,7 +23,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "high",
       "triggers": [
         "pull_request"
@@ -38,7 +38,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "medium",
       "triggers": [
         "pull_request",
@@ -54,7 +54,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "medium",
       "triggers": [
         "pull_request"
@@ -69,7 +69,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "medium",
       "triggers": [
         "pull_request"
@@ -84,7 +84,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "medium",
       "triggers": [
         "pull_request"
@@ -99,7 +99,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request"
@@ -114,7 +114,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "high",
       "triggers": [
         "pull_request"
@@ -129,7 +129,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "medium",
       "triggers": [
         "pull_request"
@@ -144,7 +144,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "medium",
       "triggers": [
         "pull_request"
@@ -159,7 +159,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "push",
@@ -176,7 +176,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request"
@@ -191,7 +191,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request"
@@ -206,7 +206,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "workflow_dispatch"
@@ -221,7 +221,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request"
@@ -236,7 +236,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request"
@@ -251,7 +251,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request"
@@ -266,7 +266,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request"
@@ -281,7 +281,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request",
@@ -298,7 +298,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request"
@@ -313,7 +313,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request"
@@ -328,7 +328,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request"
@@ -343,7 +343,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request"
@@ -358,7 +358,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request"
@@ -373,7 +373,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request"
@@ -388,7 +388,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request",
@@ -404,7 +404,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "high",
       "triggers": [
         "pull_request"
@@ -419,7 +419,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "high",
       "triggers": [
         "pull_request",
@@ -435,7 +435,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "workflow_call",
@@ -451,7 +451,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "workflow_call",
@@ -467,7 +467,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "workflow_call",
@@ -483,7 +483,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "schedule",
@@ -500,7 +500,7 @@
         "contents": "read",
         "issues": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request",
@@ -519,7 +519,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request",
@@ -536,7 +536,7 @@
       "owner": "platform-operations",
       "path": ".github/workflows/deploy-docs.yml",
       "permissions": {},
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "high",
       "triggers": [
         "push",
@@ -552,7 +552,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "schedule",
@@ -568,7 +568,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "workflow_call",
@@ -582,7 +582,7 @@
       "owner": "platform-ci",
       "path": ".github/workflows/docker-update-readme.yml",
       "permissions": {},
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "push",
@@ -598,7 +598,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request"
@@ -613,7 +613,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request",
@@ -629,7 +629,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "medium",
       "triggers": [
         "pull_request",
@@ -647,7 +647,7 @@
         "contents": "read",
         "statuses": "write"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "medium",
       "triggers": [
         "push",
@@ -663,7 +663,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "medium",
       "triggers": [
         "push",
@@ -679,7 +679,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "medium",
       "triggers": [
         "push",
@@ -695,7 +695,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request",
@@ -712,7 +712,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "medium",
       "triggers": [
         "push",
@@ -726,7 +726,7 @@
       "owner": "platform-operations",
       "path": ".github/workflows/liquidations-live-operational-health.yml",
       "permissions": {},
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "high",
       "triggers": [
         "push",
@@ -741,7 +741,7 @@
       "owner": "portal",
       "path": ".github/workflows/liquidations-live-portal-synology-proof.yml",
       "permissions": {},
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "high",
       "triggers": [
         "push",
@@ -755,7 +755,7 @@
       "owner": "platform-operations",
       "path": ".github/workflows/liquidations-live-synology.yml",
       "permissions": {},
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "high",
       "triggers": [
         "push",
@@ -769,7 +769,7 @@
       "owner": "platform-operations",
       "path": ".github/workflows/liquidations-live-telegram-notifications.yml",
       "permissions": {},
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "high",
       "triggers": [
         "issues",
@@ -785,7 +785,7 @@
       "owner": "platform-ci",
       "path": ".github/workflows/packages-cleanup.yml",
       "permissions": {},
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "workflow_call",
@@ -801,7 +801,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "high",
       "triggers": [
         "pull_request",
@@ -817,7 +817,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "high",
       "triggers": [
         "pull_request"
@@ -832,7 +832,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request"
@@ -848,7 +848,7 @@
         "contents": "read",
         "issues": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "medium",
       "triggers": [
         "workflow_call",
@@ -864,7 +864,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "schedule",
@@ -880,7 +880,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "medium",
       "triggers": [
         "pull_request"
@@ -895,7 +895,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "medium",
       "triggers": [
         "pull_request"
@@ -903,7 +903,7 @@
     },
     {
       "classification": "temporary_helper",
-      "expiry": "2026-08-12",
+      "expiry": "2026-08-13",
       "lifecycle": "temporary",
       "name": "Portal Owner Membership Bootstrap",
       "origin": "legacy_untracked_or_bounded_bootstrap",
@@ -913,7 +913,7 @@
         "contents": "read"
       },
       "retirement": "Remove the workflow file, disable its workflow ID, and append evidence to docs/agents/evidence/FTAI-CI-001/workflow-catalog.json.",
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "tracking_issue": 1252,
       "triggers": [
@@ -929,7 +929,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "high",
       "triggers": [
         "pull_request"
@@ -944,7 +944,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "workflow_call",
@@ -960,7 +960,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "workflow_call",
@@ -976,7 +976,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request",
@@ -992,7 +992,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "medium",
       "triggers": [
         "pull_request",
@@ -1008,7 +1008,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request"
@@ -1023,7 +1023,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "workflow_call",
@@ -1039,7 +1039,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "workflow_call",
@@ -1055,7 +1055,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "high",
       "triggers": [
         "workflow_dispatch"
@@ -1070,7 +1070,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "high",
       "triggers": [
         "pull_request"
@@ -1085,7 +1085,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "workflow_call",
@@ -1101,7 +1101,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "workflow_call",
@@ -1115,7 +1115,7 @@
       "owner": "platform-ci",
       "path": ".github/workflows/pre-commit-types-update.yml",
       "permissions": {},
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request"
@@ -1130,7 +1130,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "schedule",
@@ -1147,7 +1147,7 @@
         "contents": "read",
         "statuses": "write"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "push",
@@ -1161,7 +1161,7 @@
       "owner": "platform-ci",
       "path": ".github/workflows/repair-synology-autostart.yml",
       "permissions": {},
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "push",
@@ -1177,7 +1177,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request"
@@ -1192,7 +1192,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request"
@@ -1207,7 +1207,7 @@
       "permissions": {
         "contents": "write"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request"
@@ -1222,7 +1222,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "medium",
       "triggers": [
         "pull_request",
@@ -1239,7 +1239,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "medium",
       "triggers": [
         "pull_request",
@@ -1256,7 +1256,7 @@
       "permissions": {
         "contents": "read"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "high",
       "triggers": [
         "pull_request"
@@ -1272,7 +1272,7 @@
         "contents": "write",
         "issues": "write"
       },
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "high",
       "triggers": [
         "push"
@@ -1285,7 +1285,7 @@
       "owner": "platform-ci",
       "path": ".github/workflows/zizmor_action.yml",
       "permissions": {},
-      "review_date": "2027-02-01",
+      "review_date": "2027-02-02",
       "risk_class": "low",
       "triggers": [
         "pull_request",

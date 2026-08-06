@@ -101,25 +101,25 @@ jobs:
   closure-e2e:
     name: Program closure E2E component
     needs: [classify, portal-web]
-    if: always() && needs.classify.outputs.closure_e2e == 'true' && (needs.portal-web.result == 'success' || needs.portal-web.result == 'skipped')
+    if: ${{ always() && !cancelled() && needs.classify.outputs.closure_e2e == 'true' && (needs.portal-web.result == 'success' || needs.portal-web.result == 'skipped') }}
     uses: ./.github/workflows/ai-program-closure-e2e.yml
 
   strategy-engine:
     name: Strategy Engine component
     needs: [classify, closure-e2e]
-    if: always() && needs.classify.outputs.strategy_engine == 'true' && (needs.closure-e2e.result == 'success' || needs.closure-e2e.result == 'skipped')
+    if: ${{ always() && !cancelled() && needs.classify.outputs.strategy_engine == 'true' && (needs.closure-e2e.result == 'success' || needs.closure-e2e.result == 'skipped') }}
     uses: ./.github/workflows/ai-strategy-engine.yml
 
   completeness-audit:
     name: Portal completeness audit component
     needs: [classify, strategy-engine]
-    if: always() && needs.classify.outputs.portal_completeness_audit == 'true' && (needs.strategy-engine.result == 'success' || needs.strategy-engine.result == 'skipped')
+    if: ${{ always() && !cancelled() && needs.classify.outputs.portal_completeness_audit == 'true' && (needs.strategy-engine.result == 'success' || needs.strategy-engine.result == 'skipped') }}
     uses: ./.github/workflows/portal-completeness-audit.yml
 
   universal-e2e:
     name: Universal Portal E2E component
     needs: [classify, completeness-audit]
-    if: always() && needs.classify.outputs.closure_e2e == 'true' && (needs.completeness-audit.result == 'success' || needs.completeness-audit.result == 'skipped')
+    if: ${{ always() && !cancelled() && needs.classify.outputs.closure_e2e == 'true' && (needs.completeness-audit.result == 'success' || needs.completeness-audit.result == 'skipped') }}
     uses: ./.github/workflows/portal-universal-e2e.yml
 
   component-gate:
@@ -136,7 +136,7 @@ jobs:
       - universal-e2e
       - closure-e2e
       - completeness-audit
-    if: always()
+    if: ${{ always() && !cancelled() }}
     runs-on: ubuntu-24.04
     steps:
       - name: Enforce central component selection

@@ -1,4 +1,5 @@
 name: WickHunter WH09 v12 terminal PAPER evidence collection
+# Diagnostic generation: trace the first fail-closed collector assertion.
 
 "on":
   pull_request:

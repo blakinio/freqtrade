@@ -27,6 +27,7 @@ from ai_platform.portal.identity.service import IdentityService
 POSTGRES_URL = os.environ.get("PORTAL_TEST_POSTGRES_URL")
 ISSUER = "https://identity.example.test/application/o/portal"
 CLIENT_ID = "portal-client"
+TOKEN_NOW = datetime(2026, 8, 5, 12, 0, tzinfo=UTC)
 pytestmark = pytest.mark.skipif(
     not POSTGRES_URL,
     reason="PORTAL_TEST_POSTGRES_URL is required for PostgreSQL replay tests",
@@ -58,10 +59,16 @@ class ConcurrentOidcClient:
         assert logout_token == "valid-logout-token"
         return OidcLogoutIdentity(
             issuer=ISSUER,
-            subject="user-1",
-            idp_session_id="sid-1",
             client_id=CLIENT_ID,
             jti="logout-concurrent-1",
+            issued_at=TOKEN_NOW - timedelta(minutes=1),
+            expires_at=TOKEN_NOW + timedelta(minutes=4),
+            retention_until=TOKEN_NOW + timedelta(minutes=19),
+            token_type="logout+jwt",
+            signing_key_id="key-1",
+            signing_algorithm="RS256",
+            subject="user-1",
+            idp_session_id="sid-1",
         )
 
 
@@ -86,7 +93,7 @@ def test_concurrent_logout_replay_has_exactly_one_mutation_owner() -> None:
     engine = build_engine(POSTGRES_URL)
     migrate_database(engine)
     session_factory = build_session_factory(engine)
-    now = datetime(2026, 8, 5, 12, 0, tzinfo=UTC)
+    now = TOKEN_NOW
     service = IdentityService(
         session_factory,
         ConcurrentOidcClient(),

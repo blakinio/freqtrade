@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 
+import { privateNoStoreResponseHeaders } from "./lib/response-cache-policy";
 import { invariantSecurityHeaders } from "./lib/security-headers";
 
 const nextConfig: NextConfig = {
@@ -9,7 +10,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/:path*",
-        headers: invariantSecurityHeaders(),
+        headers: [...invariantSecurityHeaders(), ...privateNoStoreResponseHeaders()],
       },
     ];
   },

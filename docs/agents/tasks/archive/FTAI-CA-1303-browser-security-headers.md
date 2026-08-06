@@ -12,7 +12,8 @@ base_branch: develop
 base_head: 6e7147c866d3b7f91545c0aad54eac924ba7fa71
 branch: repair/1303-browser-security-headers
 pull_request: 1306
-implementation_head: 15e0dc5b1194a1dfca933c4a9b3374a173d1181b
+validated_implementation_head: 15e0dc5b1194a1dfca933c4a9b3374a173d1181b
+audit_remediation_head: 756463628fe7c2be939a8c4cba08fe7f7b466701
 completion_claim: repository_application_boundary
 external_acceptance: not_claimed_issue_1305
 ownership_release: on_merge
@@ -54,12 +55,23 @@ e2e:
   assertions:
     - independent requests receive different nonces
     - rendered Next scripts use the response CSP nonce
-    - protected redirects and API errors retain required headers
+    - protected redirects retain required headers
+    - successful route-handler API responses retain middleware security headers
+    - API errors retain required headers
     - static assets retain invariant headers
     - existing critical browser journeys remain green
 audit:
-  phase: final_exact_head_after_archive_required
+  objective: falsify_acceptance
+  findings:
+    - id: FTAI-1303-AUD-001
+      severity: medium
+      evidence: the initial regression asserted an API error but not a successful route-handler response
+      impact: middleware-to-route response header propagation was not directly proven
+      disposition: fixed
+      remediation_head: 756463628fe7c2be939a8c4cba08fe7f7b466701
+      verification: authenticated /api/identity/session success now asserts CSP and every invariant header
   findings_open_material: 0
+  final_exact_head_review: required_after_this_archive_update
   notes:
     - authenticated downstream cache behavior remains explicitly owned by issue 1304
     - HSTS and real public-edge/direct-origin acceptance remain explicitly owned by issue 1305
@@ -67,7 +79,7 @@ audit:
 
 ## Closeout contract
 
-The archive transition itself changes the PR head. PR #1306 may merge only after a fresh audit of the complete final diff, zero unresolved review threads, and all required checks pass on the exact post-archive head. Merge closes #1303 and releases the claim. It must then unblock #1304 without changing the external-acceptance block on #1305.
+This archive update changes the PR head after the recorded remediation commit. PR #1306 may merge only after a fresh audit of the complete final diff, zero unresolved review threads, and all required checks pass on the exact final head. Merge closes #1303 and releases the claim. It must then unblock #1304 without changing the external-acceptance block on #1305.
 
 ## Safety boundary
 

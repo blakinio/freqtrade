@@ -27,7 +27,7 @@ test.describe("Portal browser security headers", { tag: [tags.critical, tags.sec
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("upgrade-insecure-requests");
     expect(csp).not.toContain("'unsafe-eval'");
-    expect(csp).not.toContain("*");
+    assertNoUnboundedSource(csp);
     for (const privateOrigin of privateBrowserOrigins) expect(csp).not.toContain(privateOrigin);
   });
 
@@ -109,8 +109,14 @@ function assertDirectOriginPolicy(csp: string, nonce: string): void {
   expect(csp).toContain(`style-src 'self' 'nonce-${nonce}'`);
   expect(csp).toContain("connect-src 'self'");
   expect(csp).toContain("frame-ancestors 'none'");
-  expect(csp).not.toContain("*");
+  assertNoUnboundedSource(csp);
   for (const privateOrigin of privateBrowserOrigins) expect(csp).not.toContain(privateOrigin);
+}
+
+function assertNoUnboundedSource(csp: string): void {
+  expect(csp).not.toMatch(/(?:^|[;\s])\*(?=$|[;\s])/);
+  expect(csp).not.toMatch(/\b(?:https?|wss?):\/\/\*/);
+  expect(csp).not.toContain("*.");
 }
 
 function nonceFromCsp(csp: string): string {

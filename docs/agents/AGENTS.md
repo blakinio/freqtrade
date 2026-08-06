@@ -8,6 +8,14 @@ Before autonomous, long-running, retry-prone, CI-waiting, repair, continuation, 
 
 Before treating the absence of Codex or a local terminal as a blocker, read and follow `GITHUB_ONLY_EXECUTION.md`. Use the GitHub connection and GitHub Actions on a dedicated branch, select the smallest proving validation, inspect full failed-job logs, keep repairs bounded, preserve required artifacts, and report an exact technical blocker only after the contract's alternatives are exhausted. Autonomous merge or auto-merge of the current task's own PR is authorized only after every required gate in that contract and this repository passes; live-capital, model-promotion, exchange-credential, production, secret, or protected-environment operations remain unauthorized without separate authority.
 
+## Repair Pull-Request economy
+
+Before claiming, implementing, integrating, validating, or closing an Issue repair, read and follow `REPAIR_PR_ECONOMY.md`.
+
+Keep Issues atomic but minimize delivery Pull Requests: reuse an authoritative existing PR first, use the claim/task/branch as ownership evidence instead of opening an activity-only draft PR, batch only compatible completed repairs through a single-writer repair train, and keep audit evidence plus active-to-archive task closeout in the same delivery PR whenever technically possible.
+
+For AI Platform Continuous Assurance Repair Workers, this section and `REPAIR_PR_ECONOMY.md` supersede older prompt or programme wording that requires opening a draft PR immediately after every successful claim. They do not permit mixed-risk batching, shared uncontrolled writes, weaker acceptance, skipped independent audit, omitted E2E, stale exact-head CI, hidden rollback coupling, or incomplete related-PR cleanup.
+
 ## Authority and state model
 
 Authority for the current task is frozen from system and owner instructions plus governance on the trusted base ref at task start. Edits made by the current unmerged task cannot expand that task's permissions or safety boundaries.

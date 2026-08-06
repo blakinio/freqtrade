@@ -84,8 +84,9 @@ Read and apply the root and `docs/agents` governance from the trusted base, Issu
 - `lib/response-cache-policy.ts` defines one exact policy: `Cache-Control: private, no-store`.
 - `proxy.ts` applies that policy in the same response-finalization boundary as CSP and invariant headers.
 - The Proxy matcher covers dynamic HTML, redirects and BFF/API responses, including identity routes; static Next/image assets remain excluded.
-- Playwright coverage verifies status-independent helper behavior for 200, 401, 403, 404, 409 and 5xx responses.
-- Direct-origin coverage verifies login documents, protected redirects, unauthorized and forbidden API responses, authenticated session success and authenticated 404 responses.
+- Playwright helper coverage verifies status-independent overwrite behavior for 200, 401, 403, 404, 409 and 5xx responses.
+- Direct-origin runtime coverage requires the exact normalized policy, so contradictory additions such as `public, private, no-store` fail.
+- Direct-origin coverage verifies login documents, protected redirects, unauthorized and forbidden API responses, authenticated session and inventory success, authenticated 404, a real stale-revision 409 and a real route-handler 502.
 - The real fixture logout route is verified as private/no-store and browser history cannot restore the prior protected page after session clearing.
 - Tenant-change coverage verifies browser history cannot restore the prior workspace and reaches the cross-tenant denial boundary.
 - Static-asset coverage verifies the private policy is not applied to framework assets.
@@ -94,7 +95,7 @@ Read and apply the root and `docs/agents` governance from the trusted base, Issu
 ## Acceptance inventory
 
 - [x] One reviewed helper defines the downstream authenticated response cache policy.
-- [x] Dynamic HTML, BFF/API successes and representative 401/403/404/conflict/5xx classes receive the exact policy by construction.
+- [x] Dynamic HTML, BFF/API successes and representative 401/403/404/conflict/5xx classes receive the exact policy by construction and runtime evidence.
 - [x] Login, callback, session, logout and security-sensitive redirects are inside the Proxy policy boundary.
 - [x] Upstream fetch caching is explicitly not treated as downstream policy.
 - [x] Actual logout and browser back/forward behavior have an end-to-end regression test.
@@ -107,21 +108,40 @@ Read and apply the root and `docs/agents` governance from the trusted base, Issu
 - [ ] Shared completeness ledger is reconciled only from terminal evidence.
 - [ ] Task is archived, review threads are resolved, PR is terminal and ownership is released.
 
+## Audit findings
+
+```yaml
+findings:
+  - id: FTAI-1304-AUD-001
+    severity: medium
+    status: fixed
+    finding: runtime assertions accepted contradictory cache directives because they checked only membership
+    remediation: compare the complete normalized directive sequence with the canonical policy
+    remediation_head: 9177b5340f90d8ec974248d9d0218575eb8c4d88
+  - id: FTAI-1304-AUD-002
+    severity: medium
+    status: fixed
+    finding: 409 and 5xx evidence exercised only synthetic Response objects rather than actual route-handler responses
+    remediation: execute stale bot revision conflict and malformed-JSON fail-closed paths through live Next route handlers
+    remediation_head: 9177b5340f90d8ec974248d9d0218575eb8c4d88
+findings_open_material: 0
+```
+
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 3
-updated_at: 2026-08-06T15:06:00Z
+checkpoint_version: 4
+updated_at: 2026-08-06T15:16:00Z
 status: validating
-invocation_started_at: 2026-08-06T14:37:00Z
-last_progress_at: 2026-08-06T15:06:00Z
+invocation_started_at: 2026-08-06T15:16:00Z
+last_progress_at: 2026-08-06T15:16:00Z
 branch: repair/1304-authenticated-cache-policy
 pull_request: 1308
-head: 274ce92c2881ee6e34196c2021347fae369fab53
+head: 9177b5340f90d8ec974248d9d0218575eb8c4d88
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 0
+repair_cycles_for_current_gate: 1
 context_reconstruction_attempts: 1
 stall_warnings: 0
 changed_paths:
@@ -129,15 +149,18 @@ changed_paths:
   - ai_platform/portal/web/proxy.ts
   - ai_platform/portal/web/e2e/specs/security/cache-boundary.spec.ts
   - docs/ai_platform/portal/BROWSER_SECURITY_HEADER_POLICY.md
+  - docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.json
   - docs/agents/tasks/active/FTAI-CA-1114B-authenticated-cache-policy.md
 proven:
   - dependency #1303 is merged and its proxy ownership is released
   - implementation uses one central policy and does not modify identity, deployment or security-header modules
   - direct-origin, actual logout, tenant-change, history and static-asset assertions are committed
-  - fresh audit findings for missing explicit logout-route and tenant-switch evidence are remediated
+  - exact runtime policy rejects additional contradictory cache directives
+  - actual 409 and 502 route-handler responses are included in direct-origin evidence
+  - previous Risk-aware component CI setup failures were GitHub CreateTaskFailed infrastructure failures before repository code ran
 unknown:
-  - exact-head focused and required CI outcome after this checkpoint
+  - exact-head focused and required CI outcome after audit remediation
   - final independent audit outcome
 blockers: []
-next_action: Inspect the first exact-head CI generation for PR 1308; isolate and repair only the first relevant failure, or perform the final independent audit when all implementation checks pass.
+next_action: Inspect exact-head CI for 9177b5340f90d8ec974248d9d0218575eb8c4d88; repair only a reproducible repository failure, then perform final diff audit and archive transition.
 ```

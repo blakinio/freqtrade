@@ -14,6 +14,7 @@ import {
   SESSION_COOKIE_NAME,
   setFixtureIdentity,
 } from "@/lib/identity";
+import { applyPrivateNoStoreCachePolicy } from "@/lib/response-cache-policy";
 import {
   applyBrowserSecurityHeaders,
   createBrowserSecurityContext,
@@ -90,6 +91,7 @@ function secureResponse<T extends NextResponse>(
   response: T,
   security: BrowserSecurityContext,
 ): T {
+  applyPrivateNoStoreCachePolicy(response);
   return applyBrowserSecurityHeaders(response, security.contentSecurityPolicy);
 }
 

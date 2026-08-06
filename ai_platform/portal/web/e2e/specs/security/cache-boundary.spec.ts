@@ -58,17 +58,42 @@ test.describe("Portal authenticated response cache boundary", {
     assertPrivateNoStore(notFound.headers());
   });
 
-  test("browser history cannot restore a protected page after logout", async ({ identity, page }) => {
+  test("logout response and browser history cannot restore protected content", async ({
+    identity,
+    page,
+  }) => {
     await identity.setState("authenticated");
-    await page.goto("/bots");
-    await expect(page).toHaveURL(/\/bots$/);
+    const protectedPage = await page.goto("/bots");
+    expect(protectedPage?.status()).toBe(200);
+    assertPrivateNoStore(protectedPage!.headers());
 
-    await identity.setState("anonymous");
+    const logout = await page.request.post("/api/identity/logout", {
+      headers: identity.csrfHeaders(),
+    });
+    expect(logout.status()).toBe(200);
+    assertPrivateNoStore(logout.headers());
+
     await page.goto("/login");
-    await page.goBack();
+    await page.goBack({ waitUntil: "domcontentloaded" });
 
     await expect(page).toHaveURL(/\/login\?/);
     expect(page.url()).toContain("reason=session_missing");
+  });
+
+  test("tenant change and browser history cannot restore the prior workspace", async ({
+    identity,
+    page,
+  }) => {
+    await identity.setState("authenticated");
+    const protectedPage = await page.goto("/bots");
+    expect(protectedPage?.status()).toBe(200);
+    assertPrivateNoStore(protectedPage!.headers());
+
+    await identity.setState("cross_tenant");
+    await page.goto("/login");
+    await page.goBack({ waitUntil: "domcontentloaded" });
+
+    await expect(page).toHaveURL(/\/denied\?reason=cross_tenant$/);
   });
 
   test("static Next assets are not assigned the authenticated private policy", async ({

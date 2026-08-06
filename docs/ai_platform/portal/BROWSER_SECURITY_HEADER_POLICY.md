@@ -115,9 +115,10 @@ An upstream `fetch(..., { cache: "no-store" })` controls only the server-side fe
 accepted as browser/CDN response policy. A route or helper must not replace the downstream policy
 with a public or shared-cache directive.
 
-Browser-history verification proves that after fixture logout a protected page is requested again
-and redirected to login rather than restored from prior authenticated state. Tenant switching is
-subject to the same session-bound revalidation rule.
+Browser-history verification proves that the real fixture logout route clears the session and a
+subsequent back navigation revalidates the protected page and redirects to login. A separate tenant
+change scenario proves that back navigation cannot restore the prior workspace and is redirected to
+the cross-tenant denial boundary.
 
 ## Verification
 
@@ -130,7 +131,8 @@ Repository verification includes:
 - status-independent cache-policy assertions for 200, 401, 403, 404, 409 and 5xx responses;
 - direct-origin cache assertions for login documents, protected redirects, unauthorized/forbidden
   API responses, authenticated session success and authenticated not-found responses;
-- browser back/forward verification after logout;
+- explicit logout-response and browser back/forward verification after session clearing;
+- tenant-change and browser back/forward verification against prior-workspace replay;
 - proof that static Next assets are not assigned the authenticated `private, no-store` policy;
 - lint, typecheck, production build, direct-origin Playwright security tests and required exact-head
   CI/security scanning.

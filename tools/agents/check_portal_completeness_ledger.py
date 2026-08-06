@@ -8,7 +8,8 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeGuard
+
 
 APPROVED_STATUSES = [
     "COMPLETE",
@@ -162,10 +163,8 @@ def _load(path: Path) -> dict[str, Any]:
     return payload
 
 
-def _is_positive_issue_list(value: Any) -> bool:
-    return isinstance(value, list) and all(
-        isinstance(item, int) and item > 0 for item in value
-    )
+def _is_positive_issue_list(value: Any) -> TypeGuard[list[int]]:
+    return isinstance(value, list) and all(isinstance(item, int) and item > 0 for item in value)
 
 
 def _validate_dimension(
@@ -222,9 +221,7 @@ def _parse_record(
         record_id = prefix
     if not isinstance(name, str) or not name:
         errors.append(f"{record_id} has no name")
-    if kind == "surface" and (
-        not isinstance(route, str) or not route.startswith("/")
-    ):
+    if kind == "surface" and (not isinstance(route, str) or not route.startswith("/")):
         errors.append(f"{record_id} has an invalid route")
     if status not in APPROVED_STATUSES:
         errors.append(f"{record_id} has unsupported status {status!r}")
@@ -358,11 +355,7 @@ def _surface_routes(records: dict[str, Any]) -> list[Any]:
     values = records.get("surfaces", [])
     if not isinstance(values, list):
         return []
-    return [
-        raw[2]
-        for raw in values
-        if isinstance(raw, list) and len(raw) > 2
-    ]
+    return [raw[2] for raw in values if isinstance(raw, list) and len(raw) > 2]
 
 
 def _validate_inventory(

@@ -14,7 +14,7 @@
     "test:e2e:regression": "playwright test --project=chromium-desktop --project=chromium-accessibility --project=chromium-resilience --project=firefox-desktop --project=webkit-desktop --project=mobile-chrome --project=mobile-safari",
     "test:e2e:cross-browser": "playwright test --project=chromium-desktop --project=firefox-desktop --project=webkit-desktop --grep @cross-browser",
     "test:e2e:security": "playwright test --project=chromium-desktop --grep @security",
-    "test:market-evidence-auth": "node --test e2e/market-evidence-production-auth.test.mjs e2e/response-cache-production.test.mjs",
+    "test:market-evidence-auth": "node --test e2e/market-evidence-production-auth.test.mjs && node --test e2e/response-cache-production.test.mjs",
     "test:response-cache-production": "node --test e2e/response-cache-production.test.mjs",
     "test:liquid20-auth": "node --test e2e/liquid20-production-auth.test.mjs",
     "test:e2e:a11y": "playwright test --project=chromium-accessibility",

@@ -5,10 +5,11 @@ repository: blakinio/freqtrade
 issue: 1132
 lane: freqtrade-portal
 status: active
-phase: validating
+phase: final_exact_head_validation
 branch: fix/portal-oidc-logout-replay-1132
 pull_request: 1284
 base_sha: 8ee4f6b2527b7bffb7d6967adb3c0f1abd1be56b
+head_sha: 3b15834d487d30a5a7213427bd49f4ba0900ce64
 prompting_standard_version: 2.1
 execution_mode: github_only
 context_pressure: high
@@ -17,6 +18,7 @@ ownership:
   - ai_platform/portal/identity/repository.py
   - ai_platform/portal/identity/schema.py
   - ai_platform/portal/identity/oidc.py
+  - ai_platform/portal/identity/runtime.py
   - ai_platform/portal/identity/service.py
   - ai_platform/portal/identity/http.py
   - ai_platform/portal/identity/public_runtime.py
@@ -47,7 +49,8 @@ Implement durable, issuer/client/`jti`-scoped replay protection for OIDC back-ch
 - first reservation, revocation, audit and terminal result finalize in one transaction;
 - concurrent independent PostgreSQL requests have exactly one mutation owner;
 - restart preserves the terminal result and replay decision;
-- malformed protocol input maps consistently to HTTP 400 in both identity runtimes; provider unavailability remains HTTP 502.
+- malformed protocol input maps consistently to HTTP 400 in both identity runtimes; provider unavailability remains HTTP 502;
+- compatibility mode accepts reviewed legacy/untyped logout JWTs, while the canonical runtime can enable strict `typ=logout+jwt` enforcement through `PORTAL_IDENTITY_REQUIRE_LOGOUT_TOKEN_TYP`.
 
 ## Schema authority
 
@@ -63,17 +66,42 @@ Extend the existing `ai_platform.portal.database.schema` authority with an order
 - full exact-head required CI, risk-aware CI and workflow security analysis;
 - independent final diff audit.
 
+## Independent audit
+
+`FTAI-1132-AUD-001` — **remediated on head `3b15834d487d30a5a7213427bd49f4ba0900ce64`**.
+
+The first audit found that `OidcClientConfig.require_logout_token_typ` existed only for direct/test construction. `IdentityRuntimeConfig` and `build_identity_service()` did not expose or forward it, so the protected rollout could not enable the declared strict policy. The repair:
+
+- adds `PORTAL_IDENTITY_REQUIRE_LOGOUT_TOKEN_TYP` with explicit `true|false|1|0` parsing;
+- forwards the value into the canonical `OidcClientConfig`;
+- keeps compatibility mode as the default;
+- adds focused tests for strict propagation, compatibility default and invalid configuration.
+
+No other material finding was proven in the reviewed replay, transaction, schema, HTTP or test boundaries. Final zero-finding status remains conditional on exact-head CI and a final post-remediation diff check.
+
 ## Closeout boundary
 
 The implementation PR references Issue #1132 but must not auto-close it unless protected Authentik staging acceptance is completed on the exact implementation head. Repository completion alone transitions the Issue to a truthful external-acceptance waiting state.
 
 ## Current checkpoint
 
-- coordinator reconciliation PR #1275 merged as `8ee4f6b2527b7bffb7d6967adb3c0f1abd1be56b`;
-- Issue #1250 closed;
-- no competing active Issue #1132 task, branch or PR existed at dispatch;
-- branch created from the exact merged coordinator head;
-- exactly one draft implementation PR exists: #1284;
-- implementation includes the replay record, bounded token contract, transactional service path, HTTP error mapping, ordered schema revision, SQLite restart tests and PostgreSQL concurrency evidence;
-- canonical `.github/workflows/portal-schema-integrity.yml` now owns the replay database evidence; no competing workflow was created;
-- next action: resolve exact-head CI findings, perform independent final diff audit and record repository-complete/external-acceptance waiting closeout.
+```yaml
+checkpoint_version: 9
+updated_at: 2026-08-06T14:53:00Z
+status: active
+phase: final_exact_head_validation
+branch: fix/portal-oidc-logout-replay-1132
+pull_request: 1284
+head: 3b15834d487d30a5a7213427bd49f4ba0900ce64
+proven:
+  - prior head d63f6073d413c2a5dce6735c4be3fbecc4318068 passed all required CI after a targeted retry of one unrelated flaky Python 3.14 job
+  - PR is mergeable and has zero unresolved review threads
+  - independent audit finding FTAI-1132-AUD-001 was remediated in runtime.py and focused tests
+  - no protected Authentik, credential, deployment, trading, withdrawal or live-capital authority was used
+unknown:
+  - final exact-head required CI outcome for 3b15834d487d30a5a7213427bd49f4ba0900ce64
+  - final post-remediation zero-finding audit result
+  - protected Authentik staging acceptance outcome
+blockers: []
+next_action: Wait for exact-head CI to become terminal, inspect the first relevant failure if any, then perform the final post-remediation audit and merge only if all repository gates are green.
+```

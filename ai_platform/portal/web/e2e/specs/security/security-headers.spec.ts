@@ -63,7 +63,10 @@ test.describe("Portal browser security headers", { tag: [tags.critical, tags.sec
     expect(new Set(scriptNonces)).toEqual(new Set([navigationNonce]));
   });
 
-  test("security headers cover protected redirects and API errors", async ({ identity, page }) => {
+  test("security headers cover protected redirects and API success/error responses", async ({
+    identity,
+    page,
+  }) => {
     await identity.setState("anonymous");
 
     const redirect = await page.request.get("/bots", { maxRedirects: 0 });
@@ -79,6 +82,14 @@ test.describe("Portal browser security headers", { tag: [tags.critical, tags.sec
     expect(apiError.status()).toBe(401);
     assertInvariantHeaders(apiError.headers());
     expect(requiredHeader(apiError.headers(), "content-security-policy")).toContain(
+      "object-src 'none'",
+    );
+
+    await identity.setState("authenticated");
+    const apiSuccess = await page.request.get("/api/identity/session");
+    expect(apiSuccess.status()).toBe(200);
+    assertInvariantHeaders(apiSuccess.headers());
+    expect(requiredHeader(apiSuccess.headers(), "content-security-policy")).toContain(
       "object-src 'none'",
     );
   });

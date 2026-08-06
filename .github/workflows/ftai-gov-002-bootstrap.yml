@@ -67,8 +67,8 @@ jobs:
           registry["canonical_entry_points"] = sorted(canonical)
           registry_path.write_text(json.dumps(registry, indent=2) + "\n", encoding="utf-8")
 
-          Path(workflow_path).write_text(
-              """name: CodeQL Security Analysis
+          expression_open = "$" + "{{"
+          codeql_workflow = """name: CodeQL Security Analysis
 
 on:
   push:
@@ -84,14 +84,14 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: << github.workflow }}-<< github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
 
 permissions: {}
 
 jobs:
   analyze:
-    name: Analyze (${{ matrix.language }})
+    name: Analyze (<< matrix.language }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -112,15 +112,14 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3
         with:
-          languages: ${{ matrix.language }}
+          languages: << matrix.language }}
 
       - name: Analyze repository
         uses: github/codeql-action/analyze@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3
         with:
-          category: /language:${{ matrix.language }}
-""",
-              encoding="utf-8",
-          )
+          category: /language:<< matrix.language }}
+""".replace("<<", expression_open)
+          Path(workflow_path).write_text(codeql_workflow, encoding="utf-8")
 
           Path("docs/ci/GITHUB_NATIVE_SECURITY_ADMIN.md").write_text(
               """# GitHub-native security administration

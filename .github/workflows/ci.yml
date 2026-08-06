@@ -86,9 +86,9 @@ jobs:
         run: python tools/ci/validate_workflows.py
 
   core-light:
-    name: "Focused core compile, typing and unit validation"
+    name: "Bounded core compile, typing and smoke validation"
     needs: classify
-    if: needs.classify.outputs.core_light == 'true' && needs.classify.outputs.core_matrix != 'true'
+    if: needs.classify.outputs.core_light == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -102,11 +102,11 @@ jobs:
           enable-cache: true # zizmor: ignore[cache-poisoning] - test-only cache
           python-version: "3.13"
           cache-dependency-glob: "requirements.txt"
-          cache-suffix: "core-light-3.13"
+          cache-suffix: "core-light-v2-3.13"
       - name: Install bounded core dependencies
         run: |
           uv pip install -r requirements.txt
-          uv pip install pytest==9.1.1 pytest-asyncio==1.4.0 pytest-mock==3.15.1 pytest-timeout==2.4.0 time-machine==3.2.0 ruff==0.15.20 mypy==2.1.0
+          uv pip install pytest==9.1.1 pytest-asyncio==1.4.0 pytest-mock==3.15.1 pytest-timeout==2.4.0 pytest-xdist==3.8.0 time-machine==3.2.0 ruff==0.15.20 mypy==2.1.0
           uv pip install --no-deps -e ft_client/
           uv pip install --no-deps -e .
       - name: Compile and lint core
@@ -116,13 +116,8 @@ jobs:
           ruff format --check freqtrade ft_client
       - name: Focused typing
         run: mypy --ignore-missing-imports --follow-imports=skip freqtrade ft_client
-      - name: Core unit validation without optional ML and optimization suites
-        run: >-
-          pytest -q --durations 20 -n auto
-          --ignore=tests/ai_platform
-          --ignore=tests/ai_platform_integration
-          --ignore=tests/freqai
-          --ignore=tests/optimize
+      - name: Bounded core smoke validation
+        run: python tools/ci/run_core_light.py
 
   pre-commit:
     name: "Pre-commit checks"
@@ -308,6 +303,7 @@ jobs:
     needs: classify
     if: needs.classify.outputs.online == 'true'
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -328,7 +324,9 @@ jobs:
       - name: Tests incl. ccxt compatibility tests
         env:
           CI_WEB_PROXY: http://152.67.66.8:13128
-        run: pytest --random-order --longrun --durations 20 -n auto
+        run: >-
+          pytest --random-order --longrun --durations 20 -n auto
+          --timeout=300
 
   build:
     name: "Build distributions"
@@ -402,11 +400,7 @@ jobs:
           [[ "$ROUTING_RESULT" == "success" ]]
           [[ "$PRECOMMIT_RESULT" == "success" ]]
           require_success "$DOCS_SCOPE" "$DOCS_RESULT" "Documentation build"
-          if [[ "$CORE_MATRIX_SCOPE" == "true" ]]; then
-            require_success false "$CORE_LIGHT_RESULT" "Focused core validation"
-          else
-            require_success "$CORE_LIGHT_SCOPE" "$CORE_LIGHT_RESULT" "Focused core validation"
-          fi
+          require_success "$CORE_LIGHT_SCOPE" "$CORE_LIGHT_RESULT" "Bounded core validation"
           require_success "$CORE_MATRIX_SCOPE" "$CORE_MATRIX_RESULT" "Core compatibility matrix"
           require_success "$COMPATIBILITY_SCOPE" "$EXHAUSTIVE_RESULT" "Exhaustive compatibility sweep"
           require_success "$ONLINE_SCOPE" "$ONLINE_RESULT" "Online compatibility"

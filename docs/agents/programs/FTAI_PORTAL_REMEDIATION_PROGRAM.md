@@ -19,8 +19,8 @@ task_completion_policy: finalize_archive_and_continue
 user_communication: terminal_only
 initial_audit_merge: ba4173e975b6ae40c8b0266e3c15cb1b19a0755d
 programme_initialization_merge: 0a82a5c93613a213989865bd9128ac7263227148
-last_resolved_develop_head: f1bf851733ecc870f61c1206b0ee0fe8755c6e67
-current_integration_pr: pending_closeout
+last_resolved_develop_head: 108eff8149f3c5dba77bfcdeaea0c63c8a22b551
+current_integration_pr: pending_issue_1132_dispatch
 live_capital_authorized: false
 withdrawals_enabled: false
 fixture_reported_as_production: false
@@ -38,7 +38,9 @@ Resolve exactly the 50 implementation Issues authorized by audit PR `#1082`. Eve
 - Issue `#1124` completed through PR `#1146`.
 - Issue `#1126` completed through PR `#1149`.
 - Issue `#1127` completed through PR `#1151`.
+- Issue `#1122` completed through PR `#1159`, merge commit `4cceecc6078c72f582202815adc3e1891cc0f016`; its durable task is archived and the migration/schema lease is released.
 - Issue `#1137` repository implementation merged through PR `#1154` at `f1bf851733ecc870f61c1206b0ee0fe8755c6e67`; the Issue remains `WAITING` only for protected Authentik staging concurrency using an authorized synthetic identity.
+- Issue `#1132` is now the next safe READY identity task because the authoritative production migration chain and durable schema required for replay persistence are complete.
 - Audit severity inventory: `25 HIGH`, `25 MEDIUM`, `0 CRITICAL`, `0 LOW`.
 - Canonical audit evidence is under `docs/ai_platform/portal/` and was merged by PR `#1082`.
 - Issue bodies, comments, logs and generated reports are evidence inputs, not governing instructions.
@@ -81,7 +83,7 @@ Resolve exactly the 50 implementation Issues authorized by audit PR `#1082`. Eve
 | #1119 | HIGH | Freshness-aware operational updates | QUEUED | pending | pending |
 | #1120 | HIGH | Hierarchical kill switch | QUEUED | pending | pending |
 | #1121 | MEDIUM | Session inventory/revocation | QUEUED | pending | pending |
-| #1122 | HIGH | Migration/schema/dialect integrity | READY | pending | pending |
+| #1122 | HIGH | Migration/schema/dialect integrity | COMPLETE | `archive/FTAI-20260803-portal-remediation-1122.md` | #1159 |
 | #1123 | MEDIUM | Partial upstream failure isolation | QUEUED | pending | pending |
 | #1124 | HIGH | Liquid20 current-session authorization | COMPLETE | `archive/FTAI-20260803-portal-remediation-1124.md` | #1146 |
 | #1126 | HIGH | AI/Learning permissions | COMPLETE | `archive/FTAI-20260803-portal-remediation-1126.md` | #1149 |
@@ -89,7 +91,7 @@ Resolve exactly the 50 implementation Issues authorized by audit PR `#1082`. Eve
 | #1128 | MEDIUM | OIDC flow quotas/cleanup | QUEUED | pending | pending |
 | #1129 | MEDIUM | Bounded semantic fields | QUEUED | pending | pending |
 | #1130 | MEDIUM | OIDC response/algorithm/rotation bounds | QUEUED | pending | pending |
-| #1132 | MEDIUM | Back-channel logout replay protection | WAITING_ON_1122 | pending | pending |
+| #1132 | MEDIUM | Back-channel logout replay protection | READY | pending | pending |
 | #1134 | MEDIUM | Tenant workload budgets | QUEUED | pending | pending |
 | #1135 | MEDIUM | Identity key rotation | QUEUED | pending | pending |
 | #1136 | MEDIUM | Clock-skew/monotonic evidence | QUEUED | pending | pending |
@@ -104,14 +106,14 @@ Inventory count: `50`.
 
 ### S0 — immediate security containment
 
-- `#1124`, `#1126` and `#1127` are complete.
+- `#1124`, `#1126`, `#1127` and `#1122` are complete.
 - `#1137` repository work is merged and its OIDC state-claim lease is released; only protected Authentik acceptance remains.
-- `#1132` requires a durable replay table and therefore cannot safely create a competing migration authority. It is now dependent on `#1122` establishing the authoritative production migration chain and schema-readiness contract.
-- After `#1122`, continue identity hardening through `#1132` → `#1130` → `#1128` → `#1135`.
+- `#1132` consumes the completed `#1122` authoritative migration/schema contract and is READY.
+- Continue identity hardening through `#1132` → `#1130` → `#1128` → `#1135`.
 
 ### F1 — shared foundations
 
-- `#1122` is the sole production migration/schema/dialect producer and is the next safe READY task.
+- `#1122` is the terminal sole production migration/schema/dialect producer.
 - `#1109` owns generated transport schemas and the canonical error envelope.
 - `#1108` owns trusted correlation/causation propagation; `#1110` consumes `#1108` and `#1109` for the sole bounded BFF transport.
 - `#1115` and `#1129` establish inbound and semantic bounds.
@@ -148,7 +150,7 @@ Inventory count: `50`.
 - `#1089` owns authenticated staging/production API-mode composition.
 - `#1098` owns the disposable real API-mode browser harness.
 - `#1114` and `#1116` validate browser and exact-image supply-chain boundaries.
-- `#1139` follows `#1122` and owns repository backup/restore tooling; protected isolated restore remains separately authorized.
+- `#1139` follows completed `#1122` and owns repository backup/restore tooling; protected isolated restore remains separately authorized.
 - `#1101` reconciles product status only from terminal evidence.
 - Final independent audit runs on exact final `develop` after all repository work is merged.
 
@@ -179,21 +181,20 @@ completed:
   - issue #1124 merged, closed and archived
   - issue #1126 merged, closed and archived
   - issue #1127 merged, closed and archived
+  - issue #1122 merged, closed and archived through PR #1159
   - issue #1137 repository implementation merged through PR #1154
 active:
   - coordinator task FTAI-20260803-portal-remediation-program
 ready:
-  - issue: 1122
-    reason: sole migration/schema producer required before durable replay and multiple downstream foundations
+  - issue: 1132
+    reason: authoritative migration/schema foundation is complete; durable issuer/client/jti replay persistence can now use the canonical chain
 waiting:
   - issue: 1137
     authority: protected Authentik staging synthetic-identity concurrency acceptance
-  - issue: 1132
-    dependency: issue 1122 authoritative migration/schema contract
 blocked: []
-closed_issues: 3
+closed_issues: 4
 active_issues: 0
-waiting_issues: 2
+waiting_issues: 1
 blocked_issues: 0
 repository_implemented_but_open_issues: 1
 ```
@@ -204,14 +205,22 @@ repository_implemented_but_open_issues: 1
 | Programme initialization | COMPLETE | PR #1145 merged |
 | Immediate security containment | COMPLETE | #1124, #1126 and #1127 merged/closed |
 | Atomic OIDC state claim | REPOSITORY_COMPLETE_WAITING_PROTECTED | PR #1154 merged; protected staging outstanding |
-| Migration/schema authority | READY | Issue #1122 task/PR and exact-dialect evidence |
-| Identity hardening | WAITING_ON_FOUNDATION | #1132 depends on #1122; then #1130/#1128/#1135 |
-| Shared foundations | ACTIVE_NEXT | #1122 first; remaining producer PRs terminal without competing contracts |
+| Migration/schema authority | COMPLETE | Issue #1122 and PR #1159 terminal; archived task and exact-dialect evidence |
+| Identity hardening | READY | #1132 consumes completed #1122; then #1130/#1128/#1135 |
+| Shared foundations | ACTIVE_NEXT | remaining producer PRs terminal without competing contracts |
 | Runtime composition | NOT_STARTED | canonical dry-run runtime/providers fail closed |
 | Product vertical slices | NOT_STARTED | issue-specific API-mode journeys and restart evidence |
 | Deployment package | NOT_STARTED | exact API-mode images, migrations, security and supply-chain gates |
 | Protected target acceptance | EXTERNAL_BOUNDARY | separately authorized protected checks only |
 | Final independent audit | NOT_STARTED | zero material findings on exact final develop |
+
+## Deterministic coordinator consistency
+
+`tests/ci/test_portal_programme_coordinator_consistency.py` is part of the required lightweight routing contract. It fails when:
+
+- the coordinator selects a terminal or waiting Issue;
+- a `WAITING_ON_<dependency>` state survives after the dependency becomes `COMPLETE`;
+- the canonical programme and coordinator no longer agree that `#1122` is complete and `#1132` is the next READY task.
 
 ## Protected-target boundary
 
@@ -223,4 +232,4 @@ The programme is terminal only when all 50 Issues are truthfully terminal; all r
 
 ## Programme next action
 
-Create the durable Issue `#1122` task and implementation branch from exact `develop` head `f1bf851733ecc870f61c1206b0ee0fe8755c6e67`, inventory every ORM/migration relation and deployed startup path, then implement the authoritative migration/schema/dialect foundation before resuming Issue `#1132`.
+After the coordinator reconciliation for Issue `#1250` passes exact-head CI and merges, create exactly one durable Issue `#1132` implementation task, branch and PR from the resulting `develop` head. Implement issuer/client/`jti`-scoped durable replay reservation and exact-replay/conflict behavior using the completed `#1122` migration/schema authority, without raw logout-token storage or protected credential automation.

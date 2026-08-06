@@ -71,7 +71,7 @@ test.describe("Portal authenticated response cache boundary", {
     expect(page.url()).toContain("reason=session_missing");
   });
 
-  test("static Next assets are not assigned the authenticated no-store policy", async ({
+  test("static Next assets are not assigned the authenticated private policy", async ({
     identity,
     page,
   }) => {
@@ -82,10 +82,19 @@ test.describe("Portal authenticated response cache boundary", {
 
     const asset = await page.request.get(source!);
     expect(asset.status()).toBe(200);
-    expect(asset.headers()["cache-control"]).not.toBe(PRIVATE_NO_STORE_CACHE_CONTROL);
+    expect(cacheDirectives(asset.headers())).not.toContain("private");
   });
 });
 
 function assertPrivateNoStore(headers: Record<string, string>): void {
-  expect(headers["cache-control"]).toBe(PRIVATE_NO_STORE_CACHE_CONTROL);
+  const directives = cacheDirectives(headers);
+  expect(directives).toContain("private");
+  expect(directives).toContain("no-store");
+}
+
+function cacheDirectives(headers: Record<string, string>): string[] {
+  return (headers["cache-control"] ?? "")
+    .split(",")
+    .map((directive) => directive.trim().toLowerCase())
+    .filter(Boolean);
 }

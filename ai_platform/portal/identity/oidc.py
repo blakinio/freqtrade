@@ -83,6 +83,8 @@ class OidcClientConfig:
             minimum=60,
             maximum=86400,
         )
+        if self.logout_replay_retention_seconds < self.logout_clock_skew_seconds:
+            raise ValueError("OIDC logout replay retention must cover clock skew")
 
 
 @dataclass(frozen=True)

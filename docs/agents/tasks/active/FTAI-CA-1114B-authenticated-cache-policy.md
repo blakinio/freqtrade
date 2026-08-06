@@ -86,8 +86,9 @@ Read and apply the root and `docs/agents` governance from the trusted base, Issu
 - The Proxy matcher covers dynamic HTML, redirects and BFF/API responses, including identity routes; static Next/image assets remain excluded.
 - Playwright coverage verifies status-independent helper behavior for 200, 401, 403, 404, 409 and 5xx responses.
 - Direct-origin coverage verifies login documents, protected redirects, unauthorized and forbidden API responses, authenticated session success and authenticated 404 responses.
-- Browser-history coverage verifies a protected page is not restored after fixture logout.
-- Static-asset coverage verifies the private no-store policy is not applied to framework assets.
+- The real fixture logout route is verified as private/no-store and browser history cannot restore the prior protected page after session clearing.
+- Tenant-change coverage verifies browser history cannot restore the prior workspace and reaches the cross-tenant denial boundary.
+- Static-asset coverage verifies the private policy is not applied to framework assets.
 - The canonical policy document distinguishes downstream response policy from upstream `fetch(..., { cache: "no-store" })`.
 
 ## Acceptance inventory
@@ -96,8 +97,9 @@ Read and apply the root and `docs/agents` governance from the trusted base, Issu
 - [x] Dynamic HTML, BFF/API successes and representative 401/403/404/conflict/5xx classes receive the exact policy by construction.
 - [x] Login, callback, session, logout and security-sensitive redirects are inside the Proxy policy boundary.
 - [x] Upstream fetch caching is explicitly not treated as downstream policy.
-- [x] Browser back/forward behavior after logout has an end-to-end regression test.
-- [x] Public immutable static assets are excluded from the authenticated policy.
+- [x] Actual logout and browser back/forward behavior have an end-to-end regression test.
+- [x] Tenant change and browser back/forward behavior have an end-to-end regression test.
+- [x] Public immutable static assets are excluded from the authenticated private policy.
 - [x] CSP/nonces and invariant headers are reused without redesign.
 - [ ] Focused lint, typecheck, production build and Playwright pass on the exact implementation head.
 - [ ] Required exact-head CI, CodeQL and zizmor pass.
@@ -109,13 +111,13 @@ Read and apply the root and `docs/agents` governance from the trusted base, Issu
 
 ```yaml
 checkpoint_version: 3
-updated_at: 2026-08-06T15:05:00Z
+updated_at: 2026-08-06T15:06:00Z
 status: validating
 invocation_started_at: 2026-08-06T14:37:00Z
-last_progress_at: 2026-08-06T15:05:00Z
+last_progress_at: 2026-08-06T15:06:00Z
 branch: repair/1304-authenticated-cache-policy
 pull_request: 1308
-head: 1dd1825001199698b0be5a1dea6b1177ffe27534
+head: 274ce92c2881ee6e34196c2021347fae369fab53
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
@@ -131,9 +133,10 @@ changed_paths:
 proven:
   - dependency #1303 is merged and its proxy ownership is released
   - implementation uses one central policy and does not modify identity, deployment or security-header modules
-  - representative direct-origin, history and static-asset assertions are committed
+  - direct-origin, actual logout, tenant-change, history and static-asset assertions are committed
+  - fresh audit findings for missing explicit logout-route and tenant-switch evidence are remediated
 unknown:
-  - exact-head focused and required CI outcome
+  - exact-head focused and required CI outcome after this checkpoint
   - final independent audit outcome
 blockers: []
 next_action: Inspect the first exact-head CI generation for PR 1308; isolate and repair only the first relevant failure, or perform the final independent audit when all implementation checks pass.

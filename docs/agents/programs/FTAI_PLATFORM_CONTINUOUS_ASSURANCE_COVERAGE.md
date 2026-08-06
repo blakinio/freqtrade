@@ -5,20 +5,35 @@ programme_id: FTAI-20260805-platform-continuous-assurance
 repository: blakinio/freqtrade
 status: active
 started_at: 2026-08-05T14:34:00Z
-baseline_develop_head: 5dadfe32c7cc2ba7af95652b06c4e0624d2f11b4
-last_completed_wave: wave-002-pr-terminality-and-operational-blockers
-active_wave: wave-003-required-ci-bounds-and-terminal-delivery
+baseline_develop_head: 3a3320646709991b2ef513a81d4a2b457ef155dc
+last_completed_wave: wave-005-terminal-reconciliation-and-current-base-gates
+active_wave: wave-006-open-pr-terminality-and-dependency-safety
 open_findings:
-  - 1250
-  - 1254
-  - 1257
+  - 1294
 active_repairs:
-  - 1258
+  - 1284
+  - 1291
 active_delivery:
   - 1215
-  - 1259
+  - 1276
+  - 1290
 completed_delivery:
   - 1217
+  - 1253
+  - 1255
+  - 1256
+  - 1258
+  - 1259
+  - 1261
+  - 1270
+  - 1271
+  - 1275
+  - 1283
+  - 1288
+  - 1292
+  - 1293
+superseded_checkpoints:
+  - 1273
 live_capital_authorized: false
 withdrawals_enabled: false
 protected_production_deployment_authorized: false
@@ -27,57 +42,66 @@ protected_production_deployment_authorized: false
 ## Status vocabulary
 
 - `NOT_REVIEWED` — no fresh bounded assurance wave is recorded.
-- `ACTIVE` — a bounded wave is in progress.
-- `FINDING_OPEN` — a material finding has a durable open Issue.
-- `REPAIR_ACTIVE` — a deduplicated implementation PR has exact-head validation in progress.
+- `ACTIVE` — bounded work or exact-head validation is in progress under an existing owner.
+- `FINDING_OPEN` — a material finding has durable Issue ownership.
+- `CI_MERGE_READY` — the exact changed scope and required checks are green; normal ownership and branch protection remain authoritative.
+- `WAITING_CURRENT_BASE` — content is audited but must be merged forward and validated on current `develop`.
+- `WAITING_PROSPECTIVE_ACCEPTANCE` — an evidence window or independent acceptance boundary has not yet completed.
+- `UNKNOWN_REQUIRED_GATE` — a required gate failed and its exact root cause is not yet proven.
+- `RESOLVED_WITH_EVIDENCE` — finding and delivery lifecycle are terminal with exact-head evidence.
 - `CLEAR_WITHIN_SCOPE` — no material gap was found inside the exact recorded scope; this is not an exhaustive platform claim.
-- `WAITING` — repository-owned work is complete or blocked by an explicit dependency or external authority.
 
 ## Domain coverage
 
 | Domain | Status | Last exact head | Evidence | Next exact action |
 |---|---|---|---|---|
-| Governance and durable coordination | FINDING_OPEN | `5dadfe32c7cc2ba7af95652b06c4e0624d2f11b4` | Issue #1250; PRs #1253/#1256/#1259 | owning Portal lane reconciles stale #1122/#1132 state; finish checkpoint #1259 exact-head CI |
-| Security and identity | NOT_REVIEWED | — | existing owned product Issues remain separate | select highest-risk unowned identity boundary after current terminal checks |
-| Correctness and data integrity | CLEAR_WITHIN_SCOPE | `5dadfe32c7cc2ba7af95652b06c4e0624d2f11b4` | PR #1217 merged after exact-head matrix | no further mypy 2.1 baseline action in this wave |
-| Reliability, recovery and deployment | FINDING_OPEN | `5dadfe32c7cc2ba7af95652b06c4e0624d2f11b4` | Issue #1254 | restore trusted `freqtrade-staging` runner and obtain structured health result |
-| Performance and resource bounds | REPAIR_ACTIVE | `4351c01fa5ae1d04773062f95ee5909c892a7b4b` | Issue #1257 / PR #1258 | finish current-base Freqtrade, risk-aware and security CI; auto-merge only on full success |
-| Frontend product quality and accessibility | NOT_REVIEWED | — | active owned Portal work remains separate | inspect current Portal state after existing owners become terminal |
-| Strategy, signal and research quality | NOT_REVIEWED | — | active WickHunter work remains separate | inspect reproducibility and leakage boundaries after ownership releases |
-| Dependencies, CI, documentation and operations drift | ACTIVE | `5dadfe32c7cc2ba7af95652b06c4e0624d2f11b4` | PR #1217 merged; PRs #1215/#1258/#1259 active; Issues #1254/#1257 | finish exact-head delivery while preserving runner blocker |
+| Governance and durable coordination | RESOLVED_WITH_EVIDENCE | `3a3320646709991b2ef513a81d4a2b457ef155dc` | Issues #1250/#1251/#1252/#1264/#1272; PRs #1275/#1255/#1261/#1270/#1292/#1293 | keep the ledger aligned with live terminal state |
+| Security and identity | UNKNOWN_REQUIRED_GATE | `d63f6073d413c2a5dce6735c4be3fbecc4318068` | Issue #1132 / PR #1284; risk/security lanes pass; Freqtrade CI run 31078169298 fails Python 3.14 | inspect exact failing output, preserve owner scope and finish independent final audit after repair |
+| Dependency and supply-chain safety | FINDING_OPEN | `ae8231e30cd6f2619d4b2b13d340299a86e69a4b` | Issue #1294 / PR #1291; install failure blocks cryptography 50.0.0; exact cause unknown | repair dependency installation, classify CVE applicability and pass complete exact-head matrix |
+| Dependency routine updates | CI_MERGE_READY | `3411e37b609ef056147d614a65423dcdb1e5e05d` | PR #1290; one-line aiohttp update; Freqtrade/risk-aware/CodeQL/zizmor pass | merge through normal dependency ownership and branch protection |
+| Correctness and data integrity | CLEAR_WITHIN_SCOPE | `3efa46ae7d953ca38c83a7bca27537680fed94d5` | Issue #1282 / PR #1283 repaired optional XGBoost isolation | re-audit after material identity/schema integration |
+| Reliability, recovery and deployment | WAITING_PROSPECTIVE_ACCEPTANCE | `b8cf23b2a833edac9214303574116d31cc44a197` | PR #1276; WH-09 PAPER deployment/restart evidence; window ends 2026-08-06T17:45:07.561Z | collect independent terminal acceptance after the window; do not claim early completion |
+| Performance and resource bounds | RESOLVED_WITH_EVIDENCE | `3b1ae6271405d87dc616070ea617c63bd62c1e21` | Issue #1257 / PR #1258 exact-head bounded online CI | retain regression contract |
+| Architecture, CI and workflow lifecycle | RESOLVED_WITH_EVIDENCE | `3a3320646709991b2ef513a81d4a2b457ef155dc` | PRs #1255/#1261/#1270/#1288/#1292/#1293 | review after material architecture or workflow changes |
+| Contribution forms and Projects metadata | WAITING_CURRENT_BASE | `132ad4ba37b766ea641bbd17f84178d4acaea48d` | PR #1215; three paths clear; external defect resolved by #1283 | merge-forward preserving three blobs and run fresh focused-core CI |
+| Frontend product quality and accessibility | NOT_REVIEWED | — | active Portal ownership remains separate | audit an unowned user journey after identity ownership becomes terminal |
+| Strategy, signal and research quality | NOT_REVIEWED | — | active WickHunter ownership remains separate | audit reproducibility and leakage boundaries after active ownership releases |
 
 ## Wave history
 
-### Wave 001 — governance and durable-state consistency
+### Waves 001–004
 
-- Baseline: `cbf9f57ea8d5783f85d19fe0f8557dfe3178705a`.
-- Finding: Issue `#1250` for stale Portal remediation coordinator state.
-- Terminal delivery: PR `#1253` merged as `37e12c1e7b118196543f23c5626959d870012748`.
+- Governance, task-state, trusted-runner, CI bounds, focused-core dependency, Portal coordinator, architecture authority, workflow lifecycle and repository policy findings were created, repaired and terminally merged.
+- Exact terminal evidence is retained in the active task and earlier checkpoint PRs `#1253`, `#1256` and `#1259`.
 
-### Wave 002 — pull-request terminality and operational blockers
+### Wave 005 — terminal reconciliation and current-base gates
 
-- Baseline: `37e12c1e7b118196543f23c5626959d870012748`.
-- PRs `#1217` and `#1215` were updated without force-push and their dependency ordering was proven.
-- Finding: Issue `#1254` for unavailable trusted `freqtrade-staging` runner; component health remains unverified rather than proven failed.
-- Terminal delivery: PR `#1256` merged as `8093f546eddf567b4d775a1cfa664fd8384d67f3`.
+- Reconstructed live `develop`, terminalized stale Wave 004 outcomes and closed superseded PR `#1273`.
+- Classified PR `#1215` as content-clear but waiting for current-base validation.
+- Classified Issue `#1132` / PR `#1284` as actively owned with failed required Python 3.14 CI.
+- PR `#1293` passed exact-head gates and merged as `3a3320646709991b2ef513a81d4a2b457ef155dc`.
 
-### Wave 003 — required CI bounds and terminal delivery
+### Wave 006 — open-PR terminality and dependency safety
 
-- Baseline advanced to `5dadfe32c7cc2ba7af95652b06c4e0624d2f11b4` after PR `#1217` passed exact-head CI and auto-merged.
-- PR `#1215` is updated without force-push to exact head `d4cd9e0a512c12abee9ef5c2482c570aba50e8fc`; security analysis passed, required Freqtrade and risk-aware CI are queued, and auto-merge is enabled.
-- Finding `#1257`: required `online-tests` had neither a job-level timeout nor an explicit pytest item timeout.
-- Repair PR `#1258` adds a 30-minute job bound, a 300-second per-item bound and a fail-closed contract test. The limits are based on four successful 14m05s–15m46s job samples and an observed approximately 158-second slowest item.
-- PR `#1258` is updated without force-push to exact head `4351c01fa5ae1d04773062f95ee5909c892a7b4b`; fresh Freqtrade, risk-aware and security CI are queued, and auto-merge is enabled.
-- Checkpoint PR `#1259` is reconciled to the post-`#1217` baseline and must pass exact-head CI.
-- Issue `#1254` remains externally blocked with job `92339899025` queued and `runner_id=0`.
-- No force-push, gate bypass, test weakening, credential change, protected deployment, trading action, withdrawal or live-capital mutation occurred.
+- Inspected every remaining open non-checkpoint PR: `#1215`, `#1276`, `#1284`, `#1290`, `#1291`.
+- PR `#1290` is one-path, exact-head green and labeled `ci:merge-ready`; no material finding.
+- PR `#1276` is truthfully waiting for the prospective WH-09 acceptance window and cannot complete before `2026-08-06T17:45:07.561Z`.
+- PR `#1215` remains waiting for current-base merge-forward; PR `#1284` remains blocked by an unknown Python 3.14 gate failure.
+- Finding `#1294` records the cryptography 50.0.0 security-update installation failure, exact unknown root cause, required CVE applicability classification and repair acceptance criteria.
+- No duplicate implementation branch or repair PR was created.
+
+## Finding queue
+
+| Issue | Priority | Risk | Owner state | Evidence | Required result |
+|---|---|---|---|---|---|
+| #1294 | P1 | medium | `agent:ready` | PR #1291; Freqtrade CI run 31089481871 fails installation before tests | exact failure/root cause, compatible cryptography 50 delivery, CVE applicability classification, full exact-head gates |
 
 ## Selection policy
 
 After each terminal wave, select the next area in this order:
 
 1. unowned P0/P1 or equivalent critical/high safety finding;
-2. unresolved operational blocker;
+2. unresolved required gate or operational blocker;
 3. overdue area whose evidence predates material merges;
 4. widest unreviewed high-risk domain;
 5. lower-risk hygiene and drift.
@@ -86,4 +110,4 @@ Before creating any task, branch, Issue or PR, search current GitHub durable sta
 
 ## Next exact action
 
-Allow branch protection to finish PRs `#1215` and `#1258`. Validate and merge checkpoint PR `#1259` only after its reconciled exact head passes required CI. Preserve Issue `#1254` until a trusted runner returns a structured health result. Then checkpoint terminal outcomes and select the next unowned high-risk wave.
+Dispatch Issue `#1294` to the repair lane. Preserve existing ownership for PRs `#1215`, `#1276` and `#1284`. After any exact head or terminal state changes, reconstruct the complete open-PR inventory and then select the widest unowned high-risk product domain.

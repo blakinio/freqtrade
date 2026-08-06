@@ -2,48 +2,61 @@
 
 ## Purpose
 
-Repository files enforce contribution policy, vulnerability-reporting guidance, workflow governance, title validation, branch hygiene and explicit CodeQL scanning. The remaining controls in Issue #1272 are GitHub-native administrator settings and cannot be changed by repository content or the connected GitHub mutation surface.
+Repository files enforce contribution policy, vulnerability-reporting guidance, workflow governance, title validation, branch hygiene and explicit CodeQL scanning. Some controls remain GitHub-native administrator settings and cannot be changed by repository content or the connected GitHub mutation surface.
 
 ## Verified state on 2026-08-06
 
-- The repository description is still `Free, open source crypto trading bot` and the homepage still points to the upstream Freqtrade documentation.
-- Repository topics are empty.
-- Private vulnerability reporting is disabled.
-- Exactly one direct collaborator exists: `blakinio`, with administrator permission.
-- The connected integration receives `403 Resource not accessible by integration` for Dependabot-alert and CodeQL-default-setup inspection.
+- The repository description identifies Quant Platform.
+- Private vulnerability reporting is enabled.
+- The repository owner confirmed through the GitHub Advanced Security UI that Dependabot alerts, Dependabot security updates, Secret Protection and push protection are enabled.
 - Explicit CodeQL analysis for Python and JavaScript/TypeScript is repository-managed by `.github/workflows/codeql.yml`; default setup must not be enabled simultaneously unless the duplicate-analysis impact is deliberately accepted.
+- The repository is intentionally maintained by one person.
 
 ## Required owner actions
 
-Open **Settings → Security → Code security and analysis** for `blakinio/freqtrade` and:
+Open **Settings → Security → Advanced Security** for `blakinio/freqtrade` and keep the following enabled when offered by the repository plan:
 
-1. enable Dependabot alerts;
-2. enable Dependabot security updates;
-3. enable private vulnerability reporting;
-4. enable secret scanning and push protection when offered by the repository plan;
-5. leave CodeQL default setup disabled while the explicit repository workflow is active, or remove the explicit workflow before switching to default setup.
+1. Dependabot alerts;
+2. Dependabot security updates;
+3. private vulnerability reporting;
+4. Secret Protection or secret scanning;
+5. push protection.
 
-Open the repository **About** settings and set:
+Leave CodeQL default setup disabled while the explicit repository workflow is active, or remove the explicit workflow before switching to default setup.
 
-- description: `Quant Platform — AI-assisted strategy research, validation, execution control and observability built on Freqtrade.`
-- topics: `algorithmic-trading`, `ai-trading`, `crypto-trading`, `freqtrade`, `machine-learning`, `quantitative-finance`, `risk-management`, `trading-platform`.
+Open the repository **About** settings and keep a description and topics that identify Quant Platform and its trading, AI, quantitative-finance and risk-management scope.
 
-Do not change the homepage until a canonical Quant Platform documentation or portal URL is approved. Retaining the upstream documentation URL is safer than inventing a destination.
+Do not invent a homepage destination. Leave the field empty until a canonical Quant Platform documentation or portal URL is approved.
 
-## Independent review gate
+## Review model
 
-A second trusted maintainer must be a real named person or service account selected by the repository owner. Do not create a placeholder collaborator and do not enable required approval or required Code Owner review while only one independent reviewer exists.
+### Solo-maintainer mode
 
-After the second maintainer has accepted review access, update the protected `develop` ruleset to require:
+When the repository has only one maintainer, do not require an approving review or Code Owner review. GitHub does not permit an author to approve their own pull request, so either requirement would make normal owner-authored pull requests impossible to merge without bypassing governance.
+
+In solo-maintainer mode, retain the controls that can be enforced without an independent reviewer:
+
+- pull-request delivery rather than routine direct changes to `develop`;
+- required strict `CI Gate` on the current pull-request head where the repository ruleset supports it;
+- CodeQL, workflow-security analysis and relevant component or E2E validation;
+- resolved conversations before merge;
+- squash-only merge and linear history;
+- blocked force pushes and protected-branch deletion;
+- no administrative bypass merely to merge a failing pull request.
+
+The repository owner accepted solo-maintainer mode for `blakinio/freqtrade` on 2026-08-06. Adding a second maintainer is not a completion requirement for Issue #1272.
+
+### Multi-maintainer mode
+
+If a real second trusted maintainer is added later and accepts review access, the repository owner may strengthen the `develop` ruleset to require:
 
 - one approving review;
 - dismissal of stale approvals;
 - approval of the most recent reviewable push;
-- Code Owner review;
-- resolved conversations;
-- strict required `CI Gate` on an up-to-date branch;
-- blocked force pushes and branch deletion.
+- Code Owner review.
+
+Do not create a placeholder collaborator or service account solely to satisfy a review checkbox.
 
 ## Verification
 
-After each native setting change, re-read the setting from GitHub and update Issue #1272 with exact evidence. The task remains waiting until every applicable checkbox is verified rather than merely clicked.
+After a native setting change, re-read the setting from GitHub where the integration permits it. When the API denies access, retain exact owner-provided UI evidence and record that limitation rather than claiming API verification.

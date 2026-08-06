@@ -24,7 +24,7 @@ user_communication: low_noise
 base_branch: develop
 base_head: 094f3751d1109d82cc7254f4b5957cf808641c91
 branch: repair/1304-authenticated-cache-policy
-pull_request: pending
+pull_request: 1308
 claim_id: ftaica-1304-20260806T144500Z-gpt56
 claim_state: claimed
 feature_scope:
@@ -126,19 +126,21 @@ Stop only for a real ownership conflict, missing authority, unsafe protected-tar
 ## Durable checkpoint
 
 ```yaml
-checkpoint_version: 1
-updated_at: 2026-08-06T14:45:00Z
+checkpoint_version: 2
+updated_at: 2026-08-06T14:47:00Z
 status: active
 base_head: 094f3751d1109d82cc7254f4b5957cf808641c91
 branch: repair/1304-authenticated-cache-policy
-pull_request: pending
+pull_request: 1308
+head: 68b53a06ef207eaeac73e12a70fca0ac9aecbc63
 proven:
   - dependency Issue 1303 is merged through PR 1306 at 094f3751d1109d82cc7254f4b5957cf808641c91
   - no competing open PR or branch for Issue 1304 existed before dispatch
   - primary implementation paths do not overlap active Issues 1132 or 1116
+  - dedicated task, branch and draft PR 1308 exist and are labeled agent:ready
 unknown:
   - complete authenticated response inventory after code inspection
   - final exact-head CI, E2E and audit outcomes
 blockers: []
-next_action: Inspect current proxy/BFF response construction and tests, then implement one explicit downstream private no-store policy without regressing the merged nonce-CSP boundary.
+next_action: Inspect current proxy/BFF response construction and tests, then implement one explicit downstream private no-store policy on PR 1308 without regressing the merged nonce-CSP boundary.
 ```

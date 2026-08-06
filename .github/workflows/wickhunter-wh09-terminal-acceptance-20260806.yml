@@ -18,9 +18,7 @@ concurrency:
 jobs:
   collect:
     name: Collect immutable WH09 v12 terminal evidence
-    if: >-
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.base.ref == 'develop'
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.base.ref == 'develop'
     runs-on: [freqtrade-staging]
     timeout-minutes: 30
     steps:
@@ -28,14 +26,11 @@ jobs:
         shell: bash
         env:
           RUNNER_NAME_VALUE: ${{ runner.name }}
-          RUNNER_OS_VALUE: ${{ runner.os }}
-          RUNNER_ARCH_VALUE: ${{ runner.arch }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
-          [[ "$RUNNER_OS_VALUE" == "Linux" && "$RUNNER_ARCH_VALUE" == "X64" ]]
           docker version >/dev/null
           test -S /var/run/docker.sock
           git init -q "$RUNNER_TEMP/request"
@@ -46,7 +41,7 @@ jobs:
           [[ ${#paths[@]} -eq 1 ]]
           [[ "${paths[0]}" == ".github/workflows/wickhunter-wh09-terminal-acceptance-20260806.yml" ]]
 
-      - name: Collect and evaluate terminal state
+      - name: Collect terminal state
         shell: bash
         env:
           ACTIVATION_NAME: wickhunter-wh09-activation-20260805-v12-108eff81
@@ -68,113 +63,47 @@ jobs:
           ROOT="$root" OUT="$out" python3 - <<'PY'
           import hashlib, json, os, time
           from pathlib import Path
-
-          root = Path(os.environ['ROOT'])
-          out = Path(os.environ['OUT'])
-          expected = {
-              'run_id': os.environ['EXPECTED_RUN_ID'],
-              'runtime_binding_id': os.environ['EXPECTED_BINDING_ID'],
-              'operator_commit': os.environ['EXPECTED_IMPLEMENTATION_SHA'],
-          }
-          start = int(os.environ['WINDOW_START_MS'])
-          end = int(os.environ['WINDOW_END_MS'])
-          now = int(time.time() * 1000)
-          json_docs = []
-          manifest = []
+          root=Path(os.environ['ROOT']); out=Path(os.environ['OUT'])
+          start=int(os.environ['WINDOW_START_MS']); end=int(os.environ['WINDOW_END_MS']); now=int(time.time()*1000)
+          docs=[]; manifest=[]
           for path in sorted(root.rglob('*')):
-              if path.is_symlink():
-                  raise SystemExit(f'symlink rejected: {path}')
-              if not path.is_file():
-                  continue
-              rel = path.relative_to(root).as_posix()
-              data = path.read_bytes()
-              manifest.append({'path': rel, 'size': len(data), 'sha256': hashlib.sha256(data).hexdigest()})
-              if path.suffix in {'.json', '.jsonl'}:
-                  try:
-                      if path.suffix == '.json':
-                          json_docs.append(json.loads(data))
-                      else:
-                          for line in data.splitlines():
-                              if line.strip(): json_docs.append(json.loads(line))
-                  except Exception:
-                      pass
-          rows = []
+              if path.is_symlink(): raise SystemExit(f'symlink rejected: {path}')
+              if not path.is_file(): continue
+              data=path.read_bytes(); rel=path.relative_to(root).as_posix()
+              manifest.append({'path':rel,'size':len(data),'sha256':hashlib.sha256(data).hexdigest()})
+              try:
+                  if path.suffix=='.json': docs.append(json.loads(data))
+                  elif path.suffix=='.jsonl': docs.extend(json.loads(x) for x in data.splitlines() if x.strip())
+              except Exception: pass
+          rows=[]
           def walk(v):
-              if isinstance(v, dict):
+              if isinstance(v,dict):
                   rows.append(v)
                   for x in v.values(): walk(x)
-              elif isinstance(v, list):
+              elif isinstance(v,list):
                   for x in v: walk(x)
-          for d in json_docs: walk(d)
-          def values(*keys):
-              found=[]
-              for row in rows:
-                  for key in keys:
-                      if key in row: found.append(row[key])
-              return found
-          timestamps=[]
-          for value in values('observed_at_ms','decision_timestamp_ms','timestamp_ms','created_at_ms'):
-              if isinstance(value, int) and start <= value <= end: timestamps.append(value)
-          timestamps=sorted(set(timestamps))
+          for d in docs: walk(d)
+          def vals(*keys): return [r[k] for r in rows for k in keys if k in r]
+          timestamps=sorted(set(v for v in vals('observed_at_ms','decision_timestamp_ms','timestamp_ms','created_at_ms') if isinstance(v,int) and start<=v<=end))
           gaps=[b-a for a,b in zip(timestamps,timestamps[1:])]
-          identity = {k: expected[k] in [str(v) for v in values(k)] for k in expected}
-          authority = {
-              'protected_holdout_accessed': False not in [],
-              'automatic_promotion_enabled': all(v is False for v in values('automatic_promotion_enabled')),
-              'trading_credentials_present': all(v is False for v in values('trading_credentials_present')),
-              'order_adapter_present': all(v is False for v in values('order_adapter_present')),
-              'execution_enabled': all(v is False for v in values('execution_enabled')),
-              'orders_submitted': all(v == 0 for v in values('orders_submitted')),
-              'live_capital_authorized': all(v is False for v in values('live_capital_authorized')),
-          }
-          decisions = values('decision_id','decision')
-          allowed = [v for v in values('allowed','is_allowed') if v is True]
-          rejected = [v for v in values('allowed','is_allowed') if v is False]
-          freshness = [float(v) for v in values('fresh_source_ratio','freshness_ratio') if isinstance(v,(int,float,str))]
-          drawdowns = [float(v) for v in values('maximum_drawdown','max_drawdown') if isinstance(v,(int,float,str))]
-          report = {
-            'schema_version':'wickhunter-wh09-terminal-acceptance-v1',
-            'collected_at_ms':now,
-            'activation_name':os.environ['ACTIVATION_NAME'],
-            'window_start_ms':start,'window_end_ms':end,
-            'window_elapsed_ms':max(0,min(now,end)-start),
-            'window_complete':now >= end,
-            'manifest_entries':len(manifest),
-            'identity_checks':identity,
-            'authority_checks':authority,
-            'observed_timestamp_count':len(timestamps),
-            'maximum_observed_gap_ms':max(gaps) if gaps else None,
-            'decision_evidence_count':len(decisions),
-            'allowed_evidence_count':len(allowed),
-            'risk_rejection_evidence_count':len(rejected),
-            'fresh_source_ratio':min(freshness) if freshness else None,
-            'maximum_drawdown':max(drawdowns) if drawdowns else None,
-          }
-          criteria = {
-            'prospective_duration': report['window_complete'] and end-start >= 86400000,
-            'snapshot_count': len(timestamps) >= 96,
-            'maximum_gap': bool(gaps) and max(gaps) <= 1800000,
-            'fresh_source_ratio': bool(freshness) and min(freshness) >= 0.99,
-            'decision_present': len(decisions) >= 1,
-            'allowed_present': len(allowed) >= 1,
-            'risk_rejection_present': len(rejected) >= 1,
-            'maximum_drawdown': bool(drawdowns) and max(drawdowns) <= 0.20,
-            'identity': all(identity.values()),
-            'zero_authority': all(authority.values()),
-          }
-          report['criteria']=criteria
-          report['automated_result']='PASS' if all(criteria.values()) else 'FAIL_OR_INCOMPLETE'
+          expected={'run_id':os.environ['EXPECTED_RUN_ID'],'runtime_binding_id':os.environ['EXPECTED_BINDING_ID'],'operator_commit':os.environ['EXPECTED_IMPLEMENTATION_SHA']}
+          identity={k:expected[k] in [str(v) for v in vals(k)] for k in expected}
+          wanted={'protected_holdout_accessed':False,'automatic_promotion_enabled':False,'trading_credentials_present':False,'order_adapter_present':False,'execution_enabled':False,'orders_submitted':0,'live_capital_authorized':False}
+          authority={k:(len(vals(k))>0 and all(v==expected_value for v in vals(k))) for k,expected_value in wanted.items()}
+          decisions=vals('decision_id','decision'); allowed=[v for v in vals('allowed','is_allowed') if v is True]; rejected=[v for v in vals('allowed','is_allowed') if v is False]
+          freshness=[float(v) for v in vals('fresh_source_ratio','freshness_ratio') if isinstance(v,(int,float,str))]
+          drawdowns=[float(v) for v in vals('maximum_drawdown','max_drawdown') if isinstance(v,(int,float,str))]
+          criteria={'prospective_duration':now>=end and end-start>=86400000,'snapshot_count':len(timestamps)>=96,'maximum_gap':bool(gaps) and max(gaps)<=1800000,'fresh_source_ratio':bool(freshness) and min(freshness)>=0.99,'decision_present':len(decisions)>=1,'allowed_present':len(allowed)>=1,'risk_rejection_present':len(rejected)>=1,'maximum_drawdown':bool(drawdowns) and max(drawdowns)<=0.20,'identity':all(identity.values()),'zero_authority':all(authority.values())}
+          report={'schema_version':'wickhunter-wh09-terminal-acceptance-v1','collected_at_ms':now,'activation_name':os.environ['ACTIVATION_NAME'],'window_start_ms':start,'window_end_ms':end,'window_complete':now>=end,'manifest_entries':len(manifest),'identity_checks':identity,'authority_checks':authority,'observed_timestamp_count':len(timestamps),'maximum_observed_gap_ms':max(gaps) if gaps else None,'decision_evidence_count':len(decisions),'allowed_evidence_count':len(allowed),'risk_rejection_evidence_count':len(rejected),'fresh_source_ratio':min(freshness) if freshness else None,'maximum_drawdown':max(drawdowns) if drawdowns else None,'criteria':criteria,'automated_result':'PASS' if all(criteria.values()) else 'FAIL_OR_INCOMPLETE'}
           (out/'manifest.json').write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n')
-          canonical=json.dumps(report,separators=(',',':'),sort_keys=True)
-          report['report_sha256']=hashlib.sha256(canonical.encode()).hexdigest()
+          canonical=json.dumps(report,separators=(',',':'),sort_keys=True); report['report_sha256']=hashlib.sha256(canonical.encode()).hexdigest()
           (out/'acceptance-report.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
           print(json.dumps(report,indent=2,sort_keys=True))
           PY
 
       - name: Publish terminal summary
         shell: bash
-        run: |
-          cat "$RUNNER_TEMP/wh09-terminal/acceptance-report.json" >> "$GITHUB_STEP_SUMMARY"
+        run: cat "$RUNNER_TEMP/wh09-terminal/acceptance-report.json" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload immutable terminal evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v11.0.1

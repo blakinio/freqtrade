@@ -54,7 +54,9 @@ def test_rejects_duplicate_record_id(tmp_path: Path) -> None:
 def test_rejects_complete_dimension_with_open_blocker(tmp_path: Path) -> None:
     path, ledger = _materialize_fixture(tmp_path)
     control = ledger["records"]["cross_cutting_controls"][0]
+    issue = ledger["open_audit_issues"][0]
     control[3][0] = "COMPLETE"
+    control[4][0] = [issue]
     _write(path, ledger)
     assert any(
         "cannot be COMPLETE with open blockers" in error for error in validator.validate(tmp_path)

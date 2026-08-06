@@ -1,137 +1,74 @@
+<!-- portal-status-authority: FEATURE_COMPLETENESS_LEDGER.json -->
 # AI Trading Portal Program
+
+## Status authority
+
+Current package, runtime, browser-E2E, deployment and protected-target completeness is defined only by:
+
+- `docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.json`;
+- `docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.md`.
+
+Architecture statements in this README remain active. Any completion wording from the pre-ledger
+version is historical evidence only and cannot override the canonical ledger.
+
+Historical pre-ledger evidence is preserved exactly at:
+
+```yaml
+snapshot_sha: 4473dfc166d83fe5e0ffba4045c0dcd967626d68
+blob_sha: dfd5c7ffe252f6666c3bf3a53d3ee55c58b7bf3d
+```
 
 ## Purpose
 
-The AI Trading Portal is the future product/control layer above the existing Freqtrade-based AI Platform. It provides a modern web portal, secure bot orchestration, AI/model lifecycle controls, trade intelligence, observability, and autonomous end-to-end validation without turning an ML model or a browser session into an unrestricted execution authority.
+The AI Trading Portal is the private, tenant-scoped control and evidence plane for the Quant
+Platform. It combines bot configuration, deterministic risk decisions, runtime evidence, AI/model
+lifecycle evidence and operations views without making Freqtrade, exchanges, Vault or other private
+providers browser-addressable.
 
-This program is additive. It does not modify the frozen Phase 5 candidate, the protected prospective final holdout, the completed Phase 6 comparison contract, or the authoritative Phase 6 `selected_model = null` outcome.
+## Non-negotiable boundaries
 
-## Core principle
+- Browser traffic terminates at the Portal/Next.js same-origin boundary.
+- Private runtimes, credential stores, databases and provider endpoints remain server-side.
+- Deterministic risk approval is necessary but is not execution proof.
+- Transport acknowledgement is never authoritative execution proof.
+- Fixture, simulator and repository evidence remain visibly distinct from API-mode, deployment and
+  protected-target acceptance.
+- New trading configuration remains dry-run/non-live unless a separately authorized programme says
+  otherwise.
+- No documentation or software completion grants withdrawals or live-capital authority.
 
-```text
-Portal manages intent and policy.
-AI produces predictions and research candidates.
-Risk controls can veto execution.
-Freqtrade owns trade execution and lifecycle.
-The exchange remains the external execution venue.
+## Completeness model
+
+Every package and user-facing module is recorded across five independent dimensions:
+
+1. repository component;
+2. trusted runtime composition;
+3. API-mode browser E2E;
+4. deployment package;
+5. protected-target acceptance.
+
+Use only the approved statuses in the JSON ledger. Do not use `done`, `integrated`, `ready`,
+`production-ready` or similar prose as active completeness authority.
+
+## Canonical architecture and programme documents
+
+- `SYSTEM_ARCHITECTURE.md`
+- `SECURITY_ARCHITECTURE.md`
+- `DATA_AND_OBSERVABILITY_ARCHITECTURE.md`
+- `AI_ML_LEARNING_ARCHITECTURE.md`
+- `BOT_MANAGEMENT_PRODUCT_ARCHITECTURE.md`
+- `UI_INFORMATION_ARCHITECTURE.md`
+- `E2E_TEST_ARCHITECTURE.md`
+- `QUALITY_AND_AUTONOMOUS_E2E.md`
+- `docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md`
+
+Historical roadmaps and status narratives remain linked for architectural context, but current work
+selection and closure claims must be derived from the canonical ledger plus live GitHub Issue/PR/CI
+state.
+
+## Validation
+
+```bash
+python tools/agents/check_portal_completeness_ledger.py
+pytest -q tests/tools/test_check_portal_completeness_ledger.py
 ```
-
-Freqtrade is therefore an execution engine behind a private adapter boundary, not the public backend of the portal.
-
-## Architecture planes
-
-The target system is divided into six explicit planes:
-
-1. **Portal / UX Plane** — user-facing web application and BFF/API boundary.
-2. **Control Plane** — bot specifications, lifecycle, exchange connections, policy and orchestration.
-3. **Execution Plane** — isolated Freqtrade runtimes and exchange connectivity.
-4. **AI / Research Plane** — datasets, features, training, experiments, model registry and controlled promotion.
-5. **Data Plane** — metadata, event streams, market/trade telemetry, artifacts and audit records.
-6. **Quality & Autonomous Validation Plane** — deterministic simulators, browser E2E, security E2E, AI scenario tests and controlled agent-assisted repair.
-
-Cross-cutting boundaries:
-
-- **Security Plane** — Cloudflare edge, Zero Trust for privileged surfaces, identity, RBAC, secrets, tenant isolation and audit.
-- **Risk Plane** — deterministic capital and execution controls independent from model confidence.
-- **Observability Plane** — OpenTelemetry-compatible traces, metrics, logs and correlation IDs across user action -> portal -> orchestrator -> Freqtrade -> trade analysis.
-
-## Initial implementation posture
-
-The portal remains a **modular monolith control plane** plus isolated workers/runtimes, not a premature fleet of microservices. Boundaries and contracts remain explicit so modules can later split into services without changing portal-facing APIs.
-
-Current project-specific shape:
-
-```text
-ai_platform/portal/
-  contracts/       # shared versioned API/event/domain contracts
-  control_plane/   # FastAPI modular control plane
-  execution/       # Freqtrade adapter/orchestration boundary
-  events/          # event/outbox integration
-  observability/   # telemetry contracts/instrumentation
-  risk/            # deterministic risk policy
-  model_control/   # model lifecycle control integration
-  intelligence/    # post-trade analysis and AI insights
-  learning/        # insight -> hypothesis -> experiment workflow
-  simulator/       # deterministic exchange/market simulator
-  e2e/             # full-platform scenario harness
-  web/             # Next.js/React portal
-  deploy/          # production-like deployment boundary
-  quality_agent/   # bounded autonomous diagnosis/repair
-```
-
-The target bot-management expansion uses additive ownership modules when their bounded tasks are activated:
-
-```text
-ai_platform/portal/
-  contracts/bot_management/  # shared bot policy, command and execution contracts
-  bot_catalog/               # approved templates and compatibility decisions
-  bot_builder/               # normalized immutable bot configuration
-  bot_operations/            # lifecycle, position and order command model
-  exchange_connections/      # exchange metadata and verification product surface
-  signal_control/            # authenticated signal/webhook ingestion
-  grid_control/              # canonical grid policy and level generation
-  credential_broker/         # PI-07 secret-store boundary
-  execution/reconciliation/  # PI-08 acknowledgement and authoritative convergence
-```
-
-These target directories are architecture and agent-ownership boundaries, not evidence that the capabilities are already implemented. Existing code is not moved merely to match the target structure.
-
-Implementation work must continue to follow the frozen architecture and safety boundaries rather than treating a merged foundation slice as completion of an entire roadmap stage.
-
-After the bounded P0-P12 software platform and software-addressable portal surfaces, use `NEXT_WORK_AND_REPAIR_PLAN.md` to select the next bounded task. Detailed hard private/external integration contracts remain in `POST_P12_INTEGRATION_BACKLOG.md`; listing a package there does not activate implementation or authorize live capital.
-
-## Current continuation snapshot
-
-PI-01, PI-02, PI-03 and PI-04 are complete for their declared repository-side acceptance. Bot Operations convergence is complete through `FTAI-20260726-portal-bot-operations-completion` and PR #320, so the fleet and Bot Detail routes now compose canonical bot-scoped reads and expose existing immutable-revision and desired-state commands through the same-origin web boundary. No further core portal integration package is autonomously authorized without an owner/provider decision. PI-05 through PI-08 remain separately planned and gated; P11 is blocked on real external infrastructure, P13 is deferred and P14 remains blocked.
-
-The bot-management product architecture and agent plan describe the future bounded BM-00 through BM-09 packages required for fuller dry-run bot creation and management. Those documents do not mark the packages active, do not replace PI-07/PI-08 entry gates and do not authorize live capital.
-
-PI-06 repository identity, BFF/browser integration, Authentik/Synology deployment and emulation-first target acceptance are complete through PR #678, merge `8b29bf87a94bcc9f9861e465666b74e23bb900e2`. Real Synology, OIDC, MFA, recovery, backup and restore evidence remains owner-managed and no additional autonomous repository implementation is authorized by that task.
-
-The read-only Liquid20 portal path is separately integrated through the server-side read model, same-origin BFF, responsive Likwidacje page and Synology read-only evidence mount. It remains market-data and research preview only. Use `LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md` before extending it into a strategy, model, or execution package.
-
-The WickHunter Market Evidence path is an additive read-only surface at `/market/evidence`. Its BFF projects source-separated Binance USD-M and Bybit Linear completed candles, market quality, instrument history, immutable run identities and WH-01 readiness. It overlays the existing liquidation health model so OKX Swap can be shown truthfully as a liquidation-only source without claiming candle-evidence equivalence. The browser cannot mutate evidence, mark a run accepted or reach a trading boundary. Use `MARKET_EVIDENCE_READ_MODEL.md` and `../WICKHUNTER_PRODUCTION_MARKET_EVIDENCE.md` before changing this surface.
-
-## Documentation map
-
-- `SYSTEM_ARCHITECTURE.md` — components, planes, trust boundaries and deployment evolution.
-- `BOT_MANAGEMENT_PRODUCT_ARCHITECTURE.md` — complete dry-run bot creation/management capability model, command flow and target repository structure.
-- `BOT_MANAGEMENT_AGENT_PLAN.md` — serial contract gate, parallel agent ownership, shared hot paths and implementation waves.
-- `SECURITY_ARCHITECTURE.md` — Cloudflare, Zero Trust, identity, secrets, segmentation and threat controls.
-- `AI_ML_AND_LEARNING_ARCHITECTURE.md` — training, model registry, continual learning and safe self-improvement.
-- `DATA_AND_OBSERVABILITY_ARCHITECTURE.md` — data ownership, event contracts, decision snapshots, telemetry and retention.
-- `QUALITY_AND_AUTONOMOUS_E2E.md` — full-platform testing, user simulation and bounded agent-assisted repair.
-- `E2E_TEST_ARCHITECTURE.md` — concrete Playwright structure, tags, browser projects, evidence and CI gates.
-- `UI_INFORMATION_ARCHITECTURE.md` — target portal navigation and major product surfaces.
-- `UI_DELIVERY_STATUS.md` — truthful per-surface implementation/integration status and remaining read-model gaps.
-- `LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md` — canonical Liquid20 portal, strategy-research, AI-bot, Synology and future-expansion contract.
-- `LIQUIDATIONS_READ_MODEL.md` — focused implementation contract for the bounded server-side Liquid20 reader.
-- `MARKET_EVIDENCE_READ_MODEL.md` — WickHunter source, instrument, run, blocker, API, UI and deployment contract.
-- `NEXT_WORK_AND_REPAIR_PLAN.md` — current continuation ledger, repair priorities, next bounded task and stop conditions.
-- `ARCHITECTURE_DECISIONS.md` — accepted program-level decisions that downstream agents must not silently redefine.
-- `DELIVERY_ROADMAP.md` — staged delivery plan and gates.
-- `POST_P12_INTEGRATION_BACKLOG.md` — detailed contracts for remaining private/external integrations after the bounded platform foundation.
-- `AGENT_EXECUTION_PLAN.md` — global bounded agent workstreams, ownership and dependencies.
-
-## Non-negotiable safety boundaries
-
-- Freqtrade REST/WebSocket surfaces are private and never exposed directly to the public Internet.
-- Exchange keys are never committed, never returned to the browser after storage, and must not have withdrawal permission.
-- New trading configurations remain `dry_run: true` until a separately reviewed live-capital work package is explicitly approved.
-- Research jobs cannot access production exchange credentials.
-- Training or post-trade analysis cannot directly mutate a running production model or strategy.
-- Model promotion is explicit, auditable and evidence-gated.
-- Autonomous repair agents may create branches, regression tests and PRs; they may not patch production or bypass CI.
-- Raw private UI captures, profile identifiers, session material and third-party proprietary assets must not be committed as product code or public documentation.
-- Market-evidence APIs must not return host paths, raw exchange payloads, credential names, secret references or mutation controls.
-- OKX liquidation availability must not be reported as complete WickHunter market-evidence readiness.
-
-## Relationship to the existing AI Platform
-
-The existing research lifecycle remains authoritative:
-
-`experiment -> candidate -> validated -> dry-run -> shadow -> live-small -> production -> retired`
-
-The portal consumes only artifacts whose lifecycle state allows the requested use. It must never reinterpret historical evidence to retroactively change completed comparison contracts.
-
-The protected final holdout `20260801-20260930`, frozen thresholds `0.006/-0.009`, completed Phase 6 comparison, PyTorch evidence track and RL evidence tracks remain governed by their existing records and are outside this portal architecture work package.

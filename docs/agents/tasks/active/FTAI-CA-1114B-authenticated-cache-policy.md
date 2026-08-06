@@ -7,7 +7,7 @@ repository: blakinio/freqtrade
 parent_issue: 1114
 issue: 1304
 lane: freqtrade-portal
-phase: validating
+phase: implementing
 status: active
 priority: P1
 severity: medium
@@ -36,6 +36,7 @@ feature_scope:
   e2e_required: true
   completion_claim: repository_application_boundary
 owned_paths:
+  - ai_platform/portal/web/next.config.ts
   - ai_platform/portal/web/proxy.ts
   - ai_platform/portal/web/lib/response-cache-policy.ts
   - ai_platform/portal/web/app/api/**/route.ts
@@ -55,6 +56,7 @@ forbidden_paths:
   - ai_platform/portal/web/lib/security-headers.ts
 conflict_groups:
   - portal-web-proxy
+  - portal-next-response-headers
   - portal-bff-cache-policy
   - portal-status-ledger
 dependencies:
@@ -76,37 +78,32 @@ Read and apply the root and `docs/agents` governance from the trusted base, Issu
 - Preserve the merged nonce-CSP and invariant-header behavior from #1303.
 - Do not touch Issue #1132 / PR #1284 identity replay work.
 - Do not touch Issue #1116 / PR #1307 supply-chain work.
-- Defer the shared completeness ledger until final exact-head evidence is terminal and ownership is clear.
 - HSTS and public-edge acceptance remain #1305.
 
 ## Implemented repository boundary
 
 - `lib/response-cache-policy.ts` defines one exact policy: `Cache-Control: private, no-store`.
-- `proxy.ts` applies that policy in the same response-finalization boundary as CSP and invariant headers.
-- The Proxy matcher covers dynamic HTML, redirects and BFF/API responses, including identity routes; static Next/image assets remain excluded.
-- Playwright helper coverage verifies status-independent overwrite behavior for 200, 401, 403, 404, 409 and 5xx responses.
-- Direct-origin runtime coverage requires the exact normalized policy, so contradictory additions such as `public, private, no-store` fail.
-- Direct-origin coverage verifies login documents, protected redirects, unauthorized and forbidden API responses, authenticated session and inventory success, authenticated 404, a real stale-revision 409 and a real route-handler 502.
-- The real fixture logout route is verified as private/no-store and browser history cannot restore the prior protected page after session clearing.
-- Tenant-change coverage verifies browser history cannot restore the prior workspace and reaches the cross-tenant denial boundary.
-- Static-asset coverage verifies the private policy is not applied to framework assets.
-- The canonical policy document distinguishes downstream response policy from upstream `fetch(..., { cache: "no-store" })`.
+- Direct responses created by `proxy.ts` apply the policy together with CSP and invariant headers.
+- Next.js response configuration is the final authority for responses that continue through page or route rendering, because route rendering can replace a header placed on `NextResponse.next()`.
+- Dynamic HTML, redirects and BFF/API responses are covered; immutable framework assets retain Next.js-owned immutable caching.
+- Direct-origin runtime coverage requires the exact normalized policy and exercises actual 200, redirect, 401, 403, 404, 409 and 502 responses.
+- Logout, tenant-change and browser-history coverage proves protected content is not restored.
 
 ## Acceptance inventory
 
 - [x] One reviewed helper defines the downstream authenticated response cache policy.
-- [x] Dynamic HTML, BFF/API successes and representative 401/403/404/conflict/5xx classes receive the exact policy by construction and runtime evidence.
-- [x] Login, callback, session, logout and security-sensitive redirects are inside the Proxy policy boundary.
-- [x] Upstream fetch caching is explicitly not treated as downstream policy.
-- [x] Actual logout and browser back/forward behavior have an end-to-end regression test.
-- [x] Tenant change and browser back/forward behavior have an end-to-end regression test.
-- [x] Public immutable static assets are excluded from the authenticated private policy.
-- [x] CSP/nonces and invariant headers are reused without redesign.
+- [ ] Next.js final rendered responses and direct Proxy responses both enforce the policy.
+- [x] Representative success, 401, 403, 404, conflict and 5xx paths have actual route evidence.
+- [x] Login, callback, session, logout and security-sensitive redirects are in scope.
+- [x] Upstream fetch caching is not treated as downstream response policy.
+- [x] Logout and tenant-change history regressions are covered.
+- [x] Immutable framework assets are not assigned the private policy.
+- [x] CSP/nonces and invariant headers are preserved.
 - [ ] Focused lint, typecheck, production build and Playwright pass on the exact implementation head.
 - [ ] Required exact-head CI, CodeQL and zizmor pass.
 - [ ] Fresh independent final audit reports zero material findings.
 - [ ] Shared completeness ledger is reconciled only from terminal evidence.
-- [ ] Task is archived, review threads are resolved, PR is terminal and ownership is released.
+- [ ] Task is archived, PR is terminal and ownership is released.
 
 ## Audit findings
 
@@ -121,46 +118,41 @@ findings:
   - id: FTAI-1304-AUD-002
     severity: medium
     status: fixed
-    finding: 409 and 5xx evidence exercised only synthetic Response objects rather than actual route-handler responses
-    remediation: execute stale bot revision conflict and malformed-JSON fail-closed paths through live Next route handlers
+    finding: 409 and 5xx evidence exercised only synthetic Response objects
+    remediation: execute stale bot revision conflict and malformed-JSON fail-closed paths through live route handlers
     remediation_head: 9177b5340f90d8ec974248d9d0218575eb8c4d88
-findings_open_material: 0
+  - id: FTAI-1304-AUD-003
+    severity: high
+    status: remediation_in_progress
+    finding: Next.js route rendering replaced Cache-Control placed on NextResponse.next() with no-cache, must-revalidate
+    evidence: universal Chromium run 31114335378, job 92662683883
+    remediation: make Next.js final response configuration authoritative while retaining the helper for direct Proxy responses
+findings_open_material: 1
 ```
 
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 4
-updated_at: 2026-08-06T15:16:00Z
-status: validating
-invocation_started_at: 2026-08-06T15:16:00Z
-last_progress_at: 2026-08-06T15:16:00Z
+checkpoint_version: 5
+updated_at: 2026-08-06T15:19:00Z
+status: implementing
 branch: repair/1304-authenticated-cache-policy
 pull_request: 1308
-head: 9177b5340f90d8ec974248d9d0218575eb8c4d88
-ci_checks_for_current_head: 0
-unchanged_state_checks: 0
-identical_failure_retries: 0
-repair_cycles_for_current_gate: 1
-context_reconstruction_attempts: 1
-stall_warnings: 0
+head_before_scope_expansion: 128e8ebf3b92346295b1a7d4669a6e7546ee44a3
+repair_cycles_for_current_gate: 2
 changed_paths:
+  - ai_platform/portal/web/next.config.ts
   - ai_platform/portal/web/lib/response-cache-policy.ts
   - ai_platform/portal/web/proxy.ts
   - ai_platform/portal/web/e2e/specs/security/cache-boundary.spec.ts
   - docs/ai_platform/portal/BROWSER_SECURITY_HEADER_POLICY.md
-  - docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.json
   - docs/agents/tasks/active/FTAI-CA-1114B-authenticated-cache-policy.md
 proven:
-  - dependency #1303 is merged and its proxy ownership is released
-  - implementation uses one central policy and does not modify identity, deployment or security-header modules
-  - direct-origin, actual logout, tenant-change, history and static-asset assertions are committed
-  - exact runtime policy rejects additional contradictory cache directives
-  - actual 409 and 502 route-handler responses are included in direct-origin evidence
-  - previous Risk-aware component CI setup failures were GitHub CreateTaskFailed infrastructure failures before repository code ran
+  - the prior Proxy-only design does not control the final header on rendered pages
+  - direct Proxy responses can still use the central helper
+  - Next.js supports configured response headers for non-immutable responses
 unknown:
-  - exact-head focused and required CI outcome after audit remediation
-  - final independent audit outcome
+  - exact rendered behavior after moving final authority to Next response configuration
 blockers: []
-next_action: Inspect exact-head CI for 9177b5340f90d8ec974248d9d0218575eb8c4d88; repair only a reproducible repository failure, then perform final diff audit and archive transition.
+next_action: implement the shared cache header in next.config.ts, retain direct-response enforcement in Proxy, then rerun production build and Chromium.
 ```

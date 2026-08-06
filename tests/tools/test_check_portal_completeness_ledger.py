@@ -57,8 +57,7 @@ def test_rejects_complete_dimension_with_open_blocker(tmp_path: Path) -> None:
     control[3][0] = "COMPLETE"
     _write(path, ledger)
     assert any(
-        "cannot be COMPLETE with open blockers" in error
-        for error in validator.validate(tmp_path)
+        "cannot be COMPLETE with open blockers" in error for error in validator.validate(tmp_path)
     )
 
 

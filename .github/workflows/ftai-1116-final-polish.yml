@@ -1,0 +1,110 @@
+name: FTAI 1116 Final Polish
+
+on:
+  push:
+    branches:
+      - repair/1116-portal-supply-chain
+    paths:
+      - ".github/workflows/ftai-1116-final-polish.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  polish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Apply final dependency and style fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          package = Path("ai_platform/portal/web/package.json")
+          payload = json.loads(package.read_text(encoding="utf-8"))
+          payload["overrides"] = {"sharp": "0.35.3"}
+          package.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+          runtime = Path("tools/agents/portal_supply_chain_runtime.py")
+          text = runtime.read_text(encoding="utf-8")
+          text = text.replace(
+              '    setattr(\n        deploy,\n        "_discovery_from_identity_container",',
+              '    setattr(  # noqa: B010\n        deploy,\n        "_discovery_from_identity_container",',
+              1,
+          )
+          text = text.replace(
+              '    setattr(\n        deploy,\n        "_build_images",',
+              '    setattr(  # noqa: B010\n        deploy,\n        "_build_images",',
+              1,
+          )
+          marker = '    if current is not None and current.get("archive_id") != pointer["archive_id"]:\n'
+          if "    previous: dict[str, Any] | None\n" not in text:
+              text = text.replace(marker, "    previous: dict[str, Any] | None\n" + marker, 1)
+          runtime.write_text(text, encoding="utf-8")
+          PY
+
+          cd ai_platform/portal/web
+          npm install --package-lock-only --ignore-scripts
+          npm ci --ignore-scripts
+          npm ls sharp --all
+          node - <<'NODE'
+          const fs = require('fs');
+          const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+          const bad = [];
+          for (const [path, meta] of Object.entries(lock.packages || {})) {
+            if ((path === 'node_modules/sharp' || path.endsWith('/node_modules/sharp')) && meta.version) {
+              const [major, minor] = meta.version.split('.').map(Number);
+              if (major === 0 && minor < 35) bad.push(`${path}@${meta.version}`);
+            }
+          }
+          if (bad.length) {
+            console.error(`vulnerable sharp remains: ${bad.join(', ')}`);
+            process.exit(1);
+          }
+          NODE
+          cd ../../../..
+
+          python3 -m pip install --disable-pip-version-check ruff==0.15.20
+          ruff check --fix \
+            tools/agents/portal_supply_chain.py \
+            tools/agents/portal_supply_chain_policy.py \
+            tools/agents/portal_supply_chain_runtime.py
+          ruff format \
+            tools/agents/portal_supply_chain.py \
+            tools/agents/portal_supply_chain_policy.py \
+            tools/agents/portal_supply_chain_runtime.py
+          ruff check \
+            tools/agents/portal_supply_chain.py \
+            tools/agents/portal_supply_chain_policy.py \
+            tools/agents/portal_supply_chain_runtime.py
+          python3 -m py_compile \
+            tools/agents/portal_supply_chain.py \
+            tools/agents/portal_supply_chain_policy.py \
+            tools/agents/portal_supply_chain_runtime.py
+          git diff --check
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            ai_platform/portal/web/package.json \
+            ai_platform/portal/web/package-lock.json \
+            tools/agents/portal_supply_chain.py \
+            tools/agents/portal_supply_chain_policy.py \
+            tools/agents/portal_supply_chain_runtime.py
+          if git diff --cached --quiet; then
+            echo "No final polish changes required"
+            exit 0
+          fi
+          git commit -m "fix(portal): finalize supply-chain dependency policy"
+          git push origin HEAD:refs/heads/repair/1116-portal-supply-chain

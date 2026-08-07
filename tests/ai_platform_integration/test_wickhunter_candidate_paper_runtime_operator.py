@@ -313,6 +313,47 @@ def test_live_root_accepts_suffix_available_during_bounded_snapshot_read(
     assert "event-during-read" not in {event.source_event_id for event in snapshot.events}
 
 
+def test_live_root_does_not_chase_suffix_appended_after_snapshot_boundary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _write_live_root(tmp_path / "active-suffix-growing")
+    pointer = json.loads((root / "live-state-v1.json").read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    run_id = str(state["run_id"])
+    event_path = root / "runs" / run_id / "binance-usdm.ndjson"
+    trigger = _event("event-trigger", received_at_ms=NOW_MS - 500)
+    with event_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(trigger, sort_keys=True) + "\n")
+
+    original_parse = operator_module._parse_live_source_event
+    appended = False
+
+    def parse_with_growth(row: dict[str, Any], *, source: str, observed_at_ms: int) -> Any:
+        nonlocal appended
+        if not appended and row.get("source_event_id") == "event-trigger":
+            appended = True
+            future = _event(
+                "event-appended-during-read",
+                received_at_ms=NOW_MS + 60_000,
+            )
+            with event_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(future, sort_keys=True) + "\n")
+        return original_parse(row, source=source, observed_at_ms=observed_at_ms)
+
+    monkeypatch.setattr(operator_module, "_parse_live_source_event", parse_with_growth)
+    monkeypatch.setattr(operator_module.time, "monotonic_ns", lambda: 10_000_000_000)
+
+    snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+    assert appended is True
+    assert "event-appended-during-read" in event_path.read_text(encoding="utf-8")
+    assert {event.source_event_id for event in snapshot.events} == {
+        "event-history",
+        "event-current",
+    }
+
+
 def test_live_root_rejects_suffix_later_than_bounded_snapshot_read(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

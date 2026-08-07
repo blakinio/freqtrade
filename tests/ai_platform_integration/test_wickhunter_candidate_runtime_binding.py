@@ -45,6 +45,7 @@ CREATED_AT_MS = 1_800_000_000_000
 WINDOW_DURATION_MS = 86_700_000
 CODE_SHA = "a" * 40
 DATASET_HASH = "b" * 64
+REPLAY_DATASET_HASH = "7" * 64
 MODEL_HASH = "c" * 64
 MODEL_ARTIFACT_SHA256 = "d" * 64
 
@@ -77,6 +78,7 @@ def _artifact(identity: VerifiedCandidateIdentity) -> LightGBMModelArtifact:
         model_hash=identity.model_hash,
         parameter_version=identity.parameter_version,
         parameter_sha256=identity.parameter_hash,
+        dataset_manifest_sha256=REPLAY_DATASET_HASH,
     )
     return cast(LightGBMModelArtifact, value)
 
@@ -226,6 +228,8 @@ def test_verified_activation_binds_candidate_scorer_and_authorization(
     assert bound.scorer is binding.scorer
     assert bound.parameters == INITIAL_COMPATIBILITY_PRIOR
     assert bound.parameter_bounds == DEFAULT_RESEARCH_BOUNDS
+    assert bound.dataset_hash == REPLAY_DATASET_HASH
+    assert binding.request.dataset_hash == DATASET_HASH
     assert bound.risk_context.candidate_paper_validation_authorized is True
     assert request.risk_context.candidate_paper_validation_authorized is False
 

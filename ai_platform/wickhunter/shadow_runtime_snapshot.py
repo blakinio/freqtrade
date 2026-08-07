@@ -8,6 +8,7 @@ from ai_platform.wickhunter.contracts import (
     BotMode,
     DriftState,
     ShadowDecisionEvidence,
+    ShadowStatus,
     TradeDirection,
 )
 from ai_platform.wickhunter.deterministic_replay import CandidateLabel, LabelOutcome
@@ -215,4 +216,83 @@ def verify_replay_shadow_parity(
         identities_match=identities_match,
         policy_match=policy_match,
         execution_authority_absent=execution_authority_absent,
+    )
+
+
+def verify_runtime_replay_parity(
+    *,
+    shadow_decision: ShadowDecisionEvidence,
+    replayed_decision: ShadowDecisionEvidence,
+) -> ReplayShadowParityEvidence:
+    """Prove deterministic live PAPER decision replay without inventing a historical label.
+
+    The legacy parity schema is retained for WH-09 package compatibility. In this runtime-replay
+    mode `label_id` contains the canonical SHA-256 of the replayed decision evidence and
+    `label_outcome=missing_entry` explicitly means that no historical outcome label is asserted.
+    """
+
+    if shadow_decision.status is not ShadowStatus.SIMULATED_ALLOWED:
+        raise ShadowRuntimeError("runtime replay parity requires an allowed decision")
+    if replayed_decision.status is not ShadowStatus.SIMULATED_ALLOWED:
+        raise ShadowRuntimeError("runtime replay changed the allowed decision status")
+    intent = shadow_decision.trade_intent
+    replay_intent = replayed_decision.trade_intent
+    candidate = shadow_decision.candidate
+    replay_candidate = replayed_decision.candidate
+    if intent is None or replay_intent is None or candidate is None or replay_candidate is None:
+        raise ShadowRuntimeError("runtime replay parity requires directional decisions")
+
+    replay_sha256 = canonical_sha256(replayed_decision)
+    identities_match = (
+        shadow_decision.shadow_decision_id == replayed_decision.shadow_decision_id
+        and candidate.candidate_id == replay_candidate.candidate_id
+        and candidate.symbol == replay_candidate.symbol
+        and candidate.side is replay_candidate.side
+        and candidate.decision_timestamp_ms == replay_candidate.decision_timestamp_ms
+        and intent.trade_intent_id == replay_intent.trade_intent_id
+        and intent.dataset_hash == replay_intent.dataset_hash
+        and intent.code_sha == replay_intent.code_sha
+    )
+    policy_match = (
+        canonical_sha256(shadow_decision) == replay_sha256
+        and intent.take_profit_ratio == replay_intent.take_profit_ratio
+        and intent.stop_loss_ratio == replay_intent.stop_loss_ratio
+        and intent.requested_base_risk_ratio == replay_intent.requested_base_risk_ratio
+        and intent.requested_leverage == replay_intent.requested_leverage
+        and intent.dca_plan == replay_intent.dca_plan
+        and shadow_decision.risk_decision == replayed_decision.risk_decision
+    )
+    payload = {
+        "shadow_decision_id": shadow_decision.shadow_decision_id,
+        "label_id": replay_sha256,
+        "symbol": candidate.symbol,
+        "side": candidate.side.value,
+        "decision_timestamp_ms": candidate.decision_timestamp_ms,
+        "dataset_hash": intent.dataset_hash,
+        "code_sha": intent.code_sha,
+        "take_profit_ratio": intent.take_profit_ratio,
+        "stop_loss_ratio": intent.stop_loss_ratio,
+        "label_outcome": LabelOutcome.MISSING_ENTRY.value,
+        "identities_match": identities_match,
+        "policy_match": policy_match,
+        "execution_authority_absent": True,
+    }
+    return ReplayShadowParityEvidence(
+        schema_version=RUNTIME_PARITY_SCHEMA_VERSION,
+        parity_id=canonical_sha256(
+            {"schema_version": RUNTIME_PARITY_SCHEMA_VERSION, "payload": payload}
+        ),
+        shadow_decision_id=shadow_decision.shadow_decision_id,
+        label_id=replay_sha256,
+        symbol=candidate.symbol,
+        side=candidate.side,
+        decision_timestamp_ms=candidate.decision_timestamp_ms,
+        dataset_hash=intent.dataset_hash,
+        code_sha=intent.code_sha,
+        take_profit_ratio=intent.take_profit_ratio,
+        stop_loss_ratio=intent.stop_loss_ratio,
+        label_outcome=LabelOutcome.MISSING_ENTRY,
+        identities_match=identities_match,
+        policy_match=policy_match,
+        execution_authority_absent=True,
     )

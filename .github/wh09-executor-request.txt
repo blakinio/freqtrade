@@ -1,0 +1,1 @@
+WH09 terminal collector registration request for Issue #1144.

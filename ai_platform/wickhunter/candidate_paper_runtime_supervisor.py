@@ -77,11 +77,7 @@ def _verify_self_hash(
     if payload.get("schema_version") != schema_version:
         raise CandidatePaperRuntimeSupervisorError(f"{label} schema mismatch")
     claimed = payload.get(hash_field)
-    body = {
-        key: value
-        for key, value in payload.items()
-        if key not in {"schema_version", hash_field}
-    }
+    body = {key: value for key, value in payload.items() if key not in {"schema_version", hash_field}}
     expected = canonical_sha256({"schema_version": schema_version, "payload": body})
     if claimed != expected:
         raise CandidatePaperRuntimeSupervisorError(f"{label} self-hash mismatch")
@@ -203,9 +199,7 @@ class CycleTelemetryStore:
                 raise CandidatePaperRuntimeSupervisorError("cycle telemetry record is invalid")
             sequence = record.get("sequence")
             if not isinstance(sequence, int) or sequence < 1:
-                raise CandidatePaperRuntimeSupervisorError(
-                    "cycle telemetry sequence is invalid"
-                )
+                raise CandidatePaperRuntimeSupervisorError("cycle telemetry sequence is invalid")
             if previous is not None and sequence != previous + 1:
                 raise CandidatePaperRuntimeSupervisorError(
                     "cycle telemetry sequence is not contiguous"
@@ -215,9 +209,7 @@ class CycleTelemetryStore:
         claimed_last = payload.get("last_sequence")
         expected_last = records[-1]["sequence"] if records else 0
         if claimed_last != expected_last:
-            raise CandidatePaperRuntimeSupervisorError(
-                "cycle telemetry last sequence mismatch"
-            )
+            raise CandidatePaperRuntimeSupervisorError("cycle telemetry last sequence mismatch")
         return payload
 
     def append(
@@ -232,7 +224,7 @@ class CycleTelemetryStore:
     ) -> None:
         if outcome not in {"success", "fail_closed"}:
             raise CandidatePaperRuntimeSupervisorError("unsupported cycle telemetry outcome")
-        current = (
+        current: dict[str, Any] = (
             self._load_verified()
             if self.path.exists()
             else {
@@ -240,7 +232,11 @@ class CycleTelemetryStore:
                 "last_sequence": 0,
             }
         )
-        sequence = int(current["last_sequence"]) + 1
+        last_sequence = current.get("last_sequence")
+        current_records = current.get("records")
+        if not isinstance(last_sequence, int) or not isinstance(current_records, list):
+            raise CandidatePaperRuntimeSupervisorError("cycle telemetry state is invalid")
+        sequence = last_sequence + 1
         record: dict[str, object] = {
             "sequence": sequence,
             "cycle_started_at_ms": cycle_started_at_ms,
@@ -253,7 +249,7 @@ class CycleTelemetryStore:
             "errors": errors,
             **ZERO_AUTHORITY,
         }
-        records = [*current["records"], record][-MAX_TELEMETRY_RECORDS:]
+        records = [*current_records, record][-MAX_TELEMETRY_RECORDS:]
         body: dict[str, object] = {
             **self._identity(),
             "retained_record_count": len(records),
@@ -358,9 +354,7 @@ class CandidatePaperRuntimeSupervisor:
         if not 1 <= max_attempts <= MAX_CYCLE_ATTEMPTS:
             raise CandidatePaperRuntimeSupervisorError("max attempts must be within 1..3")
         if not 0 <= retry_delay_seconds <= 30:
-            raise CandidatePaperRuntimeSupervisorError(
-                "retry delay must be within 0..30 seconds"
-            )
+            raise CandidatePaperRuntimeSupervisorError("retry delay must be within 0..30 seconds")
         if not state_root.is_absolute():
             raise CandidatePaperRuntimeSupervisorError("state root must be absolute")
         if state_root.is_symlink():

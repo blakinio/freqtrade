@@ -37,6 +37,7 @@ RUN python -m pip install --no-cache-dir -r requirements.txt \
     && python -m pip install --no-cache-dir -e /app \
     && python -m compileall -q \
         /app/ai_platform/wickhunter/candidate_paper_runtime_operator.py \
+        /app/ai_platform/wickhunter/candidate_paper_runtime_supervisor.py \
         /app/deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \
     && find /app -type d -name __pycache__ -prune -exec rm -rf '{}' + \
     && chown -R root:root /app \
@@ -44,4 +45,4 @@ RUN python -m pip install --no-cache-dir -r requirements.txt \
 
 USER 65532:65532
 
-ENTRYPOINT ["python", "-m", "ai_platform.wickhunter.candidate_paper_runtime_operator"]
+ENTRYPOINT ["python", "-m", "ai_platform.wickhunter.candidate_paper_runtime_supervisor"]

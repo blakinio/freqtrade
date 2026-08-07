@@ -22,7 +22,7 @@ services:
       - --public-market-base-url
       - https://fapi.binance.com
       - --poll-seconds
-      - ${POLL_SECONDS:-60}
+      - ${POLL_SECONDS:-120}
       - --maximum-source-age-ms
       - ${MAXIMUM_SOURCE_AGE_MS:-300000}
       - --model-drift
@@ -31,6 +31,8 @@ services:
       - ${DATA_DRIFT:-healthy}
       - --circuit-breaker-active
       - ${CIRCUIT_BREAKER_ACTIVE:-false}
+      - --cycles
+      - ${SUPERVISOR_CYCLES:-0}
     environment:
       OPERATOR_COMMIT: ${OPERATOR_COMMIT:?set exact merged implementation commit}
       HEALTH_PATH: /runtime/operator/health.json

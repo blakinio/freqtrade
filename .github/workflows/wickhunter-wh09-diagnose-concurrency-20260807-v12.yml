@@ -1,0 +1,119 @@
+name: WickHunter WH09 v12 concurrent public-market diagnostic
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-diagnose-concurrency-20260807-v12.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh09-v12-concurrent-market-diagnostic
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    name: Probe concurrent WH09 v12 public-market batches
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop' &&
+      github.event.pull_request.head.ref == 'ops/wickhunter-wh09-v12-diagnostic-20260807'
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact diagnostic request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v11.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Probe five concurrent batches without mutation
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+          OPERATOR_CONTAINER: wickhunter-paper-runtime-v12
+          EXPECTED_IMAGE_ID: sha256:449ff348296a91865e7d884a2de26ddbb34d67c317afd348ee9e675444566f01
+        run: |
+          set -Eeuo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" ]]
+          docker version >/dev/null
+          test -S /var/run/docker.sock
+          [[ "$(docker inspect --format '{{.Image}}' "$OPERATOR_CONTAINER")" == "$EXPECTED_IMAGE_ID" ]]
+          docker exec --interactive "$OPERATOR_CONTAINER" python - <<'PY'
+          import json
+          import time
+          from concurrent.futures import ThreadPoolExecutor, as_completed
+          from pathlib import Path
+
+          from ai_platform.wickhunter.candidate_paper_runtime_operator import (
+              MAX_PUBLIC_MARKET_WORKERS,
+              fetch_public_market_snapshot,
+              load_liquid20_snapshot,
+          )
+
+          batches = []
+          for batch in range(5):
+              now_ms = time.time_ns() // 1_000_000
+              liquid20 = load_liquid20_snapshot(
+                  Path('/runtime/liquid20'),
+                  now_ms=now_ms,
+                  maximum_age_ms=300_000,
+              )
+              symbols = tuple(sorted(liquid20.universe.selected_symbols))
+              started = time.monotonic()
+              rows = []
+              with ThreadPoolExecutor(
+                  max_workers=min(MAX_PUBLIC_MARKET_WORKERS, len(symbols)),
+                  thread_name_prefix='wickhunter-public-market-diagnostic',
+              ) as executor:
+                  futures = {
+                      executor.submit(
+                          fetch_public_market_snapshot,
+                          symbol=symbol,
+                          observed_at_ms=now_ms,
+                          base_url='https://fapi.binance.com',
+                      ): symbol
+                      for symbol in symbols
+                  }
+                  for future in as_completed(futures):
+                      symbol = futures[future]
+                      try:
+                          market = future.result()
+                      except Exception as exc:
+                          rows.append({
+                              'symbol': symbol,
+                              'ok': False,
+                              'error_type': type(exc).__name__,
+                              'error': str(exc)[:500],
+                          })
+                      else:
+                          rows.append({
+                              'symbol': symbol,
+                              'ok': True,
+                              'completed_candle_close_ms': market.completed_candle_close_ms,
+                          })
+              batches.append({
+                  'batch': batch + 1,
+                  'snapshot_id': liquid20.snapshot_id,
+                  'symbols': symbols,
+                  'elapsed_ms': int((time.monotonic() - started) * 1000),
+                  'success_count': sum(1 for row in rows if row['ok']),
+                  'failure_count': sum(1 for row in rows if not row['ok']),
+                  'failures': sorted((row for row in rows if not row['ok']), key=lambda row: row['symbol']),
+              })
+              if batch < 4:
+                  time.sleep(5)
+          print(json.dumps({
+              'workers': MAX_PUBLIC_MARKET_WORKERS,
+              'batches': batches,
+              'total_failures': sum(row['failure_count'] for row in batches),
+          }, indent=2, sort_keys=True))
+          PY

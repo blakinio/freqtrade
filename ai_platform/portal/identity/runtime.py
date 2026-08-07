@@ -27,6 +27,7 @@ class IdentityRuntimeConfig:
     session_hmac_key: bytes
     flow_encryption_key: bytes
     transport_mode: IdentityTransportMode = "secure_https"
+    require_logout_token_typ: bool = False
 
     @property
     def allow_insecure_local_http(self) -> bool:
@@ -49,6 +50,10 @@ class IdentityRuntimeConfig:
                 _required("PORTAL_IDENTITY_FLOW_ENCRYPTION_KEY_B64")
             ),
             transport_mode=transport_mode,
+            require_logout_token_typ=_boolean(
+                "PORTAL_IDENTITY_REQUIRE_LOGOUT_TOKEN_TYP",
+                default=False,
+            ),
         )
 
 
@@ -63,6 +68,7 @@ def build_identity_service(
             client_secret=config.client_secret,
             redirect_uri=config.redirect_uri,
             allow_insecure_local_http=config.allow_insecure_local_http,
+            require_logout_token_typ=config.require_logout_token_typ,
         )
     )
     crypto = IdentityCrypto(
@@ -83,6 +89,18 @@ def _transport_mode() -> IdentityTransportMode:
             "PORTAL_IDENTITY_TRANSPORT_MODE must be secure_https or local_http_test"
         )
     return cast(IdentityTransportMode, value)
+
+
+def _boolean(name: str, *, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    value = raw.strip().lower()
+    if value in {"true", "1"}:
+        return True
+    if value in {"false", "0"}:
+        return False
+    raise IdentityConfigurationError(f"{name} must be true, false, 1, or 0")
 
 
 def _required(name: str) -> str:

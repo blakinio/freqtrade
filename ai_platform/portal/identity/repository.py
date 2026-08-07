@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import Select, select, update
+from sqlalchemy import Select, delete, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ai_platform.portal.contracts.identity import RoleName
@@ -12,6 +14,7 @@ from ai_platform.portal.identity.models import (
     IdentityAuditEventRow,
     IdentityPrincipalRow,
     OidcLoginFlowRow,
+    OidcLogoutReplayRow,
     PortalSessionRow,
     SessionRevocationRow,
     TenantMembershipRow,
@@ -39,6 +42,20 @@ class IdentityConflictError(RuntimeError):
 
 class IdentityNotFoundError(LookupError):
     pass
+
+
+class IdentityReplayConflictError(RuntimeError):
+    pass
+
+
+class IdentityReplayStateError(RuntimeError):
+    pass
+
+
+@dataclass(frozen=True)
+class LogoutReplayClaim:
+    row: OidcLogoutReplayRow
+    owner: bool
 
 
 def _roles_json(roles: Sequence[RoleName]) -> str:
@@ -249,6 +266,96 @@ class IdentityRepository:
             raise IdentityNotFoundError("OIDC login state is invalid or expired")
         return row
 
+    def claim_logout_replay(
+        self,
+        *,
+        replay_key_hash: str,
+        issuer: str,
+        client_id: str,
+        jti: str,
+        request_fingerprint: str,
+        token_type: str,
+        signing_key_id: str,
+        signing_algorithm: str,
+        issued_at: datetime,
+        token_expires_at: datetime,
+        retention_until: datetime,
+        now: datetime,
+    ) -> LogoutReplayClaim:
+        candidate = OidcLogoutReplayRow(
+            replay_key_hash=replay_key_hash,
+            issuer=issuer,
+            client_id=client_id,
+            jti=jti,
+            request_fingerprint=request_fingerprint,
+            token_type=token_type,
+            signing_key_id=signing_key_id,
+            signing_algorithm=signing_algorithm,
+            issued_at=issued_at,
+            token_expires_at=token_expires_at,
+            retention_until=retention_until,
+            status="processing",
+            revoked_sessions=None,
+            processed_at=None,
+            created_at=now,
+            completed_at=None,
+        )
+        try:
+            with self.session.begin_nested():
+                self.session.add(candidate)
+                self.session.flush()
+        except IntegrityError:
+            existing = self.session.scalar(
+                select(OidcLogoutReplayRow)
+                .where(OidcLogoutReplayRow.replay_key_hash == replay_key_hash)
+                .execution_options(populate_existing=True)
+            )
+            if existing is None:
+                raise IdentityReplayStateError("logout replay owner could not be resolved")
+            exact_key = (existing.issuer, existing.client_id, existing.jti) == (
+                issuer,
+                client_id,
+                jti,
+            )
+            if not exact_key or existing.request_fingerprint != request_fingerprint:
+                raise IdentityReplayConflictError("logout replay key has conflicting semantics")
+            if (
+                existing.status != "completed"
+                or existing.revoked_sessions is None
+                or existing.processed_at is None
+                or existing.completed_at is None
+            ):
+                raise IdentityReplayStateError("logout replay result is not terminal")
+            return LogoutReplayClaim(row=existing, owner=False)
+        return LogoutReplayClaim(row=candidate, owner=True)
+
+    def complete_logout_replay(
+        self,
+        row: OidcLogoutReplayRow,
+        *,
+        revoked_sessions: int,
+        processed_at: datetime,
+        completed_at: datetime,
+    ) -> None:
+        if row.status != "processing":
+            raise IdentityReplayStateError("logout replay reservation is not processing")
+        row.status = "completed"
+        row.revoked_sessions = revoked_sessions
+        row.processed_at = processed_at
+        row.completed_at = completed_at
+        self.session.flush()
+
+    def purge_expired_logout_replays(self, now: datetime) -> int:
+        statement = (
+            delete(OidcLogoutReplayRow)
+            .where(
+                OidcLogoutReplayRow.status == "completed",
+                OidcLogoutReplayRow.retention_until <= now,
+            )
+            .returning(OidcLogoutReplayRow.replay_key_hash)
+        )
+        return len(self.session.scalars(statement).all())
+
     def create_session(
         self,
         *,
@@ -386,16 +493,23 @@ class IdentityRepository:
         idp_session_id: str | None,
         now: datetime,
     ) -> int:
-        principal = None
+        if subject is None and idp_session_id is None:
+            return 0
+        query = (
+            select(PortalSessionRow)
+            .join(
+                IdentityPrincipalRow,
+                IdentityPrincipalRow.principal_id == PortalSessionRow.principal_id,
+            )
+            .where(
+                IdentityPrincipalRow.issuer == issuer,
+                PortalSessionRow.revoked_at.is_(None),
+            )
+        )
         if subject is not None:
-            principal = self.get_principal_by_external_identity(issuer, subject)
-        query = select(PortalSessionRow).where(PortalSessionRow.revoked_at.is_(None))
+            query = query.where(IdentityPrincipalRow.subject == subject)
         if idp_session_id is not None:
             query = query.where(PortalSessionRow.idp_session_id == idp_session_id)
-        elif principal is not None:
-            query = query.where(PortalSessionRow.principal_id == principal.principal_id)
-        else:
-            return 0
         rows = self.session.scalars(query).all()
         actor_id = f"idp:{issuer}"
         return sum(

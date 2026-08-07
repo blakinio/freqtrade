@@ -93,6 +93,31 @@ def _client() -> tuple[PyJwtOidcClient, rsa.RSAPrivateKey]:
     return client, key
 
 
+def _logout_token(
+    key: rsa.RSAPrivateKey,
+    *,
+    jti: str | None = "logout-1",
+) -> str:
+    now = datetime.now(UTC)
+    claims: dict[str, object] = {
+        "iss": ISSUER,
+        "sub": "user-1",
+        "sid": "sid-1",
+        "aud": CLIENT_ID,
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(minutes=5)).timestamp()),
+        "events": {"http://schemas.openid.net/event/backchannel-logout": {}},
+    }
+    if jti is not None:
+        claims["jti"] = jti
+    return jwt.encode(
+        claims,
+        key,
+        algorithm="RS256",
+        headers={"kid": "key-1"},
+    )
+
+
 def test_authorization_and_token_validation_use_pkce_nonce_issuer_and_audience() -> None:
     client, _ = _client()
     authorization_url = client.authorization_url(
@@ -126,29 +151,21 @@ def test_nonce_mismatch_is_rejected() -> None:
         )
 
 
-def test_backchannel_logout_requires_event_and_sub_or_sid() -> None:
+def test_backchannel_logout_requires_event_subject_and_bounded_jti() -> None:
     client, key = _client()
-    now = datetime.now(UTC)
-    token = jwt.encode(
-        {
-            "iss": ISSUER,
-            "sub": "user-1",
-            "sid": "sid-1",
-            "aud": CLIENT_ID,
-            "iat": int(now.timestamp()),
-            "exp": int((now + timedelta(minutes=5)).timestamp()),
-            "jti": "logout-1",
-            "events": {"http://schemas.openid.net/event/backchannel-logout": {}},
-        },
-        key,
-        algorithm="RS256",
-        headers={"kid": "key-1"},
-    )
 
-    result = client.validate_backchannel_logout(token)
+    result = client.validate_backchannel_logout(_logout_token(key))
 
+    assert result.issuer == ISSUER
+    assert result.client_id == CLIENT_ID
+    assert result.jti == "logout-1"
     assert result.subject == "user-1"
     assert result.idp_session_id == "sid-1"
+
+    with pytest.raises(OidcProtocolError, match="jti is required"):
+        client.validate_backchannel_logout(_logout_token(key, jti=None))
+    with pytest.raises(OidcProtocolError, match="jti is too long"):
+        client.validate_backchannel_logout(_logout_token(key, jti="j" * 256))
 
 
 def test_discovery_issuer_mismatch_is_rejected() -> None:

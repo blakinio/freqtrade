@@ -46,7 +46,7 @@ def _concurrent_migrate() -> str:
     engine = build_engine(POSTGRES_URL)
     try:
         report = migrate_database(engine)
-        return str(report["applied_revisions"][0]["revision_id"])
+        return str(report["applied_revisions"][-1]["revision_id"])
     finally:
         engine.dispose()
 
@@ -76,7 +76,7 @@ def _insert_duplicate_command() -> str:
         engine.dispose()
 
 
-def test_concurrent_postgresql_migrations_converge_on_one_revision() -> None:
+def test_concurrent_postgresql_migrations_converge_on_ordered_revision_chain() -> None:
     with ThreadPoolExecutor(max_workers=4) as executor:
         revisions = tuple(executor.map(lambda _index: _concurrent_migrate(), range(4)))
     assert revisions == (EXPECTED_SCHEMA_REVISION,) * 4
@@ -89,7 +89,7 @@ def test_concurrent_postgresql_migrations_converge_on_one_revision() -> None:
                 connection.execute(
                     text(f"SELECT COUNT(*) FROM {MIGRATION_TABLE_NAME}")
                 ).scalar_one()
-                == 1
+                == 2
             )
         assert assert_schema_ready(engine)["status"] == "ready"
     finally:

@@ -9,18 +9,27 @@ on:
       - ".github/workflows/freqtrade-synology-runner-cutover-preflight.yml"
       - ".github/workflows/freqtrade-synology-runner-image.yml"
       - "deploy/synology/freqtrade-runner/**"
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches:
+      - develop
+    paths:
+      - ".github/scripts/wickhunter-wh09-collect-v12.sh"
+      - ".github/workflows/wickhunter-wh09-collect-20260806-v12.yml"
 
 permissions:
   contents: read
-  statuses: write
 
 concurrency:
-  group: freqtrade-synology-runner-cutover-preflight
+  group: freqtrade-synology-runner-cutover-preflight-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
 
 jobs:
   preflight:
     if: github.ref == 'refs/heads/develop'
+    permissions:
+      contents: read
+      statuses: write
     runs-on: [freqtrade-staging]
     timeout-minutes: 15
     steps:
@@ -133,3 +142,43 @@ jobs:
           post_status "synology/freqtrade-cutover-volumes" "$VOLUMES_OK" "Registration volumes verified" "Registration volume verification failed"
           post_status "synology/freqtrade-cutover-image" "$IMAGE_OK" "Dedicated exact image verified" "Dedicated exact image unavailable"
           post_status "synology/freqtrade-cutover-state-path" "$STATE_PATH_OK" "Freqtrade state path exists" "Freqtrade state path is missing"
+
+  wh09-terminal-collect:
+    name: Collect preserved WH09 v12 terminal PAPER evidence
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.number == 1313 &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop' &&
+      github.event.pull_request.head.ref == 'ops/wickhunter-wh09-terminal-acceptance-20260806-v2'
+    permissions:
+      contents: read
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Run bounded read-only terminal collector
+        id: collect
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: bash .github/scripts/wickhunter-wh09-collect-v12.sh
+
+      - name: Upload bounded terminal evidence
+        if: always() && steps.collect.outputs.output != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wickhunter-wh09-v12-terminal-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: ${{ steps.collect.outputs.output }}
+          if-no-files-found: error
+          retention-days: 30

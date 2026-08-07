@@ -48,9 +48,7 @@ def _statement_provenance(**kwargs):
         "subject": [
             {
                 "name": f"freqtrade-portal-{name}",
-                "digest": {
-                    "sha256": image.removeprefix("sha256:")
-                },
+                "digest": {"sha256": image.removeprefix("sha256:")},
             }
         ],
         "predicateType": "https://slsa.dev/provenance/v1",
@@ -76,11 +74,7 @@ def _database_content_digest(path: Path) -> str:
         files = [root]
         relative_root = root.parent
     elif root.is_dir():
-        files = sorted(
-            candidate
-            for candidate in root.rglob("*")
-            if candidate.is_file()
-        )
+        files = sorted(candidate for candidate in root.rglob("*") if candidate.is_file())
         relative_root = root
     else:
         raise PolicyError("Grype database path is not a file or directory")
@@ -126,9 +120,7 @@ def _capture_scanner_database(
     output_dir: Path,
 ) -> tuple[Path, dict[str, Any], Path]:
     _runtime._run(["grype", "db", "update"])
-    raw = json.loads(
-        _runtime._run(["grype", "db", "status", "-o", "json"]).stdout
-    )
+    raw = json.loads(_runtime._run(["grype", "db", "status", "-o", "json"]).stdout)
     if not isinstance(raw, dict):
         raise PolicyError("Grype database status must be a JSON object")
     database_value = raw.get("path")
@@ -141,10 +133,7 @@ def _capture_scanner_database(
     return evidence_path, normalized, database_path
 
 
-def _augment_provenance(
-    path: Path,
-    scanner_database: dict[str, Any],
-) -> None:
+def _augment_provenance(path: Path, scanner_database: dict[str, Any]) -> None:
     statement = _runtime._load(path)
     predicate = statement.get("predicate")
     if not isinstance(predicate, dict):
@@ -163,9 +152,7 @@ def _augment_provenance(
                 f"{scanner_database['schema_version']}:"
                 f"{scanner_database['built']}"
             ),
-            "digest": {
-                "sha256": scanner_database["content_sha256"],
-            },
+            "digest": {"sha256": scanner_database["content_sha256"]},
         }
     )
     byproducts = run_details.get("byproducts")
@@ -189,10 +176,7 @@ def _augment_provenance(
 
 
 def _apply_frozen_grype_environment() -> dict[str, str | None]:
-    previous = {
-        key: os.environ.get(key)
-        for key in _GRYPE_FROZEN_ENVIRONMENT
-    }
+    previous = {key: os.environ.get(key) for key in _GRYPE_FROZEN_ENVIRONMENT}
     os.environ.update(_GRYPE_FROZEN_ENVIRONMENT)
     return previous
 
@@ -205,6 +189,27 @@ def _restore_environment(previous: dict[str, str | None]) -> None:
             os.environ[key] = value
 
 
+def _blocked_policy_summary(output_dir: Path) -> dict[str, Any]:
+    summary: dict[str, Any] = {}
+    report_suffixes = {
+        "vulnerabilities": ".vulnerability-policy.json",
+        "licenses": ".licenses.json",
+    }
+    for image_name in ("control-plane", "web"):
+        image_summary: dict[str, Any] = {}
+        for report_name, suffix in report_suffixes.items():
+            path = output_dir / f"{image_name}{suffix}"
+            if not path.is_file() or path.is_symlink():
+                continue
+            payload = _runtime._load(path)
+            blocked = payload.get("blocked")
+            if isinstance(blocked, list) and blocked:
+                image_summary[report_name] = blocked[:20]
+        if image_summary:
+            summary[image_name] = image_summary
+    return summary
+
+
 def build_verify(args: argparse.Namespace) -> int:
     output_dir = Path(args.output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -213,7 +218,15 @@ def build_verify(args: argparse.Namespace) -> int:
     )
     previous_environment = _apply_frozen_grype_environment()
     try:
-        result = int(_original_build_verify(args))
+        try:
+            result = int(_original_build_verify(args))
+        except PolicyError as exc:
+            blocked = _blocked_policy_summary(output_dir)
+            if blocked:
+                raise PolicyError(
+                    f"{exc}; blocked_findings={json.dumps(blocked, sort_keys=True)}"
+                ) from exc
+            raise
     finally:
         _restore_environment(previous_environment)
     if result != 0:
@@ -234,9 +247,7 @@ def build_verify(args: argparse.Namespace) -> int:
         provenance_entry = evidence.get("provenance")
         if not isinstance(provenance_entry, dict):
             raise PolicyError(f"missing provenance approval entry: {name}")
-        provenance_path = approval_path.parent / str(
-            provenance_entry.get("path", "")
-        )
+        provenance_path = approval_path.parent / str(provenance_entry.get("path", ""))
         _augment_provenance(provenance_path, scanner_database)
         provenance_entry["sha256"] = _runtime._digest(provenance_path)
     approval["scanner_database"] = {
@@ -310,40 +321,26 @@ def deploy_approved(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Portal exact-image supply-chain policy"
-    )
-    commands = parser.add_subparsers(
-        dest="command",
-        required=True,
-    )
+    parser = argparse.ArgumentParser(description="Portal exact-image supply-chain policy")
+    commands = parser.add_subparsers(dest="command", required=True)
     build = commands.add_parser("build-verify")
     build.add_argument("--repository", default=".")
     build.add_argument("--source-sha", required=True)
     build.add_argument("--output-dir", required=True)
     build.add_argument("--approval", required=True)
-    build.add_argument(
-        "--policy",
-        default=str(DEFAULT_POLICY),
-    )
+    build.add_argument("--policy", default=str(DEFAULT_POLICY))
     build.set_defaults(handler=build_verify)
 
     verify = commands.add_parser("verify-approval")
     verify.add_argument("--approval", required=True)
-    verify.add_argument(
-        "--expected-source-sha",
-        required=True,
-    )
+    verify.add_argument("--expected-source-sha", required=True)
     verify.set_defaults(handler=verify_approval)
 
     deploy = commands.add_parser("deploy-approved")
     deploy.add_argument("--approved-images", required=True)
     deploy.add_argument("--repository", required=True)
     deploy.add_argument("--request", required=True)
-    deploy.add_argument(
-        "--expected-repository-sha",
-        required=True,
-    )
+    deploy.add_argument("--expected-repository-sha", required=True)
     deploy.add_argument("--report", required=True)
     deploy.set_defaults(handler=deploy_approved)
 
@@ -357,16 +354,8 @@ def main() -> int:
     args = parser.parse_args()
     try:
         return int(args.handler(args))
-    except (
-        PolicyError,
-        RuntimeError,
-        OSError,
-        json.JSONDecodeError,
-    ) as exc:
-        print(
-            f"portal supply-chain gate failed: {exc}",
-            file=sys.stderr,
-        )
+    except (PolicyError, RuntimeError, OSError, json.JSONDecodeError) as exc:
+        print(f"portal supply-chain gate failed: {exc}", file=sys.stderr)
         return 2
 
 

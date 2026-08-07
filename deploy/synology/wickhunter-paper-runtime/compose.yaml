@@ -68,6 +68,8 @@ services:
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
     user: "65532:65532"
+    group_add:
+      - "${LIQUID20_READER_GID:?set exact GID of LIQUID20_LIVE_HOST}"
     cap_drop:
       - ALL
     security_opt:

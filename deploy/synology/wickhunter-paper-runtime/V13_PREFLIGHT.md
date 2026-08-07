@@ -12,6 +12,11 @@ automatic promotion, protected-holdout access, submitted orders, or live-capital
 
 Do not point a preflight run at the canonical v13 acceptance journal.
 
+The request must derive the exact Liquid20 reader GID from the mounted live root (for example
+`stat -c %g "$LIQUID20_LIVE_HOST"`), verify that it is numeric and matches the Liquid20 data
+boundary, and add only that GID as a supplementary group to the `65532:65532` operator. Do not
+make Liquid20 files world-readable and do not use group `0` unless it is the verified live-root GID.
+
 ## Burn-in gate
 
 The container entrypoint is the restart-safe runtime supervisor. The deployment defaults are:
@@ -23,9 +28,9 @@ The container entrypoint is the restart-safe runtime supervisor. The deployment 
 - canonical continuous mode: `SUPERVISOR_CYCLES=0`.
 
 For a bounded staging burn-in set `SUPERVISOR_CYCLES=5`. Five successful cycles prove the
-exact image can repeatedly read the real Liquid20 boundary, fetch the allowlisted public market
-inputs, execute the candidate PAPER iteration, persist journal generations, update health, and
-persist supervisor telemetry.
+exact image can repeatedly read the real Liquid20 boundary, including atomically republished
+`live-state-v1.json`, fetch the allowlisted public market inputs, execute the candidate PAPER
+iteration, persist journal generations, update health, and persist supervisor telemetry.
 
 A burn-in is PASS only when all of the following are true:
 
@@ -39,7 +44,9 @@ A burn-in is PASS only when all of the following are true:
 6. no `/runtime/operator/early-fail.json` exists;
 7. source freshness remains within 300 seconds and the observed snapshot gaps remain within the
    canonical 1,800,000 ms ceiling;
-8. every zero-authority field remains false and `orders_submitted` remains zero.
+8. the operator retains primary identity `65532:65532`, its only Liquid20 read authority is the
+   verified supplementary live-root GID, and the Liquid20 mount remains read-only;
+9. every zero-authority field remains false and `orders_submitted` remains zero.
 
 Any non-retryable runtime/service integrity failure fails the burn-in immediately. Retry is
 limited to operator-level data/market iteration failures; it never weakens journal, activation,
@@ -90,6 +97,6 @@ Publish the fresh canonical v13 activation only after:
 3. all four safety-exercise paths have passed the separately reviewed PAPER staging procedure;
 4. the canonical journal and operator-state roots are new and empty;
 5. the deployment request records the exact image digest, operator commit, candidate identity,
-   activation identity, journal identity, and zero-authority proof.
+   activation identity, journal identity, verified Liquid20 reader GID, and zero-authority proof.
 
 Only then start the prospective WH-09 acceptance clock.

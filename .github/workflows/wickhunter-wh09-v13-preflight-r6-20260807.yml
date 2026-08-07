@@ -18,15 +18,15 @@ env:
   EXPECTED_BASE_SHA: 0dc02ab8515848d62cc627174d86edafd0abeb0e
   IMPLEMENTATION_SHA: 0dc02ab8515848d62cc627174d86edafd0abeb0e
   CANDIDATE_PACKAGE_NAME: wickhunter-candidate-materialization-20260803-v2-626087ca45d6
-  ACTIVATION_NAME: wickhunter-wh09-v13-preflight-r6-20260807-0dc02ab8
-  BOT_INSTANCE: wickhunter-paper-v13-preflight-r6
+  ACTIVATION_NAME: wickhunter-wh09-v13-preflight-r6a-20260807-0dc02ab8
+  BOT_INSTANCE: wickhunter-paper-v13-preflight-r6a
   RUNNER_STATE_ROOT: /var/lib/freqtrade-staging-state
   HOST_STATE_ROOT: /volume1/docker/freqtrade/state
   LIQUID20_LIVE_HOST: /volume1/docker/freqtrade-liquidations/data/live
   OPERATOR_IMAGE: local/wickhunter-paper-runtime:sha-0dc02ab8515848d62cc627174d86edafd0abeb0e
-  OPERATOR_CONTAINER: wickhunter-paper-runtime-v13-preflight-r6
-  GATEWAY_CONTAINER: wickhunter-wh09-egress-v13-preflight-r6
-  INTERNAL_NETWORK: wickhunter-wh09-internal-v13-preflight-r6
+  OPERATOR_CONTAINER: wickhunter-paper-runtime-v13-preflight-r6a
+  GATEWAY_CONTAINER: wickhunter-wh09-egress-v13-preflight-r6a
+  INTERNAL_NETWORK: wickhunter-wh09-internal-v13-preflight-r6a
 
 jobs:
   preflight:
@@ -92,8 +92,8 @@ jobs:
           umask 027
           candidate_runner="$RUNNER_STATE_ROOT/wickhunter-candidate-materialization/packages/$CANDIDATE_PACKAGE_NAME"
           candidate_host="$HOST_STATE_ROOT/wickhunter-candidate-materialization/packages/$CANDIDATE_PACKAGE_NAME"
-          state_runner="$RUNNER_STATE_ROOT/wickhunter-paper-runtime/v13-preflight-r6-20260807"
-          state_host="$HOST_STATE_ROOT/wickhunter-paper-runtime/v13-preflight-r6-20260807"
+          state_runner="$RUNNER_STATE_ROOT/wickhunter-paper-runtime/v13-preflight-r6a-20260807"
+          state_host="$HOST_STATE_ROOT/wickhunter-paper-runtime/v13-preflight-r6a-20260807"
           activation_runner="$state_runner/activations/$ACTIVATION_NAME"
           journal_runner="$state_runner/journals/$ACTIVATION_NAME"
           operator_runner="$state_runner/operator/$ACTIVATION_NAME"
@@ -127,8 +127,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gateway_dir_runner="$RUNNER_STATE_ROOT/wickhunter-paper-runtime/v13-preflight-r6-20260807/gateway"
-          gateway_dir_host="$HOST_STATE_ROOT/wickhunter-paper-runtime/v13-preflight-r6-20260807/gateway"
+          gateway_dir_runner="$RUNNER_STATE_ROOT/wickhunter-paper-runtime/v13-preflight-r6a-20260807/gateway"
+          gateway_dir_host="$HOST_STATE_ROOT/wickhunter-paper-runtime/v13-preflight-r6a-20260807/gateway"
           install -d -m 0750 -o 65532 -g 65532 "$gateway_dir_runner"
           gateway_script_runner="$gateway_dir_runner/gateway.py"
           gateway_script_host="$gateway_dir_host/gateway.py"
@@ -182,7 +182,7 @@ jobs:
         run: |
           set -euo pipefail
           candidate_host="$HOST_STATE_ROOT/wickhunter-candidate-materialization/packages/$CANDIDATE_PACKAGE_NAME"
-          state_host="$HOST_STATE_ROOT/wickhunter-paper-runtime/v13-preflight-r6-20260807"
+          state_host="$HOST_STATE_ROOT/wickhunter-paper-runtime/v13-preflight-r6a-20260807"
           activation_host="$state_host/activations/$ACTIVATION_NAME"
           journal_host="$state_host/journals/$ACTIVATION_NAME"
           operator_host="$state_host/operator/$ACTIVATION_NAME"
@@ -237,7 +237,7 @@ jobs:
         run: |
           set -euo pipefail
           candidate_host="$HOST_STATE_ROOT/wickhunter-candidate-materialization/packages/$CANDIDATE_PACKAGE_NAME"
-          state_host="$HOST_STATE_ROOT/wickhunter-paper-runtime/v13-preflight-r6-20260807"
+          state_host="$HOST_STATE_ROOT/wickhunter-paper-runtime/v13-preflight-r6a-20260807"
           activation_host="$state_host/activations/$ACTIVATION_NAME"
           journal_host="$state_host/journals/$ACTIVATION_NAME"
           operator_host="$state_host/operator/$ACTIVATION_NAME"
@@ -277,7 +277,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          state_runner="$RUNNER_STATE_ROOT/wickhunter-paper-runtime/v13-preflight-r6-20260807"
+          state_runner="$RUNNER_STATE_ROOT/wickhunter-paper-runtime/v13-preflight-r6a-20260807"
           operator_runner="$state_runner/operator/$ACTIVATION_NAME"
           journal_runner="$state_runner/journals/$ACTIVATION_NAME"
           for name in health.json cycle-telemetry.json early-fail.json; do
@@ -305,7 +305,7 @@ jobs:
           docker rm -f "$OPERATOR_CONTAINER" >/dev/null 2>&1 || true
           docker rm -f "$GATEWAY_CONTAINER" >/dev/null 2>&1 || true
           docker network rm "$INTERNAL_NETWORK" >/dev/null 2>&1 || true
-          rm -rf "$RUNNER_STATE_ROOT/wickhunter-paper-runtime/v13-preflight-r6-20260807/gateway" >/dev/null 2>&1 || true
+          rm -rf "$RUNNER_STATE_ROOT/wickhunter-paper-runtime/v13-preflight-r6a-20260807/gateway" >/dev/null 2>&1 || true
 
       - name: Upload bounded preflight evidence
         if: always()

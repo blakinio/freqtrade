@@ -1,0 +1,70 @@
+name: FTAI 1116 Policy Diagnose
+
+on:
+  push:
+    branches:
+      - repair/1116-portal-supply-chain
+    paths:
+      - ".github/workflows/ftai-1116-policy-diagnose.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Install checksum-pinned scanners
+        shell: bash
+        env:
+          SYFT_VERSION: "1.50.0"
+          SYFT_SHA256: bf7b29ff57f06da30918266a0e1c2885a8f99784798d1bdb1628886aa015d788
+          GRYPE_VERSION: "0.116.1"
+          GRYPE_SHA256: 0122df7b655981abe547ad3d2190d65551dac6a2bfc80b4dc2a989b5d0587458
+        run: |
+          set -euo pipefail
+          install -d "$RUNNER_TEMP/portal-tools"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz" \
+            --output "$RUNNER_TEMP/syft.tar.gz"
+          echo "${SYFT_SHA256}  $RUNNER_TEMP/syft.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/syft.tar.gz" -C "$RUNNER_TEMP/portal-tools" syft
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_amd64.tar.gz" \
+            --output "$RUNNER_TEMP/grype.tar.gz"
+          echo "${GRYPE_SHA256}  $RUNNER_TEMP/grype.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/grype.tar.gz" -C "$RUNNER_TEMP/portal-tools" grype
+          echo "$RUNNER_TEMP/portal-tools" >> "$GITHUB_PATH"
+      - name: Build exact images and expose blocked policy records
+        shell: bash
+        env:
+          EVIDENCE_DIR: ${{ runner.temp }}/portal-supply-chain
+        run: |
+          set +e
+          mkdir -p "$EVIDENCE_DIR"
+          python3 tools/agents/portal_supply_chain.py build-verify \
+            --repository "$GITHUB_WORKSPACE" \
+            --source-sha "$GITHUB_SHA" \
+            --output-dir "$EVIDENCE_DIR" \
+            --approval "$EVIDENCE_DIR/approval.json"
+          status=$?
+          python3 - "$EVIDENCE_DIR" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          root = pathlib.Path(sys.argv[1])
+          for path in sorted(root.glob("*.licenses.json")):
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              print(json.dumps({"report": path.name, "status": payload.get("status"), "blocked": payload.get("blocked", [])}, sort_keys=True))
+          for path in sorted(root.glob("*.vulnerability-policy.json")):
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              print(json.dumps({"report": path.name, "status": payload.get("status"), "blocked": payload.get("blocked", [])}, sort_keys=True))
+          PY
+          exit "$status"

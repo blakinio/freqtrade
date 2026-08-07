@@ -1,0 +1,113 @@
+name: WickHunter WH09 v13 preflight r3 read-only diagnostic
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-v13-preflight-r3-diagnostic-20260807.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh09-v13-preflight-r3-diagnostic-20260807
+  cancel-in-progress: false
+
+env:
+  EXPECTED_BASE_SHA: b251483461f737c5ac095a17950df5aa217f8e17
+  IMPLEMENTATION_SHA: 2525419f5023dbc9bc05fbdff5b3b29917c40eea
+  RUNNER_STATE_ROOT: /var/lib/freqtrade-staging-state
+  ACTIVATION_NAME: wickhunter-wh09-v13-preflight-r3-20260807-2525419f
+  RUN_ID: 92b6456111db1064ecc227b707c54e921b35c706eeadc0fc3bd068e867f2ab04
+  BINDING_ID: 18fa6e3f9178cb1a28305e799686709f715b9db371c2dcd2b03c7ff4d35c3489
+
+jobs:
+  diagnose:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact diagnostic request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v11.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Prove read-only one-file authority
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$EXPECTED_BASE_SHA" ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          git merge-base --is-ancestor "$IMPLEMENTATION_SHA" "$BASE_SHA"
+          [[ "$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")" == $'A\t.github/workflows/wickhunter-wh09-v13-preflight-r3-diagnostic-20260807.yml' ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          for name in OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET FT_EXCHANGE_KEY FT_EXCHANGE_SECRET FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET; do
+            [[ -z "${!name:-}" ]] || { echo "forbidden credential environment: $name" >&2; exit 1; }
+          done
+
+      - name: Inspect failed r3 state without mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          state="$RUNNER_STATE_ROOT/wickhunter-paper-runtime/v13-preflight-r3-20260807"
+          activation="$state/activations/$ACTIVATION_NAME"
+          journal="$state/journals/$ACTIVATION_NAME"
+          operator="$state/operator/$ACTIVATION_NAME"
+          [[ -d "$activation" && ! -L "$activation" ]]
+          [[ -d "$journal" && ! -L "$journal" ]]
+          [[ -d "$operator" && ! -L "$operator" ]]
+          test -f "$operator/cycle-telemetry.json"
+          cp "$operator/cycle-telemetry.json" "$RUNNER_TEMP/r3-cycle-telemetry.json"
+          if [[ -f "$operator/health.json" ]]; then cp "$operator/health.json" "$RUNNER_TEMP/r3-health.json"; fi
+          if [[ -f "$operator/early-fail.json" ]]; then cp "$operator/early-fail.json" "$RUNNER_TEMP/r3-early-fail.json"; fi
+          python3 - "$journal" "$operator" "$RUN_ID" "$BINDING_ID" > "$RUNNER_TEMP/r3-diagnostic.json" <<'PY'
+          import json, sys
+          from pathlib import Path
+          journal=Path(sys.argv[1]); operator=Path(sys.argv[2]); expected_run=sys.argv[3]; expected_binding=sys.argv[4]
+          telemetry=json.loads((operator/'cycle-telemetry.json').read_text())
+          if telemetry.get('run_id') != expected_run or telemetry.get('binding_id') != expected_binding:
+              raise SystemExit('telemetry identity mismatch')
+          health=json.loads((operator/'health.json').read_text()) if (operator/'health.json').is_file() else None
+          early=json.loads((operator/'early-fail.json').read_text()) if (operator/'early-fail.json').is_file() else None
+          observations=[]; json_files=[]
+          for path in sorted(journal.rglob('*.json')):
+              rel=str(path.relative_to(journal)); json_files.append(rel)
+              try: obj=json.loads(path.read_text())
+              except Exception: continue
+              if isinstance(obj,dict) and isinstance(obj.get('snapshot_id'),str) and isinstance(obj.get('observed_at_ms'),int):
+                  observations.append({
+                    'file':rel,'snapshot_id':obj.get('snapshot_id'),'observed_at_ms':obj.get('observed_at_ms'),
+                    'generation':obj.get('persistence_generation'),'health':obj.get('health'),
+                    'source_count':obj.get('source_count'),'fresh_source_count':obj.get('fresh_source_count'),
+                    'decision_count':obj.get('decision_count'),'allowed_decision_count':obj.get('allowed_decision_count'),
+                    'risk_rejection_count':obj.get('risk_rejection_count'),'breaker_reasons':obj.get('circuit_breaker_reasons'),
+                  })
+          print(json.dumps({
+            'status':'r3_read_only_diagnostic','run_id':expected_run,'binding_id':expected_binding,
+            'telemetry_last_sequence':telemetry.get('last_sequence'),'telemetry_records':telemetry.get('records'),
+            'health':health,'early_fail':early,'observation_count':len(observations),'observations':observations,
+            'journal_json_files':json_files,'state_mutated':False,'orders_submitted':0,'live_capital_authorized':False,
+          },indent=2,sort_keys=True))
+          PY
+          cat "$RUNNER_TEMP/r3-diagnostic.json"
+
+      - name: Upload read-only diagnostic evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v11.0.1
+        with:
+          name: wickhunter-wh09-v13-preflight-r3-diagnostic-${{ github.event.pull_request.number }}
+          path: |
+            ${{ runner.temp }}/r3-diagnostic.json
+            ${{ runner.temp }}/r3-cycle-telemetry.json
+            ${{ runner.temp }}/r3-health.json
+            ${{ runner.temp }}/r3-early-fail.json
+          if-no-files-found: warn
+          retention-days: 30

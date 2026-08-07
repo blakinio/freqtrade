@@ -88,7 +88,6 @@ jobs:
           [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$OPERATOR_IMAGE")" == "$IMPLEMENTATION_SHA" ]]
           [[ "$(docker image inspect --format '{{json .Config.Entrypoint}}' "$OPERATOR_IMAGE")" == '["python","-m","ai_platform.wickhunter.candidate_paper_runtime_supervisor"]' ]]
           find "$journal_runner" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}' > "$RUNNER_TEMP/wickhunter-wh09-v13-service-cause-r2-source-before.sha256"
-          stat -c '%n uid=%u gid=%g mode=%a' "$LIQUID20_LIVE_HOST" "$LIQUID20_LIVE_HOST/live-state-v1.json" | tee "$RUNNER_TEMP/wickhunter-wh09-v13-service-cause-r2-host-permissions.txt"
 
       - name: Start constrained Binance-only gateway
         shell: bash
@@ -248,7 +247,6 @@ jobs:
             ${{ runner.temp }}/wickhunter-wh09-v13-service-cause-r2-result-persisted.json
             ${{ runner.temp }}/wickhunter-wh09-v13-service-cause-r2-source-before.sha256
             ${{ runner.temp }}/wickhunter-wh09-v13-service-cause-r2-source-after.sha256
-            ${{ runner.temp }}/wickhunter-wh09-v13-service-cause-r2-host-permissions.txt
             ${{ runner.temp }}/wickhunter-wh09-v13-service-cause-r2-gateway-inspect.json
             ${{ runner.temp }}/wickhunter-wh09-v13-service-cause-r2-gateway.log
           if-no-files-found: warn

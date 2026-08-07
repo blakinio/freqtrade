@@ -1,0 +1,232 @@
+name: FTAI 1116 Closeout
+
+on:
+  push:
+    branches:
+      - repair/1116-portal-supply-chain
+    paths:
+      - ".github/workflows/ftai-1116-closeout.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  closeout:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Reconcile ledger and archive task
+        shell: bash
+        env:
+          VALIDATED_IMPLEMENTATION_HEAD: ba7b339572bc9e2a96b50614b56037715ec53365
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import re
+          from collections import Counter
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          ISSUE = 1116
+          REMAINING_DR_ISSUE = 1139
+          EVIDENCE_SHA = "ba7b339572bc9e2a96b50614b56037715ec53365"
+          JSON_PATH = Path("docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.json")
+          MD_PATH = Path("docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.md")
+          ACTIVE_PATH = Path("docs/agents/tasks/active/FTAI-CA-1116-portal-supply-chain.md")
+          ARCHIVE_PATH = Path("docs/agents/tasks/archive/FTAI-CA-1116-portal-supply-chain.md")
+
+          generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+          ledger = json.loads(JSON_PATH.read_text(encoding="utf-8"))
+          ledger["as_of_sha"] = EVIDENCE_SHA
+          ledger["generated_at"] = generated_at
+          ledger["open_audit_issues"] = [
+              issue for issue in ledger["open_audit_issues"] if issue != ISSUE
+          ]
+
+          source_evidence = ledger["evidence_contract"]["source_evidence"]
+          for evidence in (
+              "issue:1116",
+              "pull:1307",
+              "workflow:31172539595",
+              "workflow:31172539863",
+              "workflow:31172539567",
+              "workflow:31172539813",
+              "workflow:31172539652",
+          ):
+              if evidence not in source_evidence:
+                  source_evidence.append(evidence)
+
+          for section in ("packages", "surfaces", "cross_cutting_controls"):
+              blocker_index = 5 if section == "surfaces" else 4
+              for record in ledger["records"][section]:
+                  record[blocker_index] = [
+                      [issue for issue in blockers if issue != ISSUE]
+                      for blockers in record[blocker_index]
+                  ]
+
+          supply_chain = next(
+              record
+              for record in ledger["records"]["cross_cutting_controls"]
+              if record[0] == "CONTROL-SUPPLY-CHAIN-DR"
+          )
+          supply_chain[2] = "PARTIAL"
+          supply_chain[3] = [
+              "PARTIAL",
+              "NOT_APPLICABLE",
+              "NOT_APPLICABLE",
+              "PARTIAL",
+              "EXTERNAL_ACCEPTANCE_REQUIRED",
+          ]
+          supply_chain[4] = [
+              [REMAINING_DR_ISSUE],
+              [],
+              [],
+              [REMAINING_DR_ISSUE],
+              [REMAINING_DR_ISSUE],
+          ]
+
+          assert ISSUE not in ledger["open_audit_issues"]
+          assert REMAINING_DR_ISSUE in ledger["open_audit_issues"]
+          for section in ("packages", "surfaces", "cross_cutting_controls"):
+              blocker_index = 5 if section == "surfaces" else 4
+              for record in ledger["records"][section]:
+                  assert all(ISSUE not in blockers for blockers in record[blocker_index])
+
+          JSON_PATH.write_text(
+              json.dumps(ledger, ensure_ascii=False, separators=(",", ":")) + "\n",
+              encoding="utf-8",
+          )
+
+          md = MD_PATH.read_text(encoding="utf-8")
+          md = re.sub(r"(?m)^as_of_sha: [0-9a-f]{40}$", f"as_of_sha: {EVIDENCE_SHA}", md, count=1)
+          md = re.sub(r"(?m)^generated_at: .+$", f"generated_at: {generated_at}", md, count=1)
+          md = re.sub(
+              r"(?m)^open_audit_issues: \d+$",
+              f"open_audit_issues: {len(ledger['open_audit_issues'])}",
+              md,
+              count=1,
+          )
+
+          status_counts: Counter[str] = Counter()
+          replacements: dict[str, str] = {}
+
+          def issues_cell(blocker_lists: list[list[int]]) -> str:
+              issues = sorted({issue for blockers in blocker_lists for issue in blockers})
+              return ", ".join(f"#{issue}" for issue in issues) if issues else "—"
+
+          for record in ledger["records"]["packages"]:
+              record_id, name, status, dimensions, blockers, _owner = record
+              status_counts[status] += 1
+              replacements[record_id] = (
+                  f"| `{record_id}` | {name} | `{status}` | "
+                  + " | ".join(f"`{value}`" for value in dimensions)
+                  + f" | {issues_cell(blockers)} |"
+              )
+
+          for record in ledger["records"]["surfaces"]:
+              record_id, name, route, status, dimensions, blockers, _owner = record
+              status_counts[status] += 1
+              replacements[record_id] = (
+                  f"| `{record_id}` | {name} | `{route}` | `{status}` | "
+                  + " | ".join(f"`{value}`" for value in dimensions)
+                  + f" | {issues_cell(blockers)} |"
+              )
+
+          for record in ledger["records"]["cross_cutting_controls"]:
+              record_id, name, status, dimensions, blockers, _owner = record
+              status_counts[status] += 1
+              replacements[record_id] = (
+                  f"| `{record_id}` | {name} | `{status}` | "
+                  + " | ".join(f"`{value}`" for value in dimensions)
+                  + f" | {issues_cell(blockers)} |"
+              )
+
+          seen: set[str] = set()
+          lines = md.splitlines()
+          for index, line in enumerate(lines):
+              if not line.startswith("| `"):
+                  continue
+              match = re.match(r"\| `([^`]+)` \|", line)
+              if not match:
+                  continue
+              record_id = match.group(1)
+              if record_id in replacements:
+                  lines[index] = replacements[record_id]
+                  seen.add(record_id)
+          missing = set(replacements) - seen
+          if missing:
+              raise SystemExit(f"ledger projection rows missing: {sorted(missing)}")
+          md = "\n".join(lines) + "\n"
+
+          for status, count in status_counts.items():
+              md = re.sub(
+                  rf"(?m)^- `{re.escape(status)}`: \d+ records$",
+                  f"- `{status}`: {count} records",
+                  md,
+                  count=1,
+              )
+
+          md = re.sub(
+              r"The following Issues are open at snapshot `[0-9a-f]{40}`",
+              f"The following Issues are open at snapshot `{EVIDENCE_SHA}`",
+              md,
+              count=1,
+          )
+          inventory = ", ".join(f"#{issue}" for issue in ledger["open_audit_issues"])
+          inventory_pattern = r"(?m)^#\d{4}(?:, #\d{4})+$"
+          if not re.search(inventory_pattern, md):
+              raise SystemExit("open audit issue inventory line not found")
+          md = re.sub(inventory_pattern, inventory, md, count=1)
+
+          if "#1116" in md:
+              raise SystemExit("#1116 remains in human ledger projection")
+          if "#1139" not in md:
+              raise SystemExit("#1139 disappeared from human ledger projection")
+          if "| `CONTROL-SUPPLY-CHAIN-DR` | Deployment supply chain and disaster recovery | `PARTIAL`" not in md:
+              raise SystemExit("supply-chain/DR projection did not become PARTIAL")
+          MD_PATH.write_text(md, encoding="utf-8")
+
+          if not ACTIVE_PATH.exists():
+              raise SystemExit("active task record missing")
+          if ARCHIVE_PATH.exists():
+              raise SystemExit("archive task record already exists")
+          task = ACTIVE_PATH.read_text(encoding="utf-8")
+          task = task.replace("phase: finalization", "phase: archive_transition", 1)
+          task = task.replace(
+              "status: awaiting_exact_head_ci_and_final_audit",
+              "status: complete_on_merge",
+              1,
+          )
+          task = task.replace("claim_state: claimed\n", "ownership_release: on_merge\n", 1)
+          task += f'''\n\n## Final closeout evidence\n\n```yaml\nvalidated_implementation_head: {EVIDENCE_SHA}\nimplementation_exact_head_ci:\n  freqtrade_ci: 31172539595\n  risk_aware_component_ci: 31172539863\n  codeql: 31172539567\n  zizmor: 31172539813\n  portal_exact_image_supply_chain: 31172539652\nimplementation_gate_result: PASS\nindependent_final_audit: PASS_ZERO_MATERIAL_FINDINGS\nunresolved_review_threads: 0\nledger_reconciliation:\n  issue_1116_removed: true\n  control_supply_chain_dr: PARTIAL\n  remaining_dr_blocker: 1139\nprotected_target_acceptance_inferred: false\nlive_capital_authorized: false\nprotected_production_deployment_authorized: false\nownership_release: on_merge\nfinal_archive_ci: REQUIRED_ON_ARCHIVE_HEAD\n```\n'''
+          ARCHIVE_PATH.parent.mkdir(parents=True, exist_ok=True)
+          ARCHIVE_PATH.write_text(task, encoding="utf-8")
+          ACTIVE_PATH.unlink()
+          PY
+
+          python3 tools/agents/check_portal_completeness_ledger.py
+          git diff --check
+          test ! -e docs/agents/tasks/active/FTAI-CA-1116-portal-supply-chain.md
+          test -e docs/agents/tasks/archive/FTAI-CA-1116-portal-supply-chain.md
+          ! grep -q '#1116' docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.md
+          grep -q '#1139' docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.md
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.json \
+            docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.md \
+            docs/agents/tasks/active/FTAI-CA-1116-portal-supply-chain.md \
+            docs/agents/tasks/archive/FTAI-CA-1116-portal-supply-chain.md
+          git commit -m "docs(agent): archive FTAI-1116 supply-chain repair"
+          git push origin HEAD:refs/heads/repair/1116-portal-supply-chain

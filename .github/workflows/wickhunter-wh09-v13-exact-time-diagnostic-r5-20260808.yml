@@ -27,9 +27,9 @@ env:
   HOST_STATE_ROOT: /volume1/docker/freqtrade/state
   LIQUID20_LIVE_HOST: /volume1/docker/freqtrade-liquidations/data/live
   OPERATOR_IMAGE: local/wickhunter-paper-runtime:sha-d8a238a006b5d1a9020139f38bcb889e6f658fe8
-  DIAGNOSTIC_NAME: wickhunter-wh09-v13-exact-time-r5-20260808
-  GATEWAY_CONTAINER: wickhunter-wh09-exact-time-egress-r5
-  INTERNAL_NETWORK: wickhunter-wh09-exact-time-internal-r5
+  DIAGNOSTIC_NAME: wickhunter-wh09-v13-historical-r5b-20260808
+  GATEWAY_CONTAINER: wickhunter-wh09-historical-egress-r5b
+  INTERNAL_NETWORK: wickhunter-wh09-historical-internal-r5b
 
 jobs:
   diagnose:
@@ -129,7 +129,7 @@ jobs:
           sleep 2
           [[ "$(docker inspect --format '{{.State.Running}}' "$GATEWAY_CONTAINER")" == "true" ]]
 
-      - name: Replay exact r8 failure-time boundary
+      - name: Reconstruct and replay the failed historical tick
         shell: bash
         run: |
           set -euo pipefail
@@ -156,11 +156,16 @@ jobs:
             --mount "type=bind,src=$diagnostic_host,dst=/runtime/diagnostic" \
             --entrypoint python "$OPERATOR_IMAGE" - <<'PY' | tee "$RUNNER_TEMP/wickhunter-wh09-v13-exact-time-r5-result.json"
           import json, os, shutil, socket, traceback
+          from decimal import Decimal
           from pathlib import Path
-          from ai_platform.wickhunter.candidate_paper_runtime_operator import CandidatePaperRuntimeOperator, _runtime_policy, assert_closed_authority_environment
+          from ai_platform.research.liquidations.contracts import event_from_json_dict
+          from ai_platform.wickhunter.candidate_paper_runtime_operator import CandidatePaperRuntimeOperator, Liquid20Snapshot, EXPECTED_LIVE_SOURCES, MAX_EVENTS_PER_SYMBOL, MAX_LIQUID20_SYMBOLS, LIVE_HISTORY_WINDOW_MS, _live_history, _runtime_policy, assert_closed_authority_environment
           from ai_platform.wickhunter.candidate_paper_runtime_service import CandidatePaperRuntimeService
           from ai_platform.wickhunter.candidate_runtime_binding import build_candidate_paper_runtime_binding
-          from ai_platform.wickhunter.contracts import DriftState
+          from ai_platform.wickhunter.canonical import canonical_sha256
+          from ai_platform.wickhunter.contracts import DriftState, LiquidationSourceState, SourceHealth
+          from ai_platform.wickhunter.shadow import evaluate_shadow_decision
+          from ai_platform.wickhunter.universe import DynamicUniverseSnapshot, UniverseInstrumentDecision
 
           assert_closed_authority_environment()
           try:
@@ -173,29 +178,90 @@ jobs:
           candidate=Path('/runtime/candidate'); activation=Path('/runtime/activation'); source_journal=Path('/runtime/source-journal'); diagnostic=Path('/runtime/diagnostic'); live_root=Path('/runtime/liquid20')
           binding=build_candidate_paper_runtime_binding(candidate_root=candidate,activation_root=activation)
           base=int(os.environ['FAILED_CYCLE_STARTED_AT_MS'])
-          # The supervisor sampled its attempt clock immediately after cycle start. Probe a tight bounded window plus the recorded completion edge.
-          offsets=(0,1,2,5,10,25,50,100,250,500,1000,2000,5000,10000,13568)
-          attempts=[]
-          for index,offset in enumerate(offsets,1):
-              observed_at_ms=base+offset
-              journal=diagnostic/f'journal-{index:02d}'
-              health_root=diagnostic/f'operator-{index:02d}'
-              shutil.copytree(source_journal,journal)
-              health_root.mkdir(parents=True,exist_ok=False)
+
+          def chain(exc):
+              rows=[]; current=exc; seen=set()
+              while current is not None and id(current) not in seen and len(rows)<16:
+                  seen.add(id(current)); rows.append({'type':type(current).__name__,'message':' '.join(str(current).split())[:1200]}); current=current.__cause__ if current.__cause__ is not None else current.__context__
+              return rows
+
+          def historical_liquid20(target):
+              start=target-LIVE_HISTORY_WINDOW_MS
+              events=[]
+              for run_root in sorted((live_root/'runs').iterdir()):
+                  if not run_root.is_dir() or run_root.is_symlink():
+                      continue
+                  for source in EXPECTED_LIVE_SOURCES:
+                      path=run_root/f'{source}.ndjson'
+                      if not path.is_file() or path.is_symlink():
+                          continue
+                      with path.open('rb') as handle:
+                          for raw in handle:
+                              if not raw.endswith(b'\n'):
+                                  continue
+                              try:
+                                  payload=json.loads(raw.decode('utf-8'))
+                                  event=event_from_json_dict(payload)
+                              except (ValueError,UnicodeDecodeError,json.JSONDecodeError):
+                                  continue
+                              if event.source != source or event.received_at_ms>target or event.received_at_ms<start:
+                                  continue
+                              events.append(event)
+              dedup={}
+              for event in events:
+                  dedup[(event.source,event.source_event_id)]=event
+              ordered=tuple(sorted(dedup.values(),key=lambda item:(item.source_event_id,item.received_at_ms)))
+              if not ordered:
+                  raise RuntimeError('historical reconstruction contains no events')
+              by_symbol={}
+              for event in ordered:
+                  by_symbol.setdefault(event.symbol.upper(),[]).append(event)
+              ranked=sorted(by_symbol,key=lambda symbol:(-sum((x.notional_usd for x in by_symbol[symbol]),Decimal('0')),-max(x.received_at_ms for x in by_symbol[symbol]),symbol))[:MAX_LIQUID20_SYMBOLS]
+              selected=tuple(sorted(ranked))
+              histories=tuple(_live_history(symbol,tuple(sorted(by_symbol[symbol],key=lambda item:(item.received_at_ms,item.source_event_id))[-MAX_EVENTS_PER_SYMBOL:])) for symbol in selected)
+              states=[]
+              for source in EXPECTED_LIVE_SOURCES:
+                  source_events=[event for event in ordered if event.source==source]
+                  last=max((event.received_at_ms for event in source_events),default=None)
+                  healthy=last is not None and target-last<=300000
+                  states.append(LiquidationSourceState(source=source,health=SourceHealth.HEALTHY if healthy else SourceHealth.STALE,coverage_available=last is not None,last_received_at_ms=last,observed_at_ms=target))
+              universe=DynamicUniverseSnapshot(schema_version='wickhunter-dynamic-universe-v1',policy_version='historical-r8-diagnostic-v1',selected_at_ms=target,decisions=tuple(UniverseInstrumentDecision(canonical_instrument_id=f'perpetual:{symbol}',canonical_symbol=symbol,included=True,reason_codes=('historical_r8_reconstruction',)) for symbol in selected))
+              body={'target':target,'event_ids':[f'{e.source}:{e.source_event_id}' for e in ordered],'selected_symbols':list(selected)}
+              return Liquid20Snapshot(canonical_sha256(body),target,ordered,histories,tuple(states),universe)
+
+          probes=[]
+          for index,offset in enumerate((0,1,2,5,10,25,50,100,250,500,1000),1):
+              target=base+offset
+              journal=diagnostic/f'journal-{index:02d}'; health_root=diagnostic/f'operator-{index:02d}'
+              shutil.copytree(source_journal,journal); health_root.mkdir(parents=True,exist_ok=False)
               service=CandidatePaperRuntimeService(binding=binding,runtime_policy=_runtime_policy(),journal_root=journal)
               operator=CandidatePaperRuntimeOperator(service=service,liquid20_root_path=live_root,health_path=health_root/'health.json',operator_commit=os.environ['OPERATOR_COMMIT'],public_market_base_url='https://fapi.binance.com',maximum_source_age_ms=300000,model_drift=DriftState.HEALTHY,data_drift=DriftState.HEALTHY,circuit_breaker_active=False)
-              record={'probe':index,'offset_ms':offset,'observed_at_ms':observed_at_ms,'before_generation':service.runtime.state.generation,'before_observations':len(service.journal.observations())}
+              rec={'probe':index,'offset_ms':offset,'observed_at_ms':target,'before_generation':service.runtime.state.generation,'before_observations':len(service.journal.observations())}
               try:
-                  generation=operator.run_once(observed_at_ms=observed_at_ms)
+                  liquid20=historical_liquid20(target)
+                  open_symbols=tuple(sorted({position.symbol.upper() for position in service.runtime.state.positions}))
+                  market_symbols=tuple(sorted({*liquid20.universe.selected_symbols,*open_symbols}))
+                  markets,unavailable=operator._fetch_public_market_snapshots(symbols=market_symbols,observed_at_ms=target)
+                  missing_open=tuple(sorted(set(open_symbols)&set(unavailable)))
+                  if missing_open:
+                      raise RuntimeError('historical replay missing open-position public context: '+','.join(missing_open))
+                  tick=operator._compose_tick(liquid20=liquid20,markets=markets,observed_at_ms=target,unavailable_symbols=unavailable)
+                  decision_preview=[]
+                  for request in tick.decision_requests:
+                      try:
+                          evidence=evaluate_shadow_decision(request)
+                          intent=evidence.trade_intent; risk=evidence.risk_decision
+                          decision_preview.append({'symbol':request.market.symbol,'status':evidence.status.value,'risk_outcome':None if risk is None else risk.outcome.value,'risk_reasons':[] if risk is None else list(risk.reason_codes),'decision_price':str(request.market.decision_price),'requested_base_risk_ratio':None if intent is None else str(intent.requested_base_risk_ratio),'requested_leverage':None if intent is None else str(intent.requested_leverage),'take_profit_ratio':None if intent is None else str(intent.take_profit_ratio),'stop_loss_ratio':None if intent is None else str(intent.stop_loss_ratio),'dca_total_risk_ratio':None if intent is None else str(intent.dca_plan.maximum_total_risk_ratio)})
+                      except BaseException as preview_exc:
+                          decision_preview.append({'symbol':request.market.symbol,'preview_failure':chain(preview_exc)})
+                  rec['selected_symbols']=list(liquid20.universe.selected_symbols); rec['event_count']=len(liquid20.events); rec['decision_request_count']=len(tick.decision_requests); rec['decision_preview']=decision_preview
+                  result=service.step(tick)
               except BaseException as exc:
-                  chain=[]; current=exc; seen=set()
-                  while current is not None and id(current) not in seen and len(chain)<16:
-                      seen.add(id(current)); chain.append({'type':type(current).__name__,'message':' '.join(str(current).split())[:1200]}); current=current.__cause__ if current.__cause__ is not None else current.__context__
-                  record.update({'status':'reproduced_failure','exception_chain':chain,'traceback':traceback.format_exception(type(exc),exc,exc.__traceback__)[-20:],'after_generation':service.runtime.state.generation,'after_observations':len(service.journal.observations())})
+                  rec.update({'status':'reproduced_failure','exception_chain':chain(exc),'traceback':traceback.format_exception(type(exc),exc,exc.__traceback__)[-24:],'after_generation':service.runtime.state.generation,'after_observations':len(service.journal.observations())})
               else:
-                  record.update({'status':'not_reproduced','returned_generation':generation,'after_generation':service.runtime.state.generation,'after_observations':len(service.journal.observations())})
-              attempts.append(record)
-          result={'status':'exact_time_diagnostic_r5_complete','implementation_sha':os.environ['OPERATOR_COMMIT'],'failed_cycle_started_at_ms':base,'attempts':attempts,'protected_holdout_accessed':False,'automatic_promotion_enabled':False,'trading_credentials_present':False,'order_adapter_present':False,'execution_enabled':False,'orders_submitted':0,'live_capital_authorized':False}
+                  rec.update({'status':'not_reproduced','returned_generation':result.state.generation,'after_generation':service.runtime.state.generation,'after_observations':len(service.journal.observations())})
+              probes.append(rec)
+          result={'status':'historical_exact_time_diagnostic_r5b_complete','implementation_sha':os.environ['OPERATOR_COMMIT'],'failed_cycle_started_at_ms':base,'reconstruction_note':'Liquid20 events are reconstructed from source-labelled immutable NDJSON rows available under the live run archive and cut off at each failed-cycle timestamp; Binance completed candles are historical at the same timestamp while premium/book/open-interest fields are fetched from the public endpoint during diagnostic execution.','probes':probes,'protected_holdout_accessed':False,'automatic_promotion_enabled':False,'trading_credentials_present':False,'order_adapter_present':False,'execution_enabled':False,'orders_submitted':0,'live_capital_authorized':False}
           print(json.dumps(result,sort_keys=True))
           PY
           cp "$RUNNER_TEMP/wickhunter-wh09-v13-exact-time-r5-result.json" "$diagnostic_runner/result.json"

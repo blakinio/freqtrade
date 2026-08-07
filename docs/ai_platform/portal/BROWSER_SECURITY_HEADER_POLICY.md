@@ -12,7 +12,7 @@ has been accepted.
 |---|---|---|
 | Per-request CSP nonce and enforced CSP | Next.js Proxy (`proxy.ts`) | Repository-enforced by #1303 |
 | Invariant framing, MIME, referrer, permissions and cross-origin headers | Next.js application (`next.config.ts` plus Proxy) | Repository-enforced by #1303 |
-| Authenticated downstream cache directives | Portal response-cache helper through Next.js Proxy | Repository-enforced by #1304 |
+| Authenticated downstream cache directives | Portal response-cache helper through Next.js Proxy and final response configuration | Repository-enforced by #1304 |
 | HSTS and public HTTPS edge behavior | Approved public edge (Cloudflare/Synology boundary) | `EXTERNAL_ACCEPTANCE_REQUIRED` in #1305 |
 | Direct-origin bypass denial | Protected deployment/edge acceptance | `EXTERNAL_ACCEPTANCE_REQUIRED` in #1305 |
 
@@ -92,14 +92,25 @@ compatible defense for older clients.
 
 ## Cache boundary
 
-Every dynamic request handled by the Next.js Proxy receives the exact downstream response policy:
+The canonical application-owned downstream response policy is:
 
 ```text
 Cache-Control: private, no-store
 ```
 
-The single authority is `lib/response-cache-policy.ts`; `proxy.ts` applies it together with the CSP
-and invariant browser headers. The policy covers:
+The single value authority is `lib/response-cache-policy.ts`. `proxy.ts` applies it together with the
+CSP and invariant browser headers, while `next.config.ts` applies the same value to final dynamic
+responses because Next.js rendering can replace headers placed only on `NextResponse.next()`.
+
+Application-controlled documents, redirects and direct Proxy/API responses are required to preserve
+the exact normalized `private, no-store` policy. Framework-generated terminal responses may append
+additional strictly non-cacheable directives after the application header. Next.js production
+not-found handling currently adds `no-cache`, `max-age=0` and `must-revalidate`; this is accepted only
+when the final response still contains both `private` and `no-store` and contains no `public`,
+`immutable`, `s-maxage` or positive `max-age` directive. Framework augmentation must never make a
+response shared-cacheable.
+
+The policy covers:
 
 - authenticated and anonymous dynamic HTML documents;
 - protected redirects and denied responses;
@@ -118,7 +129,8 @@ with a public or shared-cache directive.
 Browser-history verification proves that the real fixture logout route clears the session and a
 subsequent back navigation revalidates the protected page and redirects to login. A separate tenant
 change scenario proves that back navigation cannot restore the prior workspace and is redirected to
-the cross-tenant denial boundary.
+the cross-tenant denial boundary. Chromium BFCache restores are forced through a network reload so
+the Proxy revalidates current session and tenant state before protected content is shown again.
 
 ## Verification
 
@@ -128,7 +140,11 @@ Repository verification includes:
 - fresh nonce comparison across independent requests;
 - rendered Next script nonce equality with the response CSP;
 - document, protected redirect, API success/error and static asset header assertions;
-- status-independent cache-policy assertions for 200, 401, 403, 404, 409 and 5xx responses;
+- exact canonical cache-policy assertions for application-controlled responses;
+- fail-closed compatibility assertions for framework-generated not-found responses: `private` and
+  `no-store` must remain present and no shared-cache-enabling directive may appear;
+- status-independent cache-policy assertions for representative 200, 401, 403, 404, 409 and 5xx
+  response paths;
 - direct-origin cache assertions for login documents, protected redirects, unauthorized/forbidden
   API responses, authenticated session success and authenticated not-found responses;
 - explicit logout-response and browser back/forward verification after session clearing;

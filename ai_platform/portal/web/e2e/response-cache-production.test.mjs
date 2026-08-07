@@ -72,7 +72,7 @@ test("production documents, redirects and API errors are private no-store", asyn
     headers: { cookie: authenticatedSessionCookie },
   });
   assert.equal(notFound.status, 404);
-  assertPrivateNoStore(notFound.headers);
+  assertFrameworkPrivateNoStore(notFound.headers);
 });
 
 test("production immutable Next assets retain framework cache policy", async () => {
@@ -108,6 +108,26 @@ async function waitForServer() {
 
 function assertPrivateNoStore(headers) {
   assert.deepEqual(cacheDirectives(headers), ["private", "no-store"]);
+}
+
+function assertFrameworkPrivateNoStore(headers) {
+  const directives = cacheDirectives(headers);
+  assert.equal(directives.includes("private"), true, "framework response must remain private");
+  assert.equal(directives.includes("no-store"), true, "framework response must retain no-store");
+  assert.equal(directives.includes("public"), false, "framework response must not become public");
+  assert.equal(directives.includes("immutable"), false, "framework response must not become immutable");
+  assert.equal(
+    directives.some((directive) => directive.startsWith("s-maxage=")),
+    false,
+    "framework response must not enable shared-cache freshness",
+  );
+  assert.equal(
+    directives.some(
+      (directive) => directive.startsWith("max-age=") && directive !== "max-age=0",
+    ),
+    false,
+    "framework response must not enable positive browser-cache freshness",
+  );
 }
 
 function cacheDirectives(headers) {

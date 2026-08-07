@@ -122,12 +122,29 @@ def _validate_license_policy(
 def _validate_evidence_policy(evidence: dict[str, Any]) -> None:
     keys = evidence.get("forbidden_keys")
     patterns = evidence.get("forbidden_value_patterns")
+    contextual = evidence.get("contextual_value_patterns", [])
     if not isinstance(keys, list) or not all(isinstance(item, str) for item in keys):
         raise PolicyError("evidence.forbidden_keys must be a string list")
     if not isinstance(patterns, list) or not all(isinstance(item, str) for item in patterns):
         raise PolicyError("evidence.forbidden_value_patterns must be a string list")
     for pattern in patterns:
         _compile(pattern, "evidence.forbidden_value_patterns")
+    if not isinstance(contextual, list):
+        raise PolicyError("evidence.contextual_value_patterns must be a list")
+    seen_ids: set[str] = set()
+    for index, item in enumerate(contextual):
+        context = f"evidence.contextual_value_patterns[{index}]"
+        if not isinstance(item, dict):
+            raise PolicyError(f"{context} must be an object")
+        required = ("id", "path_pattern", "value_pattern")
+        for field in required:
+            if not isinstance(item.get(field), str) or not item[field].strip():
+                raise PolicyError(f"{context}.{field} must be non-empty")
+        if item["id"] in seen_ids:
+            raise PolicyError(f"duplicate contextual evidence pattern id: {item['id']}")
+        seen_ids.add(item["id"])
+        _compile(item["path_pattern"], f"{context}.path_pattern")
+        _compile(item["value_pattern"], f"{context}.value_pattern")
 
 
 def validate_policy(
@@ -309,14 +326,40 @@ def evaluate_licenses(
     }
 
 
+def _compile_contextual_evidence_patterns(
+    evidence: dict[str, Any],
+) -> list[tuple[str, re.Pattern[str], re.Pattern[str]]]:
+    return [
+        (
+            str(item["id"]),
+            re.compile(item["path_pattern"], re.IGNORECASE),
+            re.compile(item["value_pattern"], re.IGNORECASE),
+        )
+        for item in evidence.get("contextual_value_patterns", [])
+    ]
+
+
+def _contextual_evidence_violations(
+    document: str,
+    path: str,
+    value: str,
+    patterns: list[tuple[str, re.Pattern[str], re.Pattern[str]]],
+) -> list[str]:
+    return [
+        f"{document}:{path}:forbidden-contextual-value:{pattern_id}"
+        for pattern_id, path_pattern, value_pattern in patterns
+        if path_pattern.search(path) and value_pattern.search(value)
+    ]
+
+
 def scan_evidence(
     documents: Iterable[tuple[str, Any]],
     policy: dict[str, Any],
 ) -> list[str]:
-    forbidden_keys = {value.casefold() for value in policy["evidence"]["forbidden_keys"]}
-    patterns = [
-        re.compile(value, re.IGNORECASE) for value in policy["evidence"]["forbidden_value_patterns"]
-    ]
+    evidence = policy["evidence"]
+    forbidden_keys = {value.casefold() for value in evidence["forbidden_keys"]}
+    patterns = [re.compile(value, re.IGNORECASE) for value in evidence["forbidden_value_patterns"]]
+    contextual_patterns = _compile_contextual_evidence_patterns(evidence)
     violations: list[str] = []
 
     def visit(document: str, value: Any, path: str) -> None:
@@ -333,6 +376,9 @@ def scan_evidence(
             for pattern in patterns:
                 if pattern.search(value):
                     violations.append(f"{document}:{path}:forbidden-value")
+            violations.extend(
+                _contextual_evidence_violations(document, path, value, contextual_patterns)
+            )
 
     for document, value in documents:
         visit(document, value, "")

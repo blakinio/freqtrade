@@ -35,7 +35,14 @@ def _policy() -> dict:
         },
         "evidence": {
             "forbidden_keys": ["client_secret"],
-            "forbidden_value_patterns": [r"/volume1/", r"192\.168\."],
+            "forbidden_value_patterns": [r"/volume1/"],
+            "contextual_value_patterns": [
+                {
+                    "id": "private-ipv4-endpoint",
+                    "path_pattern": r"(?:host|url|uri|endpoint|address|server)",
+                    "value_pattern": r"\b192\.168(?:\.[0-9]{1,3}){2}\b",
+                }
+            ],
         },
     }
 
@@ -141,6 +148,33 @@ def test_evidence_scan_rejects_secret_key_and_private_endpoint() -> None:
         _policy(),
     )
     assert len(violations) == 2
+
+
+def test_evidence_scan_rejects_private_ip_in_endpoint_context() -> None:
+    tool = _load_tool()
+    violations = tool.scan_evidence(
+        [("report", {"control_plane_url": "http://192.168.1.10:8000"})],
+        _policy(),
+    )
+    assert violations == [
+        "report:control_plane_url:forbidden-contextual-value:private-ipv4-endpoint"
+    ]
+
+
+def test_evidence_scan_does_not_treat_package_versions_as_private_endpoints() -> None:
+    tool = _load_tool()
+    document = {
+        "components": [
+            {
+                "bom-ref": "pkg:example/component@10.0.0.1",
+                "version": "10.0.0.1",
+                "cpe": "cpe:2.3:a:example:component:10.0.0.1:*:*:*:*:*:*:*",
+                "purl": "pkg:generic/component@10.0.0.1",
+                "properties": [{"name": "syft:package:release", "value": "10.0.0.1"}],
+            }
+        ]
+    }
+    assert tool.scan_evidence([("sbom", document)], _policy()) == []
 
 
 def test_base_images_must_be_digest_pinned(tmp_path: Path) -> None:

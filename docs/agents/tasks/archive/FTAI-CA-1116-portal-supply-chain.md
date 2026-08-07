@@ -6,8 +6,8 @@ programme_id: FTAI-20260803-portal-remediation
 repository: blakinio/freqtrade
 issue: 1116
 lane: freqtrade-portal
-phase: finalization
-status: awaiting_exact_head_ci_and_final_audit
+phase: archive_transition
+status: complete_on_merge
 priority: P1
 severity: medium
 prompting_standard_version: 2.1
@@ -24,7 +24,7 @@ base_branch: develop
 branch: repair/1116-portal-supply-chain
 pull_request: 1307
 claim_id: ftaica-1116-20260806T143700Z-gpt56
-claim_state: claimed
+ownership_release: on_merge
 feature_scope:
   type: infrastructure
   user_facing: false
@@ -93,4 +93,29 @@ remaining_terminal_actions:
   - rerun exact-head gates if archival changes the head
   - mark PR ready, merge only the verified head and close Issue 1116
 next_action: Run exact-head CI from this user-authored checkpoint, then complete audit, ledger reconciliation, archival and merge.
+```
+
+
+## Final closeout evidence
+
+```yaml
+validated_implementation_head: ba7b339572bc9e2a96b50614b56037715ec53365
+implementation_exact_head_ci:
+  freqtrade_ci: 31172539595
+  risk_aware_component_ci: 31172539863
+  codeql: 31172539567
+  zizmor: 31172539813
+  portal_exact_image_supply_chain: 31172539652
+implementation_gate_result: PASS
+independent_final_audit: PASS_ZERO_MATERIAL_FINDINGS
+unresolved_review_threads: 0
+ledger_reconciliation:
+  issue_1116_removed: true
+  control_supply_chain_dr: PARTIAL
+  remaining_dr_blocker: 1139
+protected_target_acceptance_inferred: false
+live_capital_authorized: false
+protected_production_deployment_authorized: false
+ownership_release: on_merge
+final_archive_ci: REQUIRED_ON_ARCHIVE_HEAD
 ```

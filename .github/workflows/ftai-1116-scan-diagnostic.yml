@@ -1,5 +1,5 @@
 name: FTAI 1116 Scan Diagnostic
-# One-shot rerun after the 2026-08-07 dependency and base-image refresh.
+# One-shot rerun after dependency/base refresh and bounded CPython preview-only exceptions.
 
 on:
   push:

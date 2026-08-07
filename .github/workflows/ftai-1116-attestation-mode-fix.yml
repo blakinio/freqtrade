@@ -30,44 +30,34 @@ jobs:
           from pathlib import Path
 
           path = Path('.github/workflows/portal-supply-chain.yml')
-          text = path.read_text(encoding='utf-8')
-          text = text.replace(
-              '- name: Verify approval and derive attestation predicates',
-              '- name: Verify approval and validate local SLSA provenance',
-              1,
-          )
-          old = '''              predicate = statement.get("predicate")\n              if not isinstance(predicate, dict):\n                  raise SystemExit(f"missing provenance predicate: {name}")\n              output = root / f"{name}.provenance-predicate.json"\n              output.write_text(json.dumps(predicate, indent=2, sort_keys=True) + "\\n", encoding="utf-8")\n'''
-          new = '''              predicate = statement.get("predicate")\n              if not isinstance(predicate, dict):\n                  raise SystemExit(f"missing provenance predicate: {name}")\n'''
-          if text.count(old) != 1:
-              raise SystemExit('local provenance validation block drifted')
-          text = text.replace(old, new, 1)
-
-          control_old = '''          subject-name: portal-control-plane\n          subject-digest: ${{ steps.images.outputs.control_digest }}\n          predicate-type: https://slsa.dev/provenance/v1\n          predicate-path: ${{ runner.temp }}/portal-supply-chain/control-plane.provenance-predicate.json\n'''
-          control_new = '''          subject-name: portal-control-plane\n          subject-digest: ${{ steps.images.outputs.control_digest }}\n'''
-          if text.count(control_old) != 1:
-              raise SystemExit('control provenance attestation block drifted')
-          text = text.replace(control_old, control_new, 1)
-
-          web_old = '''          subject-name: portal-web\n          subject-digest: ${{ steps.images.outputs.web_digest }}\n          predicate-type: https://slsa.dev/provenance/v1\n          predicate-path: ${{ runner.temp }}/portal-supply-chain/web.provenance-predicate.json\n'''
-          web_new = '''          subject-name: portal-web\n          subject-digest: ${{ steps.images.outputs.web_digest }}\n'''
-          if text.count(web_old) != 1:
-              raise SystemExit('web provenance attestation block drifted')
-          text = text.replace(web_old, web_new, 1)
+          lines = path.read_text(encoding='utf-8').splitlines()
+          removed_type = 0
+          removed_path = 0
+          output: list[str] = []
+          for line in lines:
+              stripped = line.strip()
+              if stripped == 'predicate-type: https://slsa.dev/provenance/v1':
+                  removed_type += 1
+                  continue
+              if stripped.startswith('predicate-path:'):
+                  removed_path += 1
+                  continue
+              output.append(line)
+          if removed_type != 2 or removed_path != 2:
+              raise SystemExit(
+                  f'expected two provenance predicate-type/path pairs, got type={removed_type}, path={removed_path}'
+              )
+          text = '\n'.join(output) + '\n'
+          if text.count('id: control_provenance_attest') != 1:
+              raise SystemExit('control provenance attestation step missing')
+          if text.count('id: web_provenance_attest') != 1:
+              raise SystemExit('web provenance attestation step missing')
+          if 'control-plane.provenance.json' not in text or 'web.provenance.json' not in text:
+              raise SystemExit('local SLSA evidence validation was lost')
           path.write_text(text, encoding='utf-8')
           PY
 
-          python3 - <<'PY'
-          from pathlib import Path
-          text = Path('.github/workflows/portal-supply-chain.yml').read_text(encoding='utf-8')
-          assert 'predicate-path:' not in text
-          assert 'predicate-type: https://slsa.dev/provenance/v1' not in text
-          assert text.count('id: control_provenance_attest') == 1
-          assert text.count('id: web_provenance_attest') == 1
-          assert 'control-plane.provenance.json' in text
-          assert 'web.provenance.json' in text
-          PY
           git diff --check
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm .github/workflows/ftai-1116-attestation-mode-fix.yml

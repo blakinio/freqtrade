@@ -1,4 +1,5 @@
 name: WickHunter WH09 v12 candidate reason diagnostic
+# Root-cause generation after sealed terminal evidence proved no_candidate=101.
 
 "on":
   pull_request:

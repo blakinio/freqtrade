@@ -118,6 +118,7 @@ test.describe("Portal authenticated response cache boundary", {
     });
     expect(logout.status()).toBe(200);
     assertNotSharedCache(logout.headers());
+    await identity.setState("anonymous");
 
     await page.goto("/login");
     await page.goBack({ waitUntil: "domcontentloaded" });

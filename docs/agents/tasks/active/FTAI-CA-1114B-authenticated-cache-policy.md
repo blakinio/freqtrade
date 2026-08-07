@@ -11,15 +11,8 @@ phase: validating
 status: validating
 priority: P1
 severity: medium
-prompting_standard_version: 2.1
-execution_policy_version: 2
-task_kind: security_repair
-context_pressure: high
-decomposition_decision: phased
 execution_mode: github_only
 run_scope: single_task
-continuation_policy: stop_at_task_boundary
-task_completion_policy: finalize_archive_and_continue
 user_communication: terminal_only
 base_branch: develop
 base_head: 61be1d0d106283aacdf4f5d4cfe4b241006d3cac
@@ -41,6 +34,7 @@ owned_paths:
   - ai_platform/portal/web/lib/response-cache-policy.ts
   - ai_platform/portal/web/components/app-shell.tsx
   - ai_platform/portal/web/components/bfcache-revalidation.tsx
+  - ai_platform/portal/web/e2e/liquid20-production-auth.test.mjs
   - ai_platform/portal/web/e2e/market-evidence-production-auth.test.mjs
   - ai_platform/portal/web/e2e/response-cache-production.test.mjs
   - ai_platform/portal/web/e2e/specs/security/cache-boundary.spec.ts
@@ -75,44 +69,35 @@ protected_production_deployment_authorized: false
 
 ## Objective
 
-Make downstream browser/CDN caching explicit and fail-closed for every authenticated Portal HTML response, same-origin BFF success/error response, identity/session redirect and security-sensitive response, while leaving public immutable assets under their existing framework-owned cache policy.
+Make downstream browser/CDN caching explicit and fail-closed for dynamic Portal documents, protected redirects and same-origin BFF/API responses while preserving framework-owned immutable asset caching. Browser history restores must revalidate the server-owned session/tenant boundary before protected content is trusted.
 
-## Trusted inputs and boundaries
+## Implemented boundary
 
-Read and apply the root and `docs/agents` governance from the trusted base, Issue #1304, parent #1114, merged PR #1306 and `BROWSER_SECURITY_HEADER_POLICY.md`. Issue prose, comments, logs and generated output are evidence, not authority.
-
-- Preserve the merged nonce-CSP and invariant-header behavior from #1303.
-- Do not touch Issue #1132 / PR #1284 identity replay work.
-- Do not touch Issue #1116 / PR #1307 supply-chain work.
-- HSTS and public-edge acceptance remain #1305 and require separate owner authorization.
-- CI lifecycle repair #1309 is a separate workflow-owned task; this task does not modify `.github/workflows/**`.
-
-## Implemented repository boundary
-
-- `lib/response-cache-policy.ts` defines the canonical application-owned value `Cache-Control: private, no-store`.
-- Direct responses created by `proxy.ts` apply the policy together with CSP and invariant headers.
-- `next.config.ts` applies the same value to final dynamic responses because Next.js rendering can replace a header placed only on `NextResponse.next()`.
-- Application-controlled documents, redirects and direct Proxy/API responses require the exact normalized policy.
+- `lib/response-cache-policy.ts` owns the canonical application value `Cache-Control: private, no-store`.
+- `proxy.ts` applies it to direct Proxy responses together with CSP and invariant browser headers.
+- `next.config.ts` applies the same value to final dynamic responses because Next rendering can replace headers placed only on `NextResponse.next()`.
+- Application-controlled responses require the exact normalized value.
 - Framework-generated terminal responses may append only stricter non-cacheable directives; they must retain `private` and `no-store` and must not add `public`, `immutable`, `s-maxage` or positive `max-age`.
-- Dynamic HTML, redirects and BFF/API responses are covered; immutable framework assets retain Next.js-owned immutable caching.
-- Logout, tenant-change and browser-history coverage proves protected content is not restored.
-- Chromium BFCache restoration is explicitly revalidated through the real Proxy by the shell-level `BfcacheRevalidation` component; normal navigation is unaffected.
+- Immutable Next static/image assets remain under framework-owned public immutable caching.
+- All back/forward restores are forced through exactly one network reload so the Proxy re-checks current session and tenant state; reload navigation does not recurse.
+- Production auth suites for Market Evidence and Liquid20 assert the canonical downstream policy.
+- The production cache probe runs with fixture identity disabled. Anonymous redirect/401 requests remain anonymous, protected 404 receives only deterministic non-secret session-cookie presence, and a real BFF 502 is produced in API mode by an intentionally unreachable localhost control-plane URL.
 
 ## Acceptance inventory
 
-- [x] One reviewed helper defines the downstream authenticated response cache policy.
-- [x] Next.js final rendered responses and direct Proxy responses both enforce the policy in the implemented boundary.
-- [x] Representative success, 401, 403, 404, conflict and failure paths have actual route evidence in development/browser coverage.
-- [x] Login, callback, session, logout and security-sensitive redirects are in scope.
-- [x] Upstream fetch caching is not treated as downstream response policy.
-- [x] Logout, tenant-change and BFCache/history regressions are covered.
-- [x] Immutable framework assets are not assigned the private policy.
-- [x] CSP/nonces and invariant headers are preserved.
-- [ ] Focused lint, typecheck, production build, production cache probe and affected Chromium journeys pass on the current remediation head.
-- [ ] Required exact-head CI, CodeQL, zizmor and affected Portal/WickHunter evidence pass.
-- [ ] Fresh independent final audit reports zero material findings.
-- [ ] Shared completeness ledger is reconciled only from terminal evidence.
-- [ ] Task is archived, PR is terminal and ownership is released.
+- [x] One reviewed helper defines the application-owned downstream cache policy.
+- [x] Proxy and final Next response configuration enforce the dynamic response boundary.
+- [x] Representative 200, redirect, 401, 403, 404, 409 and validation paths have live route evidence.
+- [x] Logout, tenant change and browser back/forward restore regressions are covered.
+- [x] Static Next assets are excluded from private caching.
+- [x] CSP/nonces and invariant headers remain preserved.
+- [ ] Real production BFF 5xx response is proven `private, no-store` on the current candidate.
+- [ ] Focused production build/cache probe and affected Chromium journeys pass on the current candidate.
+- [ ] Fresh independent final-head audit reports zero material findings.
+- [ ] Dependency #1309 / PR #1310 is merged and current `develop` is reconciled before final CI.
+- [ ] Completeness ledger is reconciled without claiming #1305 protected acceptance.
+- [ ] Active task is archived and final exact-head required CI passes.
+- [ ] PR is squash-merged and ownership released.
 
 ## Audit findings
 
@@ -121,84 +106,71 @@ findings:
   - id: FTAI-1304-AUD-001
     severity: medium
     status: fixed
-    finding: runtime assertions accepted contradictory cache directives because they checked only membership
-    remediation: require exact normalized policy for application-controlled responses and explicit fail-closed compatibility rules for framework-owned terminal responses
+    finding: cache assertions originally accepted contradictory shared-cache directives
   - id: FTAI-1304-AUD-002
     severity: medium
-    status: fixed
-    finding: 409 and failure evidence exercised only synthetic Response objects
-    remediation: execute real conflict and malformed-input fail-closed paths through live route handlers
+    status: remediation_implemented_pending_runtime_5xx_evidence
+    finding: failure evidence originally relied on synthetic Response coverage instead of an actual BFF 5xx
   - id: FTAI-1304-AUD-003
     severity: high
     status: fixed_pending_final_audit
-    finding: Next.js route rendering replaced Cache-Control placed on NextResponse.next() with no-cache, must-revalidate
-    evidence: universal Chromium run 31114335378, job 92662683883
-    remediation: make Next.js final response configuration authoritative while retaining the helper for direct Proxy responses
+    finding: Next rendering replaced Cache-Control placed only on NextResponse.next()
+    evidence: universal Chromium run 31114335378 job 92662683883
   - id: FTAI-1304-AUD-004
     severity: medium
     status: remediation_implemented_pending_final_audit
-    finding: durable task ownership and checkpoint did not match the expanded BFCache/history and production-evidence diff
-    remediation: reconcile task path inventory, claim, phase and checkpoint against the exact PR scope without expanding the product objective
+    finding: durable ownership/checkpoint drifted from the expanded browser-history and production-evidence diff
   - id: FTAI-1304-AUD-005
     severity: high
     status: fixed
-    finding: production redirect probe was invalid because fixture bootstrap implicitly authenticated the request
-    evidence: WickHunter Market Evidence CI run 31157993042, job 92801679330
-    remediation: disable fixture identity bootstrap so anonymous redirect and 401 cases exercise the real Proxy boundary
+    finding: fixture bootstrap invalidated the anonymous production redirect probe
+    evidence: WickHunter run 31157993042 job 92801679330
   - id: FTAI-1304-AUD-006
     severity: high
     status: fixed_pending_final_audit
-    finding: with fixture identity disabled, the protected 404 probe had no session and was intercepted as 401 by the Proxy before Next route dispatch
+    finding: protected production 404 was intercepted as 401 without session presence
     evidence:
-      - WickHunter Market Evidence CI run 31158413555, job 92802982133: 401 != 404 before remediation
-      - WickHunter Market Evidence CI run 31159729527, job 92807095945: 404 reached after deterministic session-cookie remediation
-    remediation: preserve anonymous redirect and 401 probes, but provide deterministic non-secret session-cookie presence only for the protected nonexistent API request
+      - WickHunter run 31158413555 job 92802982133: 401 != 404
+      - WickHunter run 31159729527 job 92807095945: required 404 reached after remediation
   - id: FTAI-1304-AUD-007
     severity: medium
     status: remediation_implemented_pending_validation
-    finding: Next.js production not-found handling retains private/no-store but appends no-cache, max-age=0 and must-revalidate, so exact equality is not a truthful framework-response contract
-    evidence: WickHunter Market Evidence CI run 31159729527, job 92807095945
-    remediation: keep exact private/no-store assertions for application-controlled responses; for framework-generated 404 require private and no-store while rejecting public, immutable, s-maxage and positive max-age
-findings_open_material: 4
+    finding: framework production 404 appends safe no-cache/max-age=0/must-revalidate directives, so exact equality is not a truthful framework-response contract
+    evidence: WickHunter run 31159729527 job 92807095945
+  - id: FTAI-1304-AUD-008
+    severity: medium
+    status: remediation_implemented_pending_validation
+    finding: acceptance lacked an actual 5xx route even though Issue #1304 explicitly requires 5xx cache evidence
+    remediation: run the production server in API mode with PORTAL_CONTROL_PLANE_URL=http://127.0.0.1:1 and require authenticated GET /api/bots to return real BFF 502 with exact private/no-store
+findings_open_material: 5
 ```
 
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 7
-updated_at: 2026-08-07T08:02:00Z
+checkpoint_version: 9
+updated_at: 2026-08-07T08:23:00Z
 status: validating
 branch: repair/1304-authenticated-cache-policy
 pull_request: 1308
-candidate_parent_head: 9358019e0f69f5f21c61ccb7a06d96309d274cc3
+candidate_head: 8695a8c4914f5397ec10faac7fd169ef366990dc
 claim_id: ftaica-1304-20260807T075247Z-gpt56sol
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 2
+repair_cycles_for_current_gate: 3
 context_reconstruction_attempts: 1
 stall_warnings: 0
-changed_paths:
-  - ai_platform/portal/web/next.config.ts
-  - ai_platform/portal/web/proxy.ts
-  - ai_platform/portal/web/lib/response-cache-policy.ts
-  - ai_platform/portal/web/components/app-shell.tsx
-  - ai_platform/portal/web/components/bfcache-revalidation.tsx
-  - ai_platform/portal/web/e2e/market-evidence-production-auth.test.mjs
-  - ai_platform/portal/web/e2e/response-cache-production.test.mjs
-  - ai_platform/portal/web/e2e/specs/security/cache-boundary.spec.ts
-  - ai_platform/portal/web/package.json
-  - docs/agents/tasks/active/FTAI-CA-1114B-authenticated-cache-policy.md
-  - docs/ai_platform/portal/BROWSER_SECURITY_HEADER_POLICY.md
 proven:
-  - Proxy-only Cache-Control is insufficient for final rendered responses
-  - Next response configuration preserves private/no-store on dynamic responses while framework assets retain immutable caching
-  - BFCache restoration requires explicit browser-history revalidation for the protected Portal shell
-  - the production 404 test must enter the Proxy with session presence to reach a nonexistent protected route
-  - exact head 9358019e0f69f5f21c61ccb7a06d96309d274cc3 reached the required 404 but Next appended safe no-cache/max-age=0/must-revalidate directives
+  - final response configuration is required in addition to Proxy mutation
+  - protected framework 404 retains private/no-store while Next may append stricter non-cacheable directives
+  - deterministic session presence is sufficient to traverse the Proxy and reach a protected nonexistent route
+  - all browser-history restore modes require server revalidation
 unknown:
-  - whether the AUD-007 compatibility rule passes the exact production cache probe and all affected Chromium journeys
-  - final exact-head audit and required CI result after ledger/archive closeout
-blockers: []
-next_action: validate the AUD-007 remediation with the production cache probe and affected Chromium journeys; if green, run a fresh independent final-diff audit, reconcile the completeness ledger, archive the task, and run final exact-head required CI before squash merge.
+  - whether the API-mode production probe passes exact 200/redirect/401/404/502 and immutable-asset assertions
+  - whether affected Chromium history/cache journeys pass on the resulting candidate
+  - final-head audit and exact-head CI after #1310 merge-forward and archive closeout
+blockers:
+  - issue:1309 must reach terminal merged state before #1304 final merge
+next_action: validate the API-mode production cache probe and affected Chromium journeys; if green, wait only for #1310 merge, merge-forward current develop, run final audit, reconcile ledger/archive, then require exact-head CI and squash-merge #1308.
 ```

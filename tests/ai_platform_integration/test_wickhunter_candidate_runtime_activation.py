@@ -50,9 +50,7 @@ def test_runtime_activation_uses_verified_replay_dataset_manifest(
     monkeypatch.setattr(
         runtime_activation,
         "_publish_or_verify_activation",
-        lambda _root, *, request, policy: published.update(
-            {"request": request, "policy": policy}
-        ),
+        lambda _root, *, request, policy: published.update({"request": request, "policy": policy}),
     )
     monkeypatch.setattr(
         runtime_activation,

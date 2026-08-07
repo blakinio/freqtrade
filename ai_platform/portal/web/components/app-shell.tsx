@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { portalEnvironment } from "@/lib/portal-api";
+import { BfcacheRevalidation } from "./bfcache-revalidation";
 import { EnvironmentBadge } from "./environment-badge";
 import { SessionControls } from "./session-controls";
 
@@ -78,6 +79,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const environment = portalEnvironment();
   return (
     <div className="app-shell" style={shellStyle}>
+      <BfcacheRevalidation />
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>

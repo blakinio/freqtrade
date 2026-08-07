@@ -1,4 +1,5 @@
 name: FTAI 1116 Scan Diagnostic
+# One-shot rerun after the 2026-08-07 dependency and base-image refresh.
 
 on:
   push:

@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   preflight:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/develop'
+    if: github.ref == 'refs/heads/develop'
     permissions:
       contents: read
       statuses: write

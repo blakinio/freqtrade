@@ -1,0 +1,229 @@
+name: WickHunter WH09 r5 public-market diagnostic
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-r5-market-diagnostic-20260807.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh09-r5-market-diagnostic-20260807
+  cancel-in-progress: true
+
+env:
+  EXPECTED_BASE_SHA: 3b04e1dfe212873a7d8afed7e247738a1c34d48e
+  IMPLEMENTATION_SHA: 310921f089212e3477c40ddd2648cc33244fa9f7
+  OPERATOR_IMAGE: local/wickhunter-paper-runtime:sha-310921f089212e3477c40ddd2648cc33244fa9f7
+  EXPECTED_OPERATOR_IMAGE_ID: sha256:865448c6ceb88a83f5b25819b4b8eaafd11ec8734ddfa474fa121fb8d684b47e
+  GATEWAY_IMAGE: local/wickhunter-paper-egress-v13-preflight-r5:sha-310921f089212e3477c40ddd2648cc33244fa9f7
+  EXPECTED_GATEWAY_IMAGE_ID: sha256:f706f073aeb3cbd5d5b0702fc73576309d871632aa3609f40b1dbfe0f7549a69
+  LIQUID20_LIVE_HOST: /volume1/docker/freqtrade-liquidations/data/live
+  GATEWAY_CONTAINER: wickhunter-wh09-r5-market-diag-gateway
+  INTERNAL_NETWORK: wickhunter-wh09-r5-market-diag-internal
+
+jobs:
+  diagnose:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 25
+    steps:
+      - name: Check out exact diagnostic request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Prove read-only request and exact existing images
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$EXPECTED_BASE_SHA" ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          git merge-base --is-ancestor "$IMPLEMENTATION_SHA" "$BASE_SHA"
+          [[ "$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")" == $'A\t.github/workflows/wickhunter-wh09-r5-market-diagnostic-20260807.yml' ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" && "$RUNNER_OS_VALUE" == "Linux" && "$RUNNER_ARCH_VALUE" == "X64" ]]
+          for name in OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET FT_EXCHANGE_KEY FT_EXCHANGE_SECRET FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+            [[ -z "${!name:-}" ]] || { echo "forbidden credential/proxy environment: $name" >&2; exit 1; }
+          done
+          [[ "$(docker image inspect --format '{{.Id}}' "$OPERATOR_IMAGE")" == "$EXPECTED_OPERATOR_IMAGE_ID" ]]
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$OPERATOR_IMAGE")" == "$IMPLEMENTATION_SHA" ]]
+          [[ "$(docker image inspect --format '{{.Id}}' "$GATEWAY_IMAGE")" == "$EXPECTED_GATEWAY_IMAGE_ID" ]]
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$GATEWAY_IMAGE")" == "$IMPLEMENTATION_SHA" ]]
+          collector_data_source="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' liquid20-live)"
+          [[ "$LIQUID20_LIVE_HOST" == "$collector_data_source/live" ]]
+
+      - name: Diagnose exact symbols, endpoints and concurrency
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cleanup() {
+            docker rm -f "$GATEWAY_CONTAINER" >/dev/null 2>&1 || true
+            docker network rm "$INTERNAL_NETWORK" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          cleanup
+          docker network create --internal "$INTERNAL_NETWORK" >/dev/null
+          docker create --name "$GATEWAY_CONTAINER" --init --user 0:0 --read-only --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777 \
+            --cap-drop ALL --cap-add NET_BIND_SERVICE --security-opt no-new-privileges:true --memory 256m --network bridge \
+            --label "io.freqtrade.wickhunter.role=read-only-market-diagnostic" "$GATEWAY_IMAGE" >/dev/null
+          docker network connect "$INTERNAL_NETWORK" "$GATEWAY_CONTAINER"
+          docker start "$GATEWAY_CONTAINER" >/dev/null
+          gateway_ip="$(docker inspect --format "{{with index .NetworkSettings.Networks \"$INTERNAL_NETWORK\"}}{{.IPAddress}}{{end}}" "$GATEWAY_CONTAINER")"
+          [[ "$gateway_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]
+
+          docker run --rm --interactive --user 65532:65532 --group-add 0 --read-only --tmpfs /tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777 \
+            --cap-drop ALL --security-opt no-new-privileges:true --memory 2g --network "$INTERNAL_NETWORK" --add-host "fapi.binance.com:$gateway_ip" \
+            --env HTTP_PROXY= --env HTTPS_PROXY= --env ALL_PROXY= --env http_proxy= --env https_proxy= --env all_proxy= \
+            --mount "type=bind,src=$LIQUID20_LIVE_HOST,dst=/runtime/liquid20,readonly" \
+            --entrypoint python "$OPERATOR_IMAGE" - <<'PY' > "$RUNNER_TEMP/wickhunter-wh09-r5-market-diagnostic.json"
+          from __future__ import annotations
+
+          import json
+          import socket
+          import time
+          from concurrent.futures import ThreadPoolExecutor, as_completed
+          from pathlib import Path
+          from typing import Any
+
+          from ai_platform.wickhunter.candidate_paper_runtime_operator import (
+              MAX_PUBLIC_MARKET_WORKERS,
+              assert_closed_authority_environment,
+              fetch_public_market_snapshot,
+              load_liquid20_snapshot,
+          )
+
+          assert_closed_authority_environment()
+          try:
+              socket.create_connection(("1.1.1.1", 443), timeout=2)
+          except OSError:
+              direct_egress_blocked = True
+          else:
+              raise SystemExit("diagnostic unexpectedly has direct external egress")
+
+          def chain(exc: BaseException) -> list[dict[str, str]]:
+              rows: list[dict[str, str]] = []
+              current: BaseException | None = exc
+              seen: set[int] = set()
+              while current is not None and id(current) not in seen and len(rows) < 8:
+                  seen.add(id(current))
+                  rows.append({
+                      "type": type(current).__name__,
+                      "message": str(current),
+                      "repr": repr(current),
+                  })
+                  current = current.__cause__ or current.__context__
+              return rows
+
+          def fetch_one(symbol: str, observed_at_ms: int) -> dict[str, Any]:
+              started = time.monotonic_ns()
+              try:
+                  snapshot = fetch_public_market_snapshot(
+                      symbol=symbol,
+                      observed_at_ms=observed_at_ms,
+                      base_url="https://fapi.binance.com",
+                  )
+              except BaseException as exc:
+                  return {
+                      "symbol": symbol,
+                      "status": "error",
+                      "elapsed_ms": (time.monotonic_ns() - started) // 1_000_000,
+                      "error_chain": chain(exc),
+                  }
+              return {
+                  "symbol": symbol,
+                  "status": "success",
+                  "elapsed_ms": (time.monotonic_ns() - started) // 1_000_000,
+                  "completed_candle_close_ms": snapshot.completed_candle_close_ms,
+                  "open_interest_usd": str(snapshot.open_interest_usd),
+              }
+
+          now_ms = time.time_ns() // 1_000_000
+          liquid20_started = time.monotonic_ns()
+          liquid20 = load_liquid20_snapshot(
+              Path("/runtime/liquid20"),
+              now_ms=now_ms,
+              maximum_age_ms=300_000,
+          )
+          liquid20_elapsed_ms = (time.monotonic_ns() - liquid20_started) // 1_000_000
+          symbols = tuple(liquid20.universe.selected_symbols)
+          if not symbols:
+              raise SystemExit("Liquid20 selected symbol set is empty")
+
+          sequential = [fetch_one(symbol, now_ms) for symbol in symbols]
+
+          concurrency: dict[str, list[dict[str, Any]]] = {}
+          levels = tuple(sorted({2, 4, min(MAX_PUBLIC_MARKET_WORKERS, len(symbols))}))
+          for workers in levels:
+              for round_no in range(1, 4 if workers == min(MAX_PUBLIC_MARKET_WORKERS, len(symbols)) else 2):
+                  key = f"workers_{workers}_round_{round_no}"
+                  results: list[dict[str, Any]] = []
+                  with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="wh09-r5-diag") as executor:
+                      futures = {executor.submit(fetch_one, symbol, now_ms): symbol for symbol in symbols}
+                      for future in as_completed(futures):
+                          results.append(future.result())
+                  concurrency[key] = sorted(results, key=lambda row: str(row["symbol"]))
+
+          output = {
+              "schema_version": "wickhunter-wh09-r5-market-diagnostic-v1",
+              "implementation_sha": "310921f089212e3477c40ddd2648cc33244fa9f7",
+              "operator_image_id": "sha256:865448c6ceb88a83f5b25819b4b8eaafd11ec8734ddfa474fa121fb8d684b47e",
+              "direct_egress_blocked": direct_egress_blocked,
+              "observed_at_ms": now_ms,
+              "liquid20_snapshot_id": liquid20.snapshot_id,
+              "liquid20_elapsed_ms": liquid20_elapsed_ms,
+              "selected_symbols": list(symbols),
+              "selected_symbol_count": len(symbols),
+              "source_states": [
+                  {
+                      "source": item.source,
+                      "health": item.health.value,
+                      "coverage_available": item.coverage_available,
+                      "last_received_at_ms": item.last_received_at_ms,
+                      "observed_at_ms": item.observed_at_ms,
+                  }
+                  for item in liquid20.source_states
+              ],
+              "sequential": sequential,
+              "concurrency": concurrency,
+              "automatic_promotion_enabled": False,
+              "trading_credentials_present": False,
+              "order_adapter_present": False,
+              "execution_enabled": False,
+              "orders_submitted": 0,
+              "live_capital_authorized": False,
+          }
+          print(json.dumps(output, indent=2, sort_keys=True))
+          PY
+
+          python3 - "$RUNNER_TEMP/wickhunter-wh09-r5-market-diagnostic.json" <<'PY'
+          import json, pathlib, sys
+          payload=json.loads(pathlib.Path(sys.argv[1]).read_text())
+          print("Liquid20:", payload["liquid20_snapshot_id"], payload["selected_symbols"])
+          sequential_errors=[row for row in payload["sequential"] if row["status"]!="success"]
+          print("Sequential errors:", len(sequential_errors))
+          for key, rows in payload["concurrency"].items():
+              errors=[row for row in rows if row["status"]!="success"]
+              print(key, "errors=", len(errors), "symbols=", [row["symbol"] for row in errors])
+          PY
+
+      - name: Upload read-only diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v11.0.1
+        with:
+          name: wickhunter-wh09-r5-market-diagnostic-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/wickhunter-wh09-r5-market-diagnostic.json
+          if-no-files-found: error
+          retention-days: 30

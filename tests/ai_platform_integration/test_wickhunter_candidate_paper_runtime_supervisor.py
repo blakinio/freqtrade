@@ -77,7 +77,9 @@ class _NestedShadowFailureOperator(_FakeOperator):
         self.run_calls += 1
         if self.run_calls == 1:
             cause = ShadowRuntimeError(self.shadow_message)
-            raise CandidatePaperRuntimeServiceError("candidate PAPER runtime step failed") from cause
+            raise CandidatePaperRuntimeServiceError(
+                "candidate PAPER runtime step failed"
+            ) from cause
         return self.run_calls
 
 
@@ -112,9 +114,7 @@ def test_supervisor_retries_bounded_failures_and_persists_recovery(tmp_path) -> 
 
 
 def test_supervisor_retries_only_nested_future_source_state_race(tmp_path) -> None:
-    operator = _NestedShadowFailureOperator(
-        shadow_message="source state is observed in the future"
-    )
+    operator = _NestedShadowFailureOperator(shadow_message="source state is observed in the future")
     sleeps: list[float] = []
     supervisor = CandidatePaperRuntimeSupervisor(
         operator=operator,  # type: ignore[arg-type]

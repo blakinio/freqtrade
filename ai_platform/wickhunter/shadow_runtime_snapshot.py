@@ -8,6 +8,7 @@ from ai_platform.wickhunter.contracts import (
     BotMode,
     DriftState,
     ShadowDecisionEvidence,
+    ShadowStatus,
     TradeDirection,
 )
 from ai_platform.wickhunter.deterministic_replay import CandidateLabel, LabelOutcome
@@ -29,6 +30,9 @@ from ai_platform.wickhunter.shadow_runtime_positions import (
     SimulatedPosition,
 )
 from ai_platform.wickhunter.shadow_runtime_state import ShadowRuntimeState
+
+
+RUNTIME_REPLAY_PARITY_SCHEMA_VERSION = "wickhunter-runtime-replay-parity-v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,6 +151,57 @@ class ReplayShadowParityEvidence:
 
 
 @dataclass(frozen=True, slots=True)
+class RuntimeReplayParityEvidence:
+    schema_version: str
+    parity_id: str
+    shadow_decision_id: str
+    original_evidence_sha256: str
+    replayed_evidence_sha256: str
+    symbol: str
+    side: TradeDirection
+    decision_timestamp_ms: int
+    dataset_hash: str
+    code_sha: str
+    take_profit_ratio: Decimal
+    stop_loss_ratio: Decimal
+    identities_match: bool
+    policy_match: bool
+    replay_match: bool
+    execution_authority_absent: bool
+
+    def __post_init__(self) -> None:
+        if self.schema_version != RUNTIME_REPLAY_PARITY_SCHEMA_VERSION:
+            raise ShadowRuntimeError("runtime replay parity schema mismatch")
+        for digest, field_name in (
+            (self.parity_id, "parity_id"),
+            (self.shadow_decision_id, "shadow_decision_id"),
+            (self.original_evidence_sha256, "original_evidence_sha256"),
+            (self.replayed_evidence_sha256, "replayed_evidence_sha256"),
+            (self.dataset_hash, "dataset_hash"),
+        ):
+            _require_sha256(digest, field=field_name)
+        _require_text(self.symbol, field="symbol")
+        _require_git_sha(self.code_sha, field="code_sha")
+        if self.decision_timestamp_ms <= 0:
+            raise ShadowRuntimeError("runtime replay decision timestamp must be > 0")
+        for ratio, field_name in (
+            (self.take_profit_ratio, "take_profit_ratio"),
+            (self.stop_loss_ratio, "stop_loss_ratio"),
+        ):
+            _require_positive(ratio, field=field_name)
+        if not (
+            self.identities_match
+            and self.policy_match
+            and self.replay_match
+            and self.execution_authority_absent
+        ):
+            raise ShadowRuntimeError("runtime replay parity evidence is not accepted")
+
+
+PaperParityEvidence = ReplayShadowParityEvidence | RuntimeReplayParityEvidence
+
+
+@dataclass(frozen=True, slots=True)
 class ShadowRuntimeStepResult:
     state: ShadowRuntimeState
     snapshot: PortalObservabilitySnapshot
@@ -214,5 +269,80 @@ def verify_replay_shadow_parity(
         label_outcome=label.outcome,
         identities_match=identities_match,
         policy_match=policy_match,
+        execution_authority_absent=execution_authority_absent,
+    )
+
+
+def verify_runtime_replay_parity(
+    *,
+    shadow_decision: ShadowDecisionEvidence,
+    replayed_decision: ShadowDecisionEvidence,
+) -> RuntimeReplayParityEvidence:
+    if shadow_decision.status is not ShadowStatus.SIMULATED_ALLOWED:
+        raise ShadowRuntimeError("runtime replay parity requires an allowed decision")
+    if replayed_decision.status is not ShadowStatus.SIMULATED_ALLOWED:
+        raise ShadowRuntimeError("runtime replay changed the allowed decision status")
+    intent = shadow_decision.trade_intent
+    replay_intent = replayed_decision.trade_intent
+    candidate = shadow_decision.candidate
+    replay_candidate = replayed_decision.candidate
+    if intent is None or replay_intent is None or candidate is None or replay_candidate is None:
+        raise ShadowRuntimeError("runtime replay parity requires directional decisions")
+    original_sha256 = canonical_sha256(shadow_decision)
+    replayed_sha256 = canonical_sha256(replayed_decision)
+    identities_match = (
+        shadow_decision.shadow_decision_id == replayed_decision.shadow_decision_id
+        and candidate.candidate_id == replay_candidate.candidate_id
+        and candidate.symbol == replay_candidate.symbol
+        and candidate.side is replay_candidate.side
+        and candidate.decision_timestamp_ms == replay_candidate.decision_timestamp_ms
+        and intent.trade_intent_id == replay_intent.trade_intent_id
+        and intent.dataset_hash == replay_intent.dataset_hash
+        and intent.code_sha == replay_intent.code_sha
+    )
+    policy_match = (
+        intent.take_profit_ratio == replay_intent.take_profit_ratio
+        and intent.stop_loss_ratio == replay_intent.stop_loss_ratio
+        and intent.requested_base_risk_ratio == replay_intent.requested_base_risk_ratio
+        and intent.requested_leverage == replay_intent.requested_leverage
+        and intent.dca_plan == replay_intent.dca_plan
+        and shadow_decision.risk_decision == replayed_decision.risk_decision
+    )
+    replay_match = original_sha256 == replayed_sha256
+    execution_authority_absent = True
+    payload = {
+        "shadow_decision_id": shadow_decision.shadow_decision_id,
+        "original_evidence_sha256": original_sha256,
+        "replayed_evidence_sha256": replayed_sha256,
+        "symbol": candidate.symbol,
+        "side": candidate.side.value,
+        "decision_timestamp_ms": candidate.decision_timestamp_ms,
+        "dataset_hash": intent.dataset_hash,
+        "code_sha": intent.code_sha,
+        "take_profit_ratio": intent.take_profit_ratio,
+        "stop_loss_ratio": intent.stop_loss_ratio,
+        "identities_match": identities_match,
+        "policy_match": policy_match,
+        "replay_match": replay_match,
+        "execution_authority_absent": execution_authority_absent,
+    }
+    return RuntimeReplayParityEvidence(
+        schema_version=RUNTIME_REPLAY_PARITY_SCHEMA_VERSION,
+        parity_id=canonical_sha256(
+            {"schema_version": RUNTIME_REPLAY_PARITY_SCHEMA_VERSION, "payload": payload}
+        ),
+        shadow_decision_id=shadow_decision.shadow_decision_id,
+        original_evidence_sha256=original_sha256,
+        replayed_evidence_sha256=replayed_sha256,
+        symbol=candidate.symbol,
+        side=candidate.side,
+        decision_timestamp_ms=candidate.decision_timestamp_ms,
+        dataset_hash=intent.dataset_hash,
+        code_sha=intent.code_sha,
+        take_profit_ratio=intent.take_profit_ratio,
+        stop_loss_ratio=intent.stop_loss_ratio,
+        identities_match=identities_match,
+        policy_match=policy_match,
+        replay_match=replay_match,
         execution_authority_absent=execution_authority_absent,
     )

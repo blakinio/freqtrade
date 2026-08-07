@@ -1,0 +1,258 @@
+name: WickHunter WH09 v13 service-cause diagnostic r4
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-v13-service-cause-diagnostic-r4-20260808.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh09-v13-service-cause-diagnostic-r4-20260808
+  cancel-in-progress: false
+
+env:
+  EXPECTED_BASE_SHA: d8a238a006b5d1a9020139f38bcb889e6f658fe8
+  IMPLEMENTATION_SHA: d8a238a006b5d1a9020139f38bcb889e6f658fe8
+  CANDIDATE_PACKAGE_NAME: wickhunter-candidate-materialization-20260803-v2-626087ca45d6
+  SOURCE_STATE_NAME: v13-preflight-r8-20260807
+  SOURCE_ACTIVATION_NAME: wickhunter-wh09-v13-preflight-r8-20260807-d8a238a0
+  SOURCE_EXPECTED_GENERATIONS: "1"
+  EXPECTED_IMAGE_ID: sha256:4b80e3f547fc40ae8932a0436570382c1c6bfe422c095a8c959b15a1af6a6183
+  RUNNER_STATE_ROOT: /var/lib/freqtrade-staging-state
+  HOST_STATE_ROOT: /volume1/docker/freqtrade/state
+  LIQUID20_LIVE_HOST: /volume1/docker/freqtrade-liquidations/data/live
+  OPERATOR_IMAGE: local/wickhunter-paper-runtime:sha-d8a238a006b5d1a9020139f38bcb889e6f658fe8
+  DIAGNOSTIC_NAME: wickhunter-wh09-v13-service-cause-r4-20260808
+  GATEWAY_CONTAINER: wickhunter-wh09-service-cause-egress-r4
+  INTERNAL_NETWORK: wickhunter-wh09-service-cause-internal-r4
+
+jobs:
+  diagnose:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact diagnostic request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Prove one-file request and closed authority
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$EXPECTED_BASE_SHA" ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          git merge-base --is-ancestor "$IMPLEMENTATION_SHA" "$BASE_SHA"
+          [[ "$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")" == $'A\t.github/workflows/wickhunter-wh09-v13-service-cause-diagnostic-r4-20260808.yml' ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" && "$RUNNER_OS_VALUE" == "Linux" && "$RUNNER_ARCH_VALUE" == "X64" ]]
+          docker version >/dev/null
+          test -S /var/run/docker.sock
+          for name in OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET FT_EXCHANGE_KEY FT_EXCHANGE_SECRET FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+            [[ -z "${!name:-}" ]] || { echo "forbidden credential/proxy environment: $name" >&2; exit 1; }
+          done
+          collector_data_source="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' liquid20-live)"
+          [[ "$collector_data_source" == "/volume1/docker/freqtrade-liquidations/data" ]]
+          [[ "$LIQUID20_LIVE_HOST" == "$collector_data_source/live" ]]
+
+      - name: Prove immutable r8 source state and exact image
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate_runner="$RUNNER_STATE_ROOT/wickhunter-candidate-materialization/packages/$CANDIDATE_PACKAGE_NAME"
+          source_runner="$RUNNER_STATE_ROOT/wickhunter-paper-runtime/$SOURCE_STATE_NAME"
+          activation_runner="$source_runner/activations/$SOURCE_ACTIVATION_NAME"
+          journal_runner="$source_runner/journals/$SOURCE_ACTIVATION_NAME"
+          [[ -d "$candidate_runner" && ! -L "$candidate_runner" ]]
+          [[ -d "$activation_runner" && ! -L "$activation_runner" ]]
+          [[ -d "$journal_runner" && ! -L "$journal_runner" ]]
+          generation_count="$(find "$journal_runner/generations" -mindepth 1 -maxdepth 1 -type d -name '[0-9]*' | wc -l | tr -d ' ')"
+          [[ "$generation_count" == "$SOURCE_EXPECTED_GENERATIONS" ]]
+          [[ ! -e "$journal_runner/generations/00000000000000000002" ]]
+          docker image inspect "$OPERATOR_IMAGE" >/dev/null
+          [[ "$(docker image inspect --format '{{.Id}}' "$OPERATOR_IMAGE")" == "$EXPECTED_IMAGE_ID" ]]
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$OPERATOR_IMAGE")" == "$IMPLEMENTATION_SHA" ]]
+          [[ "$(docker image inspect --format '{{json .Config.Entrypoint}}' "$OPERATOR_IMAGE")" == '["python","-m","ai_platform.wickhunter.candidate_paper_runtime_supervisor"]' ]]
+          reader_gid="$(docker run --rm --read-only --entrypoint stat --mount "type=bind,src=$LIQUID20_LIVE_HOST,dst=/runtime/liquid20,readonly" "$OPERATOR_IMAGE" -c %g /runtime/liquid20)"
+          [[ "$reader_gid" =~ ^[0-9]+$ ]]
+          printf '%s\n' "$reader_gid" > "$RUNNER_TEMP/wickhunter-wh09-v13-service-cause-r4-reader-gid.txt"
+          find "$journal_runner" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}' > "$RUNNER_TEMP/wickhunter-wh09-v13-service-cause-r4-source-before.sha256"
+
+      - name: Start constrained Binance-only gateway
+        shell: bash
+        run: |
+          set -euo pipefail
+          gateway_code="$(cat <<'PY'
+          import socket, socketserver, threading
+          TARGET=("fapi.binance.com",443)
+          class Server(socketserver.ThreadingMixIn,socketserver.TCPServer):
+              daemon_threads=True
+              allow_reuse_address=True
+          class Handler(socketserver.BaseRequestHandler):
+              @staticmethod
+              def pump(source,destination):
+                  try:
+                      while True:
+                          chunk=source.recv(65536)
+                          if not chunk: return
+                          destination.sendall(chunk)
+                  except OSError:
+                      return
+                  finally:
+                      try: destination.shutdown(socket.SHUT_WR)
+                      except OSError: pass
+              def handle(self):
+                  remote=socket.create_connection(TARGET,timeout=15)
+                  try:
+                      upstream=threading.Thread(target=self.pump,args=(self.request,remote),daemon=True)
+                      upstream.start(); self.pump(remote,self.request); upstream.join(timeout=5)
+                  finally:
+                      remote.close()
+          Server(("0.0.0.0",443),Handler).serve_forever()
+          PY
+          )"
+          ! docker container inspect "$GATEWAY_CONTAINER" >/dev/null 2>&1
+          ! docker network inspect "$INTERNAL_NETWORK" >/dev/null 2>&1
+          docker network create --internal "$INTERNAL_NETWORK" >/dev/null
+          docker create --name "$GATEWAY_CONTAINER" --init --user 0:0 --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777 \
+            --cap-drop ALL --cap-add NET_BIND_SERVICE --security-opt no-new-privileges:true --memory 256m --network bridge \
+            --entrypoint python "$OPERATOR_IMAGE" -c "$gateway_code" >/dev/null
+          docker network connect "$INTERNAL_NETWORK" "$GATEWAY_CONTAINER"
+          docker start "$GATEWAY_CONTAINER" >/dev/null
+          sleep 2
+          [[ "$(docker inspect --format '{{.State.Running}}' "$GATEWAY_CONTAINER")" == "true" ]]
+
+      - name: Reproduce r8 second-cycle boundary on scratch copies
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate_host="$HOST_STATE_ROOT/wickhunter-candidate-materialization/packages/$CANDIDATE_PACKAGE_NAME"
+          source_host="$HOST_STATE_ROOT/wickhunter-paper-runtime/$SOURCE_STATE_NAME"
+          activation_host="$source_host/activations/$SOURCE_ACTIVATION_NAME"
+          journal_host="$source_host/journals/$SOURCE_ACTIVATION_NAME"
+          diagnostic_runner="$RUNNER_STATE_ROOT/wickhunter-paper-runtime-diagnostics/$DIAGNOSTIC_NAME"
+          diagnostic_host="$HOST_STATE_ROOT/wickhunter-paper-runtime-diagnostics/$DIAGNOSTIC_NAME"
+          [[ ! -e "$diagnostic_runner" && ! -L "$diagnostic_runner" ]]
+          install -d -m 0750 -o 65532 -g 65532 "$diagnostic_runner"
+          gateway_ip="$(docker inspect --format "{{with index .NetworkSettings.Networks \"$INTERNAL_NETWORK\"}}{{.IPAddress}}{{end}}" "$GATEWAY_CONTAINER")"
+          [[ "$gateway_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          reader_gid="$(cat "$RUNNER_TEMP/wickhunter-wh09-v13-service-cause-r4-reader-gid.txt")"
+          docker run --rm --interactive --user 65532:65532 --group-add "$reader_gid" --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777 --memory 2g \
+            --network "$INTERNAL_NETWORK" --add-host "fapi.binance.com:$gateway_ip" \
+            --env "OPERATOR_COMMIT=$IMPLEMENTATION_SHA" \
+            --env HTTP_PROXY= --env HTTPS_PROXY= --env ALL_PROXY= --env http_proxy= --env https_proxy= --env all_proxy= \
+            --mount "type=bind,src=$candidate_host,dst=/runtime/candidate,readonly" \
+            --mount "type=bind,src=$activation_host,dst=/runtime/activation,readonly" \
+            --mount "type=bind,src=$journal_host,dst=/runtime/source-journal,readonly" \
+            --mount "type=bind,src=$LIQUID20_LIVE_HOST,dst=/runtime/liquid20,readonly" \
+            --mount "type=bind,src=$diagnostic_host,dst=/runtime/diagnostic" \
+            --entrypoint python "$OPERATOR_IMAGE" - <<'PY' | tee "$RUNNER_TEMP/wickhunter-wh09-v13-service-cause-r4-result.json"
+          import json, os, shutil, socket, time, traceback
+          from pathlib import Path
+          from ai_platform.wickhunter.candidate_paper_runtime_operator import CandidatePaperRuntimeOperator, _runtime_policy, assert_closed_authority_environment
+          from ai_platform.wickhunter.candidate_paper_runtime_service import CandidatePaperRuntimeService
+          from ai_platform.wickhunter.candidate_runtime_binding import build_candidate_paper_runtime_binding
+          from ai_platform.wickhunter.contracts import DriftState
+
+          assert_closed_authority_environment()
+          try:
+              socket.create_connection(('1.1.1.1',443),timeout=2)
+          except OSError:
+              pass
+          else:
+              raise SystemExit('diagnostic container unexpectedly has direct external egress')
+
+          def stat_record(path):
+              try:
+                  item=path.stat()
+                  return {'path':str(path),'uid':item.st_uid,'gid':item.st_gid,'mode':oct(item.st_mode & 0o777),'readable':os.access(path,os.R_OK),'executable':os.access(path,os.X_OK)}
+              except BaseException as exc:
+                  return {'path':str(path),'error':f'{type(exc).__name__}: {exc}'}
+
+          candidate=Path('/runtime/candidate')
+          activation=Path('/runtime/activation')
+          source_journal=Path('/runtime/source-journal')
+          diagnostic=Path('/runtime/diagnostic')
+          live_root=Path('/runtime/liquid20')
+          binding=build_candidate_paper_runtime_binding(candidate_root=candidate,activation_root=activation)
+          attempts=[]
+          identity={'uid':os.getuid(),'gid':os.getgid(),'groups':os.getgroups()}
+          permissions=[stat_record(live_root),stat_record(live_root/'live-state-v1.json'),stat_record(live_root/'runs')]
+          for attempt in range(1,4):
+              journal=diagnostic/f'journal-{attempt}'
+              health_root=diagnostic/f'operator-{attempt}'
+              shutil.copytree(source_journal,journal)
+              health_root.mkdir(parents=True,exist_ok=False)
+              service=CandidatePaperRuntimeService(binding=binding,runtime_policy=_runtime_policy(),journal_root=journal)
+              operator=CandidatePaperRuntimeOperator(service=service,liquid20_root_path=live_root,health_path=health_root/'health.json',operator_commit=os.environ['OPERATOR_COMMIT'],public_market_base_url='https://fapi.binance.com',maximum_source_age_ms=300000,model_drift=DriftState.HEALTHY,data_drift=DriftState.HEALTHY,circuit_breaker_active=False)
+              observed_at_ms=time.time_ns()//1_000_000
+              record={'attempt':attempt,'observed_at_ms':observed_at_ms,'before_generation':service.runtime.state.generation,'before_observations':len(service.journal.observations())}
+              try:
+                  generation=operator.run_once(observed_at_ms=observed_at_ms)
+              except BaseException as exc:
+                  chain=[]; current=exc; seen=set()
+                  while current is not None and id(current) not in seen and len(chain)<12:
+                      seen.add(id(current)); chain.append({'type':type(current).__name__,'message':' '.join(str(current).split())[:1000]}); current=current.__cause__ if current.__cause__ is not None else current.__context__
+                  record.update({'status':'reproduced_failure','exception_chain':chain,'traceback_tail':traceback.format_exception(type(exc),exc,exc.__traceback__)[-12:],'after_generation':service.runtime.state.generation,'after_observations':len(service.journal.observations())})
+              else:
+                  record.update({'status':'not_reproduced','returned_generation':generation,'after_generation':service.runtime.state.generation,'after_observations':len(service.journal.observations())})
+              attempts.append(record)
+              time.sleep(1)
+          result={'status':'service_cause_diagnostic_r4_complete','implementation_sha':os.environ['OPERATOR_COMMIT'],'runtime_identity':identity,'live_permissions':permissions,'source_generation_count':1,'attempts':attempts,'protected_holdout_accessed':False,'automatic_promotion_enabled':False,'trading_credentials_present':False,'order_adapter_present':False,'execution_enabled':False,'orders_submitted':0,'live_capital_authorized':False}
+          print(json.dumps(result,sort_keys=True))
+          PY
+          cp "$RUNNER_TEMP/wickhunter-wh09-v13-service-cause-r4-result.json" "$diagnostic_runner/result.json"
+
+      - name: Prove source journal unchanged and collect evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_runner="$RUNNER_STATE_ROOT/wickhunter-paper-runtime/$SOURCE_STATE_NAME"
+          journal_runner="$source_runner/journals/$SOURCE_ACTIVATION_NAME"
+          diagnostic_runner="$RUNNER_STATE_ROOT/wickhunter-paper-runtime-diagnostics/$DIAGNOSTIC_NAME"
+          find "$journal_runner" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}' > "$RUNNER_TEMP/wickhunter-wh09-v13-service-cause-r4-source-after.sha256"
+          cmp "$RUNNER_TEMP/wickhunter-wh09-v13-service-cause-r4-source-before.sha256" "$RUNNER_TEMP/wickhunter-wh09-v13-service-cause-r4-source-after.sha256"
+          if [[ -f "$diagnostic_runner/result.json" ]]; then cp "$diagnostic_runner/result.json" "$RUNNER_TEMP/wickhunter-wh09-v13-service-cause-r4-result-persisted.json"; fi
+          docker inspect "$GATEWAY_CONTAINER" > "$RUNNER_TEMP/wickhunter-wh09-v13-service-cause-r4-gateway-inspect.json" 2>/dev/null || true
+          docker logs "$GATEWAY_CONTAINER" > "$RUNNER_TEMP/wickhunter-wh09-v13-service-cause-r4-gateway.log" 2>&1 || true
+
+      - name: Cleanup diagnostic scratch
+        if: always()
+        shell: bash
+        run: |
+          docker rm -f "$GATEWAY_CONTAINER" >/dev/null 2>&1 || true
+          docker network rm "$INTERNAL_NETWORK" >/dev/null 2>&1 || true
+          rm -rf "$RUNNER_STATE_ROOT/wickhunter-paper-runtime-diagnostics/$DIAGNOSTIC_NAME" >/dev/null 2>&1 || true
+
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: wickhunter-wh09-v13-service-cause-r4-${{ github.event.pull_request.number }}
+          path: |
+            ${{ runner.temp }}/wickhunter-wh09-v13-service-cause-r4-result.json
+            ${{ runner.temp }}/wickhunter-wh09-v13-service-cause-r4-result-persisted.json
+            ${{ runner.temp }}/wickhunter-wh09-v13-service-cause-r4-source-before.sha256
+            ${{ runner.temp }}/wickhunter-wh09-v13-service-cause-r4-source-after.sha256
+            ${{ runner.temp }}/wickhunter-wh09-v13-service-cause-r4-reader-gid.txt
+            ${{ runner.temp }}/wickhunter-wh09-v13-service-cause-r4-gateway-inspect.json
+            ${{ runner.temp }}/wickhunter-wh09-v13-service-cause-r4-gateway.log
+          if-no-files-found: warn
+          retention-days: 30

@@ -127,8 +127,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gateway_script="$RUNNER_TEMP/wickhunter-wh09-v13-r6-gateway.py"
-          cat > "$gateway_script" <<'PY'
+          gateway_dir_runner="$RUNNER_STATE_ROOT/wickhunter-paper-runtime/v13-preflight-r6-20260807/gateway"
+          gateway_dir_host="$HOST_STATE_ROOT/wickhunter-paper-runtime/v13-preflight-r6-20260807/gateway"
+          install -d -m 0750 -o 65532 -g 65532 "$gateway_dir_runner"
+          gateway_script_runner="$gateway_dir_runner/gateway.py"
+          gateway_script_host="$gateway_dir_host/gateway.py"
+          cat > "$gateway_script_runner" <<'PY'
           import socket, socketserver, threading
           TARGET=("fapi.binance.com",443)
           class Server(socketserver.ThreadingMixIn,socketserver.TCPServer):
@@ -156,6 +160,8 @@ jobs:
                       remote.close()
           Server(("0.0.0.0",443),Handler).serve_forever()
           PY
+          chown 65532:65532 "$gateway_script_runner"
+          chmod 0440 "$gateway_script_runner"
           ! docker container inspect "$OPERATOR_CONTAINER" >/dev/null 2>&1
           ! docker container inspect "$GATEWAY_CONTAINER" >/dev/null 2>&1
           ! docker network inspect "$INTERNAL_NETWORK" >/dev/null 2>&1
@@ -163,7 +169,7 @@ jobs:
           docker create --name "$GATEWAY_CONTAINER" --init --user 0:0 --read-only \
             --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777 \
             --cap-drop ALL --cap-add NET_BIND_SERVICE --security-opt no-new-privileges:true --memory 256m --network bridge \
-            --mount "type=bind,src=$gateway_script,dst=/gateway.py,readonly" \
+            --mount "type=bind,src=$gateway_script_host,dst=/gateway.py,readonly" \
             --label "io.freqtrade.wickhunter.role=public-market-egress" \
             --label "io.freqtrade.wickhunter.target=fapi.binance.com:443" \
             --label "org.opencontainers.image.revision=$IMPLEMENTATION_SHA" \
@@ -299,6 +305,7 @@ jobs:
           docker rm -f "$OPERATOR_CONTAINER" >/dev/null 2>&1 || true
           docker rm -f "$GATEWAY_CONTAINER" >/dev/null 2>&1 || true
           docker network rm "$INTERNAL_NETWORK" >/dev/null 2>&1 || true
+          rm -rf "$RUNNER_STATE_ROOT/wickhunter-paper-runtime/v13-preflight-r6-20260807/gateway" >/dev/null 2>&1 || true
 
       - name: Upload bounded preflight evidence
         if: always()

@@ -1,0 +1,67 @@
+name: FTAI 1116 Web Security Refresh
+
+on:
+  push:
+    branches:
+      - repair/1116-portal-supply-chain
+    paths:
+      - ".github/workflows/ftai-1116-web-security-refresh.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+      - name: Refresh Node base and sharp
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path('ai_platform/portal/web/package.json')
+          payload = json.loads(path.read_text(encoding='utf-8'))
+          overrides = payload.setdefault('overrides', {})
+          overrides['sharp'] = '0.35.3'
+          path.write_text(json.dumps(payload, indent=2) + '\n', encoding='utf-8')
+          PY
+          cd ai_platform/portal/web
+          npm install --package-lock-only --ignore-scripts
+          npm ci --ignore-scripts
+          cd ../../../..
+          docker pull node:22.23.2-bookworm-slim
+          digest="$(docker inspect --format '{{index .RepoDigests 0}}' node:22.23.2-bookworm-slim | sed 's/.*@//')"
+          test -n "$digest"
+          python3 - "$digest" <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          digest = sys.argv[1]
+          path = Path('deploy/synology/portal/Dockerfile')
+          text = path.read_text(encoding='utf-8')
+          text, count = re.subn(
+              r'node:22\.23\.1-bookworm-slim@sha256:[0-9a-f]{64}',
+              f'node:22.23.2-bookworm-slim@{digest}',
+              text,
+          )
+          if count != 3:
+              raise SystemExit(f'expected 3 Node base replacements, got {count}')
+          path.write_text(text, encoding='utf-8')
+          PY
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ai_platform/portal/web/package.json ai_platform/portal/web/package-lock.json deploy/synology/portal/Dockerfile
+          git commit -m "security(portal): refresh vulnerable web image dependencies"
+          git push origin HEAD:refs/heads/repair/1116-portal-supply-chain

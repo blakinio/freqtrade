@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 import threading
 from decimal import Decimal
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
+from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -809,6 +811,27 @@ class _Opener:
         return _Response(response_url, payload)
 
 
+class _HttpErrorOpener:
+    def __init__(self, exchange_code: int) -> None:
+        self.exchange_code = exchange_code
+
+    def open(self, request: Any, timeout: int) -> _Response:
+        assert timeout == 15
+        body = json.dumps(
+            {
+                "code": self.exchange_code,
+                "msg": "synthetic Binance public API error",
+            }
+        ).encode("utf-8")
+        raise HTTPError(
+            request.full_url,
+            400,
+            "Bad Request",
+            {},
+            BytesIO(body),
+        )
+
+
 def test_public_market_contract_uses_complete_contiguous_public_inputs() -> None:
     opener = _Opener()
     snapshot = fetch_public_market_snapshot(
@@ -827,6 +850,34 @@ def test_public_market_contract_uses_complete_contiguous_public_inputs() -> None
     assert len(opener.requests) == 4
     assert all(request.get_method() == "GET" for request in opener.requests)
     assert all("Authorization" not in request.headers for request in opener.requests)
+
+
+@pytest.mark.parametrize("exchange_code", (-4108, -1121))
+def test_public_market_terminal_symbol_lifecycle_is_classified(exchange_code: int) -> None:
+    with pytest.raises(
+        operator_module._PublicMarketSymbolUnavailable,
+        match="public market symbol is unavailable",
+    ) as error:
+        fetch_public_market_snapshot(
+            symbol="HFTUSDT",
+            observed_at_ms=NOW_MS,
+            opener=cast(Any, _HttpErrorOpener(exchange_code)),
+        )
+
+    assert error.value.symbol == "HFTUSDT"
+    assert error.value.exchange_code == exchange_code
+
+
+def test_public_market_non_terminal_http_400_stays_fail_closed() -> None:
+    with pytest.raises(
+        CandidatePaperRuntimeOperatorError,
+        match="unable to fetch public premium index",
+    ):
+        fetch_public_market_snapshot(
+            symbol="BTCUSDT",
+            observed_at_ms=NOW_MS,
+            opener=cast(Any, _HttpErrorOpener(-1100)),
+        )
 
 
 def test_public_market_kline_margin_keeps_decision_time_completion_boundary() -> None:
@@ -1085,6 +1136,110 @@ def test_tick_uses_only_current_burst_and_keeps_open_position_marks(
 
     assert len(tick.decision_requests) == 1
     assert {symbol for symbol, _price in tick.mark_prices} == {"BTCUSDT", "ETHUSDT"}
+
+
+def test_run_once_excludes_terminal_public_market_symbol_from_universe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class StopAfterCompose(RuntimeError):
+        pass
+
+    events = [
+        _event("btc-history", symbol="BTCUSDT", received_at_ms=NOW_MS - 3_600_000),
+        _event("hft-history", symbol="HFTUSDT", received_at_ms=NOW_MS - 3_600_000),
+        _event("btc-current", symbol="BTCUSDT", received_at_ms=NOW_MS - 1_000),
+        _event("hft-current", symbol="HFTUSDT", received_at_ms=NOW_MS - 1_000),
+    ]
+    service = _service()
+    captured_tick: object | None = None
+
+    def stop_after_compose(tick: object) -> None:
+        nonlocal captured_tick
+        captured_tick = tick
+        raise StopAfterCompose
+
+    service.step = stop_after_compose
+    root = _write_live_root(tmp_path / "terminal-symbol", events=events)
+    runtime_operator = CandidatePaperRuntimeOperator(
+        service=cast(Any, service),
+        liquid20_root_path=root.resolve(),
+        health_path=(tmp_path / "terminal-health.json").resolve(),
+        operator_commit=CODE_SHA,
+    )
+
+    def fake_market_snapshot(
+        *,
+        symbol: str,
+        observed_at_ms: int,
+        base_url: str,
+        opener: object,
+    ) -> PublicMarketSnapshot:
+        del base_url, opener
+        if symbol == "HFTUSDT":
+            raise operator_module._PublicMarketSymbolUnavailable(symbol, -4108)
+        return _market(symbol=symbol, observed_at_ms=observed_at_ms)
+
+    monkeypatch.setattr(
+        operator_module,
+        "fetch_public_market_snapshot",
+        fake_market_snapshot,
+    )
+    with pytest.raises(StopAfterCompose):
+        runtime_operator.run_once(observed_at_ms=NOW_MS)
+
+    assert captured_tick is not None
+    tick = cast(Any, captured_tick)
+    assert tick.universe.selected_symbols == ("BTCUSDT",)
+    decisions = {item.canonical_symbol: item for item in tick.universe.decisions}
+    assert decisions["BTCUSDT"].included is True
+    assert "binance_usdm_public_market_available" in decisions["BTCUSDT"].reason_codes
+    assert decisions["HFTUSDT"].included is False
+    assert decisions["HFTUSDT"].reason_codes == ("binance_usdm_public_market_unavailable",)
+    assert tuple(symbol for symbol, _price in tick.mark_prices) == ("BTCUSDT",)
+
+
+def test_run_once_fails_closed_when_open_position_market_becomes_unavailable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    open_position = SimpleNamespace(
+        unrealized_pnl_quote=Decimal("0"),
+        mark_price=Decimal("100"),
+        quantity=Decimal("1"),
+        symbol="HFTUSDT",
+        side=TradeDirection.LONG,
+    )
+    root = _write_live_root(tmp_path / "open-terminal")
+    runtime_operator = CandidatePaperRuntimeOperator(
+        service=cast(Any, _service(positions=(open_position,))),
+        liquid20_root_path=root.resolve(),
+        health_path=(tmp_path / "open-terminal-health.json").resolve(),
+        operator_commit=CODE_SHA,
+    )
+
+    def fake_market_snapshot(
+        *,
+        symbol: str,
+        observed_at_ms: int,
+        base_url: str,
+        opener: object,
+    ) -> PublicMarketSnapshot:
+        del base_url, opener
+        if symbol == "HFTUSDT":
+            raise operator_module._PublicMarketSymbolUnavailable(symbol, -4108)
+        return _market(symbol=symbol, observed_at_ms=observed_at_ms)
+
+    monkeypatch.setattr(
+        operator_module,
+        "fetch_public_market_snapshot",
+        fake_market_snapshot,
+    )
+    with pytest.raises(
+        CandidatePaperRuntimeOperatorError,
+        match="open PAPER position lacks Binance USD-M public market context: HFTUSDT",
+    ):
+        runtime_operator.run_once(observed_at_ms=NOW_MS)
 
 
 def test_run_once_fetches_mark_for_open_position_outside_universe(

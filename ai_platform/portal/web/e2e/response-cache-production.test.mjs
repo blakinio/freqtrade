@@ -7,6 +7,7 @@ import test, { after, before } from "node:test";
 const host = "127.0.0.1";
 const port = 3199;
 const baseURL = `http://${host}:${port}`;
+const authenticatedSessionCookie = "__Host-portal_session=cache-probe-session";
 let server;
 let output = "";
 
@@ -67,9 +68,11 @@ test("production documents, redirects and API errors are private no-store", asyn
   assert.equal(unauthorized.status, 401);
   assertPrivateNoStore(unauthorized.headers);
 
-  const unknownApi = await fetch(`${baseURL}/api/route-that-does-not-exist`);
-  assert.equal(unknownApi.status, 401);
-  assertPrivateNoStore(unknownApi.headers);
+  const notFound = await fetch(`${baseURL}/api/route-that-does-not-exist`, {
+    headers: { cookie: authenticatedSessionCookie },
+  });
+  assert.equal(notFound.status, 404);
+  assertPrivateNoStore(notFound.headers);
 });
 
 test("production immutable Next assets retain framework cache policy", async () => {

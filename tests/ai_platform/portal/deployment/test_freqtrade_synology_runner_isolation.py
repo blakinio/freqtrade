@@ -70,7 +70,14 @@ def test_runner_cutover_preflight_is_bounded_and_fail_closed() -> None:
     text = CUTOVER_PREFLIGHT_WORKFLOW.read_text(encoding="utf-8")
     assert "runs-on: [freqtrade-staging]" in text
     assert "if: github.ref == 'refs/heads/develop'" in text
-    assert "contents: read\n  statuses: write" in text
+    assert "permissions:\n  contents: read" in text
+    assert (
+        "preflight:\n"
+        "    if: github.ref == 'refs/heads/develop'\n"
+        "    permissions:\n"
+        "      contents: read\n"
+        "      statuses: write"
+    ) in text
     assert "ghcr.io/blakinio/freqtrade-deploy-runner:sha-${{ github.sha }}" in text
     assert "com.docker.compose.project" in text
     assert "com.docker.compose.volume" in text

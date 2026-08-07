@@ -36,6 +36,7 @@ class RiskReason(StrEnum):
     MODEL_CONFIDENCE_BELOW_MINIMUM = "MODEL_CONFIDENCE_BELOW_MINIMUM"
     BASE_RISK_LIMIT_EXCEEDED = "BASE_RISK_LIMIT_EXCEEDED"
     LEVERAGE_LIMIT_EXCEEDED = "LEVERAGE_LIMIT_EXCEEDED"
+    EFFECTIVE_EXPOSURE_NOT_POSITIVE = "EFFECTIVE_EXPOSURE_NOT_POSITIVE"
     EFFECTIVE_EXPOSURE_LIMIT_EXCEEDED = "EFFECTIVE_EXPOSURE_LIMIT_EXCEEDED"
     DCA_COUNT_LIMIT_EXCEEDED = "DCA_COUNT_LIMIT_EXCEEDED"
     DCA_EXPOSURE_LIMIT_EXCEEDED = "DCA_EXPOSURE_LIMIT_EXCEEDED"
@@ -231,6 +232,8 @@ def evaluate_trade_intent(  # noqa: C901
         )
         * intent.requested_leverage
     )
+    if effective_exposure <= 0:
+        reasons.add(RiskReason.EFFECTIVE_EXPOSURE_NOT_POSITIVE)
     if effective_exposure > limits.maximum_effective_exposure_ratio:
         reasons.add(RiskReason.EFFECTIVE_EXPOSURE_LIMIT_EXCEEDED)
 

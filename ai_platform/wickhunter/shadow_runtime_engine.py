@@ -27,7 +27,10 @@ from ai_platform.wickhunter.shadow_runtime_logic import (
     _source_statuses,
     _validate_request,
 )
-from ai_platform.wickhunter.shadow_runtime_positions import RuntimeDecisionSummary
+from ai_platform.wickhunter.shadow_runtime_positions import (
+    RuntimeDecisionSummary,
+    SimulatedPosition,
+)
 from ai_platform.wickhunter.shadow_runtime_snapshot import ShadowRuntimeStepResult
 from ai_platform.wickhunter.shadow_runtime_snapshot_builder import _build_snapshot
 from ai_platform.wickhunter.shadow_runtime_state import (
@@ -36,6 +39,33 @@ from ai_platform.wickhunter.shadow_runtime_state import (
     initial_runtime_state,
 )
 from ai_platform.wickhunter.shadow_runtime_storage import ShadowRuntimeStore
+
+
+def _apply_allowed_position(
+    *,
+    evidence: ShadowDecisionEvidence,
+    positions: list[SimulatedPosition],
+    maximum_open_positions: int,
+    initial_equity: Decimal,
+) -> str | None:
+    intent = evidence.trade_intent
+    risk_decision = evidence.risk_decision
+    if intent is None or risk_decision is None:
+        raise ShadowRuntimeError("allowed decision lacks intent or risk evidence")
+    if risk_decision.outcome is not RiskOutcome.ALLOW:
+        raise ShadowRuntimeError("allowed shadow decision has rejected risk evidence")
+    if any(item.symbol.upper() == intent.symbol.upper() for item in positions):
+        return "runtime_position_already_open"
+    if len(positions) >= maximum_open_positions:
+        return "runtime_position_limit"
+    position = _open_position(
+        evidence=evidence,
+        initial_equity=initial_equity,
+    )
+    if position is None:
+        return "runtime_position_quantity_not_positive"
+    positions.append(position)
+    return None
 
 
 class ShadowRuntime:
@@ -115,27 +145,14 @@ class ShadowRuntime:
                 decisions.append(evidence)
                 runtime_reasons: list[str] = []
                 if evidence.status is ShadowStatus.SIMULATED_ALLOWED:
-                    if evidence.trade_intent is None or evidence.risk_decision is None:
-                        raise ShadowRuntimeError("allowed decision lacks intent or risk evidence")
-                    if evidence.risk_decision.outcome is not RiskOutcome.ALLOW:
-                        raise ShadowRuntimeError(
-                            "allowed shadow decision has rejected risk evidence"
-                        )
-                    same_symbol = any(
-                        item.symbol.upper() == evidence.trade_intent.symbol.upper()
-                        for item in positions
+                    position_reason = _apply_allowed_position(
+                        evidence=evidence,
+                        positions=positions,
+                        maximum_open_positions=self.policy.maximum_open_positions,
+                        initial_equity=self.policy.simulated_initial_equity_quote,
                     )
-                    if same_symbol:
-                        runtime_reasons.append("runtime_position_already_open")
-                    elif len(positions) >= self.policy.maximum_open_positions:
-                        runtime_reasons.append("runtime_position_limit")
-                    else:
-                        positions.append(
-                            _open_position(
-                                evidence=evidence,
-                                initial_equity=self.policy.simulated_initial_equity_quote,
-                            )
-                        )
+                    if position_reason is not None:
+                        runtime_reasons.append(position_reason)
                 summaries.append(
                     _decision_summary(
                         evidence=evidence,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from decimal import Decimal
 
 import pytest
@@ -182,3 +183,22 @@ def test_candidate_gate_cannot_authorize_research_mode() -> None:
 
     assert decision.outcome is RiskOutcome.REJECT
     assert "MODEL_NOT_APPROVED" in decision.reason_codes
+
+
+def test_zero_effective_exposure_is_rejected_before_runtime_position_sizing() -> None:
+    intent = _intent(BotMode.PAPER)
+    zero_exposure_intent = replace(
+        intent,
+        requested_base_risk_ratio=Decimal("0"),
+        dca_plan=replace(intent.dca_plan, maximum_total_risk_ratio=Decimal("0")),
+    )
+
+    decision = evaluate_trade_intent(
+        intent=zero_exposure_intent,
+        score=_score(),
+        context=_context(authorized=True),
+        limits=_limits(),
+    )
+
+    assert decision.outcome is RiskOutcome.REJECT
+    assert decision.reason_codes == ("EFFECTIVE_EXPOSURE_NOT_POSITIVE",)

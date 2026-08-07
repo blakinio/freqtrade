@@ -7,7 +7,7 @@ repository: blakinio/freqtrade
 issue: 1116
 lane: freqtrade-portal
 phase: finalization
-status: blocked_external_ci_service
+status: awaiting_exact_head_ci_and_final_audit
 priority: P1
 severity: medium
 prompting_standard_version: 2.1
@@ -47,67 +47,48 @@ Resolve Issue #1116 by making the exact final Portal web and control-plane image
 
 ## Acceptance inventory
 
-- both final images are built from exact source and pinned base digests;
+- both final images are built from exact source and pinned base/runtime digests;
 - SBOMs include final-image OS packages plus Python and Node dependencies;
 - vulnerability and license policy run on exact final image IDs;
 - every suppression is structured, justified, owned and expiry-bounded;
 - provenance binds source SHA, Dockerfiles, base digests, manifests, scanner database and final image IDs;
-- protected deployment consumes approved exact image IDs without rebuilding;
+- protected deployment consumes approved exact image IDs without rebuilding after approval;
 - current and previous approved images and matching evidence are retained for rollback;
 - Portal manifests are covered by dependency-update automation;
 - exact-image smoke proves API-mode boot and web-to-control-plane reachability;
 - reports and artifacts exclude secrets and private infrastructure;
 - focused tests, security analysis, exact-head required CI and independent final audit pass;
-- canonical completeness ledger is updated and this task is archived before merge.
-
-## Durable checkpoint
-
-```yaml
-checkpoint_version: 4
-updated_at: 2026-08-06T16:35:00Z
-status: blocked_external_ci_service
-checkpoint_commit: 1adfde2b37a369b6c1c14d3268bd8c52a963ab72
-pull_request: 1307
-issue: 1116
-proven:
-  - exact-image SBOM, vulnerability, license and SLSA provenance implementation exists on PR 1307
-  - Syft and Grype tooling and the Grype database are checksum/content bound
-  - protected deployment consumes approved exact image IDs without rebuilding
-  - rollback retention and evidence-path confinement implementation is locally compiled and tested
-  - focused local validation passed with 14 tests and no material final-audit findings in the implemented rollback slice
-  - self-cleaning finalization payload is durably staged on the task branch
-blocker:
-  type: external_service_incident
-  service: GitHub Actions
-  observed_failure: Service Unavailable while resolving action downloads; hosted and self-hosted runs are queued or failing to start
-  official_status: Actions partial outage on 2026-08-06
-blocked_terminal_actions:
-  - apply the staged finalization commit and canonical ledger projection
-  - execute exact-head required CI and security workflows
-  - archive the task
-  - merge PR 1307
-  - close Issue 1116
-manual_recovery_entrypoint: .github/workflows/ftai-1116-finalize-ubuntu-latest.yml
-next_action: Dispatch the manual recovery workflow only after GitHub Actions can acquire runners; require terminal exact-head CI before merge.
-```
-
+- canonical completeness ledger is reconciled and this task is archived before merge.
 
 ## Final implementation checkpoint
 
 ```yaml
-checkpoint_version: 3
-updated_at: 2026-08-07T07:29:29Z
+checkpoint_version: 5
+updated_at: 2026-08-07T10:17:00Z
 status: awaiting_exact_head_ci_and_final_audit
-implementation_head: 98d92d89f1dac4c7287dd5a2cb86e0a9e7b8665e
+pre_checkpoint_candidate: 6df3c847c8e299158384362cbee2d75c703c1c30
+base_develop: 2525419f5023dbc9bc05fbdff5b3b29917c40eea
 pull_request: 1307
 issue: 1116
 proven:
+  - GitHub Actions incident recovery is complete; hosted runners execute normally
+  - branch is merge-forwarded to current develop with behind_by zero
+  - all one-shot recovery, style, lockfile and merge-forward workflows are removed from the intended PR diff
   - exact final images produce SBOM, vulnerability, license and SLSA provenance evidence
-  - Grype database content is frozen and bound to each approval
-  - protected deployment consumes approved image IDs without rebuilding
+  - Syft and Grype binaries and the Grype database are checksum/content bound
+  - control-plane dependencies were upgraded to available fixed releases; only narrow expiry-bounded CPython suppressions without a stable fix remain
+  - web Node runtime is refreshed and npm resolves Next plus the direct dependency to sharp 0.35.3 with no installed sharp below 0.35
+  - focused supply-chain tooling passes Ruff and Python compilation after final polish
+  - protected deployment consumes approved image IDs without rebuilding after approval
   - current and previous approved image IDs and matching evidence are retained for rollback
   - approval evidence paths are confined to regular files in the approval directory
-  - canonical completeness ledger removes Issue 1116 while retaining Issue 1139 as the remaining DR blocker
 blockers: []
-next_action: Require terminal exact-head CI, perform a fresh final diff audit, archive this task, merge PR 1307 and close Issue 1116.
+remaining_terminal_actions:
+  - require terminal exact-head Freqtrade CI, Risk-aware component CI, CodeQL, zizmor and Portal Exact-Image Supply Chain
+  - perform fresh final diff audit and confirm zero unresolved review threads
+  - reconcile the canonical completeness ledger for Issue 1116 without elevating unrelated or external acceptance dimensions
+  - archive this task and release ownership
+  - rerun exact-head gates if archival changes the head
+  - mark PR ready, merge only the verified head and close Issue 1116
+next_action: Run exact-head CI from this user-authored checkpoint, then complete audit, ledger reconciliation, archival and merge.
 ```

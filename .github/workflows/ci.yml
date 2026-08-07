@@ -331,7 +331,7 @@ jobs:
   build:
     name: "Build distributions"
     needs: [classify, core-tests]
-    if: always() && needs.classify.outputs.build_distribution == 'true' && needs.core-tests.result == 'success'
+    if: ${{ always() && !cancelled() && needs.classify.outputs.build_distribution == 'true' && needs.core-tests.result == 'success' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -361,7 +361,7 @@ jobs:
       - exhaustive-tests
       - online-tests
       - build
-    if: always()
+    if: ${{ always() && !cancelled() }}
     runs-on: ubuntu-24.04
     steps:
       - name: Validate selected and skipped job outcomes

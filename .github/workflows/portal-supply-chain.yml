@@ -276,8 +276,6 @@ jobs:
         with:
           subject-name: portal-control-plane
           subject-digest: ${{ steps.images.outputs.control_digest }}
-          predicate-type: https://slsa.dev/provenance/v1
-          predicate-path: ${{ runner.temp }}/portal-supply-chain/control-plane.provenance-predicate.json
 
       - name: Attest web SBOM
         id: web_sbom_attest
@@ -293,8 +291,6 @@ jobs:
         with:
           subject-name: portal-web
           subject-digest: ${{ steps.images.outputs.web_digest }}
-          predicate-type: https://slsa.dev/provenance/v1
-          predicate-path: ${{ runner.temp }}/portal-supply-chain/web.provenance-predicate.json
 
       - name: Preserve attestation bundles with evidence
         shell: bash

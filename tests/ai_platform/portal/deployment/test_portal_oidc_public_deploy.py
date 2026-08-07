@@ -133,9 +133,21 @@ def test_public_runtime_requires_https_and_has_no_automatic_membership() -> None
 def test_images_are_pinned_and_control_plane_runs_public_runtime() -> None:
     web = (ROOT / "deploy" / "synology" / "portal" / "Dockerfile").read_text(encoding="utf-8")
     control = (DEPLOYMENT / "Dockerfile.control-plane").read_text(encoding="utf-8")
+    web_base = (
+        "node:22.23.1-bookworm-slim@sha256:"
+        "6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3"
+    )
+    control_base = (
+        "python:3.13.14-slim-bookworm@sha256:"
+        "9d7f287598e1a5a978c015ee176d8216435aaf335ed69ac3c38dd1bbb10e8d64"
+    )
 
-    assert web.count("node:22.23.1-bookworm-slim@sha256:") == 3
-    assert "python:3.13.13-slim-bookworm@sha256:" in control
+    assert f"FROM {web_base} AS dependencies" in web
+    assert f"FROM {web_base} AS builder" in web
+    assert f"FROM {web_base} AS node-security-runtime" in web
+    assert f"FROM {web_base} AS runtime" in web
+    assert web.count(f"FROM {web_base}") == 4
+    assert f"FROM {control_base}" in control
     assert "ai_platform.portal.identity.public_runtime:app" in control
     assert ":latest" not in web
     assert ":latest" not in control

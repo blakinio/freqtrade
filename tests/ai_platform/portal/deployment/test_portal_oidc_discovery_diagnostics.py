@@ -61,7 +61,7 @@ def test_workflow_runs_safe_diagnostic_only_after_deploy_failure() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     deploy_index = workflow.index("- name: Apply provider and deploy public Portal OIDC")
     diagnostic_index = workflow.index("- name: Diagnose discovery and JWKS failure safely")
-    upload_index = workflow.index("- name: Upload secret-free deployment report")
+    upload_index = workflow.index("- name: Upload secret-free deployment and supply-chain evidence")
 
     assert deploy_index < diagnostic_index < upload_index
     assert "if: steps.deploy.outcome == 'failure'" in workflow

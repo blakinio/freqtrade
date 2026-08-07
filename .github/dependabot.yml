@@ -8,12 +8,15 @@ updates:
   directories:
     - "/"
     - "/docker"
+    - "/deploy/synology/portal"
+    - "/deploy/synology/portal-oidc"
   schedule:
     interval: daily
   ignore:
   - dependency-name: "*"
     update-types: ["version-update:semver-major"]
   open-pull-requests-limit: 10
+  target-branch: develop
   commit-message:
     prefix: "build(deps)"
 
@@ -60,6 +63,46 @@ updates:
         - "gymnasium"
         - "stable-baselines3"
         - "sb3-contrib"
+
+- package-ecosystem: npm
+  directory: "/ai_platform/portal/web"
+  cooldown:
+    default-days: 7
+  schedule:
+    interval: "cron"
+    cronjob: "0 4 * * 1"
+  open-pull-requests-limit: 10
+  target-branch: develop
+  commit-message:
+    prefix: "build(portal-deps)"
+  groups:
+    portal-runtime:
+      dependency-type: "production"
+      update-types:
+        - "minor"
+        - "patch"
+    portal-development:
+      dependency-type: "development"
+      update-types:
+        - "minor"
+        - "patch"
+
+- package-ecosystem: pip
+  directory: "/deploy/synology/portal-oidc"
+  cooldown:
+    default-days: 7
+  schedule:
+    interval: "cron"
+    cronjob: "30 4 * * 1"
+  open-pull-requests-limit: 10
+  target-branch: develop
+  commit-message:
+    prefix: "build(portal-deps)"
+  groups:
+    portal-control-plane:
+      patterns:
+        - "*"
+
 - package-ecosystem: "github-actions"
   directory: "/"
   cooldown:

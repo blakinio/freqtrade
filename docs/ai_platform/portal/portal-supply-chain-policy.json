@@ -1,0 +1,71 @@
+{
+  "evidence": {
+    "forbidden_keys": [
+      "password",
+      "token",
+      "secret",
+      "cookie",
+      "credentials",
+      "private_key",
+      "client_secret"
+    ],
+    "forbidden_value_patterns": [
+      "-----BEGIN [A-Z ]*PRIVATE KEY-----",
+      "\\bAKIA[0-9A-Z]{16}\\b",
+      "/volume1/",
+      "(?:auth|quant)\\.molehill\\.cloud"
+    ],
+    "contextual_value_patterns": [
+      {
+        "id": "private-ipv4-endpoint",
+        "path_pattern": "(?:^|[._-])(?:host|hostname|url|uri|endpoint|address|server|issuer|origin|target|location|dsn|connection)(?:$|[._\\[\\]-])",
+        "value_pattern": "\\b(?:10(?:\\.[0-9]{1,3}){3}|127(?:\\.[0-9]{1,3}){3}|169\\.254(?:\\.[0-9]{1,3}){2}|172\\.(?:1[6-9]|2[0-9]|3[01])(?:\\.[0-9]{1,3}){2}|192\\.168(?:\\.[0-9]{1,3}){2})\\b"
+      }
+    ]
+  },
+  "license": {
+    "allowed_patterns": [
+      "^(UNKNOWN|NOASSERTION)$",
+      "\\b(MIT|ISC|Apache[- ]?2(\\.0)?|BSD|PSF|Python[- ]?2\\.0|Zlib|Unlicense|CC0|MPL[- ]?2(\\.0)?|LGPL|GPL|Artistic|Public Domain)\\b"
+    ],
+    "denied_patterns": [
+      "\\bAGPL(?:-|\\s)?3",
+      "Server Side Public License|\\bSSPL\\b",
+      "Commons Clause",
+      "Business Source License|\\bBUSL\\b"
+    ],
+    "exceptions": [],
+    "unclassified_action": "warn"
+  },
+  "schema_version": 1,
+  "vulnerability": {
+    "fail_severity": "high",
+    "require_fix_available": true,
+    "suppressions": [
+      {
+        "expires_at": "2026-10-15",
+        "id": "cpython-2026-11940-stable-runtime-gap",
+        "justification": "Python upstream fixes CVE-2026-11940 only in the Python 3.15 preview line; no stable production CPython release contains the fix before 3.15 final. The Portal control-plane has no tarfile extraction path. Re-evaluate immediately after stable Python 3.15 is released.",
+        "owner": "portal-security",
+        "package": "^python$",
+        "vulnerability_id": "^CVE-2026-11940$"
+      },
+      {
+        "expires_at": "2026-10-15",
+        "id": "cpython-2026-11972-stable-runtime-gap",
+        "justification": "Python upstream fixes CVE-2026-11972 only in the Python 3.15 preview line; no stable production CPython release contains the fix before 3.15 final. NVD scopes the issue to tarfile streaming mode and the Portal control-plane contains no tarfile usage. Re-evaluate immediately after stable Python 3.15 is released.",
+        "owner": "portal-security",
+        "package": "^python$",
+        "vulnerability_id": "^CVE-2026-11972$"
+      },
+      {
+        "expires_at": "2026-10-15",
+        "id": "cpython-2026-15308-stable-runtime-gap",
+        "justification": "Python upstream fixes CVE-2026-15308 only in the Python 3.15 preview line; no stable production CPython release contains the fix before 3.15 final. The Portal control-plane does not parse untrusted HTML with html.parser. Re-evaluate immediately after stable Python 3.15 is released.",
+        "owner": "portal-security",
+        "package": "^python$",
+        "vulnerability_id": "^CVE-2026-15308$"
+      }
+    ]
+  }
+}

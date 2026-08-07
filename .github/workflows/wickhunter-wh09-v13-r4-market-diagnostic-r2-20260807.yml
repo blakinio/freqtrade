@@ -1,0 +1,144 @@
+name: WickHunter WH09 v13 r4 public-market diagnostic r2
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-v13-r4-market-diagnostic-r2-20260807.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh09-v13-r4-market-diagnostic-r2-20260807
+  cancel-in-progress: false
+
+env:
+  EXPECTED_BASE_SHA: b251483461f737c5ac095a17950df5aa217f8e17
+  IMPLEMENTATION_SHA: 2525419f5023dbc9bc05fbdff5b3b29917c40eea
+  EXPECTED_OPERATOR_IMAGE_ID: sha256:5a06fd44864fe0078338bb21ae7d07d94ef93e60a70a212356a641d4083ba86a
+  OPERATOR_IMAGE: local/wickhunter-paper-runtime:sha-2525419f5023dbc9bc05fbdff5b3b29917c40eea
+  GATEWAY_IMAGE: local/wickhunter-paper-egress-v13-preflight-r4:sha-2525419f5023dbc9bc05fbdff5b3b29917c40eea
+  LIQUID20_LIVE_HOST: /volume1/docker/freqtrade-liquidations/data/live
+  LIQUID20_READER_GID: "0"
+  GATEWAY_CONTAINER: wickhunter-wh09-r4-market-diagnostic-r2-egress
+  INTERNAL_NETWORK: wickhunter-wh09-r4-market-diagnostic-r2-internal
+
+jobs:
+  diagnose:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v11.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Prove read-only one-file authority
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$EXPECTED_BASE_SHA" ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          git merge-base --is-ancestor "$IMPLEMENTATION_SHA" "$BASE_SHA"
+          [[ "$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")" == $'A\t.github/workflows/wickhunter-wh09-v13-r4-market-diagnostic-r2-20260807.yml' ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$(docker image inspect --format '{{.Id}}' "$OPERATOR_IMAGE")" == "$EXPECTED_OPERATOR_IMAGE_ID" ]]
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$GATEWAY_IMAGE")" == "$IMPLEMENTATION_SHA" ]]
+          for name in OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET FT_EXCHANGE_KEY FT_EXCHANGE_SECRET FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+            [[ -z "${!name:-}" ]] || { echo "forbidden credential/proxy environment: $name" >&2; exit 1; }
+          done
+
+      - name: Probe exact Liquid20 symbols through constrained gateway
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cleanup() {
+            docker rm -f "$GATEWAY_CONTAINER" >/dev/null 2>&1 || true
+            docker network rm "$INTERNAL_NETWORK" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          docker network create --internal "$INTERNAL_NETWORK" >/dev/null
+          docker create --name "$GATEWAY_CONTAINER" --init --user 0:0 --read-only --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777 \
+            --cap-drop ALL --cap-add NET_BIND_SERVICE --security-opt no-new-privileges:true --memory 256m --network bridge "$GATEWAY_IMAGE" >/dev/null
+          docker network connect "$INTERNAL_NETWORK" "$GATEWAY_CONTAINER"
+          docker start "$GATEWAY_CONTAINER" >/dev/null
+          gateway_ip="$(docker inspect --format "{{with index .NetworkSettings.Networks \"$INTERNAL_NETWORK\"}}{{.IPAddress}}{{end}}" "$GATEWAY_CONTAINER")"
+          [[ "$gateway_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]
+
+          docker run --rm --interactive --user 65532:65532 --group-add "$LIQUID20_READER_GID" --read-only \
+            --cap-drop ALL --security-opt no-new-privileges:true --network "$INTERNAL_NETWORK" \
+            --add-host "fapi.binance.com:$gateway_ip" \
+            --env HTTP_PROXY= --env HTTPS_PROXY= --env ALL_PROXY= --env http_proxy= --env https_proxy= --env all_proxy= \
+            --mount "type=bind,src=$LIQUID20_LIVE_HOST,dst=/runtime/liquid20,readonly" \
+            --entrypoint python "$OPERATOR_IMAGE" - > "$RUNNER_TEMP/wickhunter-wh09-v13-r4-market-diagnostic-r2.json" <<'PY'
+          import json
+          import socket
+          import time
+          import urllib.error
+          from concurrent.futures import ThreadPoolExecutor
+          from pathlib import Path
+          from ai_platform.wickhunter.candidate_paper_runtime_operator import fetch_public_market_snapshot, load_liquid20_snapshot
+
+          now_ms = time.time_ns() // 1_000_000
+          result = {"status":"read_only_market_diagnostic_r2","observed_at_ms":now_ms,"state_mutated":False,"orders_submitted":0,"live_capital_authorized":False}
+          try:
+              socket.create_connection(("1.1.1.1",443),timeout=2)
+          except OSError:
+              result["direct_external_egress_blocked"] = True
+          else:
+              raise SystemExit("diagnostic unexpectedly has direct external egress")
+
+          snap = load_liquid20_snapshot(Path('/runtime/liquid20'), now_ms=now_ms, maximum_age_ms=300_000)
+          symbols = tuple(sorted(snap.universe.selected_symbols))
+          result.update({"liquid20_snapshot_id":snap.snapshot_id,"liquid20_observed_at_ms":snap.observed_at_ms,"selected_symbols":list(symbols),"selected_symbol_count":len(symbols)})
+
+          def chain(exc):
+              rows=[]; seen=set(); cur=exc
+              while cur is not None and id(cur) not in seen:
+                  seen.add(id(cur)); row={"type":type(cur).__name__,"message":str(cur)}
+                  if isinstance(cur, urllib.error.HTTPError):
+                      row["http_status"]=cur.code
+                      try: row["http_body"]=cur.read(4096).decode('utf-8',errors='replace')
+                      except Exception as read_exc: row["http_body_error"]=f"{type(read_exc).__name__}: {read_exc}"
+                  rows.append(row); cur=cur.__cause__ or cur.__context__
+              return rows
+
+          def probe(symbol):
+              started=time.monotonic_ns()
+              try:
+                  market=fetch_public_market_snapshot(symbol=symbol, observed_at_ms=now_ms)
+                  return {"symbol":symbol,"ok":True,"elapsed_ms":(time.monotonic_ns()-started)//1_000_000,"completed_candle_close_ms":market.completed_candle_close_ms}
+              except Exception as exc:
+                  return {"symbol":symbol,"ok":False,"elapsed_ms":(time.monotonic_ns()-started)//1_000_000,"error":f"{type(exc).__name__}: {exc}","cause_chain":chain(exc)}
+
+          sequential=[probe(symbol) for symbol in symbols]
+          result["sequential"]=sequential
+          result["sequential_ok_count"]=sum(row["ok"] for row in sequential)
+          with ThreadPoolExecutor(max_workers=min(8,max(1,len(symbols))),thread_name_prefix='diagnostic-public-market') as pool:
+              concurrent=list(pool.map(probe,symbols))
+          result["concurrent"]=concurrent
+          result["concurrent_ok_count"]=sum(row["ok"] for row in concurrent)
+          result["operator_batch_reproduced"]=result["concurrent_ok_count"] != len(symbols)
+          print(json.dumps(result,indent=2,sort_keys=True))
+          PY
+          cat "$RUNNER_TEMP/wickhunter-wh09-v13-r4-market-diagnostic-r2.json"
+
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v11.0.1
+        with:
+          name: wickhunter-wh09-v13-r4-market-diagnostic-r2-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/wickhunter-wh09-v13-r4-market-diagnostic-r2.json
+          if-no-files-found: warn
+          retention-days: 30

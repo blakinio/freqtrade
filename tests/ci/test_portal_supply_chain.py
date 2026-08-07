@@ -212,9 +212,7 @@ def test_approved_deploy_uses_and_records_exact_image_ids(tmp_path: Path) -> Non
 
 
 def test_workflow_pins_scanners_attestation_and_api_mode() -> None:
-    workflow = (ROOT / ".github/workflows/portal-supply-chain.yml").read_text(
-        encoding="utf-8"
-    )
+    workflow = (ROOT / ".github/workflows/portal-supply-chain.yml").read_text(encoding="utf-8")
     assert 'SYFT_VERSION: "1.50.0"' in workflow
     assert "bf7b29ff57f06da30918266a0e1c2885a8f99784798d1bdb1628886aa015d788" in workflow
     assert 'GRYPE_VERSION: "0.116.1"' in workflow
@@ -222,14 +220,12 @@ def test_workflow_pins_scanners_attestation_and_api_mode() -> None:
     assert "actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6" in workflow
     assert "PORTAL_WEB_DATA_MODE=api" in workflow
     assert "github.event.pull_request.head.repo.full_name == github.repository" in workflow
-    assert "predicate = statement.get(\"predicate\")" in workflow
+    assert 'predicate = statement.get("predicate")' in workflow
     assert "provenance-predicate.json" in workflow
 
 
 def test_workflow_keeps_elevated_permissions_on_internal_exact_image_job() -> None:
-    workflow = (ROOT / ".github/workflows/portal-supply-chain.yml").read_text(
-        encoding="utf-8"
-    )
+    workflow = (ROOT / ".github/workflows/portal-supply-chain.yml").read_text(encoding="utf-8")
     top_permissions, jobs = workflow.split("jobs:", maxsplit=1)
     assert "id-token: write" not in top_permissions
     assert "attestations: write" not in top_permissions
@@ -450,9 +446,7 @@ def test_rollback_archive_retains_previous_approval_and_matching_evidence(
     )
     report2 = tmp_path / "report-2.json"
     report2.write_text('{"status":"success"}\n', encoding="utf-8")
-    current1 = json.loads(
-        (archive_root / "current.json").read_text(encoding="utf-8")
-    )
+    current1 = json.loads((archive_root / "current.json").read_text(encoding="utf-8"))
     runtime._promote_approval_archive(
         archive_root,
         archive2,
@@ -461,12 +455,8 @@ def test_rollback_archive_retains_previous_approval_and_matching_evidence(
         current1,
     )
 
-    current = json.loads(
-        (archive_root / "current.json").read_text(encoding="utf-8")
-    )
-    previous = json.loads(
-        (archive_root / "previous.json").read_text(encoding="utf-8")
-    )
+    current = json.loads((archive_root / "current.json").read_text(encoding="utf-8"))
+    previous = json.loads((archive_root / "previous.json").read_text(encoding="utf-8"))
     assert current["archive_id"] == pointer2["archive_id"]
     assert previous["archive_id"] == pointer1["archive_id"]
     for archive, pointer in ((archive1, pointer1), (archive2, pointer2)):

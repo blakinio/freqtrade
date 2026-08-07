@@ -64,7 +64,7 @@ jobs:
       - name: Install focused test runner
         run: python3 -m pip install --disable-pip-version-check pytest==9.1.1
       - name: Run focused policy tests
-        run: python3 -m pytest -q tests/ci/test_portal_supply_chain.py
+        run: python3 -m pytest -q --confcutdir=tests/ci tests/ci/test_portal_supply_chain.py
 
   exact-images:
     name: Build, scan and smoke exact Portal images

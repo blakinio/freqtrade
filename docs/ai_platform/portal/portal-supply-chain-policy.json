@@ -1,0 +1,40 @@
+{
+  "evidence": {
+    "forbidden_keys": [
+      "password",
+      "token",
+      "secret",
+      "cookie",
+      "credentials",
+      "private_key",
+      "client_secret"
+    ],
+    "forbidden_value_patterns": [
+      "-----BEGIN [A-Z ]*PRIVATE KEY-----",
+      "\\bAKIA[0-9A-Z]{16}\\b",
+      "\\b(?:10|127|169\\.254|172\\.(?:1[6-9]|2[0-9]|3[01])|192\\.168)\\.[0-9.]+\\b",
+      "/volume1/",
+      "(?:auth|quant)\\.molehill\\.cloud"
+    ]
+  },
+  "license": {
+    "allowed_patterns": [
+      "^(UNKNOWN|NOASSERTION)$",
+      "\\b(MIT|ISC|Apache[- ]?2(\\.0)?|BSD|PSF|Python[- ]?2\\.0|Zlib|Unlicense|CC0|MPL[- ]?2(\\.0)?|LGPL|GPL|Artistic|Public Domain)\\b"
+    ],
+    "denied_patterns": [
+      "\\bAGPL(?:-|\\s)?3",
+      "Server Side Public License|\\bSSPL\\b",
+      "Commons Clause",
+      "Business Source License|\\bBUSL\\b"
+    ],
+    "exceptions": [],
+    "unclassified_action": "warn"
+  },
+  "schema_version": 1,
+  "vulnerability": {
+    "fail_severity": "high",
+    "require_fix_available": true,
+    "suppressions": []
+  }
+}

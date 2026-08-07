@@ -17,6 +17,10 @@ concurrency:
 
 env:
   REQUEST_PATH: deploy/synology/portal-oidc/run-requests/public-oidc-20260801-v1.json
+  SYFT_VERSION: "1.50.0"
+  SYFT_LINUX_AMD64_SHA256: "bf7b29ff57f06da30918266a0e1c2885a8f99784798d1bdb1628886aa015d788"
+  GRYPE_VERSION: "0.116.1"
+  GRYPE_LINUX_AMD64_SHA256: "0122df7b655981abe547ad3d2190d65551dac6a2bfc80b4dc2a989b5d0587458"
 
 jobs:
   deploy:
@@ -26,7 +30,7 @@ jobs:
       github.event.pull_request.base.ref == 'develop'
     runs-on: [freqtrade-staging]
     environment: synology-staging
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Checkout exact request head
@@ -91,6 +95,43 @@ jobs:
             fi
           done
 
+      - name: Install checksum-pinned Syft and Grype
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d "$RUNNER_TEMP/portal-tools"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz" \
+            --output "$RUNNER_TEMP/syft.tar.gz"
+          echo "${SYFT_LINUX_AMD64_SHA256}  $RUNNER_TEMP/syft.tar.gz" | sha256sum --check --strict
+          tar --extract --gzip --file "$RUNNER_TEMP/syft.tar.gz" \
+            --directory "$RUNNER_TEMP/portal-tools" syft
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_amd64.tar.gz" \
+            --output "$RUNNER_TEMP/grype.tar.gz"
+          echo "${GRYPE_LINUX_AMD64_SHA256}  $RUNNER_TEMP/grype.tar.gz" | sha256sum --check --strict
+          tar --extract --gzip --file "$RUNNER_TEMP/grype.tar.gz" \
+            --directory "$RUNNER_TEMP/portal-tools" grype
+          echo "$RUNNER_TEMP/portal-tools" >> "$GITHUB_PATH"
+
+      - name: Build and approve exact deployment images
+        id: supply-chain
+        shell: bash
+        env:
+          IMPLEMENTATION_SHA: ${{ github.event.pull_request.base.sha }}
+          EVIDENCE_DIR: ${{ runner.temp }}/portal-supply-chain
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          python3 tools/agents/portal_supply_chain.py build-verify \
+            --repository "$GITHUB_WORKSPACE" \
+            --source-sha "$IMPLEMENTATION_SHA" \
+            --output-dir "$EVIDENCE_DIR" \
+            --approval "$EVIDENCE_DIR/approval.json"
+          python3 tools/agents/portal_supply_chain.py verify-approval \
+            --approval "$EVIDENCE_DIR/approval.json" \
+            --expected-source-sha "$IMPLEMENTATION_SHA"
+
       - name: Prepare Synology host Portal state directory
         shell: bash
         run: |
@@ -105,9 +146,13 @@ jobs:
         env:
           REPORT_PATH: ${{ runner.temp }}/portal-public-authentik-oidc-report.json
           IMPLEMENTATION_SHA: ${{ github.event.pull_request.base.sha }}
+          APPROVAL_PATH: ${{ runner.temp }}/portal-supply-chain/approval.json
         run: |
           set -euo pipefail
-          python3 deploy/synology/portal-oidc/deploy_entrypoint.py \
+          # Approved-image wrapper invokes the canonical deployer without rebuilding:
+          # python3 deploy/synology/portal-oidc/deploy_entrypoint.py
+          python3 tools/agents/portal_supply_chain.py deploy-approved \
+            --approved-images "$APPROVAL_PATH" \
             --repository "$GITHUB_WORKSPACE" \
             --request "$REQUEST_PATH" \
             --expected-repository-sha "$IMPLEMENTATION_SHA" \
@@ -134,13 +179,15 @@ jobs:
           set -euo pipefail
           python3 deploy/synology/portal-oidc/diagnose_discovery.py
 
-      - name: Upload secret-free deployment report
+      - name: Upload secret-free deployment and supply-chain evidence
         id: upload-report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: portal-public-authentik-oidc-${{ github.event.pull_request.number }}
-          path: ${{ runner.temp }}/portal-public-authentik-oidc-report.json
+          path: |
+            ${{ runner.temp }}/portal-public-authentik-oidc-report.json
+            ${{ runner.temp }}/portal-supply-chain
           if-no-files-found: error
           retention-days: 30
 
@@ -166,7 +213,10 @@ jobs:
 
           report = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
           authentik = report.get("authentik", {})
+          supply_chain = report.get("supply_chain", {})
           print(f"- Status: `{report.get('status', 'unknown')}`")
+          print(f"- Supply chain: `{supply_chain.get('status', 'unknown')}`")
+          print(f"- Rebuilt during deploy: `{supply_chain.get('rebuilt_during_deploy', True)}`")
           print(f"- Grant types: `{authentik.get('grant_types', 'unknown')}`")
           print(f"- Legacy grants disabled: `{authentik.get('legacy_grants_disabled', False)}`")
           print(f"- Identity fixture disabled: `{report.get('identity_fixture_disabled', False)}`")
@@ -185,6 +235,7 @@ jobs:
           DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
           GRANT_TYPES_OUTCOME: ${{ steps.verify-grants.outcome }}
           REPORT_PATH: ${{ runner.temp }}/portal-public-authentik-oidc-report.json
+          APPROVAL_PATH: ${{ runner.temp }}/portal-supply-chain/approval.json
         run: |
           set -euo pipefail
           if [[ "$DEPLOY_OUTCOME" != "success" ]]; then
@@ -195,12 +246,13 @@ jobs:
             echo "Authentik grant-type verification failed closed" >&2
             exit 1
           fi
-          python3 - "$REPORT_PATH" <<'PY'
+          python3 - "$REPORT_PATH" "$APPROVAL_PATH" <<'PY'
           import json
           import pathlib
           import sys
 
           report = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          approval = json.loads(pathlib.Path(sys.argv[2]).read_text(encoding="utf-8"))
           required = {
               "status": "success",
               "identity_fixture_disabled": True,
@@ -222,4 +274,19 @@ jobs:
               raise SystemExit("authorization-code grant is not enabled")
           if authentik.get("legacy_grants_disabled") is not True:
               raise SystemExit("legacy Authentik grants are not disabled")
+          supply_chain = report.get("supply_chain")
+          if not isinstance(supply_chain, dict):
+              raise SystemExit("deployment report supply-chain section is missing")
+          if supply_chain.get("status") != "approved_exact_images":
+              raise SystemExit("approved exact images were not proven")
+          if supply_chain.get("rebuilt_during_deploy") is not False:
+              raise SystemExit("deployment rebuilt images after approval")
+          portal = report.get("portal", {})
+          expected_images = {
+              "control_plane_image_id": approval["images"]["control-plane"]["digest"],
+              "web_image_id": approval["images"]["web"]["digest"],
+          }
+          for key, expected in expected_images.items():
+              if portal.get(key) != expected:
+                  raise SystemExit(f"deployed image digest mismatch: {key}")
           PY

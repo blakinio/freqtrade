@@ -1098,6 +1098,23 @@
       ]
     },
     {
+      "classification": "canonical",
+      "lifecycle": "active",
+      "name": "Portal Exact-Image Supply Chain",
+      "owner": "ai-platform",
+      "path": ".github/workflows/portal-supply-chain.yml",
+      "permissions": {
+        "contents": "read"
+      },
+      "review_date": "2027-02-03",
+      "risk_class": "high",
+      "triggers": [
+        "pull_request",
+        "push",
+        "workflow_dispatch"
+      ]
+    },
+    {
       "classification": "reusable_component",
       "lifecycle": "active",
       "name": "Portal Universal E2E",

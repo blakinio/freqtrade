@@ -23,6 +23,7 @@ from ai_platform.wickhunter.candidate_paper_runtime_service import CandidatePape
 from ai_platform.wickhunter.candidate_runtime_binding import build_candidate_paper_runtime_binding
 from ai_platform.wickhunter.canonical import canonical_json, canonical_sha256
 from ai_platform.wickhunter.contracts import DriftState
+from ai_platform.wickhunter.shadow_runtime_common import ShadowRuntimeError
 
 
 TELEMETRY_SCHEMA_VERSION = "wickhunter-paper-runtime-cycle-telemetry-v1"
@@ -33,6 +34,7 @@ RETRY_DELAY_SECONDS = 5
 MAX_TELEMETRY_RECORDS = 256
 MAX_TELEMETRY_BYTES = 512 * 1024
 MAX_ERROR_MESSAGE_CHARS = 240
+TRANSIENT_SHADOW_RUNTIME_MESSAGES = frozenset({"source state is observed in the future"})
 ZERO_AUTHORITY = {
     "protected_holdout_accessed": False,
     "automatic_promotion_enabled": False,
@@ -140,12 +142,28 @@ def _write_new_json(path: Path, payload: object) -> None:
         raise CandidatePaperRuntimeSupervisorError(f"refusing to overwrite {path}") from exc
 
 
+def _is_retryable_cycle_error(error: BaseException) -> bool:
+    if isinstance(error, CandidatePaperRuntimeOperatorError):
+        return True
+    current: BaseException | None = error
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if (
+            isinstance(current, ShadowRuntimeError)
+            and str(current) in TRANSIENT_SHADOW_RUNTIME_MESSAGES
+        ):
+            return True
+        current = current.__cause__ if current.__cause__ is not None else current.__context__
+    return False
+
+
 def _bounded_error(error: BaseException) -> dict[str, object]:
     message = " ".join(str(error).split())
     return {
         "code": type(error).__name__,
         "message": message[:MAX_ERROR_MESSAGE_CHARS],
-        "retryable": isinstance(error, CandidatePaperRuntimeOperatorError),
+        "retryable": _is_retryable_cycle_error(error),
     }
 
 
@@ -432,7 +450,7 @@ class CandidatePaperRuntimeSupervisor:
                 raise
             except Exception as exc:
                 errors.append(_bounded_error(exc))
-                retryable = isinstance(exc, CandidatePaperRuntimeOperatorError)
+                retryable = _is_retryable_cycle_error(exc)
                 if retryable and attempt < self.max_attempts:
                     self.sleep(self.retry_delay_seconds)
                     continue

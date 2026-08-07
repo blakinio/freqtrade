@@ -1,0 +1,205 @@
+name: WickHunter WH09 candidate viability diagnostic
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-candidate-viability-diagnostic-20260808.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh09-candidate-viability-diagnostic-20260808
+  cancel-in-progress: false
+
+env:
+  EXPECTED_BASE_SHA: c9aedeb75c9de5e6df18c36968c3f6a9126fd29c
+  DATASET_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-datasets/wickhunter-wh01-production-dataset-20260731-v3-e02199bfac82-eaccc5ec-8f5be573
+  PRICE_PATH_ROOT: /var/lib/freqtrade-staging-state/wickhunter-replay-price-path/packages/wickhunter-wh02-replay-price-path-20260731-v6-h180s-626087ca45d6
+  REPLAY_ROOT: /var/lib/freqtrade-staging-state/wickhunter-deterministic-replay/packages/wickhunter-wh02-deterministic-replay-20260802-v5-626087ca45d6
+
+jobs:
+  diagnose:
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 120
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    steps:
+      - name: Check out exact request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Prove one-file request and closed authority
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$EXPECTED_BASE_SHA" ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          [[ "$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")" == $'A\t.github/workflows/wickhunter-wh09-candidate-viability-diagnostic-20260808.yml' ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          for name in OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET FT_EXCHANGE_KEY FT_EXCHANGE_SECRET FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+            [[ -z "${!name:-}" ]] || { echo "forbidden credential/proxy environment: $name" >&2; exit 1; }
+          done
+          for path in "$DATASET_ROOT" "$PRICE_PATH_ROOT" "$REPLAY_ROOT"; do
+            [[ -d "$path" && ! -L "$path" ]]
+          done
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3
+        with:
+          activate-environment: true
+          python-version: "3.13"
+          enable-cache: false
+
+      - name: Install locked dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -r requirements-dev.txt
+          uv pip install -e ft_client/
+          uv pip install -e .
+
+      - name: Diagnose finite candidate model viability
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$GITHUB_WORKSPACE" python3 - <<'PY' | tee "$RUNNER_TEMP/wickhunter-wh09-candidate-viability.json"
+          import json
+          import os
+          from dataclasses import replace
+          from decimal import Decimal
+          from pathlib import Path
+
+          from ai_platform.wickhunter.bounded_optimizer import BoundedOptimizerPolicy, optimize_bounded_parameters
+          from ai_platform.wickhunter.canonical import canonical_json
+          from ai_platform.wickhunter.lightgbm_scorer import LightGBMScorerError, LightGBMTrainingPolicy, evaluate_lightgbm_against_baseline, train_lightgbm_scorer
+          from ai_platform.wickhunter.parameters import DEFAULT_RESEARCH_BOUNDS, INITIAL_COMPATIBILITY_PRIOR, WickHunterParameters, validate_parameters
+          from ai_platform.wickhunter.production_evaluation import load_verified_evaluation_dataset
+
+          evaluation = load_verified_evaluation_dataset(
+              materialization_root=Path(os.environ['DATASET_ROOT']),
+              price_path_root=Path(os.environ['PRICE_PATH_ROOT']),
+              replay_root=Path(os.environ['REPLAY_ROOT']),
+          )
+          if len(evaluation.cases) != 919:
+              raise SystemExit('evaluation case count mismatch')
+          if any((evaluation.protected_holdout_accessed, evaluation.immutable_inputs_mutated, evaluation.model_execution_authorized, evaluation.performance_research_authorized, evaluation.execution_enabled, evaluation.live_capital_authorized, evaluation.trading_credentials_present)) or evaluation.orders_submitted != 0:
+              raise SystemExit('unsafe evaluation authority')
+
+          candidates: list[WickHunterParameters] = []
+          index = 0
+          for band in (Decimal('0.001'), Decimal('0.0015'), Decimal('0.002')):
+              for percentile in (Decimal('0.50'), Decimal('0.65')):
+                  for zscore in (Decimal('0'), Decimal('1')):
+                      index += 1
+                      candidate = replace(
+                          INITIAL_COMPATIBILITY_PRIOR,
+                          parameter_version=f'wickhunter-production-h180s-{index:02d}',
+                          liquidation_percentile=percentile,
+                          liquidation_zscore=zscore,
+                          minimum_quote_volume_usd=Decimal('1000000'),
+                          long_vwap_distance_ratio=band,
+                          short_vwap_distance_ratio=band,
+                          minimum_wick_ratio=Decimal('0'),
+                          minimum_volatility=Decimal('0'),
+                          maximum_volatility=Decimal('0.50'),
+                          cooldown_ms=0,
+                          maximum_event_age_ms=300_000,
+                          base_risk_ratio=Decimal('0.001'),
+                          leverage=Decimal('1'),
+                          dca_enabled=False,
+                          dca_levels=0,
+                          dca_total_risk_ratio=Decimal('0.001'),
+                          maximum_holding_ms=180_000,
+                          minimum_confidence=Decimal('0.50'),
+                      )
+                      validate_parameters(candidate, DEFAULT_RESEARCH_BOUNDS)
+                      candidates.append(candidate)
+
+          policy = LightGBMTrainingPolicy(
+              training_splits=('train',),
+              calibration_splits=('validation',),
+              validation_splits=('test',),
+              forbidden_splits=('holdout','protected_holdout'),
+              seed=20260801,
+              num_boost_round=40,
+              num_leaves=7,
+              min_data_in_leaf=2,
+              learning_rate=Decimal('0.05'),
+              calibration_bins=10,
+              no_trade_confidence=Decimal('0.60'),
+          )
+          rows=[]; trainable=[]; viable=[]
+          for candidate in candidates:
+              row={'parameter_version':candidate.parameter_version,'parameter_hash':candidate.parameter_hash}
+              try:
+                  artifact=train_lightgbm_scorer(cases=evaluation.cases,parameters=candidate,parameter_bounds=DEFAULT_RESEARCH_BOUNDS,policy=policy)
+              except LightGBMScorerError as exc:
+                  row.update({'trainable':False,'error':str(exc)})
+                  rows.append(row); continue
+              trainable.append(candidate)
+              maximum=max(artifact.calibration.probabilities)
+              positive_multiplier_possible=maximum > artifact.training_policy.no_trade_confidence
+              if positive_multiplier_possible:
+                  viable.append(candidate)
+              comparison=evaluate_lightgbm_against_baseline(artifact=artifact,cases=evaluation.cases,parameters=candidate,parameter_bounds=DEFAULT_RESEARCH_BOUNDS)
+              row.update({
+                  'trainable':True,
+                  'model_hash':artifact.model_hash,
+                  'maximum_calibrated_confidence':str(maximum),
+                  'no_trade_confidence':str(artifact.training_policy.no_trade_confidence),
+                  'positive_runtime_risk_multiplier_possible':positive_multiplier_possible,
+                  'test_selected_count':comparison.model_overall.selected_count,
+                  'test_ignored_count':comparison.model_overall.ignored_count,
+                  'test_net_return_sum':None if comparison.model_overall.net_return_sum is None else str(comparison.model_overall.net_return_sum),
+                  'test_net_return_mean':None if comparison.model_overall.net_return_mean is None else str(comparison.model_overall.net_return_mean),
+              })
+              rows.append(row)
+
+          optimizer_policy=BoundedOptimizerPolicy(training_splits=('train',),validation_splits=('validation',),test_splits=('test',),forbidden_splits=('holdout','protected_holdout'),seed=20260801,initial_trials=min(3,len(trainable)),maximum_trials=len(trainable),top_k=min(3,len(trainable)))
+          all_result=optimize_bounded_parameters(cases=evaluation.cases,candidates=trainable,parameter_bounds=DEFAULT_RESEARCH_BOUNDS,policy=optimizer_policy) if trainable else None
+          viable_result=None
+          if viable:
+              viable_policy=replace(optimizer_policy,initial_trials=min(3,len(viable)),maximum_trials=len(viable),top_k=min(3,len(viable)))
+              viable_result=optimize_bounded_parameters(cases=evaluation.cases,candidates=viable,parameter_bounds=DEFAULT_RESEARCH_BOUNDS,policy=viable_policy)
+          result={
+              'schema_version':'wickhunter-wh09-candidate-viability-diagnostic-v1',
+              'evaluation_sha256':evaluation.evaluation_sha256,
+              'dataset_manifest_sha256':evaluation.dataset_manifest_sha256,
+              'candidate_count':len(candidates),
+              'trainable_count':len(trainable),
+              'operationally_viable_count':len(viable),
+              'all_validation_top_parameter_hashes':[] if all_result is None else list(all_result.top_parameter_sha256s),
+              'viable_validation_top_parameter_hashes':[] if viable_result is None else list(viable_result.top_parameter_sha256s),
+              'rows':rows,
+              'selection_performed':False,
+              'test_used_for_selection':False,
+              'protected_holdout_accessed':False,
+              'automatic_promotion_enabled':False,
+              'trading_credentials_present':False,
+              'order_adapter_present':False,
+              'execution_enabled':False,
+              'orders_submitted':0,
+              'live_capital_authorized':False,
+          }
+          print(canonical_json(result))
+          PY
+
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: wickhunter-wh09-candidate-viability-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/wickhunter-wh09-candidate-viability.json
+          if-no-files-found: error
+          retention-days: 30

@@ -157,12 +157,12 @@ test("production Liquid20 routes validate the authoritative session", async (t) 
   for (const route of routes) {
     const missing = await request(route);
     assert.equal(missing.response.status, 401, `${route}: missing`);
-    assert.equal(missing.response.headers.get("cache-control"), "no-store", `${route}: missing`);
+    assert.equal(missing.response.headers.get("cache-control"), "private, no-store", `${route}: missing`);
 
     for (const label of ["forged", "expired", "revoked", "unknown", "membership-mismatch"]) {
       const result = await request(route, tokens[label]);
       assert.equal(result.response.status, 401, `${route}: ${label}`);
-      assert.equal(result.response.headers.get("cache-control"), "no-store", `${route}: ${label}`);
+      assert.equal(result.response.headers.get("cache-control"), "private, no-store", `${route}: ${label}`);
       assert.equal(result.body.includes(tokens[label]), false, `${route}: ${label}`);
     }
 
@@ -183,7 +183,7 @@ test("production Liquid20 routes validate the authoritative session", async (t) 
 
     const valid = await request(route, tokens.valid);
     assert.equal(valid.response.status, 200, `${route}: valid`);
-    assert.equal(valid.response.headers.get("cache-control"), "no-store", `${route}: valid`);
+    assert.equal(valid.response.headers.get("cache-control"), "private, no-store", `${route}: valid`);
   }
 
   const fixtureBypass = await fetch(`${baseUrl}${routes[0]}`, {

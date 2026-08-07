@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   style:
-    runs-on: ubuntu-24.04
+    runs-on: [freqtrade-staging]
     timeout-minutes: 10
     steps:
       - name: Checkout exact head
@@ -37,16 +37,15 @@ jobs:
               text = text.replace(marker, "    previous: dict[str, Any] | None\n" + marker, 1)
           path.write_text(text, encoding="utf-8")
           PY
-          python3 -m pip install --disable-pip-version-check ruff==0.15.20
-          ruff check --fix \
+          docker run --rm -v "$GITHUB_WORKSPACE:/work" -w /work ghcr.io/astral-sh/ruff:0.15.20 check --fix \
             tools/agents/portal_supply_chain.py \
             tools/agents/portal_supply_chain_policy.py \
             tools/agents/portal_supply_chain_runtime.py
-          ruff format \
+          docker run --rm -v "$GITHUB_WORKSPACE:/work" -w /work ghcr.io/astral-sh/ruff:0.15.20 format \
             tools/agents/portal_supply_chain.py \
             tools/agents/portal_supply_chain_policy.py \
             tools/agents/portal_supply_chain_runtime.py
-          ruff check \
+          docker run --rm -v "$GITHUB_WORKSPACE:/work" -w /work ghcr.io/astral-sh/ruff:0.15.20 check \
             tools/agents/portal_supply_chain.py \
             tools/agents/portal_supply_chain_policy.py \
             tools/agents/portal_supply_chain_runtime.py

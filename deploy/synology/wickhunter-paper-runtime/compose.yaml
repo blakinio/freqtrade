@@ -22,7 +22,7 @@ services:
       - --public-market-base-url
       - https://fapi.binance.com
       - --poll-seconds
-      - ${POLL_SECONDS:-600}
+      - ${POLL_SECONDS:-60}
       - --maximum-source-age-ms
       - ${MAXIMUM_SOURCE_AGE_MS:-300000}
       - --model-drift

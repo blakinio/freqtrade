@@ -92,6 +92,12 @@ class CandidatePaperRuntimeBinding:
             raise CandidateRuntimeBindingError("candidate runtime mode must be SHADOW or PAPER")
         if self.policy.policy_sha256 != self.request.policy_sha256:
             raise CandidateRuntimeBindingError("candidate runtime policy identity mismatch")
+        accepted_dataset_hashes = {
+            self.identity.evaluation_sha256,
+            self.model_artifact.dataset_manifest_sha256,
+        }
+        if self.request.dataset_hash not in accepted_dataset_hashes:
+            raise CandidateRuntimeBindingError("candidate runtime identity mismatch: dataset_hash")
         bindings = (
             (self.identity.model_version, self.request.model_version, "model_version"),
             (self.identity.model_hash, self.request.model_hash, "model_hash"),
@@ -124,11 +130,6 @@ class CandidatePaperRuntimeBinding:
                 self.identity.rollback_parameter_hash,
                 self.request.rollback_parameter_hash,
                 "rollback parameter_hash",
-            ),
-            (
-                self.identity.evaluation_sha256,
-                self.request.dataset_hash,
-                "dataset_hash",
             ),
             (self.identity.source_commit_sha, self.request.code_sha, "code_sha"),
             (

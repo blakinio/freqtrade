@@ -221,6 +221,7 @@ class CandidatePaperRuntimeBinding:
         return replace(
             request,
             scorer=self.scorer,
+            dataset_hash=self.model_artifact.dataset_manifest_sha256,
             risk_context=replace(
                 request.risk_context,
                 candidate_paper_validation_authorized=True,

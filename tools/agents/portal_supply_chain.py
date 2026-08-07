@@ -10,10 +10,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
+
 TOOLS_DIR = Path(__file__).resolve().parent
 if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
+import portal_supply_chain_runtime as _runtime  # noqa: E402
 from portal_supply_chain_policy import (  # noqa: E402,F401
     PolicyError,
     evaluate_licenses,
@@ -21,7 +23,7 @@ from portal_supply_chain_policy import (  # noqa: E402,F401
     scan_evidence,
     validate_policy,
 )
-import portal_supply_chain_runtime as _runtime  # noqa: E402
+
 
 _original_provenance = _runtime._provenance
 _original_build_verify = _runtime.build_verify
@@ -147,11 +149,7 @@ def _augment_provenance(path: Path, scanner_database: dict[str, Any]) -> None:
         raise PolicyError("provenance resolvedDependencies must be a list")
     dependencies.append(
         {
-            "uri": (
-                "grype-db:"
-                f"{scanner_database['schema_version']}:"
-                f"{scanner_database['built']}"
-            ),
+            "uri": (f"grype-db:{scanner_database['schema_version']}:{scanner_database['built']}"),
             "digest": {"sha256": scanner_database["content_sha256"]},
         }
     )
@@ -213,9 +211,7 @@ def _blocked_policy_summary(output_dir: Path) -> dict[str, Any]:
 def build_verify(args: argparse.Namespace) -> int:
     output_dir = Path(args.output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
-    database_evidence, scanner_database, database_path = _capture_scanner_database(
-        output_dir
-    )
+    database_evidence, scanner_database, database_path = _capture_scanner_database(output_dir)
     previous_environment = _apply_frozen_grype_environment()
     try:
         try:

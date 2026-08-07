@@ -22,6 +22,7 @@ from portal_supply_chain_policy import (
     validate_policy,
 )
 
+
 IMAGE_ID = re.compile(r"sha256:[0-9a-f]{64}")
 SOURCE_SHA = re.compile(r"[0-9a-f]{40}")
 FROM_DIGEST = re.compile(
@@ -29,9 +30,7 @@ FROM_DIGEST = re.compile(
     r"(?:\s+AS\s+\S+)?\s*$",
     re.IGNORECASE,
 )
-DEFAULT_POLICY = Path(
-    "docs/ai_platform/portal/portal-supply-chain-policy.json"
-)
+DEFAULT_POLICY = Path("docs/ai_platform/portal/portal-supply-chain-policy.json")
 EVIDENCE = (
     "sbom",
     "vulnerabilities",
@@ -88,8 +87,7 @@ def _run(
             if line.strip()
         )
         raise RuntimeError(
-            f"command failed ({result.returncode}): "
-            f"{' '.join(command)}: {output[:1500]}"
+            f"command failed ({result.returncode}): {' '.join(command)}: {output[:1500]}"
         )
     return result
 
@@ -98,23 +96,14 @@ def _base_digests(dockerfile: Path) -> list[str]:
     result: list[str] = []
     for raw in dockerfile.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
-        if (
-            not line
-            or line.startswith("#")
-            or not line.upper().startswith("FROM ")
-        ):
+        if not line or line.startswith("#") or not line.upper().startswith("FROM "):
             continue
         match = FROM_DIGEST.fullmatch(line)
         if match is None:
-            raise PolicyError(
-                f"Docker base is not digest-pinned: "
-                f"{dockerfile}: {line}"
-            )
+            raise PolicyError(f"Docker base is not digest-pinned: {dockerfile}: {line}")
         result.append(match.group("digest"))
     if not result:
-        raise PolicyError(
-            f"Dockerfile has no FROM instruction: {dockerfile}"
-        )
+        raise PolicyError(f"Dockerfile has no FROM instruction: {dockerfile}")
     return result
 
 
@@ -141,17 +130,12 @@ def _verify_revision(reference: str, source_sha: str) -> None:
             "image",
             "inspect",
             "--format",
-            (
-                '{{ index .Config.Labels '
-                '"org.opencontainers.image.revision" }}'
-            ),
+            ('{{ index .Config.Labels "org.opencontainers.image.revision" }}'),
             reference,
         ]
     ).stdout.strip()
     if value != source_sha:
-        raise PolicyError(
-            f"image revision label mismatch: {reference}"
-        )
+        raise PolicyError(f"image revision label mismatch: {reference}")
 
 
 def _tool_version(command: list[str]) -> str:
@@ -217,19 +201,14 @@ def _provenance(
         *[
             {
                 "uri": f"docker-base:{value}",
-                "digest": {
-                    "sha256": value.removeprefix("sha256:")
-                },
+                "digest": {"sha256": value.removeprefix("sha256:")},
             }
             for value in bases
         ],
     ]
     predicate = {
         "buildDefinition": {
-            "buildType": (
-                "https://github.com/blakinio/freqtrade/"
-                "portal-exact-image@v1"
-            ),
+            "buildType": ("https://github.com/blakinio/freqtrade/portal-exact-image@v1"),
             "externalParameters": {
                 "image_name": f"freqtrade-portal-{name}",
                 "final_image_digest": image,
@@ -238,11 +217,7 @@ def _provenance(
             "resolvedDependencies": materials,
         },
         "runDetails": {
-            "builder": {
-                "id": (
-                    "https://github.com/blakinio/freqtrade/actions"
-                )
-            },
+            "builder": {"id": ("https://github.com/blakinio/freqtrade/actions")},
             "metadata": {"invocationId": "github-actions"},
             "byproducts": [
                 {
@@ -258,9 +233,7 @@ def _provenance(
         "subject": [
             {
                 "name": f"freqtrade-portal-{name}",
-                "digest": {
-                    "sha256": image.removeprefix("sha256:")
-                },
+                "digest": {"sha256": image.removeprefix("sha256:")},
             }
         ],
         "predicateType": "https://slsa.dev/provenance/v1",
@@ -272,40 +245,25 @@ def build_verify(args: argparse.Namespace) -> int:
     repo = Path(args.repository).resolve()
     source_sha = args.source_sha
     if SOURCE_SHA.fullmatch(source_sha) is None:
-        raise PolicyError(
-            "source SHA must be 40 lowercase hex characters"
-        )
+        raise PolicyError("source SHA must be 40 lowercase hex characters")
     policy_path = (repo / args.policy).resolve()
     policy = _load(policy_path)
     validate_policy(policy)
     output = Path(args.output_dir).resolve()
     output.mkdir(parents=True, exist_ok=True)
-    generated_at = (
-        dt.datetime.now(dt.timezone.utc)
-        .isoformat()
-        .replace("+00:00", "Z")
-    )
+    generated_at = dt.datetime.now(dt.UTC).isoformat().replace("+00:00", "Z")
     tools = {
         "syft": _tool_version(["syft", "version"]),
         "grype": _tool_version(["grype", "version"]),
     }
     specs: dict[str, ImageBuildSpec] = {
         "control-plane": {
-            "dockerfile": (
-                repo
-                / "deploy/synology/portal-oidc/"
-                "Dockerfile.control-plane"
-            ),
+            "dockerfile": (repo / "deploy/synology/portal-oidc/Dockerfile.control-plane"),
             "context": repo,
-            "manifests": [
-                repo
-                / "deploy/synology/portal-oidc/requirements.txt"
-            ],
+            "manifests": [repo / "deploy/synology/portal-oidc/requirements.txt"],
         },
         "web": {
-            "dockerfile": (
-                repo / "deploy/synology/portal/Dockerfile"
-            ),
+            "dockerfile": (repo / "deploy/synology/portal/Dockerfile"),
             "context": repo / "ai_platform/portal/web",
             "manifests": [
                 repo / "ai_platform/portal/web/package.json",
@@ -327,9 +285,7 @@ def build_verify(args: argparse.Namespace) -> int:
         sbom = prefix.with_suffix(".sbom.cdx.json")
         grype = prefix.with_suffix(".grype.json")
         licenses = prefix.with_suffix(".licenses.json")
-        vulnerabilities = prefix.with_suffix(
-            ".vulnerability-policy.json"
-        )
+        vulnerabilities = prefix.with_suffix(".vulnerability-policy.json")
         provenance = prefix.with_suffix(".provenance.json")
         _run(
             [
@@ -361,13 +317,8 @@ def build_verify(args: argparse.Namespace) -> int:
         )
         _save(licenses, license_payload)
         _save(vulnerabilities, vulnerability_payload)
-        if (
-            license_payload["status"] != "pass"
-            or vulnerability_payload["status"] != "pass"
-        ):
-            raise PolicyError(
-                f"{name} violates vulnerability or license policy"
-            )
+        if license_payload["status"] != "pass" or vulnerability_payload["status"] != "pass":
+            raise PolicyError(f"{name} violates vulnerability or license policy")
         bases = _base_digests(spec["dockerfile"])
         _save(
             provenance,
@@ -390,10 +341,7 @@ def build_verify(args: argparse.Namespace) -> int:
             "vulnerability_policy": vulnerabilities,
             "provenance": provenance,
         }
-        documents.extend(
-            (f"{name}.{key}", _load(path))
-            for key, path in files.items()
-        )
+        documents.extend((f"{name}.{key}", _load(path)) for key, path in files.items())
         images[name] = {
             "tag": tag,
             "digest": image,
@@ -408,10 +356,7 @@ def build_verify(args: argparse.Namespace) -> int:
         }
     violations = scan_evidence(documents, policy)
     if violations:
-        raise PolicyError(
-            "evidence policy rejected reports: "
-            + "; ".join(violations[:10])
-        )
+        raise PolicyError("evidence policy rejected reports: " + "; ".join(violations[:10]))
     approval = {
         "schema_version": 1,
         "status": "approved",
@@ -432,16 +377,12 @@ def build_verify(args: argparse.Namespace) -> int:
         json.dumps(
             {
                 "approval": str(approval_path),
-                "images": {
-                    key: value["digest"]
-                    for key, value in images.items()
-                },
+                "images": {key: value["digest"] for key, value in images.items()},
             },
             sort_keys=True,
         )
     )
     return 0
-
 
 
 def _approval_evidence_path(
@@ -507,9 +448,7 @@ def _approval_archive_files(
             raise PolicyError(f"missing approval evidence: {image_name}")
         for evidence_name, entry in evidence.items():
             if not isinstance(entry, dict):
-                raise PolicyError(
-                    f"invalid approval evidence: {image_name}.{evidence_name}"
-                )
+                raise PolicyError(f"invalid approval evidence: {image_name}.{evidence_name}")
             source = _approval_evidence_path(
                 approval_path,
                 entry.get("path"),
@@ -563,18 +502,13 @@ def _prepare_approval_archive(
         "archive_id": archive_id,
         "source_sha": approval["source_sha"],
         "approval_manifest_sha256": _digest(approval_path),
-        "images": {
-            name: detail["digest"]
-            for name, detail in images.items()
-        },
+        "images": {name: detail["digest"] for name, detail in images.items()},
     }
     if target.exists():
         _validate_approval_archive(target, pointer, require_deployed=False)
         return target, pointer
 
-    temporary = Path(
-        tempfile.mkdtemp(prefix=f".{archive_id}.", dir=archive_root)
-    )
+    temporary = Path(tempfile.mkdtemp(prefix=f".{archive_id}.", dir=archive_root))
     temporary.chmod(0o700)
     try:
         manifest: dict[str, str] = {}
@@ -603,10 +537,7 @@ def _prepare_approval_archive(
         shutil.copyfile(policy_source, policy_copy)
         policy_copy.chmod(0o600)
         manifest[policy_copy.name] = _digest(policy_copy)
-        if (
-            not request_path.is_file()
-            or request_path.is_symlink()
-        ):
+        if not request_path.is_file() or request_path.is_symlink():
             raise PolicyError("deployment request is not a regular file")
         request_copy = temporary / "deployment-request.json"
         if request_copy.name in manifest:
@@ -628,7 +559,6 @@ def _prepare_approval_archive(
         if temporary.exists():
             shutil.rmtree(temporary)
     return target, pointer
-
 
 
 def _approval_archive_metadata(
@@ -719,6 +649,7 @@ def _validate_approval_archive(
     if require_deployed:
         _validate_deployed_archive(archive, metadata, evidence)
 
+
 def _validate_rollback_pointer(
     archive_root: Path,
     pointer: dict[str, Any],
@@ -799,6 +730,7 @@ def _promote_approval_archive(
     }
     _private_json(archive_root / "current.json", current)
 
+
 def _verify_image_approval(
     approval_path: Path,
     source_sha: str,
@@ -808,11 +740,7 @@ def _verify_image_approval(
     if not isinstance(detail, dict):
         raise PolicyError(f"invalid image approval: {name}")
     image = detail.get("digest")
-    if (
-        not isinstance(image, str)
-        or IMAGE_ID.fullmatch(image) is None
-        or _image_id(image) != image
-    ):
+    if not isinstance(image, str) or IMAGE_ID.fullmatch(image) is None or _image_id(image) != image:
         raise PolicyError(f"approved image is unavailable: {name}")
     _verify_revision(image, source_sha)
     evidence = detail.get("evidence")
@@ -857,6 +785,7 @@ def verify_approval(args: argparse.Namespace) -> int:
     print(json.dumps(result, sort_keys=True))
     return 0
 
+
 def _module(name: str, path: Path) -> ModuleType:
     spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:
@@ -888,20 +817,11 @@ def _annotate_deployment_report(
     report = _load(report_path)
     portal = report.get("portal")
     if not isinstance(portal, dict):
-        raise PolicyError(
-            "successful deployment report has no Portal section"
-        )
-    if (
-        portal.get("control_plane_image_id")
-        != images["control-plane"]
-    ):
-        raise PolicyError(
-            "deployed control-plane image differs from approval"
-        )
+        raise PolicyError("successful deployment report has no Portal section")
+    if portal.get("control_plane_image_id") != images["control-plane"]:
+        raise PolicyError("deployed control-plane image differs from approval")
     if portal.get("web_image_id") != images["web"]:
-        raise PolicyError(
-            "deployed web image differs from approval"
-        )
+        raise PolicyError("deployed web image differs from approval")
     report["supply_chain"] = {
         "status": "approved_exact_images",
         "approval_manifest_sha256": _digest(approval_path),
@@ -912,9 +832,7 @@ def _annotate_deployment_report(
         "private_infrastructure_recorded": False,
         "approval_archive_id": archive_id,
         "rollback_previous_available": previous is not None,
-        "rollback_previous_images": (
-            previous.get("images") if previous is not None else None
-        ),
+        "rollback_previous_images": (previous.get("images") if previous is not None else None),
     }
     _save(report_path, report)
 
@@ -928,10 +846,7 @@ def deploy_approved(args: argparse.Namespace) -> int:
         )
     )
     approval = _load(approval_path)
-    images = {
-        name: detail["digest"]
-        for name, detail in approval["images"].items()
-    }
+    images = {name: detail["digest"] for name, detail in approval["images"].items()}
     repo = Path(args.repository).resolve()
     directory = repo / "deploy/synology/portal-oidc"
     deploy = _module(
@@ -946,16 +861,14 @@ def deploy_approved(args: argparse.Namespace) -> int:
         "portal_oidc_deploy_entrypoint",
         directory / "deploy_entrypoint.py",
     )
-    setattr(
+    setattr(  # noqa: B010
         deploy,
         "_discovery_from_identity_container",
         lambda: discovery.deployment_probe(deploy.DeploymentError),
     )
     entrypoint._install_verified_build_timeout(deploy)
-    entrypoint._install_docker_host_liquidations_preflight(
-        deploy
-    )
-    setattr(
+    entrypoint._install_docker_host_liquidations_preflight(deploy)
+    setattr(  # noqa: B010
         deploy,
         "_build_images",
         lambda _repo, _sha: _approved_image_tuple(images),
@@ -974,6 +887,7 @@ def deploy_approved(args: argparse.Namespace) -> int:
         _validate_rollback_pointer(archive_root, current)
     if retained_previous is not None:
         _validate_rollback_pointer(archive_root, retained_previous)
+    previous: dict[str, Any] | None
     if current is not None and current.get("archive_id") != pointer["archive_id"]:
         previous = current
     elif current is not None:
@@ -988,9 +902,7 @@ def deploy_approved(args: argparse.Namespace) -> int:
             argparse.Namespace(
                 repository=str(repo),
                 request=args.request,
-                expected_repository_sha=(
-                    args.expected_repository_sha
-                ),
+                expected_repository_sha=(args.expected_repository_sha),
                 report=str(report_path),
             )
         )
@@ -1042,12 +954,4 @@ def evaluate_files(args: argparse.Namespace) -> int:
             "license": licenses,
         },
     )
-    return (
-        0
-        if (
-            vulnerability["status"]
-            == licenses["status"]
-            == "pass"
-        )
-        else 2
-    )
+    return 0 if (vulnerability["status"] == licenses["status"] == "pass") else 2

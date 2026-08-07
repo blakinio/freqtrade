@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import datetime as dt
 import re
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
+
 
 SEVERITY = {
     "unknown": 0,
@@ -19,7 +21,7 @@ class PolicyError(RuntimeError):
 
 
 def _today() -> dt.date:
-    return dt.datetime.now(dt.timezone.utc).date()
+    return dt.datetime.now(dt.UTC).date()
 
 
 def _date(value: Any, field: str) -> dt.date:
@@ -122,9 +124,7 @@ def _validate_evidence_policy(evidence: dict[str, Any]) -> None:
     patterns = evidence.get("forbidden_value_patterns")
     if not isinstance(keys, list) or not all(isinstance(item, str) for item in keys):
         raise PolicyError("evidence.forbidden_keys must be a string list")
-    if not isinstance(patterns, list) or not all(
-        isinstance(item, str) for item in patterns
-    ):
+    if not isinstance(patterns, list) or not all(isinstance(item, str) for item in patterns):
         raise PolicyError("evidence.forbidden_value_patterns must be a string list")
     for pattern in patterns:
         _compile(pattern, "evidence.forbidden_value_patterns")
@@ -144,6 +144,7 @@ def validate_policy(
     _validate_vulnerability_policy(vulnerability, today)
     _validate_license_policy(licenses, today)
     _validate_evidence_policy(evidence)
+
 
 def _matching_suppression(
     vulnerability_id: str,
@@ -181,15 +182,10 @@ def evaluate_vulnerabilities(
         artifact = match.get("artifact", {})
         vulnerability_id = str(vulnerability.get("id", "UNKNOWN"))
         package = str(artifact.get("name", "UNKNOWN"))
-        severity = str(
-            vulnerability.get("severity", "unknown")
-        ).lower()
+        severity = str(vulnerability.get("severity", "unknown")).lower()
         fix = vulnerability.get("fix") or {}
         fixed_versions = fix.get("versions") or []
-        fix_available = (
-            bool(fixed_versions)
-            or str(fix.get("state", "")).lower() == "fixed"
-        )
+        fix_available = bool(fixed_versions) or str(fix.get("state", "")).lower() == "fixed"
         suppression = _matching_suppression(
             vulnerability_id,
             package,
@@ -289,13 +285,7 @@ def evaluate_licenses(
                 config.get("exceptions", []),
                 today,
             )
-            classification = (
-                "denied"
-                if denied
-                else "allowed"
-                if allowed
-                else "unclassified"
-            )
+            classification = "denied" if denied else "allowed" if allowed else "unclassified"
             finding = {
                 "package": package,
                 "version": component.get("version"),
@@ -305,8 +295,7 @@ def evaluate_licenses(
             }
             findings.append(finding)
             unclassified_failure = (
-                classification == "unclassified"
-                and config["unclassified_action"] == "fail"
+                classification == "unclassified" and config["unclassified_action"] == "fail"
             )
             if (denied or unclassified_failure) and exception is None:
                 blocked.append(finding)
@@ -324,13 +313,9 @@ def scan_evidence(
     documents: Iterable[tuple[str, Any]],
     policy: dict[str, Any],
 ) -> list[str]:
-    forbidden_keys = {
-        value.casefold()
-        for value in policy["evidence"]["forbidden_keys"]
-    }
+    forbidden_keys = {value.casefold() for value in policy["evidence"]["forbidden_keys"]}
     patterns = [
-        re.compile(value, re.IGNORECASE)
-        for value in policy["evidence"]["forbidden_value_patterns"]
+        re.compile(value, re.IGNORECASE) for value in policy["evidence"]["forbidden_value_patterns"]
     ]
     violations: list[str] = []
 
@@ -339,9 +324,7 @@ def scan_evidence(
             for key, item in value.items():
                 child = f"{path}.{key}" if path else str(key)
                 if str(key).casefold() in forbidden_keys:
-                    violations.append(
-                        f"{document}:{child}:forbidden-key"
-                    )
+                    violations.append(f"{document}:{child}:forbidden-key")
                 visit(document, item, child)
         elif isinstance(value, list):
             for index, item in enumerate(value):
@@ -349,9 +332,7 @@ def scan_evidence(
         elif isinstance(value, str):
             for pattern in patterns:
                 if pattern.search(value):
-                    violations.append(
-                        f"{document}:{path}:forbidden-value"
-                    )
+                    violations.append(f"{document}:{path}:forbidden-value")
 
     for document, value in documents:
         visit(document, value, "")

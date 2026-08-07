@@ -52,8 +52,8 @@ jobs:
               raise SystemExit('control provenance attestation step missing')
           if text.count('id: web_provenance_attest') != 1:
               raise SystemExit('web provenance attestation step missing')
-          if 'control-plane.provenance.json' not in text or 'web.provenance.json' not in text:
-              raise SystemExit('local SLSA evidence validation was lost')
+          if 'f"{name}.provenance.json"' not in text:
+              raise SystemExit('local SLSA statement validation was lost')
           path.write_text(text, encoding='utf-8')
           PY
 

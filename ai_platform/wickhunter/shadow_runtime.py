@@ -18,10 +18,14 @@ from ai_platform.wickhunter.shadow_runtime_positions import (
     SimulatedPosition,
 )
 from ai_platform.wickhunter.shadow_runtime_snapshot import (
+    RUNTIME_REPLAY_PARITY_SCHEMA_VERSION,
+    PaperParityEvidence,
     PortalObservabilitySnapshot,
     ReplayShadowParityEvidence,
+    RuntimeReplayParityEvidence,
     ShadowRuntimeStepResult,
     verify_replay_shadow_parity,
+    verify_runtime_replay_parity,
 )
 from ai_platform.wickhunter.shadow_runtime_state import (
     ShadowRuntimeState,
@@ -33,15 +37,18 @@ from ai_platform.wickhunter.shadow_runtime_storage import ShadowRuntimeStore
 
 __all__ = [
     "RUNTIME_PARITY_SCHEMA_VERSION",
+    "RUNTIME_REPLAY_PARITY_SCHEMA_VERSION",
     "RUNTIME_SNAPSHOT_SCHEMA_VERSION",
     "RUNTIME_STATE_SCHEMA_VERSION",
     "RUNTIME_STORE_SCHEMA_VERSION",
     "ClosedSimulatedPosition",
+    "PaperParityEvidence",
     "PortalObservabilitySnapshot",
     "PositionCloseReason",
     "ReplayShadowParityEvidence",
     "RuntimeDecisionSummary",
     "RuntimeHealth",
+    "RuntimeReplayParityEvidence",
     "RuntimeSourceStatus",
     "ShadowRuntime",
     "ShadowRuntimeError",
@@ -53,4 +60,5 @@ __all__ = [
     "SimulatedPosition",
     "initial_runtime_state",
     "verify_replay_shadow_parity",
+    "verify_runtime_replay_parity",
 ]

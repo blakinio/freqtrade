@@ -113,7 +113,7 @@ def _open_position(
     *,
     evidence: ShadowDecisionEvidence,
     initial_equity: Decimal,
-) -> SimulatedPosition:
+) -> SimulatedPosition | None:
     intent = evidence.trade_intent
     if intent is None:
         raise ShadowRuntimeError("cannot open a position without a trade intent")
@@ -123,6 +123,8 @@ def _open_position(
     )
     notional = initial_equity * planned_risk * intent.requested_leverage
     quantity = _quantize(notional / intent.decision_price)
+    if quantity <= 0:
+        return None
     if intent.side is TradeDirection.LONG:
         take_profit = intent.decision_price * (Decimal("1") + intent.take_profit_ratio)
         stop_loss = intent.decision_price * (Decimal("1") - intent.stop_loss_ratio)

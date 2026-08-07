@@ -130,12 +130,14 @@ class ShadowRuntime:
                     elif len(positions) >= self.policy.maximum_open_positions:
                         runtime_reasons.append("runtime_position_limit")
                     else:
-                        positions.append(
-                            _open_position(
-                                evidence=evidence,
-                                initial_equity=self.policy.simulated_initial_equity_quote,
-                            )
+                        position = _open_position(
+                            evidence=evidence,
+                            initial_equity=self.policy.simulated_initial_equity_quote,
                         )
+                        if position is None:
+                            runtime_reasons.append("runtime_position_quantity_not_positive")
+                        else:
+                            positions.append(position)
                 summaries.append(
                     _decision_summary(
                         evidence=evidence,

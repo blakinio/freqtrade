@@ -59,14 +59,6 @@
         "owner": "portal-security",
         "package": "^python$",
         "vulnerability_id": "^CVE-2026-15308$"
-      },
-      {
-        "expires_at": "2026-09-15",
-        "id": "cryptography-2026-69247-unreleased-fix",
-        "justification": "GHSA-g6cj-pr64-35w5 affects PKCS#7 EnvelopedData decryption and is fixed in cryptography 50.0.0, but PyPI has no 50.0.0 release as of 2026-08-07. The Portal contains no pkcs7_decrypt_der, pkcs7_decrypt_pem, pkcs7_decrypt_smime, or EnvelopedData decryption path. Re-evaluate immediately when cryptography 50.0.0 becomes available.",
-        "owner": "portal-security",
-        "package": "^cryptography$",
-        "vulnerability_id": "^(GHSA-g6cj-pr64-35w5|CVE-2026-69247)$"
       }
     ]
   }

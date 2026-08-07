@@ -1,0 +1,58 @@
+name: FTAI 1116 Style
+
+on:
+  push:
+    branches:
+      - repair/1116-portal-supply-chain
+    paths:
+      - ".github/workflows/ftai-1116-style.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  style:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+      - name: Apply repository Ruff fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("tools/agents/portal_supply_chain_runtime.py")
+          text = path.read_text(encoding="utf-8")
+          text = text.replace("    setattr(\n        deploy,\n        \"_discovery_from_identity_container\",", "    setattr(  # noqa: B010\n        deploy,\n        \"_discovery_from_identity_container\",", 1)
+          text = text.replace("    setattr(\n        deploy,\n        \"_build_images\",", "    setattr(  # noqa: B010\n        deploy,\n        \"_build_images\",", 1)
+          marker = "    if current is not None and current.get(\"archive_id\") != pointer[\"archive_id\"]:\n"
+          if "    previous: dict[str, Any] | None\n" not in text:
+              text = text.replace(marker, "    previous: dict[str, Any] | None\n" + marker, 1)
+          path.write_text(text, encoding="utf-8")
+          PY
+          python3 -m pip install --disable-pip-version-check ruff==0.15.20
+          ruff check --fix \
+            tools/agents/portal_supply_chain.py \
+            tools/agents/portal_supply_chain_policy.py \
+            tools/agents/portal_supply_chain_runtime.py
+          ruff format \
+            tools/agents/portal_supply_chain.py \
+            tools/agents/portal_supply_chain_policy.py \
+            tools/agents/portal_supply_chain_runtime.py
+          ruff check \
+            tools/agents/portal_supply_chain.py \
+            tools/agents/portal_supply_chain_policy.py \
+            tools/agents/portal_supply_chain_runtime.py
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools/agents/portal_supply_chain.py tools/agents/portal_supply_chain_policy.py tools/agents/portal_supply_chain_runtime.py
+          git commit -m "style(portal): normalize supply-chain tooling"
+          git push origin HEAD:refs/heads/repair/1116-portal-supply-chain

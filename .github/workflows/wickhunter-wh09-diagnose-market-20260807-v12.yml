@@ -1,4 +1,5 @@
 name: WickHunter WH09 v12 public-market diagnostic
+# Root-cause generation: inspect retained Liquid20 producer run-state counters for the v12 window.
 
 "on":
   pull_request:
@@ -16,7 +17,7 @@ concurrency:
 
 jobs:
   diagnose:
-    name: Probe current WH09 v12 public-market boundary
+    name: Probe retained WH09 v12 Liquid20 producer state
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop' &&
@@ -31,7 +32,7 @@ jobs:
           fetch-depth: 1
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Probe exact running image read-only
+      - name: Inspect retained producer epochs read-only
         shell: bash
         env:
           RUNNER_NAME_VALUE: ${{ runner.name }}
@@ -49,51 +50,65 @@ jobs:
           [[ "$(docker inspect --format '{{.Image}}' "$OPERATOR_CONTAINER")" == "$EXPECTED_IMAGE_ID" ]]
           docker exec --interactive "$OPERATOR_CONTAINER" python - <<'PY'
           import json
-          import time
-
-          from ai_platform.wickhunter.candidate_paper_runtime_operator import (
-              CandidatePaperRuntimeOperatorError,
-              fetch_public_market_snapshot,
-              load_liquid20_snapshot,
-          )
           from pathlib import Path
 
-          now_ms = time.time_ns() // 1_000_000
-          snapshot = load_liquid20_snapshot(
-              Path('/runtime/liquid20'),
-              now_ms=now_ms,
-              maximum_age_ms=300_000,
-          )
-          results = []
-          for symbol in snapshot.universe.selected_symbols:
-              started = time.monotonic()
-              try:
-                  market = fetch_public_market_snapshot(
-                      symbol=symbol,
-                      observed_at_ms=now_ms,
-                      base_url='https://fapi.binance.com',
-                  )
-              except Exception as exc:
-                  results.append({
-                      'symbol': symbol,
-                      'ok': False,
-                      'error_type': type(exc).__name__,
-                      'error': str(exc)[:500],
-                      'elapsed_ms': int((time.monotonic() - started) * 1000),
-                  })
-              else:
-                  results.append({
-                      'symbol': symbol,
-                      'ok': True,
-                      'completed_candle_close_ms': market.completed_candle_close_ms,
-                      'elapsed_ms': int((time.monotonic() - started) * 1000),
-                  })
-          print(json.dumps({
-              'snapshot_id': snapshot.snapshot_id,
-              'snapshot_observed_at_ms': snapshot.observed_at_ms,
-              'selected_symbols': list(snapshot.universe.selected_symbols),
-              'results': results,
-              'success_count': sum(1 for row in results if row['ok']),
-              'failure_count': sum(1 for row in results if not row['ok']),
-          }, indent=2, sort_keys=True))
+          root = Path('/runtime/liquid20')
+          runs_root = root / 'runs'
+          rows = []
+          for run_root in sorted(runs_root.iterdir()):
+              if not run_root.is_dir() or run_root.is_symlink():
+                  continue
+              run_id = run_root.name
+              if not (run_id.startswith('liquid20-20260805') or run_id.startswith('liquid20-20260806')):
+                  continue
+              state_path = run_root / 'run-state-v1.json'
+              if not state_path.is_file() or state_path.is_symlink():
+                  continue
+              state = json.loads(state_path.read_text(encoding='utf-8'))
+              sources = {}
+              for source, value in sorted(state.get('sources', {}).items()):
+                  if not isinstance(value, dict):
+                      continue
+                  sources[source] = {
+                      'configured': value.get('configured'),
+                      'connected': value.get('connected'),
+                      'events_written': value.get('events_written'),
+                      'last_event_received_at_ms': value.get('last_event_received_at_ms'),
+                      'last_heartbeat_at_ms': value.get('last_heartbeat_at_ms'),
+                      'reconnect_count': value.get('reconnect_count'),
+                      'error_count': value.get('error_count'),
+                      'parse_error_count': value.get('parse_error_count'),
+                      'latest_error': value.get('latest_error'),
+                  }
+              rows.append({
+                  'run_id': run_id,
+                  'run_state': state.get('run_state'),
+                  'collector_started_at_ms': state.get('collector_started_at_ms'),
+                  'collector_heartbeat_at_ms': state.get('collector_heartbeat_at_ms'),
+                  'completed_at_ms': state.get('completed_at_ms'),
+                  'completion_reason': state.get('completion_reason'),
+                  'sources': sources,
+              })
+          if not rows:
+              raise SystemExit('no retained Liquid20 epochs overlap the v12 window')
+          summary = {
+              'run_count': len(rows),
+              'runs': rows,
+              'total_reconnects': sum(
+                  int(source.get('reconnect_count') or 0)
+                  for row in rows
+                  for source in row['sources'].values()
+              ),
+              'total_errors': sum(
+                  int(source.get('error_count') or 0)
+                  for row in rows
+                  for source in row['sources'].values()
+              ),
+              'total_parse_errors': sum(
+                  int(source.get('parse_error_count') or 0)
+                  for row in rows
+                  for source in row['sources'].values()
+              ),
+          }
+          print(json.dumps(summary, indent=2, sort_keys=True))
           PY

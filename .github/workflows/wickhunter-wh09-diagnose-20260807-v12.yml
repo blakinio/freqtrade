@@ -1,4 +1,5 @@
 name: WickHunter WH09 v12 read-only diagnostic
+# Terminal root-cause generation after independently verified v12 INCOMPLETE evidence.
 
 "on":
   pull_request:

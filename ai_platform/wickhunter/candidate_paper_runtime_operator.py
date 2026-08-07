@@ -363,7 +363,10 @@ def _read_committed_jsonl_tail(  # noqa: C901
     bytes_seen = 0
     try:
         with path.open("rb") as handle:
-            for raw in handle:
+            while bytes_seen < size:
+                raw = handle.readline(size - bytes_seen)
+                if not raw:
+                    raise CandidatePaperRuntimeOperatorError(f"{field} changed during bounded read")
                 bytes_seen += len(raw)
                 if bytes_seen > MAX_LIVE_SOURCE_BYTES:
                     raise CandidatePaperRuntimeOperatorError(

@@ -19,8 +19,9 @@ before(async () => {
     {
       env: {
         ...process.env,
-        PORTAL_WEB_DATA_MODE: "fixture",
+        PORTAL_WEB_DATA_MODE: "api",
         PORTAL_ENVIRONMENT: "test",
+        PORTAL_CONTROL_PLANE_URL: "http://127.0.0.1:1",
         PORTAL_IDENTITY_FIXTURE_MODE: "disabled",
         PORTAL_IDENTITY_TRANSPORT_MODE: "https",
       },
@@ -73,6 +74,12 @@ test("production documents, redirects and API errors are private no-store", asyn
   });
   assert.equal(notFound.status, 404);
   assertFrameworkPrivateNoStore(notFound.headers);
+
+  const upstreamFailure = await fetch(`${baseURL}/api/bots`, {
+    headers: { cookie: authenticatedSessionCookie },
+  });
+  assert.equal(upstreamFailure.status, 502);
+  assertPrivateNoStore(upstreamFailure.headers);
 });
 
 test("production immutable Next assets retain framework cache policy", async () => {

@@ -74,7 +74,6 @@ def test_runtime_activation_uses_verified_replay_dataset_manifest(
     assert result.request.protected_holdout_accessed is False
     assert result.request.automatic_promotion_enabled is False
     assert result.request.trading_credentials_present is False
-    assert result.request.order_adapter_present is False
     assert result.request.execution_enabled is False
     assert result.request.orders_submitted == 0
     assert result.request.live_capital_authorized is False

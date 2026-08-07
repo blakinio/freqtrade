@@ -17,6 +17,7 @@ from decimal import Decimal, InvalidOperation
 from itertools import pairwise
 from pathlib import Path
 from typing import Any
+from urllib.error import HTTPError
 from urllib.parse import urlencode, urlparse
 from urllib.request import HTTPRedirectHandler, OpenerDirector, ProxyHandler, Request, build_opener
 
@@ -54,6 +55,7 @@ MAX_PUBLIC_MARKET_WORKERS = 8
 PUBLIC_KLINE_LIMIT = 1500
 MAX_INPUT_BYTES = 16 * 1024 * 1024
 MAX_HTTP_BYTES = 1024 * 1024
+TERMINAL_PUBLIC_SYMBOL_CODES = frozenset({-4108, -1121})
 MAX_LIVE_EVENTS = 20_000
 MAX_EVENTS_PER_SYMBOL = 500
 MAX_LIQUID20_SYMBOLS = 20
@@ -105,6 +107,15 @@ ZERO_AUTHORITY = {
 
 class CandidatePaperRuntimeOperatorError(RuntimeError):
     """Raised when the persistent PAPER operator must fail closed."""
+
+
+class _PublicMarketSymbolUnavailable(CandidatePaperRuntimeOperatorError):
+    """Raised only for terminal Binance USD-M symbol lifecycle states."""
+
+    def __init__(self, symbol: str, exchange_code: int) -> None:
+        self.symbol = symbol
+        self.exchange_code = exchange_code
+        super().__init__(f"public market symbol is unavailable: {symbol}")
 
 
 class _TransientLiquid20SnapshotError(CandidatePaperRuntimeOperatorError):
@@ -878,7 +889,13 @@ def _public_url(base_url: str, path: str, parameters: dict[str, object]) -> str:
     return f"{base_url.rstrip('/')}{path}?{urlencode(parameters)}"
 
 
-def _read_public_json(opener: OpenerDirector, *, url: str, field: str) -> object:
+def _read_public_json(
+    opener: OpenerDirector,
+    *,
+    url: str,
+    field: str,
+    symbol: str | None = None,
+) -> object:
     request = Request(
         url,
         method="GET",
@@ -899,6 +916,26 @@ def _read_public_json(opener: OpenerDirector, *, url: str, field: str) -> object
             body = response.read(MAX_HTTP_BYTES + 1)
     except CandidatePaperRuntimeOperatorError:
         raise
+    except HTTPError as exc:
+        error_body = exc.read(MAX_HTTP_BYTES + 1)
+        error_payload: object = None
+        if len(error_body) <= MAX_HTTP_BYTES:
+            try:
+                error_payload = json.loads(error_body.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                error_payload = None
+        if (
+            exc.code == 400
+            and symbol is not None
+            and isinstance(error_payload, dict)
+            and isinstance(error_payload.get("code"), int)
+            and error_payload["code"] in TERMINAL_PUBLIC_SYMBOL_CODES
+        ):
+            raise _PublicMarketSymbolUnavailable(
+                symbol,
+                int(error_payload["code"]),
+            ) from exc
+        raise CandidatePaperRuntimeOperatorError(f"unable to fetch {field}") from exc
     except Exception as exc:
         raise CandidatePaperRuntimeOperatorError(f"unable to fetch {field}") from exc
     if len(body) > MAX_HTTP_BYTES:
@@ -970,6 +1007,7 @@ def fetch_public_market_snapshot(  # noqa: C901
                 {"symbol": normalized},
             ),
             field="public premium index",
+            symbol=normalized,
         ),
         field="public premium index",
     )
@@ -982,6 +1020,7 @@ def fetch_public_market_snapshot(  # noqa: C901
                 {"symbol": normalized},
             ),
             field="public book ticker",
+            symbol=normalized,
         ),
         field="public book ticker",
     )
@@ -994,6 +1033,7 @@ def fetch_public_market_snapshot(  # noqa: C901
                 {"symbol": normalized},
             ),
             field="public open interest",
+            symbol=normalized,
         ),
         field="public open interest",
     )
@@ -1006,6 +1046,7 @@ def fetch_public_market_snapshot(  # noqa: C901
                 {"symbol": normalized, "interval": "1m", "limit": PUBLIC_KLINE_LIMIT},
             ),
             field="public klines",
+            symbol=normalized,
         ),
         field="public klines",
     )
@@ -1131,6 +1172,50 @@ def fetch_public_market_snapshot(  # noqa: C901
         atr_ratio=atr_ratio,
         open_interest_usd=open_interest_quantity * mark_price,
         funding_rate=funding_rate,
+    )
+
+
+def _qualify_public_market_universe(
+    universe: DynamicUniverseSnapshot,
+    *,
+    unavailable_symbols: tuple[str, ...],
+) -> DynamicUniverseSnapshot:
+    unavailable = {symbol.upper() for symbol in unavailable_symbols}
+    decisions: list[UniverseInstrumentDecision] = []
+    for decision in universe.decisions:
+        symbol = decision.canonical_symbol.upper()
+        if not decision.included:
+            decisions.append(decision)
+        elif symbol in unavailable:
+            decisions.append(
+                UniverseInstrumentDecision(
+                    canonical_instrument_id=decision.canonical_instrument_id,
+                    canonical_symbol=decision.canonical_symbol,
+                    included=False,
+                    reason_codes=("binance_usdm_public_market_unavailable",),
+                )
+            )
+        else:
+            decisions.append(
+                UniverseInstrumentDecision(
+                    canonical_instrument_id=decision.canonical_instrument_id,
+                    canonical_symbol=decision.canonical_symbol,
+                    included=True,
+                    reason_codes=tuple(
+                        sorted(
+                            {
+                                *decision.reason_codes,
+                                "binance_usdm_public_market_available",
+                            }
+                        )
+                    ),
+                )
+            )
+    return DynamicUniverseSnapshot(
+        schema_version=universe.schema_version,
+        policy_version="wickhunter-liquid20-binance-usdm-public-v1",
+        selected_at_ms=universe.selected_at_ms,
+        decisions=tuple(decisions),
     )
 
 
@@ -1336,15 +1421,24 @@ class CandidatePaperRuntimeOperator:
         liquid20: Liquid20Snapshot,
         markets: tuple[PublicMarketSnapshot, ...],
         observed_at_ms: int,
+        unavailable_symbols: tuple[str, ...] = (),
     ) -> ShadowRuntimeTick:
         latest_state = self.service.runtime.state
+        universe = _qualify_public_market_universe(
+            liquid20.universe,
+            unavailable_symbols=unavailable_symbols,
+        )
+        if not universe.selected_symbols:
+            raise CandidatePaperRuntimeOperatorError(
+                "public market universe contains no eligible Liquid20 symbols"
+            )
         market_by_symbol = {item.symbol: item for item in markets}
         if len(market_by_symbol) != len(markets):
             raise CandidatePaperRuntimeOperatorError(
                 "public market snapshots contain duplicate symbols"
             )
         required_market_symbols = {
-            *liquid20.universe.selected_symbols,
+            *universe.selected_symbols,
             *(position.symbol.upper() for position in latest_state.positions),
         }
         if set(market_by_symbol) != required_market_symbols:
@@ -1359,7 +1453,7 @@ class CandidatePaperRuntimeOperator:
         )
         burst_start_ms = observed_at_ms - self.service.binding.parameters.burst_window_ms
         requests: list[ShadowDecisionRequest] = []
-        for symbol in liquid20.universe.selected_symbols:
+        for symbol in universe.selected_symbols:
             events = tuple(
                 item
                 for item in liquid20.events
@@ -1379,7 +1473,7 @@ class CandidatePaperRuntimeOperator:
                     ),
                     history=liquid20.history_for(symbol),
                     source_states=liquid20.source_states,
-                    universe=liquid20.universe,
+                    universe=universe,
                     parameters=self.service.binding.parameters,
                     parameter_bounds=DEFAULT_RESEARCH_BOUNDS,
                     hypothesis=StrategyHypothesis.REVERSAL,
@@ -1403,7 +1497,7 @@ class CandidatePaperRuntimeOperator:
             )
         return ShadowRuntimeTick(
             observed_at_ms=observed_at_ms,
-            universe=liquid20.universe,
+            universe=universe,
             decision_requests=tuple(requests),
             mark_prices=tuple(sorted((item.symbol, item.decision_price) for item in markets)),
             source_states=liquid20.source_states,
@@ -1459,23 +1553,35 @@ class CandidatePaperRuntimeOperator:
         *,
         symbols: tuple[str, ...],
         observed_at_ms: int,
-    ) -> tuple[PublicMarketSnapshot, ...]:
-        def fetch(symbol: str) -> PublicMarketSnapshot:
-            return fetch_public_market_snapshot(
-                symbol=symbol,
-                observed_at_ms=observed_at_ms,
-                base_url=self.public_market_base_url,
-                opener=self.opener,
-            )
+    ) -> tuple[tuple[PublicMarketSnapshot, ...], tuple[str, ...]]:
+        def fetch(symbol: str) -> tuple[str, PublicMarketSnapshot | None]:
+            try:
+                snapshot = fetch_public_market_snapshot(
+                    symbol=symbol,
+                    observed_at_ms=observed_at_ms,
+                    base_url=self.public_market_base_url,
+                    opener=self.opener,
+                )
+            except _PublicMarketSymbolUnavailable as exc:
+                if exc.symbol != symbol:
+                    raise CandidatePaperRuntimeOperatorError(
+                        "public market unavailable symbol identity mismatch"
+                    ) from exc
+                return symbol, None
+            return symbol, snapshot
 
         if self.opener is not None or len(symbols) <= 2:
-            return tuple(fetch(symbol) for symbol in symbols)
-        workers = min(MAX_PUBLIC_MARKET_WORKERS, len(symbols))
-        with ThreadPoolExecutor(
-            max_workers=workers,
-            thread_name_prefix="wickhunter-public-market",
-        ) as executor:
-            return tuple(executor.map(fetch, symbols))
+            results = tuple(fetch(symbol) for symbol in symbols)
+        else:
+            workers = min(MAX_PUBLIC_MARKET_WORKERS, len(symbols))
+            with ThreadPoolExecutor(
+                max_workers=workers,
+                thread_name_prefix="wickhunter-public-market",
+            ) as executor:
+                results = tuple(executor.map(fetch, symbols))
+        snapshots = tuple(snapshot for _symbol, snapshot in results if snapshot is not None)
+        unavailable = tuple(symbol for symbol, snapshot in results if snapshot is None)
+        return snapshots, unavailable
 
     def run_once(self, *, observed_at_ms: int | None = None) -> int:
         now_ms = time.time_ns() // 1_000_000 if observed_at_ms is None else observed_at_ms
@@ -1489,22 +1595,34 @@ class CandidatePaperRuntimeOperator:
             now_ms=now_ms,
             maximum_age_ms=self.maximum_source_age_ms,
         )
+        open_position_symbols = tuple(
+            sorted({position.symbol.upper() for position in self.service.runtime.state.positions})
+        )
         market_symbols = tuple(
             sorted(
                 {
                     *liquid20.universe.selected_symbols,
-                    *(position.symbol.upper() for position in self.service.runtime.state.positions),
+                    *open_position_symbols,
                 }
             )
         )
-        markets = self._fetch_public_market_snapshots(
+        markets, unavailable_symbols = self._fetch_public_market_snapshots(
             symbols=market_symbols,
             observed_at_ms=now_ms,
         )
+        unavailable_open_positions = tuple(
+            sorted(set(open_position_symbols) & set(unavailable_symbols))
+        )
+        if unavailable_open_positions:
+            raise CandidatePaperRuntimeOperatorError(
+                "open PAPER position lacks Binance USD-M public market context: "
+                + ",".join(unavailable_open_positions)
+            )
         tick = self._compose_tick(
             liquid20=liquid20,
             markets=markets,
             observed_at_ms=now_ms,
+            unavailable_symbols=unavailable_symbols,
         )
         result = self.service.step(tick)
         breaker_reasons = set(result.snapshot.circuit_breaker_reasons)

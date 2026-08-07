@@ -1,6 +1,7 @@
 name: WickHunter WH09 v12 terminal PAPER evidence collection
 # Diagnostic generation: trace the first fail-closed collector assertion.
 # Open-request synchronize generation for the trusted staging runner.
+# Post-outage synchronize refresh; execution logic unchanged.
 
 "on":
   pull_request:

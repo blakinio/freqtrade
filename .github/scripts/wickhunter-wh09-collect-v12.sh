@@ -242,6 +242,7 @@ docker create --interactive \
   --name "$eval_container" \
   --network none \
   --read-only \
+  --user 0:0 \
   --cap-drop ALL \
   --security-opt no-new-privileges \
   --tmpfs /tmp:rw,noexec,nosuid,size=64m \

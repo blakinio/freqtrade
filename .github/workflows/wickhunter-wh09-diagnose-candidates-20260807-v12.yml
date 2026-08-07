@@ -1,0 +1,103 @@
+name: WickHunter WH09 v12 candidate reason diagnostic
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-diagnose-candidates-20260807-v12.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh09-v12-candidate-reasons
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    name: Count preserved WH09 v12 candidate reasons
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop' &&
+      github.event.pull_request.head.ref == 'ops/wickhunter-wh09-v12-diagnostic-20260807'
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact diagnostic request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v11.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Count candidate reasons without source mutation
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+          OPERATOR_CONTAINER: wickhunter-paper-runtime-v12
+          EXPECTED_IMAGE_ID: sha256:449ff348296a91865e7d884a2de26ddbb34d67c317afd348ee9e675444566f01
+        run: |
+          set -Eeuo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" ]]
+          docker version >/dev/null
+          test -S /var/run/docker.sock
+          [[ "$(docker inspect --format '{{.Image}}' "$OPERATOR_CONTAINER")" == "$EXPECTED_IMAGE_ID" ]]
+          journal="$RUNNER_TEMP/wh09-v12-candidate-journal"
+          rm -rf "$journal"
+          mkdir -p "$journal"
+          docker cp "$OPERATOR_CONTAINER:/runtime/journal/." "$journal/"
+          JOURNAL="$journal" python3 - <<'PY'
+          import json
+          import os
+          from collections import Counter
+          from pathlib import Path
+
+          root = Path(os.environ["JOURNAL"])
+          reason_counts = Counter()
+          action_counts = Counter()
+          hypothesis_counts = Counter()
+          symbol_counts = Counter()
+          reason_by_symbol = Counter()
+          rows = 0
+          missing_candidate = 0
+          for generation in sorted((root / "generations").glob("*")):
+              path = generation / "shadow-decisions.jsonl"
+              if not path.is_file():
+                  continue
+              for line in path.read_text(encoding="utf-8").splitlines():
+                  if not line.strip():
+                      continue
+                  rows += 1
+                  decision = json.loads(line)
+                  candidate = decision.get("candidate")
+                  if not isinstance(candidate, dict):
+                      missing_candidate += 1
+                      continue
+                  action = str(candidate.get("action"))
+                  hypothesis = str(candidate.get("hypothesis"))
+                  symbol = str(candidate.get("symbol"))
+                  reasons = candidate.get("reason_codes")
+                  if not isinstance(reasons, list):
+                      raise SystemExit("candidate reason_codes is not a list")
+                  action_counts[action] += 1
+                  hypothesis_counts[hypothesis] += 1
+                  symbol_counts[symbol] += 1
+                  for reason in reasons:
+                      reason_counts[str(reason)] += 1
+                      reason_by_symbol[f"{symbol}:{reason}"] += 1
+          report = {
+              "decision_rows": rows,
+              "missing_candidate_rows": missing_candidate,
+              "action_counts": dict(action_counts.most_common()),
+              "hypothesis_counts": dict(hypothesis_counts.most_common()),
+              "symbol_counts": dict(symbol_counts.most_common()),
+              "reason_counts": dict(reason_counts.most_common()),
+              "reason_by_symbol": dict(reason_by_symbol.most_common()),
+          }
+          print(json.dumps(report, indent=2, sort_keys=True))
+          PY

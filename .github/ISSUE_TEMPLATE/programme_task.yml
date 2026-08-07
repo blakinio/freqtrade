@@ -1,0 +1,95 @@
+name: Programme task
+description: Create an implementation, audit, repair, or operational task for Quant Platform.
+title: "[Task] "
+labels:
+  - state:triage
+  - type:task
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for executable Quant Platform work. Keep the acceptance criteria independently verifiable.
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: State the concrete outcome, not only the activity.
+      placeholder: What observable result must exist when this task is complete?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List deterministic completion checks.
+      placeholder: |
+        - [ ] Criterion one
+        - [ ] Criterion two
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0
+        - P1
+        - P2
+        - P3
+      default: 2
+    validations:
+      required: true
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk
+      options:
+        - Low
+        - Medium
+        - High
+        - Critical
+      default: 1
+    validations:
+      required: true
+  - type: dropdown
+    id: programme
+    attributes:
+      label: Programme
+      options:
+        - WickHunter
+        - AI Trading Portal
+        - Strategy Engine
+        - CI & Infrastructure
+        - Audit & Repair
+    validations:
+      required: true
+  - type: textarea
+    id: blocked_by
+    attributes:
+      label: Blocked by
+      description: Enter full GitHub Issue URLs, one per line, or `None`. The central Projects Operations v3 reconciler converts only URLs in this section into native dependency relationships.
+      placeholder: None
+    validations:
+      required: true
+  - type: textarea
+    id: affected_paths
+    attributes:
+      label: Affected paths
+      description: Declare expected files, modules, services, workflows, or documentation.
+      placeholder: ai_platform/...; docs/...; .github/...
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation plan
+      description: State tests, CI, E2E, evidence, and exact-head requirements.
+    validations:
+      required: true
+  - type: checkboxes
+    id: completion
+    attributes:
+      label: Completion claim
+      options:
+        - label: I understand that implementation, validation, exact-head CI, review hygiene, merge, and repository closeout are required before this task is complete.
+          required: true

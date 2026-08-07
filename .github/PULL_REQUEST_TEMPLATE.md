@@ -20,3 +20,32 @@ Solve the issue: #___
 ## What's new?
 
 <!-- Explain in details what this PR solve or improve. You can include visuals. -->
+
+## Projects Operations metadata
+
+### Parent issue
+
+<!-- Full GitHub Issue URL or None. -->
+
+### Programme
+
+<!-- Exact value: WickHunter, AI Trading Portal, Strategy Engine, CI & Infrastructure, or Audit & Repair. -->
+
+### Priority
+
+<!-- Exact value: P0, P1, P2, or P3. -->
+
+### Risk
+
+<!-- Exact value: Low, Medium, High, or Critical. -->
+
+### Blocked by
+
+<!-- Full GitHub Issue URLs, one per line, or None. -->
+
+### Completion claim
+
+- [ ] Acceptance criteria are satisfied.
+- [ ] Validation and required exact-head CI pass.
+- [ ] Review threads and related PRs are reconciled.
+- [ ] Merge and required repository closeout are included in completion.

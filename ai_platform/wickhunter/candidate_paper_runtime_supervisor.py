@@ -77,7 +77,9 @@ def _verify_self_hash(
     if payload.get("schema_version") != schema_version:
         raise CandidatePaperRuntimeSupervisorError(f"{label} schema mismatch")
     claimed = payload.get(hash_field)
-    body = {key: value for key, value in payload.items() if key not in {"schema_version", hash_field}}
+    body = {
+        key: value for key, value in payload.items() if key not in {"schema_version", hash_field}
+    }
     expected = canonical_sha256({"schema_version": schema_version, "payload": body})
     if claimed != expected:
         raise CandidatePaperRuntimeSupervisorError(f"{label} self-hash mismatch")

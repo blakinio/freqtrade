@@ -14,6 +14,12 @@ import {
   SESSION_COOKIE_NAME,
   setFixtureIdentity,
 } from "@/lib/identity";
+import { applyPrivateNoStoreCachePolicy } from "@/lib/response-cache-policy";
+import {
+  applyBrowserSecurityHeaders,
+  createBrowserSecurityContext,
+} from "@/lib/security-headers";
+import type { BrowserSecurityContext } from "@/lib/security-headers";
 
 const publicPaths = new Set([
   "/login",
@@ -25,34 +31,38 @@ const publicPaths = new Set([
 ]);
 
 export function proxy(request: NextRequest) {
+  const security = createBrowserSecurityContext(request.headers);
   const pathname = request.nextUrl.pathname;
-  if (publicPaths.has(pathname)) return NextResponse.next();
+  if (publicPaths.has(pathname)) return nextResponse(security);
 
   if (pathname.startsWith("/api/")) {
     try {
       requireSessionPresence(request);
       if (isUnsafeMethod(request.method)) requireBrowserMutation(request);
-      return NextResponse.next();
+      return nextResponse(security);
     } catch (error) {
-      return identityErrorResponse(error) ?? NextResponse.json(
-        { detail: "Portal identity boundary failed" },
-        { status: 500 },
-      );
+      const response =
+        identityErrorResponse(error) ??
+        NextResponse.json({ detail: "Portal identity boundary failed" }, { status: 500 });
+      return secureResponse(response, security);
     }
   }
 
   if (fixtureIdentityMode() && shouldBootstrapFixtureSession(request)) {
-    const response = NextResponse.next();
+    const response = nextResponse(security);
     setFixtureIdentity(response, "authenticated");
     return response;
   }
 
   try {
     requireSessionPresence(request);
-    return NextResponse.next();
+    return nextResponse(security);
   } catch (error) {
     if (error instanceof PortalIdentityBoundaryError && error.code === "CROSS_TENANT_DENIED") {
-      return NextResponse.redirect(new URL("/denied?reason=cross_tenant", request.url));
+      return secureResponse(
+        NextResponse.redirect(new URL("/denied?reason=cross_tenant", request.url)),
+        security,
+      );
     }
     const returnTo = safeReturnTo(`${pathname}${request.nextUrl.search}`);
     const reason =
@@ -60,15 +70,30 @@ export function proxy(request: NextRequest) {
     const login = new URL("/login", request.url);
     login.searchParams.set("return_to", returnTo);
     login.searchParams.set("reason", reason);
-    return NextResponse.redirect(login);
+    return secureResponse(NextResponse.redirect(login), security);
   }
 }
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)",
   ],
 };
+
+function nextResponse(security: BrowserSecurityContext): NextResponse {
+  return secureResponse(
+    NextResponse.next({ request: { headers: security.requestHeaders } }),
+    security,
+  );
+}
+
+function secureResponse<T extends NextResponse>(
+  response: T,
+  security: BrowserSecurityContext,
+): T {
+  applyPrivateNoStoreCachePolicy(response);
+  return applyBrowserSecurityHeaders(response, security.contentSecurityPolicy);
+}
 
 function requireSessionPresence(request: NextRequest): void {
   if (fixtureIdentityMode()) {

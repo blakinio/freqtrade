@@ -51,6 +51,10 @@ function writeJson(response, status, payload) {
   response.end(JSON.stringify(payload));
 }
 
+function assertPrivateNoStore(response, label) {
+  assert.equal(response.headers.get("cache-control"), "private, no-store", label);
+}
+
 async function waitForServer(url, child) {
   for (let attempt = 0; attempt < 120; attempt += 1) {
     if (child.exitCode !== null) throw new Error(`Next.js exited with ${child.exitCode}`);
@@ -127,12 +131,12 @@ test("production Market Evidence routes validate the authoritative session", asy
 
   const missing = await request(routes[0]);
   assert.equal(missing.response.status, 401);
-  assert.equal(missing.response.headers.get("cache-control"), "no-store");
+  assertPrivateNoStore(missing.response, "missing session cache policy");
 
   for (const label of ["forged", "expired", "revoked", "unknown", "membership-mismatch"]) {
     const result = await request(routes[0], tokens[label]);
     assert.equal(result.response.status, 401, label);
-    assert.equal(result.response.headers.get("cache-control"), "no-store", label);
+    assertPrivateNoStore(result.response, label);
     assert.equal(result.body.includes(tokens[label]), false, label);
   }
 
@@ -154,7 +158,7 @@ test("production Market Evidence routes validate the authoritative session", asy
   for (const route of routes) {
     const result = await request(route, tokens.valid);
     assert.equal(result.response.status, 200, route);
-    assert.equal(result.response.headers.get("cache-control"), "no-store", route);
+    assertPrivateNoStore(result.response, route);
   }
 
   const fixtureBypass = await fetch(`${baseUrl}${routes[0]}`, {

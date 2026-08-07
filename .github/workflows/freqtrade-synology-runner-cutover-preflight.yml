@@ -12,7 +12,6 @@ on:
 
 permissions:
   contents: read
-  statuses: write
 
 concurrency:
   group: freqtrade-synology-runner-cutover-preflight
@@ -21,6 +20,9 @@ concurrency:
 jobs:
   preflight:
     if: github.ref == 'refs/heads/develop'
+    permissions:
+      contents: read
+      statuses: write
     runs-on: [freqtrade-staging]
     timeout-minutes: 15
     steps:

@@ -1,0 +1,27 @@
+# Repository ownership is explicit even while this fork has one maintainer.
+# Do not enable required Code Owner approval until a second independent
+# maintainer with review permission has been added; otherwise every PR would
+# be permanently blocked.
+
+* @blakinio
+
+# GitHub trust boundary and CI.
+/.github/ @blakinio
+/tools/ci/ @blakinio
+/tests/ci/ @blakinio
+
+# Agent governance and repository authority.
+/AGENTS.md @blakinio
+/AGENTS.override.md @blakinio
+/docs/agents/ @blakinio
+
+# Packaging, dependency and delivery surfaces.
+/pyproject.toml @blakinio
+/requirements*.txt @blakinio
+/docker/ @blakinio
+/docker-compose*.yml @blakinio
+
+# Security-, identity-, risk- and execution-sensitive platform code.
+/ai_platform/portal/backend/ @blakinio
+/ai_platform/portal/infra/ @blakinio
+/ai_platform/risk/ @blakinio

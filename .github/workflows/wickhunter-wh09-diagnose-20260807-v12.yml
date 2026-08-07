@@ -1,0 +1,236 @@
+name: WickHunter WH09 v12 read-only diagnostic
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-diagnose-20260807-v12.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh09-v12-diagnostic
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    name: Diagnose preserved WH09 v12 journal
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop' &&
+      github.event.pull_request.head.ref == 'ops/wickhunter-wh09-v12-diagnostic-20260807'
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact diagnostic request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v11.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Collect read-only diagnostics
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+          OPERATOR_CONTAINER: wickhunter-paper-runtime-v12
+          EXPECTED_IMAGE_ID: sha256:449ff348296a91865e7d884a2de26ddbb34d67c317afd348ee9e675444566f01
+          EXPECTED_RUN_ID: b895197c49550bd57a50fed93dda4ebbc5938839c17302ad086cce5fa4fedf14
+          EXPECTED_BINDING_ID: 79ed4f7a3d211704d95b0304b633ba96512e44f4dedaa6ebaf37732397160702
+        run: |
+          set -Eeuo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" ]]
+          docker version >/dev/null
+          test -S /var/run/docker.sock
+          [[ "$(docker inspect --format '{{.Image}}' "$OPERATOR_CONTAINER")" == "$EXPECTED_IMAGE_ID" ]]
+
+          root="$RUNNER_TEMP/wh09-v12-diagnostic"
+          before="$RUNNER_TEMP/wh09-v12-journal-before"
+          after="$RUNNER_TEMP/wh09-v12-journal-after"
+          rm -rf "$root" "$before" "$after"
+          mkdir -p "$root" "$before" "$after"
+
+          docker inspect "$OPERATOR_CONTAINER" > "$root/container-inspect.json"
+          docker logs --tail 400 "$OPERATOR_CONTAINER" > "$root/container-logs.txt" 2>&1 || true
+          docker cp "$OPERATOR_CONTAINER:/runtime/operator/health.json" "$root/current-health.json"
+          docker cp "$OPERATOR_CONTAINER:/runtime/journal/." "$before/"
+          sleep 3
+          docker cp "$OPERATOR_CONTAINER:/runtime/journal/." "$after/"
+
+          ROOT_BEFORE="$before" ROOT_AFTER="$after" python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from collections import Counter
+          from pathlib import Path
+
+          before = Path(os.environ["ROOT_BEFORE"])
+          after = Path(os.environ["ROOT_AFTER"])
+          out = Path(os.environ["RUNNER_TEMP"]) / "wh09-v12-diagnostic"
+
+          def manifest(root: Path):
+              rows = []
+              for path in sorted(root.rglob("*")):
+                  if path.is_symlink():
+                      raise SystemExit(f"symlink rejected: {path}")
+                  if path.is_file():
+                      rows.append((
+                          path.relative_to(root).as_posix(),
+                          path.stat().st_size,
+                          hashlib.sha256(path.read_bytes()).hexdigest(),
+                      ))
+              return rows
+
+          before_manifest = manifest(before)
+          after_manifest = manifest(after)
+          if before_manifest != after_manifest:
+              raise SystemExit("source journal changed during diagnostic copy")
+
+          identity = json.loads((after / "identity.json").read_text(encoding="utf-8"))
+          if identity.get("run_id") != os.environ["EXPECTED_RUN_ID"]:
+              raise SystemExit("journal run identity mismatch")
+          if identity.get("binding_id") != os.environ["EXPECTED_BINDING_ID"]:
+              raise SystemExit("journal binding identity mismatch")
+          zero = {
+              "protected_holdout_accessed": False,
+              "automatic_promotion_enabled": False,
+              "trading_credentials_present": False,
+              "order_adapter_present": False,
+              "execution_enabled": False,
+              "orders_submitted": 0,
+              "live_capital_authorized": False,
+          }
+          for key, value in zero.items():
+              if identity.get(key) != value:
+                  raise SystemExit(f"journal authority mismatch: {key}")
+
+          timeline = []
+          status_counts = Counter()
+          reason_counts = Counter()
+          field_examples = {}
+          previous = None
+          generations = sorted((after / "generations").glob("*"))
+          for generation_path in generations:
+              if not generation_path.is_dir() or not generation_path.name.isdigit():
+                  continue
+              observation = json.loads(
+                  (generation_path / "paper-observation.json").read_text(encoding="utf-8")
+              )
+              observed = int(observation["observed_at_ms"])
+              gap = None if previous is None else observed - previous
+              previous = observed
+              decisions = []
+              decisions_path = generation_path / "shadow-decisions.jsonl"
+              for line in decisions_path.read_text(encoding="utf-8").splitlines():
+                  if line.strip():
+                      decisions.append(json.loads(line))
+              for decision in decisions:
+                  status_counts[str(decision.get("status"))] += 1
+                  for key, value in decision.items():
+                      lower = key.lower()
+                      if "reason" in lower or "reject" in lower or "block" in lower:
+                          if isinstance(value, list):
+                              for item in value:
+                                  reason_counts[f"{key}={item}"] += 1
+                          elif isinstance(value, dict):
+                              reason_counts[f"{key}={json.dumps(value, sort_keys=True)}"] += 1
+                          else:
+                              reason_counts[f"{key}={value}"] += 1
+                  if not field_examples:
+                      field_examples = {key: type(value).__name__ for key, value in decision.items()}
+              timeline.append({
+                  "generation": int(generation_path.name),
+                  "observed_at_ms": observed,
+                  "gap_from_previous_ms": gap,
+                  "health": observation.get("health"),
+                  "source_count": observation.get("source_count"),
+                  "fresh_source_count": observation.get("fresh_source_count"),
+                  "decision_count": observation.get("decision_count"),
+                  "allowed_decision_count": observation.get("allowed_decision_count"),
+                  "risk_rejection_count": observation.get("risk_rejection_count"),
+                  "ignored_decision_count": observation.get("ignored_decision_count"),
+                  "decision_rows": len(decisions),
+              })
+
+          largest_gaps = sorted(
+              (row for row in timeline if row["gap_from_previous_ms"] is not None),
+              key=lambda row: row["gap_from_previous_ms"],
+              reverse=True,
+          )[:10]
+          report = {
+              "source_journal_stable": True,
+              "journal_file_count": len(after_manifest),
+              "generation_count": len(timeline),
+              "timeline": timeline,
+              "largest_gaps": largest_gaps,
+              "decision_status_counts": dict(sorted(status_counts.items())),
+              "decision_reason_counts": dict(reason_counts.most_common()),
+              "decision_field_types_example": field_examples,
+          }
+          (out / "journal-diagnostic.json").write_text(
+              json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          (out / "journal-source-manifest.json").write_text(
+              json.dumps(after_manifest, indent=2) + "\n", encoding="utf-8"
+          )
+          print(json.dumps({
+              "generation_count": len(timeline),
+              "largest_gaps": largest_gaps,
+              "decision_status_counts": dict(sorted(status_counts.items())),
+              "top_decision_reasons": reason_counts.most_common(20),
+          }, indent=2, sort_keys=True))
+          PY
+
+          python3 - "$root/container-inspect.json" "$root/current-health.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          inspect_payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))[0]
+          health = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          state = inspect_payload.get("State", {})
+          config = inspect_payload.get("Config", {})
+          host = inspect_payload.get("HostConfig", {})
+          payload = {
+              "running": state.get("Running"),
+              "status": state.get("Status"),
+              "started_at": state.get("StartedAt"),
+              "oom_killed": state.get("OOMKilled"),
+              "health": state.get("Health"),
+              "healthcheck": config.get("Healthcheck"),
+              "readonly_rootfs": host.get("ReadonlyRootfs"),
+              "network_mode": host.get("NetworkMode"),
+              "cap_drop": host.get("CapDrop"),
+              "security_opt": host.get("SecurityOpt"),
+              "current_operator_health": health,
+          }
+          Path(sys.argv[1]).with_name("container-diagnostic.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          print(json.dumps({
+              "container_running": payload["running"],
+              "docker_health_status": (payload["health"] or {}).get("Status"),
+              "docker_health_failing_streak": (payload["health"] or {}).get("FailingStreak"),
+              "healthcheck_test": (payload["healthcheck"] or {}).get("Test"),
+              "current_health_status": health.get("status"),
+              "current_health_error_code": health.get("error_code"),
+              "current_health_error_message": health.get("error_message"),
+              "current_health_generation": health.get("generation"),
+              "current_health_checked_at_ms": health.get("checked_at_ms"),
+              "current_health_last_success_at_ms": health.get("last_success_at_ms"),
+          }, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload bounded diagnostic evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v11.0.1
+        with:
+          name: wickhunter-wh09-v12-diagnostic-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/wh09-v12-diagnostic
+          if-no-files-found: error
+          retention-days: 14

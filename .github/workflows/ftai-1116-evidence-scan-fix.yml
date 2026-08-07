@@ -76,25 +76,18 @@ jobs:
           )
           marker = '''def test_base_images_must_be_digest_pinned(tmp_path: Path) -> None:\n'''
           insertion = '''def test_evidence_scan_rejects_private_ip_in_endpoint_context() -> None:\n    tool = _load_tool()\n    violations = tool.scan_evidence(\n        [("report", {"control_plane_url": "http://192.168.1.10:8000"})],\n        _policy(),\n    )\n    assert violations == [\n        "report:control_plane_url:forbidden-contextual-value:private-ipv4-endpoint"\n    ]\n\n\ndef test_evidence_scan_does_not_treat_package_versions_as_private_endpoints() -> None:\n    tool = _load_tool()\n    document = {\n        "components": [\n            {\n                "bom-ref": "pkg:example/component@10.0.0.1",\n                "version": "10.0.0.1",\n                "cpe": "cpe:2.3:a:example:component:10.0.0.1:*:*:*:*:*:*:*",\n                "purl": "pkg:generic/component@10.0.0.1",\n                "properties": [{"name": "syft:package:release", "value": "10.0.0.1"}],\n            }\n        ]\n    }\n    assert tool.scan_evidence([("sbom", document)], _policy()) == []\n\n\n'''
-          if marker not in tests:
-              raise SystemExit("test insertion marker drifted")
-          test_path.write_text(tests.replace(marker, insertion + marker, 1), encoding="utf-8")
-
-          doc_path = Path("docs/ai_platform/portal/PORTAL_SUPPLY_CHAIN_POLICY.md")
-          doc = doc_path.read_text(encoding="utf-8")
-          note = "- Private-network values are rejected only in infrastructure-bearing fields (for example host/URL/endpoint/address), so package versions, CPEs and PURLs cannot be misclassified as private endpoints.\n"
-          anchor = "- Evidence is scanned for credential-shaped keys/values and private infrastructure before approval.\n"
-          if note not in doc:
-              if anchor not in doc:
-                  raise SystemExit("policy documentation anchor drifted")
-              doc = doc.replace(anchor, anchor + note, 1)
-              doc_path.write_text(doc, encoding="utf-8")
+          if insertion not in tests:
+              if marker not in tests:
+                  raise SystemExit("test insertion marker drifted")
+              tests = tests.replace(marker, insertion + marker, 1)
+          test_path.write_text(tests, encoding="utf-8")
           PY
 
           python3 -m pip install --disable-pip-version-check pytest==9.1.1 ruff==0.15.20
           python3 -m pytest -q -o addopts='' --confcutdir=tests/ci tests/ci/test_portal_supply_chain.py
+          ruff check --fix tools/agents/portal_supply_chain_policy.py tests/ci/test_portal_supply_chain.py
+          ruff format tools/agents/portal_supply_chain_policy.py tests/ci/test_portal_supply_chain.py
           ruff check tools/agents/portal_supply_chain_policy.py tests/ci/test_portal_supply_chain.py
-          ruff format --check tools/agents/portal_supply_chain_policy.py tests/ci/test_portal_supply_chain.py
           python3 -m py_compile tools/agents/portal_supply_chain_policy.py
           git diff --check
 
@@ -103,7 +96,6 @@ jobs:
           git rm .github/workflows/ftai-1116-evidence-scan-fix.yml
           git add \
             docs/ai_platform/portal/portal-supply-chain-policy.json \
-            docs/ai_platform/portal/PORTAL_SUPPLY_CHAIN_POLICY.md \
             tools/agents/portal_supply_chain_policy.py \
             tests/ci/test_portal_supply_chain.py
           git commit -m "fix(portal): scope private-endpoint evidence detection"

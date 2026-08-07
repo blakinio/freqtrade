@@ -63,22 +63,24 @@ Resolve Issue #1116 by making the exact final Portal web and control-plane image
 ## Final implementation checkpoint
 
 ```yaml
-checkpoint_version: 5
-updated_at: 2026-08-07T10:17:00Z
+checkpoint_version: 6
+updated_at: 2026-08-07T10:34:00Z
 status: awaiting_exact_head_ci_and_final_audit
-pre_checkpoint_candidate: 6df3c847c8e299158384362cbee2d75c703c1c30
+pre_checkpoint_candidate: 00d2b1ede5ac813b11ff8e7f23bbc259620239a3
 base_develop: 2525419f5023dbc9bc05fbdff5b3b29917c40eea
 pull_request: 1307
 issue: 1116
 proven:
   - GitHub Actions incident recovery is complete; hosted runners execute normally
   - branch is merge-forwarded to current develop with behind_by zero
-  - all one-shot recovery, style, lockfile and merge-forward workflows are removed from the intended PR diff
+  - all one-shot recovery, style, lockfile, merge-forward and evidence-scan workflows are removed from the intended PR diff
   - exact final images produce SBOM, vulnerability, license and SLSA provenance evidence
   - Syft and Grype binaries and the Grype database are checksum/content bound
   - control-plane dependencies were upgraded to available fixed releases; only narrow expiry-bounded CPython suppressions without a stable fix remain
   - web Node runtime is refreshed and npm resolves Next plus the direct dependency to sharp 0.35.3 with no installed sharp below 0.35
   - focused supply-chain tooling passes Ruff and Python compilation after final polish
+  - private-IP evidence detection is context-aware: endpoint-bearing fields remain blocked while SBOM versions, CPEs and PURLs are not misclassified
+  - focused evidence-policy regression suite passes 19 tests and Ruff after the context-aware scan repair
   - protected deployment consumes approved image IDs without rebuilding after approval
   - current and previous approved image IDs and matching evidence are retained for rollback
   - approval evidence paths are confined to regular files in the approval directory

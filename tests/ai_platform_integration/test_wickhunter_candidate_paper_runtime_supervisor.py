@@ -8,12 +8,16 @@ import pytest
 from ai_platform.wickhunter.candidate_paper_runtime_operator import (
     CandidatePaperRuntimeOperatorError,
 )
+from ai_platform.wickhunter.candidate_paper_runtime_service import (
+    CandidatePaperRuntimeServiceError,
+)
 from ai_platform.wickhunter.candidate_paper_runtime_supervisor import (
     CandidatePaperRuntimeEarlyFail,
     CandidatePaperRuntimeSupervisor,
     CandidatePaperRuntimeSupervisorError,
     CycleTelemetryStore,
 )
+from ai_platform.wickhunter.shadow_runtime_common import ShadowRuntimeError
 
 
 OPERATOR_COMMIT = "a" * 40
@@ -63,6 +67,22 @@ class _FakeOperator:
         self.failures.append((type(error).__name__, checked_at_ms))
 
 
+class _NestedShadowFailureOperator(_FakeOperator):
+    def __init__(self, *, shadow_message: str) -> None:
+        super().__init__()
+        self.shadow_message = shadow_message
+
+    def run_once(self, *, observed_at_ms: int) -> int:
+        del observed_at_ms
+        self.run_calls += 1
+        if self.run_calls == 1:
+            cause = ShadowRuntimeError(self.shadow_message)
+            raise CandidatePaperRuntimeServiceError(
+                "candidate PAPER runtime step failed"
+            ) from cause
+        return self.run_calls
+
+
 def _clock(*values: int):
     iterator = iter(values)
     return lambda: next(iterator)
@@ -91,6 +111,55 @@ def test_supervisor_retries_bounded_failures_and_persists_recovery(tmp_path) -> 
     assert payload["records"][0]["generation"] == 3
     assert payload["live_capital_authorized"] is False
     assert payload["orders_submitted"] == 0
+
+
+def test_supervisor_retries_only_nested_future_source_state_race(tmp_path) -> None:
+    operator = _NestedShadowFailureOperator(shadow_message="source state is observed in the future")
+    sleeps: list[float] = []
+    supervisor = CandidatePaperRuntimeSupervisor(
+        operator=operator,  # type: ignore[arg-type]
+        state_root=tmp_path,
+        sleep=sleeps.append,
+        wall_clock_ms=_clock(1_000, 1_001, 1_002, 1_003),
+    )
+
+    assert supervisor.run_cycle() is True
+    assert operator.run_calls == 2
+    assert sleeps == [5]
+    assert operator.failures == []
+
+    payload = json.loads((tmp_path / "cycle-telemetry.json").read_text(encoding="utf-8"))
+    record = payload["records"][0]
+    assert record["attempt_count"] == 2
+    assert record["transient_failure_count"] == 1
+    assert record["errors"][0]["code"] == "CandidatePaperRuntimeServiceError"
+    assert record["errors"][0]["retryable"] is True
+    assert record["outcome"] == "success"
+    assert record["generation"] == 2
+
+
+def test_supervisor_does_not_retry_other_nested_shadow_failures(tmp_path) -> None:
+    operator = _NestedShadowFailureOperator(shadow_message="runtime identity mismatch")
+    sleeps: list[float] = []
+    supervisor = CandidatePaperRuntimeSupervisor(
+        operator=operator,  # type: ignore[arg-type]
+        state_root=tmp_path,
+        sleep=sleeps.append,
+        wall_clock_ms=_clock(1_000, 1_001, 1_002),
+    )
+
+    assert supervisor.run_cycle() is False
+    assert operator.run_calls == 1
+    assert sleeps == []
+    assert operator.failures == [("CandidatePaperRuntimeServiceError", 1_002)]
+
+    payload = json.loads((tmp_path / "cycle-telemetry.json").read_text(encoding="utf-8"))
+    record = payload["records"][0]
+    assert record["attempt_count"] == 1
+    assert record["transient_failure_count"] == 1
+    assert record["errors"][0]["retryable"] is False
+    assert record["outcome"] == "fail_closed"
+    assert record["generation"] is None
 
 
 def test_supervisor_seals_irrecoverable_snapshot_gap_before_next_tick(tmp_path) -> None:

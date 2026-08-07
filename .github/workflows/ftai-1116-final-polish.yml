@@ -107,4 +107,15 @@ jobs:
             exit 0
           fi
           git commit -m "fix(portal): finalize supply-chain dependency policy"
-          git push origin HEAD:refs/heads/repair/1116-portal-supply-chain
+
+          branch="repair/1116-portal-supply-chain"
+          for attempt in 1 2 3; do
+            git fetch origin "$branch"
+            git rebase "origin/$branch"
+            if git push origin HEAD:"refs/heads/$branch"; then
+              exit 0
+            fi
+            echo "Push raced with another writer; retrying ($attempt/3)"
+          done
+          echo "Unable to publish final polish after bounded retries" >&2
+          exit 1

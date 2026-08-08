@@ -627,7 +627,7 @@ jobs:
           done
 
           mapfile -t containers < <(
-            docker ps -aq \
+            docker ps -aq --no-trunc \
               --filter 'label=com.docker.compose.project=wickhunter-production-research-runtime' \
               --filter 'label=com.docker.compose.service=wickhunter-production-research-runtime'
           )

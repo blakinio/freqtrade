@@ -67,145 +67,93 @@ protected_production_deployment_authorized: false
 
 ## Objective
 
-Resolve Issue #1089 by deploying the existing identity-enabled canonical Portal control plane in strict API mode, with private PostgreSQL schema authority, durable migration/recovery, truthful fail-closed provider behavior, exact-image validation and a real authenticated browser journey. Do not create a second Portal API architecture and do not widen runtime or live-capital authority.
+Resolve #1089 by deploying the existing identity-enabled canonical Portal control plane in strict API mode with private PostgreSQL schema authority, durable migration/recovery, truthful fail-closed provider behavior, exact-image validation and a real authenticated Chromium journey, without widening runtime or live-capital authority.
 
-## Implemented repair
+## Repository result
 
-- `ai_platform.portal.identity.public_runtime` composes the existing identity-enabled canonical product API and separates `/healthz` liveness from `/readyz` database/schema/router readiness.
-- Production rejects SQLite and insecure identity transport.
-- Portal web defaults to API mode and rejects fixture data/fixture identity in staging and production.
-- The Synology package provisions digest-pinned private PostgreSQL without a published database port, applies versioned migrations explicitly and promotes a candidate only after readiness and public probes pass.
-- Legacy SQLite state is integrity-checked and transferred offline; existing PostgreSQL revisions use copy-on-write backup/quiesce/clone/migrate/readiness with the previous database retained for rollback.
-- PostgreSQL copy-on-write recovery evidence persists both source and candidate database identities, so the immediate rollback target is unambiguous after repeated revisions.
-- The public control-plane container remains unprivileged and receives no container-engine socket, exchange execution credentials or live-capital authority.
-- Exact-image CI proves PostgreSQL migration/state transfer, canonical authenticated read plus dry-run mutation, unauthenticated fail-closed behavior, API mode, restart persistence and a real Strategy Lab experiment path that forces the production numerical runtime dependencies to load.
-- Real Chromium API-mode CI uses HTTPS, a persisted Portal identity session and CSRF token, backend-derived `/bots` data, browser-originated dry-run bot creation through the Next BFF and refresh persistence, with no request interception or fixture identity/data.
-- WickHunter Market Evidence is composed into the authenticated deployment using a tenant-gated, read-only host package mount with integrity/freshness checks and no fixture fallback; active runs without an immutable package must contain the reader-required incremental/request metadata, and tenant authorization requires both an active membership and active principal.
-- The canonical completeness ledger removes #1089 from repository deployment blockers while retaining unrelated blockers and separate protected-target acceptance.
+- Canonical identity-enabled product API is the deployment composition root; production/staging fixture mode is rejected.
+- `/healthz` and `/readyz` are separated; readiness proves database/schema/router composition.
+- Synology deployment uses private digest-pinned PostgreSQL, explicit migrations, durable state transfer and copy-on-write rollback with source/candidate database identities recorded.
+- Public API stays unprivileged; no Docker socket, exchange execution credentials, withdrawals or live-capital authority are introduced.
+- Production image includes the full Portal runtime resources and pinned Strategy Lab numerical dependencies; exact-image validation executes a real research-only Strategy Lab experiment.
+- Real Chromium API-mode CI uses HTTPS, persisted Portal identity + CSRF, backend-derived data and browser-originated dry-run mutation without request interception or fixture identity/data.
+- WickHunter Market Evidence is tenant-gated and read-only; incomplete active runs and disabled principals fail closed.
+- Canonical completeness ledger removes #1089 from repository deployment blockers without inferring protected-target acceptance.
 
-## Acceptance state
+## Audit / review
 
-- [x] Existing identity-enabled full canonical Portal API is the deployed composition root.
-- [x] Identity/session and product routes use backend identity-derived tenant context.
-- [x] Liveness and readiness are separate; readiness validates database/schema/router composition.
-- [x] Staging/production rejects fixture mode and requires API-mode server-side control-plane routing.
-- [x] Private PostgreSQL migration, durable state preservation, restart and rollback contracts are explicit.
-- [x] Public API remains unprivileged and private execution/provider authority remains server-side.
-- [x] Market Evidence production runtime is tenant-gated, integrity-checked, read-only and fixture-free.
-- [x] Real authenticated Chromium API-mode E2E exists with no request interception or fixture identity/data.
-- [x] Canonical completeness ledger reconciles Issue #1089 without inferring protected-target acceptance.
-- [x] Repair branch was merge-forwarded to `develop` with `behind_by: 0` before the review-remediation cycle.
-- [x] Four current review findings were remediated in repository code/tests: Strategy Lab production dependencies + exact-image route exercise, PostgreSQL rollback database identities, fail-closed active Market Evidence metadata, and active-principal tenant preflight.
-- [ ] Fresh independent post-remediation diff audit has zero material findings.
-- [ ] Required repository workflows pass on the exact post-remediation head.
-- [ ] Canonical Portal Completeness Audit and real API-mode browser gate pass on the exact post-remediation head.
-- [ ] All four review threads are replied to and resolved; no duplicate repair PR owns #1089.
-- [ ] Task is archived, ownership released on merge and archive-head CI passes.
+Four material review findings were found and repaired:
 
-## Validation evidence
+1. Strategy Lab production `numpy`/`pandas` dependencies and exact-image route coverage.
+2. PostgreSQL copy-on-write source/candidate database identities in recovery evidence.
+3. Market Evidence active-run metadata required when no immutable package exists.
+4. Market Evidence tenant preflight requires an active principal as well as active membership/role.
 
-Repository evidence already green on implementation head `b39b29c3e831ba491aa3376e5de86a8c09e2b537` before closeout-only ledger/synchronization commits:
+All four review threads are resolved. Fresh post-remediation inspection of the changed implementation and the corresponding reader/database contracts found no additional material repository finding.
+
+## Supporting validation
+
+Implementation head `b39b29c3e831ba491aa3376e5de86a8c09e2b537`:
 
 ```yaml
 api_mode_browser_run: 31280088576
 portal_exact_image_supply_chain_run: 31280088574
 codeql_run: 31280088569
 zizmor_run: 31280088604
-protected_target_acceptance: NOT_CLAIMED
-live_capital_authorized: false
 ```
 
-Those runs are supporting evidence only. The earlier zero-finding audit was superseded by four current PR review findings; all four have now been remediated, but terminal acceptance requires a fresh post-remediation audit and exact-head gates.
-
-## Review remediation checkpoint
+Review-remediation head `bb67b46d73400700d65121d34ea5c5369e247297` additionally proved:
 
 ```yaml
-review_threads_detected: 4
-strategy_lab_runtime_dependencies:
-  status: remediated
-  dependencies:
-    - numpy==2.4.6
-    - pandas==3.0.3
-  exact_image_route: POST /v1/strategy-lab/experiments
-  safety:
-    research_only: true
-    order_submission_performed: false
-postgresql_copy_on_write_recovery_identity:
-  status: remediated
-  report_fields:
-    - source_database
-    - candidate_database
-market_evidence_active_run_readiness:
-  status: remediated
-  active_run_required_files:
-    - incremental-state.json
-    - run-request.json
-market_evidence_principal_status:
-  status: remediated
-  membership_status: active
-  principal_status: active
+api_mode_browser_run: 31280937019
+  result: PASS
+portal_exact_image_supply_chain_run: 31280937026
+  result: PASS
+codeql_run: 31280937001
+  result: PASS
+zizmor_run: 31280937022
+  result: PASS
+risk_aware_component_ci: 31280937119
+  exact_portal_image: PASS
+  strategy_lab_exact_image_experiment: PASS
+freqtrade_ci: 31280937008
+  first_actionable_failure: E501_ONLY
+  failure_path: deploy/synology/portal-oidc/postgresql_copy_on_write.py
+  remediation_commit: 274cd6803a5493109e546813a3f080fa45f2d599
 ```
+
+The E501 failure was a single 101-character error string; it was split into adjacent literals with no semantic change. A new exact head is therefore required for terminal evidence.
 
 ## Recovery checkpoint
 
 ```yaml
 policy_version: 1
-generation: 4
+generation: 5
 session_id: 20260808T233000+0200-owner-continuation
 session_started_at: 2026-08-08T23:31:00+02:00
-checkpointed_at: 2026-08-09T00:07:00+02:00
-last_progress_at: 2026-08-09T00:07:00+02:00
+checkpointed_at: 2026-08-09T00:12:00+02:00
+last_progress_at: 2026-08-09T00:12:00+02:00
 phase: validation
-exact_head_before_checkpoint_commit: c73c39131adf6ba8e2d24afac2f0907bf8d92e4e
+exact_head_before_checkpoint_commit: 274cd6803a5493109e546813a3f080fa45f2d599
 pull_request: 1393
-active_operation: post-review-remediation independent audit and final exact-head GitHub Actions validation
+active_operation: final exact-head GitHub Actions validation
 external_run_ids: []
 operation_started_at: null
 wait_deadline_at: null
-check_generation: post-review-remediation-v1
+check_generation: final-post-precommit-fix-v1
 checks_used: 0
 status: active
 safe_to_resume: true
-resume_condition: post-remediation audit or current-head GitHub Actions expose an actionable result
-next_action: Re-audit the four remediated findings and surrounding diff, confirm develop synchronization, then inspect one aggregate exact-head CI snapshot and repair only actionable failures.
+resume_condition: current-head GitHub Actions expose an actionable result or terminal pass
+next_action: Inspect one aggregate exact-head CI snapshot; repair only the first actionable failure if present. If all required gates pass, recheck develop synchronization and review hygiene, archive this task, validate archive head, then squash-merge #1393 and verify #1089 closure.
 ```
 
-## Context checkpoint
+## Terminal conditions remaining
 
-```yaml
-checkpoint_version: 6
-updated_at: 2026-08-09T00:07:00+02:00
-status: validating
-branch: repair/1089-portal-api-mode-deployment
-base_head: 3f60af82000cac47baa0a3a4302603eb1522363f
-head_before_checkpoint_commit: c73c39131adf6ba8e2d24afac2f0907bf8d92e4e
-pr: 1393
-ci_checks_for_current_head: 0
-unchanged_state_checks: 0
-identical_failure_retries: 0
-repair_cycles_for_current_gate: 1
-context_reconstruction_attempts: 1
-stall_warnings: 0
-proven:
-  - authenticated canonical API composition and tenant isolation
-  - strict staging/production API mode with fixture rejection
-  - private PostgreSQL migration/readiness/state-transfer/recovery boundary
-  - PostgreSQL rollback source/candidate identities persisted in recovery metadata
-  - unprivileged public API and preserved dry-run/non-live safety boundary
-  - exact-image API-mode/restart evidence on the earlier implementation head
-  - Strategy Lab production runtime dependencies are pinned and its create-experiment route is now exercised by exact-image validation
-  - real authenticated Chromium API-mode read and dry-run mutation evidence on the earlier implementation head
-  - authenticated tenant-gated Market Evidence deployment composition
-  - Market Evidence active-run metadata and active-principal preflights now fail closed
-  - canonical ledger reconciliation for Issue 1089 without protected-target inference
-unknown:
-  - fresh independent post-remediation audit outcome
-  - exact-head CI outcome after review remediation
-  - exact-head completeness-audit outcome after review remediation
-  - final archive-head CI outcome
-  - protected Synology target acceptance outcome, which remains separate and is not inferred
-conflicts:
-  - PR 1388 retains ownership of control-plane API/schema/model runtime-generation paths
-blockers: []
-next_action: Re-audit, validate exact head, resolve review threads only with grounded evidence, archive, rerun archive-head CI, then squash-merge the verified head and close Issue 1089.
-```
+- required exact-head Freqtrade CI is green;
+- Risk-aware component CI is green including Program Closure E2E and canonical Portal Completeness Audit;
+- real Portal API Mode Browser, Portal Exact-Image Supply Chain, CodeQL and zizmor are green on the exact head;
+- branch is not behind `develop`, no duplicate #1089 repair PR exists, and unresolved review threads are zero;
+- task is archived and required archive-head CI is green;
+- PR #1393 is squash-merged and Issue #1089 is closed;
+- protected Synology target acceptance remains `NOT_CLAIMED` and live capital remains unauthorized.

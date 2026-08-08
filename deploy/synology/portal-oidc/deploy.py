@@ -334,10 +334,7 @@ def _container_exists(name: str) -> bool:
 def _container_running(name: str) -> bool:
     if not _container_exists(name):
         return False
-    return (
-        _run(["docker", "inspect", "--format", "{{.State.Running}}", name]).stdout.strip()
-        == "true"
-    )
+    return _run(["docker", "inspect", "--format", "{{.State.Running}}", name]).stdout.strip() == "true"
 
 
 def _remove_container(name: str) -> None:
@@ -723,7 +720,7 @@ def _transfer_legacy_state(image: str, snapshot: Path) -> dict[str, Any]:
 def _backup_postgres(database_name: str, implementation_sha: str) -> str:
     _assert_database_name(database_name)
     timestamp = int(time.time())
-    container_path = f"/tmp/portal-{implementation_sha[:12]}-{timestamp}.backup"
+    container_path = f"/tmp/portal-{implementation_sha[:12]}-{timestamp}.backup"  # noqa: S108
     destination = PORTAL_POSTGRES_BACKUP_DIR / (
         f"portal-{implementation_sha[:12]}-{timestamp}.backup"
     )
@@ -1163,7 +1160,7 @@ def _write_report(path: Path, report: dict[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def deploy(args: argparse.Namespace) -> int:
+def deploy(args: argparse.Namespace) -> int:  # noqa: C901 - protected cutover orchestration is centralized
     repo = Path(args.repository).resolve()
     request_path = Path(args.request).resolve()
     report_path = Path(args.report).resolve()
@@ -1224,9 +1221,7 @@ def deploy(args: argparse.Namespace) -> int:
         postgres_backup_digest: str | None = None
         snapshot: Path | None = None
         if database_mode == "legacy_sqlite":
-            snapshot, legacy_snapshot_digest = _snapshot_legacy_sqlite(
-                args.expected_repository_sha
-            )
+            snapshot, legacy_snapshot_digest = _snapshot_legacy_sqlite(args.expected_repository_sha)
             report["database_recovery"] = {
                 "legacy_snapshot_sha256": legacy_snapshot_digest,
                 "restore_authorized": False,

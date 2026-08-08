@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from tools.ci.classify_wickhunter_wh09_deploy_request import diagnostic_request_changed
+
 
 ROOT = Path(__file__).resolve().parents[2]
 DEPLOY = ROOT / "deploy" / "synology" / "wickhunter-production-research-runtime"
@@ -173,11 +175,40 @@ def test_bounded_deploy_retries_preserve_exact_image_and_authorized_compose() ->
     }
 
 
+def test_diagnostic_classifier_matches_only_exact_changed_file_elements() -> None:
+    lookalike_event = {
+        "commits": [
+            {
+                "added": [f"{DIAGNOSTIC_PATH}.bak"],
+                "modified": [f"prefix-{DIAGNOSTIC_PATH}"],
+                "removed": [],
+                "message": DIAGNOSTIC_PATH,
+            }
+        ]
+    }
+    assert diagnostic_request_changed(lookalike_event, DIAGNOSTIC_PATH) is False
+
+    multi_commit_event = {
+        "commits": [
+            {"added": ["unrelated.txt"], "modified": [], "removed": []},
+            {"added": [], "modified": [DIAGNOSTIC_PATH], "removed": []},
+            {"added": [f"{DIAGNOSTIC_PATH}.bak"], "modified": [], "removed": []},
+        ]
+    }
+    assert diagnostic_request_changed(multi_commit_event, DIAGNOSTIC_PATH) is True
+
+
 def test_diagnostic_v4_is_read_only_and_bound_to_failed_deployment() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     diagnostic = json.loads(DIAGNOSTIC_V4.read_text(encoding="utf-8"))
 
     assert DIAGNOSTIC_PATH in workflow
+    assert "Classify exact WH09 run request" in workflow
+    assert "classify_wickhunter_wh09_deploy_request.py" in workflow
+    assert "needs: classify" in workflow
+    assert "needs.classify.outputs.diagnostic_v4 != 'true'" in workflow
+    assert "needs.classify.outputs.diagnostic_v4 == 'true'" in workflow
+    assert "toJSON(github.event.commits" not in workflow
     assert "Inspect existing WH09 SHADOW runtime without recreation" in workflow
     assert "EXPECTED_DIAGNOSTIC_CONTAINER_ID" in workflow
     assert "EXPECTED_DIAGNOSTIC_IMAGE_ID" in workflow
@@ -186,15 +217,19 @@ def test_diagnostic_v4_is_read_only_and_bound_to_failed_deployment() -> None:
     assert "docker logs --tail 300" in workflow
     assert 'docker compose -f "$COMPOSE_FILE" up' in workflow
     assert "if: always()" in workflow
-    assert "toJSON(github.event.commits)" not in workflow
-    for field in ("added", "modified", "removed"):
-        selector = f"toJSON(github.event.commits.*.{field})"
-        assert workflow.count(selector) == 2
 
     diagnose_index = workflow.index("  diagnose:")
     diagnostic_section = workflow[diagnose_index:]
     assert 'docker compose -f "$COMPOSE_FILE" up' not in diagnostic_section
     assert "docker ps -aq --no-trunc" in diagnostic_section
+    assert "identity-discovery.txt" in diagnostic_section
+    evidence_index = diagnostic_section.index('mkdir -p "$evidence_dir"')
+    discovery_index = diagnostic_section.index("mapfile -t containers")
+    cardinality_index = diagnostic_section.index('if [[ "${#containers[@]}" -ne 1 ]]')
+    identity_write_index = diagnostic_section.index('> "$identity"')
+    assert evidence_index < discovery_index < identity_write_index < cardinality_index
+    assert "candidate_container_id=" in diagnostic_section
+    assert "selected_image_id=" in diagnostic_section
     assert "docker restart" not in diagnostic_section
     assert "docker start" not in diagnostic_section
     assert "docker stop" not in diagnostic_section

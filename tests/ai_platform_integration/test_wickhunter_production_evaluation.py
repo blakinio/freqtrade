@@ -324,3 +324,36 @@ def test_unsafe_label_authority_is_rejected(tmp_path, monkeypatch) -> None:
             price_path_root=price_path_root,
             replay_root=replay_root,
         )
+
+
+def test_boundary_excluded_dataset_rows_are_not_required_for_evaluation_join(
+    tmp_path, monkeypatch
+) -> None:
+    from dataclasses import replace
+
+    _accepted_verifiers(monkeypatch)
+    materialization_root, price_path_root, replay_root, row = _roots(tmp_path)
+    excluded_row = replace(row, source_selection_sha256s=(canonical_sha256({"selection": 2}),))
+    dataset_partition = materialization_root / "dataset" / "partitions" / "train" / "BTCUSDT.jsonl"
+    _write_jsonl(dataset_partition, (row.as_json_dict(), excluded_row.as_json_dict()))
+    dataset_manifest_path = materialization_root / "dataset" / "manifest.json"
+    dataset_manifest = json.loads(dataset_manifest_path.read_text(encoding="utf-8"))
+    dataset_manifest["partitions"][0]["row_count"] = 2
+    dataset_manifest["partitions"][0]["sha256"] = sha256_file(dataset_partition)
+    dataset_manifest["total_rows"] = 2
+    _write_json(dataset_manifest_path, dataset_manifest)
+    replay_manifest_path = replay_root / "manifest.json"
+    replay_manifest = json.loads(replay_manifest_path.read_text(encoding="utf-8"))
+    replay_manifest["source_decision_count"] = 2
+    replay_manifest["decision_count"] = 1
+    replay_manifest["excluded_split_boundary_decision_count"] = 1
+    _write_json(replay_manifest_path, replay_manifest)
+
+    result = load_verified_evaluation_dataset(
+        materialization_root=materialization_root,
+        price_path_root=price_path_root,
+        replay_root=replay_root,
+    )
+
+    assert len(result.cases) == 1
+    assert result.cases[0].dataset_row_sha256 == row.row_sha256

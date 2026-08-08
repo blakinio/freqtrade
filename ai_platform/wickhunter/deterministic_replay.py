@@ -910,7 +910,10 @@ def _build_labels(
         if not window.start_ms <= row.decision_timestamp_ms < window.end_ms:
             raise DeterministicReplayError("dataset decision lies outside its split window")
         if row.decision_timestamp_ms + request.policy.label_horizon_ms > window.end_ms:
-            raise DeterministicReplayError("dataset label crosses its split boundary")
+            # Boundary eligibility is determined only by the frozen split geometry and
+            # explicit label horizon. Excluding the row avoids target leakage across
+            # splits without consulting labels, outcomes, test performance, or holdout.
+            continue
         trades = trades_by_symbol.get(row.symbol)
         timestamps = timestamps_by_symbol.get(row.symbol)
         if trades is None or timestamps is None:
@@ -1077,6 +1080,10 @@ def build_deterministic_replay_package(
         raise DeterministicReplayError("dataset split geometry binding mismatch")
 
     labels = _build_labels(rows=rows, trades_by_symbol=trades_by_symbol, request=request)
+    eligible_decision_count = len(labels) // len(request.sides)
+    excluded_split_boundary_decision_count = len(rows) - eligible_decision_count
+    if eligible_decision_count <= 0:
+        raise DeterministicReplayError("no split-boundary-eligible decisions remain")
     output_root = output_root.resolve()
     output_root.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=f".{output_root.name}.", dir=output_root.parent))
@@ -1115,7 +1122,9 @@ def build_deterministic_replay_package(
             "price_path_package_id": request.price_path_package_id,
             "price_path_manifest_sha256": request.price_path_manifest_sha256,
             "source_commit_sha": request.source_commit_sha,
-            "decision_count": len(rows),
+            "source_decision_count": len(rows),
+            "decision_count": eligible_decision_count,
+            "excluded_split_boundary_decision_count": excluded_split_boundary_decision_count,
             "label_count": len(labels),
             "sides": [side.value for side in request.sides],
             "split_windows": request.split_windows,
@@ -1143,7 +1152,9 @@ def build_deterministic_replay_package(
             "outcome": "accepted",
             "package_id": request.package_id,
             "manifest_sha256": manifest["manifest_sha256"],
-            "decision_count": len(rows),
+            "source_decision_count": len(rows),
+            "decision_count": eligible_decision_count,
+            "excluded_split_boundary_decision_count": excluded_split_boundary_decision_count,
             "label_count": len(labels),
             "outcome_counts": outcome_counts,
             "replay_shadow_parity_contract": True,
@@ -1226,6 +1237,10 @@ def verify_deterministic_replay_package(  # noqa: C901
     if price_manifest.get("package_id") != request.price_path_package_id:
         raise DeterministicReplayError("verified price-path identity mismatch")
     expected_labels = _build_labels(rows=rows, trades_by_symbol=trades_by_symbol, request=request)
+    eligible_decision_count = len(expected_labels) // len(request.sides)
+    excluded_split_boundary_decision_count = len(rows) - eligible_decision_count
+    if eligible_decision_count <= 0:
+        raise DeterministicReplayError("no split-boundary-eligible decisions remain")
     expected_by_id = {label.label_id: label.as_json_dict() for label in expected_labels}
     if len(expected_by_id) != len(expected_labels):
         raise DeterministicReplayError("recomputed label identities are not unique")
@@ -1267,8 +1282,18 @@ def verify_deterministic_replay_package(  # noqa: C901
             raise DeterministicReplayError("label partition row count mismatch")
     if observed != expected_by_id:
         raise DeterministicReplayError("serialized labels do not match deterministic replay")
-    if manifest.get("decision_count") != len(rows):
+    if manifest.get("source_decision_count", len(rows)) != len(rows):
+        raise DeterministicReplayError("manifest source decision count mismatch")
+    if manifest.get("decision_count") != eligible_decision_count:
         raise DeterministicReplayError("manifest decision count mismatch")
+    if (
+        manifest.get(
+            "excluded_split_boundary_decision_count",
+            excluded_split_boundary_decision_count,
+        )
+        != excluded_split_boundary_decision_count
+    ):
+        raise DeterministicReplayError("manifest excluded decision count mismatch")
     if manifest.get("label_count") != len(expected_labels):
         raise DeterministicReplayError("manifest label count mismatch")
     expected_outcomes = {
@@ -1280,6 +1305,13 @@ def verify_deterministic_replay_package(  # noqa: C901
     report = _load_json(output_root / REPORT_NAME, field="verification report")
     if (
         report.get("manifest_sha256") != claimed_manifest
+        or report.get("source_decision_count", len(rows)) != len(rows)
+        or report.get("decision_count") != eligible_decision_count
+        or report.get(
+            "excluded_split_boundary_decision_count",
+            excluded_split_boundary_decision_count,
+        )
+        != excluded_split_boundary_decision_count
         or report.get("label_count") != len(expected_labels)
         or report.get("outcome") != "accepted"
     ):

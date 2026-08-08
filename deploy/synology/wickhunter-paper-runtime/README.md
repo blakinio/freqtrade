@@ -11,6 +11,7 @@ The deployment request must bind:
 - `CANDIDATE_ROOT_HOST`: independently verified candidate package, read-only;
 - `ACTIVATION_ROOT_HOST`: fresh immutable PAPER activation, read-only;
 - `LIQUID20_LIVE_HOST`: the existing Liquid20 `/data/live` root containing `live-state-v1.json` and `runs/<active_run_id>/<source>.ndjson`, read-only;
+- `LIQUID20_READER_GID`: exact numeric group ID of `LIQUID20_LIVE_HOST`, used only as a supplementary read group;
 - `JOURNAL_ROOT_HOST`: exact new/empty or independently verified contiguous journal root;
 - `OPERATOR_STATE_HOST`: exact health-state directory;
 - `OPERATOR_COMMIT`: exact merged implementation SHA;
@@ -21,6 +22,8 @@ The activation created before this operator existed is not eligible for the pros
 ## Liquid20 live boundary
 
 The operator accepts only the exact `liquidation-live-state-v1` deployed directory contract. It validates the active-run pointer, state/run identity, collector and source heartbeats, configured-source state, event/source identity, availability time, path safety, and zero-authority fields. Legacy single-file snapshot input and contract substitution are not accepted.
+
+Liquid20 intentionally publishes its live files under the shared data-root group with group-readable permissions. Before starting WickHunter, resolve the reader group from the mounted live root, for example `LIQUID20_READER_GID="$(stat -c %g "$LIQUID20_LIVE_HOST")"`, require it to be numeric, and pass exactly that value as the container's supplementary group. The primary WickHunter identity remains `65532:65532`. Do not make Liquid20 files world-readable and do not substitute group `0` unless it is actually the verified GID of the mounted Liquid20 live root.
 
 For each cadence it reads the active run plus bounded completed run epochs that overlap the preceding 24 hours, validates their immutable run/source state, derives deterministic event histories and a canonical `DynamicUniverseSnapshot`, and computes one market-wide liquidation intensity value from complete elapsed buckets. Decision requests contain only events inside the current configured burst; when no eligible current burst exists the service journals an empty decision set. Public marks also cover persisted open positions even when a symbol falls outside the current universe.
 
@@ -61,7 +64,7 @@ The container healthcheck is `/app/deploy/synology/wickhunter-paper-runtime/pape
 
 ## Hardened container boundary
 
-The service uses UID/GID `65532`, a read-only root filesystem, all capabilities dropped, `no-new-privileges`, no privileged mode, no inbound ports, no Docker socket, read-only candidate/activation/Liquid20 mounts, and only the journal and health roots writable.
+The service keeps primary UID/GID `65532:65532` and joins only the exact supplementary `LIQUID20_READER_GID` required to read the mounted Liquid20 data contract. It uses a read-only root filesystem, all capabilities dropped, `no-new-privileges`, no privileged mode, no inbound ports, no Docker socket, read-only candidate/activation/Liquid20 mounts, and only the journal and health roots writable.
 
 ## Validation
 
@@ -80,15 +83,17 @@ mypy ai_platform/wickhunter/candidate_paper_runtime_operator.py
 pytest -q \
   tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py \
   tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_service.py \
-  tests/ai_platform_integration/test_wickhunter_candidate_runtime_binding.py
+  tests/ai_platform_integration/test_wickhunter_candidate_runtime_binding.py \
+  tests/ai_platform_integration/test_wickhunter_paper_runtime_deploy_contract.py
 OPERATOR_COMMIT=<exact-sha> \
 CANDIDATE_ROOT_HOST=/tmp/candidate \
 ACTIVATION_ROOT_HOST=/tmp/activation \
 LIQUID20_LIVE_HOST=/tmp/liquid20-live \
+LIQUID20_READER_GID="$(stat -c %g /tmp/liquid20-live)" \
 JOURNAL_ROOT_HOST=/tmp/journal \
 OPERATOR_STATE_HOST=/tmp/operator \
 WICKHUNTER_PAPER_RUNTIME_IMAGE=wickhunter-paper-runtime:<exact-sha> \
   docker compose -f deploy/synology/wickhunter-paper-runtime/compose.yaml config --quiet
 ```
 
-Implementation merge does not complete WH-09. A separate one-file request-only deployment PR must build and inspect the exact image, publish a fresh activation, enforce host egress, start the service on the trusted Synology runner, and collect the complete prospective acceptance window before independent verification and explicit owner decision.
+Implementation merge does not complete WH-09. A separate one-file request-only deployment PR must build and inspect the exact image, publish a fresh activation, derive and verify the exact Liquid20 reader GID, enforce host egress, start the service on the trusted Synology runner, and collect the complete prospective acceptance window before independent verification and explicit owner decision.

@@ -89,24 +89,25 @@ model_root_host: /var/lib/freqtrade-staging-state/wickhunter-candidate-materiali
 - Protected deploy run `31273808566`, job `93144045334`, passed immutable authorization, exact runtime checkout, runner identity, credential/proxy absence, zero-authority checks, Liquid20 identity/path validation and exact-image identity. Container creation then failed with Docker daemon error `NanoCPUs can not be set, as your kernel does not support CPU CFS scheduler or the cgroup is not mounted`.
 - The new failure is materially different from the prior image-export/Compose deadline failure. It is isolated to Synology kernel/cgroup incompatibility with Compose `cpus: 2.0`; it does not change model science or trading authority.
 - Repair PR `#1392` is bounded to removing the CPU-CFS/NanoCPUs quota while retaining memory/PID limits and all other container/security/SHADOW safeguards, plus immutable retry request v3 bound to run `31273808566` / job `93144045334`.
-- The workflow repair must snapshot the authorized deployment Compose before checking out exact runtime commit `ec0f53cc...`, build/reuse the image from the untouched exact runtime source, then restore only the authorized Synology-compatible Compose for `docker compose config/up`.
+- Exact deployment/config/test repair head is `486bafff6e1e3b0822ee144581a33eb589a032eb`. The following checkpoint commit is documentation-only.
+- The workflow repair snapshots the authorized deployment Compose before checking out exact runtime commit `ec0f53cc...`, builds/reuses the image from the untouched exact runtime source, then restores only the authorized Synology-compatible Compose for `docker compose config/up`.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-08T21:20:00+02:00
+updated_at: 2026-08-08T21:23:00+02:00
 branch: fix/wickhunter-wh09-synology-cpu-cfs-compat-20260808
 pr: 1392
 status: validating
-phase: repair
+phase: validate
 execution_mode: chat_github_actions
 context_pressure: medium
 context_growth: stable
 decomposition_decision: phased
 session_rotation_count: 2
 invocation_started_at: 2026-08-08T21:04:00+02:00
-last_progress_at: 2026-08-08T21:20:00+02:00
+last_progress_at: 2026-08-08T21:23:00+02:00
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
@@ -130,6 +131,8 @@ failed_deployment:
     - exact runtime image identity
 repair:
   pr: 1392
+  exact_code_head: 486bafff6e1e3b0822ee144581a33eb589a032eb
+  checkpoint_successor_scope: documentation_only
   strategy: remove_cpu_cfs_quota_only_and_deploy_authorized_compose_after_exact_image_identity
   immutable_retry_request: retry-wh09-production-research-20260808-v3.json
 owned_paths:
@@ -153,7 +156,7 @@ unknown:
   - internal Synology deployment E2E remains unproven because container creation stopped before health/two-cycle verification
 conflicts: []
 blockers: []
-next_action: Complete focused validation and fresh review of PR 1392; if exact-head gates pass, merge it and verify the protected retry-v3 Synology SHADOW deployment reaches healthy state plus two post-start advances with zero trading authority.
+next_action: Complete exact-head CI and fresh review of PR 1392; if green with no material findings, merge it and verify the protected retry-v3 Synology SHADOW deployment reaches healthy state plus two post-start advances with zero trading authority.
 ```
 
 ## Recovery checkpoint
@@ -164,21 +167,23 @@ recovery:
   generation: 5
   session_id: owner-20260808-2104-cest
   session_started_at: 2026-08-08T21:04:00+02:00
-  checkpointed_at: 2026-08-08T21:20:00+02:00
-  last_progress_at: 2026-08-08T21:20:00+02:00
-  phase: repair
-  exact_head: live PR 1392 head; resolve from GitHub before mutation
+  checkpointed_at: 2026-08-08T21:23:00+02:00
+  last_progress_at: 2026-08-08T21:23:00+02:00
+  phase: validate
+  exact_head: 486bafff6e1e3b0822ee144581a33eb589a032eb
+  exact_head_role: final_deployment_config_workflow_and_test_head
+  checkpoint_successor_scope: documentation_only
   pull_request: 1392
-  active_operation: validate bounded Synology CPU-CFS compatibility repair before protected deployment retry v3
+  active_operation: exact-head CI and fresh independent review for bounded Synology CPU-CFS compatibility repair
   external_run_ids:
     - 31273808566
     - 93144045334
-  operation_started_at: 2026-08-08T21:12:13+02:00
-  wait_deadline_at: null
-  check_generation: synology-cpu-cfs-compat-repair-v1
+  operation_started_at: 2026-08-08T21:20:48+02:00
+  wait_deadline_at: 2026-08-08T22:05:00+02:00
+  check_generation: synology-cpu-cfs-compat-final-validation
   checks_used: 0
   status: active
   safe_to_resume: true
-  resume_condition: PR 1392 contains only bounded CPU-CFS compatibility repair, focused tests and immutable retry-v3 authorization
-  next_action: Validate PR 1392 exact head, obtain fresh independent review, then merge only if all required gates pass and verify the triggered Synology deployment E2E.
+  resume_condition: required PR 1392 checks and fresh independent review complete; live PR head may be a documentation-only successor and must be reconciled from GitHub before merge
+  next_action: If exact-head required checks are green and review has no material finding, merge PR 1392 and verify the triggered retry-v3 Synology deployment E2E; otherwise repair only the first actionable failure.
 ```

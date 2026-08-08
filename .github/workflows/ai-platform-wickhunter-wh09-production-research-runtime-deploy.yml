@@ -40,7 +40,9 @@ jobs:
   deploy:
     if: >-
       ${{
-        !contains(toJSON(github.event.commits), 'deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json')
+        !contains(toJSON(github.event.commits.*.added), 'deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json') &&
+        !contains(toJSON(github.event.commits.*.modified), 'deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json') &&
+        !contains(toJSON(github.event.commits.*.removed), 'deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json')
       }}
     name: Deploy exact merged WH09 SHADOW runtime
     runs-on:
@@ -545,7 +547,9 @@ jobs:
   diagnose:
     if: >-
       ${{
-        contains(toJSON(github.event.commits), 'deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json')
+        contains(toJSON(github.event.commits.*.added), 'deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json') ||
+        contains(toJSON(github.event.commits.*.modified), 'deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json') ||
+        contains(toJSON(github.event.commits.*.removed), 'deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json')
       }}
     name: Inspect existing WH09 SHADOW runtime without recreation
     runs-on:

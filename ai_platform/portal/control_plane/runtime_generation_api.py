@@ -110,7 +110,9 @@ def build_router(
             revisions=revisions,
             desired_generation=desired_generation,
             latest_rollout=_rollout_from_row(rollout_row),
-            pending_rollout=(bot.desired_runtime_generation_id != bot.observed_runtime_generation_id),
+            pending_rollout=(
+                bot.desired_runtime_generation_id != bot.observed_runtime_generation_id
+            ),
         )
 
     @router.post(

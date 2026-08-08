@@ -1,0 +1,153 @@
+name: WickHunter calibration empty-bin repair executor
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-calibration-empty-bin-repair-executor-20260808.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-calibration-empty-bin-repair-executor
+  cancel-in-progress: false
+
+env:
+  EXPECTED_BASE_SHA: 587e78fce252622beddd5c28b2ab8ccb14c5551b
+  TARGET_BRANCH: fix/wickhunter-calibration-empty-bin-confidence-current-20260808
+  EXPECTED_TARGET_HEAD: 587e78fce252622beddd5c28b2ab8ccb14c5551b
+
+jobs:
+  repair:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact helper request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Prove exact one-file helper scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$EXPECTED_BASE_SHA" ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-calibration-empty-bin-repair-executor-20260808.yml'
+          [[ "$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")" == "$expected" ]]
+          git fetch origin "$TARGET_BRANCH"
+          [[ "$(git rev-parse "origin/$TARGET_BRANCH")" == "$EXPECTED_TARGET_HEAD" ]]
+
+      - name: Apply conservative calibration repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_TARGET_HEAD" ]]
+          python3 - <<'PY'
+          from pathlib import Path
+
+          scorer = Path("ai_platform/wickhunter/lightgbm_scorer.py")
+          text = scorer.read_text(encoding="utf-8")
+          old = '''    for count, positive in zip(counts, positives, strict=True):
+              calibrated = Decimal(positive + 1) / Decimal(count + 2)
+              calibrated = max(previous, calibrated).quantize(Decimal("0.000000000001"))
+              probabilities.append(calibrated)
+              previous = calibrated
+          probabilities[-1] = max(probabilities[-1], previous)
+          '''
+          new = '''    for count, positive in zip(counts, positives, strict=True):
+              if count == 0:
+                  calibrated = previous
+              else:
+                  calibrated = Decimal(positive + 1) / Decimal(count + 2)
+                  calibrated = max(previous, calibrated).quantize(Decimal("0.000000000001"))
+              probabilities.append(calibrated)
+              previous = calibrated
+          probabilities[-1] = max(probabilities[-1], previous)
+          '''
+          if text.count(old) != 1:
+              raise SystemExit("unexpected calibration implementation identity")
+          scorer.write_text(text.replace(old, new), encoding="utf-8")
+
+          tests = Path("tests/ai_platform_integration/test_wickhunter_lightgbm_scorer.py")
+          body = tests.read_text(encoding="utf-8")
+          old_import = '''    LightGBMTrainingPolicy,
+              evaluate_lightgbm_against_baseline,
+              train_lightgbm_scorer,
+          )
+          '''
+          new_import = '''    LightGBMTrainingPolicy,
+              _fit_calibration,
+              evaluate_lightgbm_against_baseline,
+              train_lightgbm_scorer,
+          )
+          '''
+          if body.count(old_import) != 1:
+              raise SystemExit("unexpected scorer import identity")
+          body = body.replace(old_import, new_import)
+          marker = "def test_empty_calibration_bins_do_not_invent_confidence()"
+          if marker in body:
+              raise SystemExit("calibration regression tests already present")
+          body += '''\n\ndef test_empty_calibration_bins_do_not_invent_confidence() -> None:\n    curve = _fit_calibration((0.01, 0.02), (0, 0), bins=10)\n\n    assert curve.probabilities == (Decimal("0.250000000000"),) * 10\n\n\ndef test_leading_empty_calibration_bins_remain_unsupported() -> None:\n    curve = _fit_calibration((0.75,), (1,), bins=10)\n\n    assert curve.probabilities[:7] == (Decimal("0"),) * 7\n    assert curve.probabilities[7:] == (Decimal("0.666666666667"),) * 3\n'''
+          tests.write_text(body, encoding="utf-8")
+          PY
+
+      - name: Validate focused product delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check \
+            pytest "pydantic>=2.2" "SQLAlchemy>=2.0.6" \
+            "httpx>=0.24.1" fastapi pyjwt cryptography "PyYAML>=6.0" \
+            lightgbm==4.6.0 numpy mypy ruff==0.15.20
+          python -m ruff check --fix \
+            ai_platform/wickhunter/lightgbm_scorer.py \
+            tests/ai_platform_integration/test_wickhunter_lightgbm_scorer.py
+          python -m ruff format \
+            ai_platform/wickhunter/lightgbm_scorer.py \
+            tests/ai_platform_integration/test_wickhunter_lightgbm_scorer.py
+          python -m ruff check \
+            ai_platform/wickhunter/lightgbm_scorer.py \
+            tests/ai_platform_integration/test_wickhunter_lightgbm_scorer.py
+          python -m ruff format --check \
+            ai_platform/wickhunter/lightgbm_scorer.py \
+            tests/ai_platform_integration/test_wickhunter_lightgbm_scorer.py
+          python -m py_compile \
+            ai_platform/wickhunter/lightgbm_scorer.py \
+            tests/ai_platform_integration/test_wickhunter_lightgbm_scorer.py
+          python -m pytest -q -o addopts='' \
+            --confcutdir=tests/ai_platform_integration \
+            tests/ai_platform_integration/test_wickhunter_lightgbm_scorer.py
+          git diff --check
+          mapfile -t changed < <(git diff --name-only "$EXPECTED_TARGET_HEAD" HEAD | sort)
+          expected=(
+            "ai_platform/wickhunter/lightgbm_scorer.py"
+            "tests/ai_platform_integration/test_wickhunter_lightgbm_scorer.py"
+          )
+          [[ "${#changed[@]}" -eq 2 ]]
+          [[ "${changed[0]}" == "${expected[0]}" ]]
+          [[ "${changed[1]}" == "${expected[1]}" ]]
+
+      - name: Commit exact repaired product branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            ai_platform/wickhunter/lightgbm_scorer.py \
+            tests/ai_platform_integration/test_wickhunter_lightgbm_scorer.py
+          ! git diff --cached --quiet
+          git commit -m "fix(wickhunter): do not invent confidence for empty calibration bins"
+          git push origin "HEAD:$TARGET_BRANCH"

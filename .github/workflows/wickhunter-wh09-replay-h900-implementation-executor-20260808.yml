@@ -1,0 +1,256 @@
+name: WickHunter WH09 replay 900s implementation executor
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-replay-h900-implementation-executor-20260808.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-wh09-replay-h900-implementation-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  WORKFLOW_PATH: .github/workflows/wickhunter-wh09-replay-h900-implementation-executor-20260808.yml
+  TRUSTED_BASE_SHA: 4910f906f0bdf268c77f2ca104143e1bab5e0a66
+  TARGET_BRANCH: feat/wickhunter-wh09-replay-h900-boundary-20260808
+
+jobs:
+  implement:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      product_sha: ${{ steps.publish.outputs.product_sha }}
+    steps:
+      - name: Check out exact request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact request and frozen authority
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          git cat-file -e "$TRUSTED_BASE_SHA^{commit}"
+          git merge-base --is-ancestor "$TRUSTED_BASE_SHA" "$BASE_SHA"
+          [[ "$(git merge-base "$TRUSTED_BASE_SHA" "$HEAD_SHA")" == "$TRUSTED_BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-wh09-replay-h900-implementation-executor-20260808.yml'
+          actual="$(git diff --name-status "$TRUSTED_BASE_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected exact request scope:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]] || { echo "recognized trading credential present: $name" >&2; exit 1; }
+          done
+
+      - name: Patch exact owned product boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin "$TARGET_BRANCH"
+          [[ "$(git rev-parse "origin/$TARGET_BRANCH")" == "$TRUSTED_BASE_SHA" ]]
+          git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
+          python3 - <<'PY'
+          from pathlib import Path
+
+          replay_path = Path("ai_platform/wickhunter/deterministic_replay.py")
+          evaluation_path = Path("ai_platform/wickhunter/production_evaluation.py")
+          replay_test_path = Path("tests/ai_platform_integration/test_wickhunter_deterministic_replay.py")
+          evaluation_test_path = Path("tests/ai_platform_integration/test_wickhunter_production_evaluation.py")
+
+          def replace_once(text: str, old: str, new: str, *, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one match, got {count}")
+              return text.replace(old, new, 1)
+
+          replay = replay_path.read_text(encoding="utf-8")
+          replay = replace_once(
+              replay,
+              '''        if row.decision_timestamp_ms + request.policy.label_horizon_ms > window.end_ms:\n            raise DeterministicReplayError("dataset label crosses its split boundary")\n''',
+              '''        if row.decision_timestamp_ms + request.policy.label_horizon_ms > window.end_ms:\n            # Boundary eligibility is determined only by the frozen split geometry and\n            # explicit label horizon. Excluding the row avoids target leakage across\n            # splits without consulting labels, outcomes, test performance, or holdout.\n            continue\n''',
+              label="split-boundary eligibility",
+          )
+          replay = replace_once(
+              replay,
+              '''    labels = _build_labels(rows=rows, trades_by_symbol=trades_by_symbol, request=request)\n    output_root = output_root.resolve()\n''',
+              '''    labels = _build_labels(rows=rows, trades_by_symbol=trades_by_symbol, request=request)\n    eligible_decision_count = len(labels) // len(request.sides)\n    excluded_split_boundary_decision_count = len(rows) - eligible_decision_count\n    if eligible_decision_count <= 0:\n        raise DeterministicReplayError("no split-boundary-eligible decisions remain")\n    output_root = output_root.resolve()\n''',
+              label="build eligible counts",
+          )
+          old_counts = '''            "decision_count": len(rows),\n            "label_count": len(labels),\n'''
+          new_counts = '''            "source_decision_count": len(rows),\n            "decision_count": eligible_decision_count,\n            "excluded_split_boundary_decision_count": excluded_split_boundary_decision_count,\n            "label_count": len(labels),\n'''
+          if replay.count(old_counts) != 2:
+              raise SystemExit(f"manifest/report count blocks: expected two, got {replay.count(old_counts)}")
+          replay = replay.replace(old_counts, new_counts)
+          replay = replace_once(
+              replay,
+              '''    expected_labels = _build_labels(rows=rows, trades_by_symbol=trades_by_symbol, request=request)\n    expected_by_id = {label.label_id: label.as_json_dict() for label in expected_labels}\n''',
+              '''    expected_labels = _build_labels(rows=rows, trades_by_symbol=trades_by_symbol, request=request)\n    eligible_decision_count = len(expected_labels) // len(request.sides)\n    excluded_split_boundary_decision_count = len(rows) - eligible_decision_count\n    if eligible_decision_count <= 0:\n        raise DeterministicReplayError("no split-boundary-eligible decisions remain")\n    expected_by_id = {label.label_id: label.as_json_dict() for label in expected_labels}\n''',
+              label="verify eligible counts",
+          )
+          replay = replace_once(
+              replay,
+              '''    if manifest.get("decision_count") != len(rows):\n        raise DeterministicReplayError("manifest decision count mismatch")\n    if manifest.get("label_count") != len(expected_labels):\n''',
+              '''    if manifest.get("source_decision_count", len(rows)) != len(rows):\n        raise DeterministicReplayError("manifest source decision count mismatch")\n    if manifest.get("decision_count") != eligible_decision_count:\n        raise DeterministicReplayError("manifest decision count mismatch")\n    if manifest.get(\n        "excluded_split_boundary_decision_count",\n        excluded_split_boundary_decision_count,\n    ) != excluded_split_boundary_decision_count:\n        raise DeterministicReplayError("manifest excluded decision count mismatch")\n    if manifest.get("label_count") != len(expected_labels):\n''',
+              label="verify manifest counts",
+          )
+          replay = replace_once(
+              replay,
+              '''    if (\n        report.get("manifest_sha256") != claimed_manifest\n        or report.get("label_count") != len(expected_labels)\n        or report.get("outcome") != "accepted"\n    ):\n''',
+              '''    if (\n        report.get("manifest_sha256") != claimed_manifest\n        or report.get("source_decision_count", len(rows)) != len(rows)\n        or report.get("decision_count") != eligible_decision_count\n        or report.get(\n            "excluded_split_boundary_decision_count",\n            excluded_split_boundary_decision_count,\n        )\n        != excluded_split_boundary_decision_count\n        or report.get("label_count") != len(expected_labels)\n        or report.get("outcome") != "accepted"\n    ):\n''',
+              label="verify report counts",
+          )
+          replay_path.write_text(replay, encoding="utf-8")
+
+          evaluation = evaluation_path.read_text(encoding="utf-8")
+          evaluation = replace_once(
+              evaluation,
+              '''    if set(rows) != set(labels_by_row):\n        raise ProductionEvaluationError("dataset rows and replay labels do not form an exact join")\n    cases = tuple(\n        sorted(\n            (\n                EvaluationCase(\n                    dataset_row_sha256=row_sha,\n                    split_name=row.split_name,\n                    feature=row.feature,\n                    labels=labels_by_row[row_sha],\n                )\n                for row_sha, row in rows.items()\n            ),\n''',
+              '''    if not set(labels_by_row).issubset(rows):\n        raise ProductionEvaluationError("replay labels reference unknown dataset rows")\n    cases = tuple(\n        sorted(\n            (\n                EvaluationCase(\n                    dataset_row_sha256=row_sha,\n                    split_name=row.split_name,\n                    feature=row.feature,\n                    labels=labels_by_row[row_sha],\n                )\n                for row_sha, row in rows.items()\n                if row_sha in labels_by_row\n            ),\n''',
+              label="evaluation subset join",
+          )
+          evaluation = replace_once(
+              evaluation,
+              '''    if len(cases) != replay_manifest.get("decision_count"):\n        raise ProductionEvaluationError("evaluation case count does not match replay decisions")\n    if replay_manifest.get("label_count") != len(cases) * 2:\n''',
+              '''    if replay_manifest.get("source_decision_count", len(rows)) != len(rows):\n        raise ProductionEvaluationError("evaluation source decision count does not match dataset")\n    if replay_manifest.get(\n        "excluded_split_boundary_decision_count", len(rows) - len(cases)\n    ) != len(rows) - len(cases):\n        raise ProductionEvaluationError("evaluation excluded decision count mismatch")\n    if len(cases) != replay_manifest.get("decision_count"):\n        raise ProductionEvaluationError("evaluation case count does not match replay decisions")\n    if replay_manifest.get("label_count") != len(cases) * 2:\n''',
+              label="evaluation counts",
+          )
+          evaluation_path.write_text(evaluation, encoding="utf-8")
+
+          replay_test = replay_test_path.read_text(encoding="utf-8")
+          marker = "def test_build_labels_excludes_only_split_boundary_ineligible_rows() -> None:"
+          if marker in replay_test:
+              raise SystemExit("replay boundary regression already exists")
+          replay_test += '''\n\ndef test_build_labels_excludes_only_split_boundary_ineligible_rows() -> None:\n    decision_timestamp_ms = START + 10_000\n    eligible_row = subject._DatasetRow("train", SYMBOL, decision_timestamp_ms, "1" * 64)\n    ineligible_row = subject._DatasetRow("train", SYMBOL, START + 95_000, "2" * 64)\n    policy = _policy()\n    request = subject.ReplayRequest(\n        schema_version=subject.REQUEST_SCHEMA_VERSION,\n        package_id="boundary-filter-test",\n        dataset_id=DATASET_ID,\n        dataset_manifest_sha256="3" * 64,\n        market_manifest_sha256=MARKET_HASH,\n        price_path_package_id="price-path-boundary-test",\n        price_path_manifest_sha256=PRICE_PATH_HASH,\n        source_commit_sha=CODE_SHA,\n        split_geometry_sha256=SPLIT_HASH,\n        split_windows=(subject.ReplaySplitWindow("train", START, START + 100_000),),\n        sides=(TradeDirection.LONG, TradeDirection.SHORT),\n        policy=policy,\n        protected_holdout_excluded=True,\n        immutable_inputs_mutated=False,\n        model_execution_authorized=False,\n        performance_research_authorized=False,\n        execution_enabled=False,\n        live_capital_authorized=False,\n        trading_credentials_present=False,\n        orders_submitted=0,\n    )\n    trades = {\n        SYMBOL: (\n            _trade(1, decision_timestamp_ms, "100"),\n            _trade(2, decision_timestamp_ms + 10_000, "101"),\n        )\n    }\n\n    labels = subject._build_labels(\n        rows=(eligible_row, ineligible_row),\n        trades_by_symbol=trades,\n        request=request,\n    )\n\n    assert len(labels) == 2\n    assert {label.dataset_row_sha256 for label in labels} == {"1" * 64}\n'''
+          replay_test_path.write_text(replay_test, encoding="utf-8")
+
+          evaluation_test = evaluation_test_path.read_text(encoding="utf-8")
+          marker = "def test_boundary_excluded_dataset_rows_are_not_required_for_evaluation_join("
+          if marker in evaluation_test:
+              raise SystemExit("evaluation boundary regression already exists")
+          evaluation_test += '''\n\ndef test_boundary_excluded_dataset_rows_are_not_required_for_evaluation_join(\n    tmp_path, monkeypatch\n) -> None:\n    from dataclasses import replace\n\n    _accepted_verifiers(monkeypatch)\n    materialization_root, price_path_root, replay_root, row = _roots(tmp_path)\n    excluded_row = replace(row, split_name="validation")\n    dataset_partition = (\n        materialization_root / "dataset" / "partitions" / "train" / "BTCUSDT.jsonl"\n    )\n    _write_jsonl(dataset_partition, (row.as_json_dict(), excluded_row.as_json_dict()))\n    dataset_manifest_path = materialization_root / "dataset" / "manifest.json"\n    dataset_manifest = json.loads(dataset_manifest_path.read_text(encoding="utf-8"))\n    dataset_manifest["partitions"][0]["row_count"] = 2\n    dataset_manifest["partitions"][0]["sha256"] = sha256_file(dataset_partition)\n    dataset_manifest["total_rows"] = 2\n    _write_json(dataset_manifest_path, dataset_manifest)\n    replay_manifest_path = replay_root / "manifest.json"\n    replay_manifest = json.loads(replay_manifest_path.read_text(encoding="utf-8"))\n    replay_manifest["source_decision_count"] = 2\n    replay_manifest["decision_count"] = 1\n    replay_manifest["excluded_split_boundary_decision_count"] = 1\n    _write_json(replay_manifest_path, replay_manifest)\n\n    result = load_verified_evaluation_dataset(\n        materialization_root=materialization_root,\n        price_path_root=price_path_root,\n        replay_root=replay_root,\n    )\n\n    assert len(result.cases) == 1\n    assert result.cases[0].dataset_row_sha256 == row.row_sha256\n'''
+          evaluation_test_path.write_text(evaluation_test, encoding="utf-8")
+          PY
+          git diff --check
+          git diff --name-only | sort
+          test "$(git diff --name-only | sort)" = "$(printf '%s\n' \
+            ai_platform/wickhunter/deterministic_replay.py \
+            ai_platform/wickhunter/production_evaluation.py \
+            tests/ai_platform_integration/test_wickhunter_deterministic_replay.py \
+            tests/ai_platform_integration/test_wickhunter_production_evaluation.py | sort)"
+
+      - name: Install uv and locked dependencies
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v7.2.1
+        with:
+          activate-environment: true
+          python-version: "3.13"
+          enable-cache: false
+
+      - name: Validate focused replay and evaluation boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -r requirements-dev.txt
+          uv pip install -e ft_client/
+          uv pip install -e .
+          uv run ruff check \
+            ai_platform/wickhunter/deterministic_replay.py \
+            ai_platform/wickhunter/production_evaluation.py \
+            tests/ai_platform_integration/test_wickhunter_deterministic_replay.py \
+            tests/ai_platform_integration/test_wickhunter_production_evaluation.py
+          uv run ruff format --check \
+            ai_platform/wickhunter/deterministic_replay.py \
+            ai_platform/wickhunter/production_evaluation.py \
+            tests/ai_platform_integration/test_wickhunter_deterministic_replay.py \
+            tests/ai_platform_integration/test_wickhunter_production_evaluation.py
+          uv run pytest -q \
+            tests/ai_platform_integration/test_wickhunter_deterministic_replay.py \
+            tests/ai_platform_integration/test_wickhunter_production_evaluation.py
+
+      - name: Publish coherent product commit
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            ai_platform/wickhunter/deterministic_replay.py \
+            ai_platform/wickhunter/production_evaluation.py \
+            tests/ai_platform_integration/test_wickhunter_deterministic_replay.py \
+            tests/ai_platform_integration/test_wickhunter_production_evaluation.py
+          git commit -m "feat(wickhunter): support boundary-safe longer replay horizons"
+          product_sha="$(git rev-parse HEAD)"
+          git push origin "HEAD:$TARGET_BRANCH"
+          printf 'product_sha=%s\n' "$product_sha" >> "$GITHUB_OUTPUT"
+
+  audit:
+    needs: implement
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact product head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ needs.implement.outputs.product_sha }}
+
+      - name: Independently falsify scope and safety claims
+        shell: bash
+        env:
+          PRODUCT_SHA: ${{ needs.implement.outputs.product_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$PRODUCT_SHA" ]]
+          expected="$(printf '%s\n' \
+            ai_platform/wickhunter/deterministic_replay.py \
+            ai_platform/wickhunter/production_evaluation.py \
+            tests/ai_platform_integration/test_wickhunter_deterministic_replay.py \
+            tests/ai_platform_integration/test_wickhunter_production_evaluation.py | sort)"
+          actual="$(git diff --name-only "$TRUSTED_BASE_SHA" "$PRODUCT_SHA" | sort)"
+          [[ "$actual" == "$expected" ]]
+          git diff --check "$TRUSTED_BASE_SHA" "$PRODUCT_SHA"
+          grep -q 'excluded_split_boundary_decision_count' ai_platform/wickhunter/deterministic_replay.py
+          grep -q 'if row_sha in labels_by_row' ai_platform/wickhunter/production_evaluation.py
+          ! git diff "$TRUSTED_BASE_SHA" "$PRODUCT_SHA" -- ai_platform/wickhunter | grep -E 'no_trade_confidence|automatic_promotion_enabled|live_capital_authorized *= *True|execution_enabled *= *True'
+
+      - name: Install uv and locked dependencies
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v7.2.1
+        with:
+          activate-environment: true
+          python-version: "3.13"
+          enable-cache: false
+
+      - name: Independent focused validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -r requirements-dev.txt
+          uv pip install -e ft_client/
+          uv pip install -e .
+          uv run pytest -q \
+            tests/ai_platform_integration/test_wickhunter_deterministic_replay.py \
+            tests/ai_platform_integration/test_wickhunter_production_evaluation.py \
+            tests/ai_platform_integration/test_wickhunter_replay_price_path.py

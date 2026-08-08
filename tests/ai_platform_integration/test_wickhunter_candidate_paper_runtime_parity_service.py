@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import cast
 
@@ -16,16 +17,26 @@ from ai_platform.wickhunter.shadow_runtime import (
 )
 
 
-def test_parity_service_replays_and_records_every_allowed_decision(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    request = cast(
+@dataclass(frozen=True, slots=True)
+class _ReplayRequestStub:
+    market: SimpleNamespace
+    hypothesis: SimpleNamespace
+
+
+def _request() -> ShadowDecisionRequest:
+    return cast(
         ShadowDecisionRequest,
-        SimpleNamespace(
+        _ReplayRequestStub(
             market=SimpleNamespace(symbol="BTCUSDT"),
             hypothesis=SimpleNamespace(value="reversal"),
         ),
     )
+
+
+def test_parity_service_replays_and_records_every_allowed_decision(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = _request()
     original = cast(
         ShadowDecisionEvidence,
         SimpleNamespace(
@@ -71,13 +82,7 @@ def test_parity_service_replays_and_records_every_allowed_decision(
 def test_parity_service_does_not_replay_rejected_decisions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    request = cast(
-        ShadowDecisionRequest,
-        SimpleNamespace(
-            market=SimpleNamespace(symbol="BTCUSDT"),
-            hypothesis=SimpleNamespace(value="reversal"),
-        ),
-    )
+    request = _request()
     rejected = cast(
         ShadowDecisionEvidence,
         SimpleNamespace(

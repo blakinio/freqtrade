@@ -1,0 +1,107 @@
+services:
+  wickhunter-production-research-runtime:
+    image: ${WICKHUNTER_RESEARCH_RUNTIME_IMAGE:?set exact image tag or digest}
+    build:
+      context: ../../..
+      dockerfile: deploy/synology/wickhunter-production-research-runtime/Dockerfile
+      args:
+        OPERATOR_COMMIT: ${OPERATOR_COMMIT:?set exact merged implementation commit}
+    command:
+      - --model-root
+      - /runtime/model
+      - --journal-root
+      - /runtime/journal
+      - --liquid20-root
+      - /runtime/liquid20
+      - --health-root
+      - /runtime/operator
+      - --operator-commit
+      - ${OPERATOR_COMMIT:?set exact merged implementation commit}
+      - --expected-package-id
+      - wickhunter-wh09-candidate-materialization-20260808-r1-h900s-7b23a958fd4d
+      - --expected-manifest-sha256
+      - 9f5ba852e33915678ca085c2eeafbf526457a079ba8f6f2fb7c1097f1d20ab79
+      - --expected-model-artifact-sha256
+      - 0488eaea68a316e3659e3b9e2fcea667eb57de87a22888ce396d112a5c075d2e
+      - --expected-model-hash
+      - eddd12e3d0c5922547df89d9fa3d8556b8131a62c3cb8057c5a20c66747a240b
+      - --expected-parameter-hash
+      - 014b471b9ccc663c3551a151353ae7cd932bd43ed48b9fbf239baad3483e2c11
+      - --public-market-base-url
+      - https://fapi.binance.com
+      - --poll-seconds
+      - ${POLL_SECONDS:-60}
+      - --maximum-source-age-ms
+      - ${MAXIMUM_SOURCE_AGE_MS:-300000}
+      - --model-drift
+      - ${MODEL_DRIFT:-healthy}
+      - --data-drift
+      - ${DATA_DRIFT:-healthy}
+      - --circuit-breaker-active
+      - ${CIRCUIT_BREAKER_ACTIVE:-false}
+      - --cycles
+      - ${SUPERVISOR_CYCLES:-0}
+    environment:
+      OPERATOR_COMMIT: ${OPERATOR_COMMIT:?set exact merged implementation commit}
+      HEALTH_PATH: /runtime/operator/health.json
+      TELEMETRY_PATH: /runtime/journal/telemetry.json
+      HEALTH_MAX_AGE_SECONDS: ${HEALTH_MAX_AGE_SECONDS:-600}
+      EXPECTED_MODEL_HASH: eddd12e3d0c5922547df89d9fa3d8556b8131a62c3cb8057c5a20c66747a240b
+      EXPECTED_MODEL_ARTIFACT_SHA256: 0488eaea68a316e3659e3b9e2fcea667eb57de87a22888ce396d112a5c075d2e
+      EXPECTED_PARAMETER_HASH: 014b471b9ccc663c3551a151353ae7cd932bd43ed48b9fbf239baad3483e2c11
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      ALL_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
+      all_proxy: ""
+      NO_PROXY: fapi.binance.com
+      no_proxy: fapi.binance.com
+    volumes:
+      - type: bind
+        source: ${MODEL_ROOT_HOST:-/var/lib/freqtrade-staging-state/wickhunter-candidate-materialization/packages/wickhunter-wh09-candidate-materialization-20260808-r1-h900s-7b23a958fd4d}
+        target: /runtime/model
+        read_only: true
+      - type: bind
+        source: ${LIQUID20_LIVE_HOST:?set read-only Liquid20 live root}
+        target: /runtime/liquid20
+        read_only: true
+      - type: bind
+        source: ${JOURNAL_ROOT_HOST:-/var/lib/freqtrade-staging-state/wickhunter-production-research-runtime/journal}
+        target: /runtime/journal
+      - type: bind
+        source: ${OPERATOR_STATE_HOST:-/var/lib/freqtrade-staging-state/wickhunter-production-research-runtime/operator}
+        target: /runtime/operator
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
+    user: "65532:65532"
+    group_add:
+      - "${LIQUID20_READER_GID:?set exact GID of LIQUID20_LIVE_HOST}"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    privileged: false
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    pids_limit: 256
+    mem_limit: 2g
+    cpus: 2.0
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - /app/deploy/synology/wickhunter-production-research-runtime/research_runtime_healthcheck.py
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 180s
+    networks:
+      - wickhunter-public-market-egress
+
+networks:
+  wickhunter-public-market-egress:
+    driver: bridge
+    internal: false

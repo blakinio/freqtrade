@@ -20,7 +20,7 @@ jobs:
           ref: repair/1089-portal-api-mode-deployment
           persist-credentials: true
 
-      - name: Reconcile canonical ledger and durable task checkpoint
+      - name: Reconcile canonical completeness authority
         shell: bash
         run: |
           set -euo pipefail
@@ -28,7 +28,6 @@ jobs:
           from __future__ import annotations
 
           import json
-          import re
           from collections import Counter
           from datetime import UTC, datetime
           from pathlib import Path
@@ -37,11 +36,11 @@ jobs:
           EVIDENCE_HEAD = "b39b29c3e831ba491aa3376e5de86a8c09e2b537"
           LEDGER = Path("docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.json")
           MARKDOWN = Path("docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.md")
-          TASK = Path("docs/agents/tasks/active/FTAI-20260808-portal-remediation-1089.md")
 
           ledger = json.loads(LEDGER.read_text(encoding="utf-8"))
           if ISSUE not in ledger["open_audit_issues"]:
               raise SystemExit("Issue 1089 is already absent from the canonical ledger")
+
           ledger["as_of_sha"] = EVIDENCE_HEAD
           ledger["generated_at"] = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
           ledger["open_audit_issues"] = [item for item in ledger["open_audit_issues"] if item != ISSUE]
@@ -83,17 +82,15 @@ jobs:
                           statuses[dimension_index] = "COMPLETE"
                           deployment_promotions += 1
 
-          if removed_links == 0:
-              raise SystemExit("Issue 1089 was not linked from any ledger record")
-          if deployment_promotions == 0:
-              raise SystemExit("No deployment-package dimensions were reconciled")
+          if removed_links == 0 or deployment_promotions == 0:
+              raise SystemExit("Issue 1089 ledger reconciliation was incomplete")
           if any(
               ISSUE in dimension
               for collection_name, _, blockers_index in collection_specs
               for record in ledger["records"][collection_name]
               for dimension in record[blockers_index]
           ):
-              raise SystemExit("Issue 1089 still appears in dimension blockers")
+              raise SystemExit("Issue 1089 remains in dimension blockers")
           if ledger["safety"] != {
               "live_capital_authorized": False,
               "production_deployment_authorized": False,
@@ -108,7 +105,7 @@ jobs:
               issues = sorted({item for dimension in record[blockers_index] for item in dimension})
               return ", ".join(f"#{item}" for item in issues) if issues else "—"
 
-          def package_row(record: list[object]) -> str:
+          def compact_row(record: list[object]) -> str:
               record_id, name, overall, statuses, _blockers, _owner = record
               return (
                   f"| `{record_id}` | {name} | `{overall}` | "
@@ -131,7 +128,6 @@ jobs:
           )
           counts = Counter(record[2] if len(record) == 6 else record[3] for record in all_records)
           summary_order = ["COMPLETE", "PARTIAL", "MISSING", "DISCONNECTED", "FIXTURE_ONLY", "BLOCKED"]
-
           control_order = [
               "CONTROL-STATUS-AUTHORITY",
               "CONTROL-RUNTIME-COMPOSITION",
@@ -196,164 +192,73 @@ jobs:
               "",
           ]
           lines.extend(f"- `{status}`: {counts.get(status, 0)} records" for status in summary_order if counts.get(status, 0))
-          lines.extend(
-              [
-                  "",
-                  "## Programme and package records",
-                  "",
-                  "| ID | Name | Overall | Repository | Runtime | API E2E | Deployment | Protected target | Open Issues |",
-                  "|---|---|---|---|---|---|---|---|---|",
-              ]
-          )
-          lines.extend(package_row(record) for record in ledger["records"]["packages"])
-          lines.extend(
-              [
-                  "",
-                  "## User-facing surface records",
-                  "",
-                  "| ID | Name | Route | Overall | Repository | Runtime | API E2E | Deployment | Protected target | Open Issues |",
-                  "|---|---|---|---|---|---|---|---|---|---|",
-              ]
-          )
+          lines += [
+              "",
+              "## Programme and package records",
+              "",
+              "| ID | Name | Overall | Repository | Runtime | API E2E | Deployment | Protected target | Open Issues |",
+              "|---|---|---|---|---|---|---|---|---|",
+          ]
+          lines.extend(compact_row(record) for record in ledger["records"]["packages"])
+          lines += [
+              "",
+              "## User-facing surface records",
+              "",
+              "| ID | Name | Route | Overall | Repository | Runtime | API E2E | Deployment | Protected target | Open Issues |",
+              "|---|---|---|---|---|---|---|---|---|---|",
+          ]
           lines.extend(surface_row(record) for record in ledger["records"]["surfaces"])
-          lines.extend(
-              [
-                  "",
-                  "## Cross-cutting control records",
-                  "",
-                  "| ID | Name | Overall | Repository | Runtime | API E2E | Deployment | Protected target | Open Issues |",
-                  "|---|---|---|---|---|---|---|---|---|",
-              ]
-          )
-          lines.extend(package_row(controls_by_id[record_id]) for record_id in control_order)
+          lines += [
+              "",
+              "## Cross-cutting control records",
+              "",
+              "| ID | Name | Overall | Repository | Runtime | API E2E | Deployment | Protected target | Open Issues |",
+              "|---|---|---|---|---|---|---|---|---|",
+          ]
+          lines.extend(compact_row(controls_by_id[record_id]) for record_id in control_order)
           issue_inventory = ", ".join(f"#{item}" for item in ledger["open_audit_issues"])
-          lines.extend(
-              [
-                  "",
-                  "## Open audit Issue inventory",
-                  "",
-                  f"The following Issues are open at snapshot `{ledger['as_of_sha']}` and every one is linked to at least one",
-                  "non-complete dimension in the JSON ledger:",
-                  "",
-                  issue_inventory,
-                  "",
-                  "## Historical documents",
-                  "",
-                  "The former status tables and continuation narratives remain useful dated evidence, but they are no",
-                  "longer active status authorities. Their exact pre-ledger blobs are recorded under",
-                  "`legacy_documents` in the JSON ledger and in each reconciled document.",
-                  "",
-                  "## Validation",
-                  "",
-                  "Run:",
-                  "",
-                  "```bash",
-                  "python tools/agents/check_portal_completeness_ledger.py",
-                  "pytest -q tests/tools/test_check_portal_completeness_ledger.py",
-                  "```",
-                  "",
-                  "The validator fails on unsupported status values, duplicate records/routes, missing package or",
-                  "surface coverage, unlinked open audit Issues, a `COMPLETE` dimension with open blockers, missing",
-                  "evidence, or a legacy document that reasserts status authority.",
-                  "",
-                  "## Safety boundary",
-                  "",
-                  "This ledger grants no production deployment, protected-environment mutation, credential access,",
-                  "strategy/model promotion, order submission, withdrawal or live-capital authority.",
-              ]
-          )
+          lines += [
+              "",
+              "## Open audit Issue inventory",
+              "",
+              f"The following Issues are open at snapshot `{ledger['as_of_sha']}` and every one is linked to at least one",
+              "non-complete dimension in the JSON ledger:",
+              "",
+              issue_inventory,
+              "",
+              "## Historical documents",
+              "",
+              "The former status tables and continuation narratives remain useful dated evidence, but they are no",
+              "longer active status authorities. Their exact pre-ledger blobs are recorded under",
+              "`legacy_documents` in the JSON ledger and in each reconciled document.",
+              "",
+              "## Validation",
+              "",
+              "Run:",
+              "",
+              "```bash",
+              "python tools/agents/check_portal_completeness_ledger.py",
+              "pytest -q tests/tools/test_check_portal_completeness_ledger.py",
+              "```",
+              "",
+              "The validator fails on unsupported status values, duplicate records/routes, missing package or",
+              "surface coverage, unlinked open audit Issues, a `COMPLETE` dimension with open blockers, missing",
+              "evidence, or a legacy document that reasserts status authority.",
+              "",
+              "## Safety boundary",
+              "",
+              "This ledger grants no production deployment, protected-environment mutation, credential access,",
+              "strategy/model promotion, order submission, withdrawal or live-capital authority.",
+          ]
           MARKDOWN.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-          task = TASK.read_text(encoding="utf-8")
-          owned_paths = """owned_paths:
-            - .github/workflow-registry.yaml
-            - .github/workflows/portal-api-mode-browser.yml
-            - .github/workflows/portal-schema-exact-image.yml
-            - ai_platform/portal/database/transfer.py
-            - ai_platform/portal/identity/public_runtime.py
-            - deploy/synology/portal-oidc/Dockerfile.control-plane
-            - deploy/synology/portal-oidc/deploy.py
-            - deploy/synology/portal-oidc/deploy_entrypoint.py
-            - deploy/synology/portal-oidc/market_evidence_runtime.py
-            - deploy/synology/portal-oidc/postgresql_copy_on_write.py
-            - deploy/synology/portal-oidc/requirements.txt
-            - deploy/synology/portal/Dockerfile
-            - docs/ai_platform/portal/ISSUE_1089_MARKET_EVIDENCE_RUNTIME.md
-            - tests/ai_platform/portal/database/test_state_transfer.py
-            - tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_runtime.py
-            - tests/ai_platform/portal/deployment/test_portal_oidc_public_deploy.py
-            - tests/ai_platform/portal/deployment/test_portal_oidc_public_runtime.py
-            - tests/ai_platform/portal/deployment/test_postgresql_copy_on_write.py
-            - tests/ai_platform/portal/identity/test_public_runtime_composition.py
-            - docs/agents/tasks/active/FTAI-20260808-portal-remediation-1089.md
-          shared_paths:
-            - docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.json
-            - docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.md
-          shared_path_leases: []"""
-          task, count = re.subn(
-              r"owned_paths:\n(?:  - .*\n)+shared_path_leases: \[\]",
-              owned_paths,
-              task,
-              count=1,
-          )
-          if count != 1:
-              raise SystemExit("Could not reconcile task ownership paths")
-          task = task.replace("generation: 2", "generation: 3", 1)
-          task = task.replace(
-              "exact_head_before_checkpoint_commit: 1ede0194fb102ebd384a28d0e61786c475739b35",
-              f"exact_head_before_checkpoint_commit: {EVIDENCE_HEAD}",
-              1,
-          )
-          task = task.replace("checks_used: 0", "checks_used: 2", 1)
-          task = task.replace(
-              "next_action: Observe one aggregate current-head CI snapshot, repair the first actionable failure if any, then perform fresh independent audit when exact-head implementation and E2E gates are green.",
-              "next_action: Validate the clean post-reconciliation exact head, require the canonical completeness audit and real API-mode E2E, remediate any material finding, then archive and merge only the verified head.",
-              1,
-          )
-          task = task.replace(
-              "head_before_checkpoint_commit: 1ede0194fb102ebd384a28d0e61786c475739b35",
-              f"head_before_checkpoint_commit: {EVIDENCE_HEAD}",
-              1,
-          )
-          task = task.replace("ci_checks_for_current_head: 0", "ci_checks_for_current_head: 2", 1)
-          task += f"""
-
-          ## Repository closeout reconciliation
-
-          ```yaml
-          evidence_head: {EVIDENCE_HEAD}
-          issue_1089_removed_from_open_ledger: true
-          deployment_package_dimensions_reconciled: {deployment_promotions}
-          protected_target_acceptance_inferred: false
-          protected_target_acceptance: NOT_CLAIMED
-          api_mode_browser_evidence_run: 31280088576
-          exact_image_supply_chain_run: 31280088574
-          codeql_run: 31280088569
-          zizmor_run: 31280088604
-          independent_diff_audit: PASS_ZERO_MATERIAL_FINDINGS
-          remaining_terminal_actions:
-            - final clean exact-head Freqtrade CI and Risk-aware component CI
-            - canonical Portal Completeness Audit on the final clean head
-            - real authenticated API-mode browser gate on the final clean head
-            - zero unresolved review threads
-            - archive task and rerun required post-archive exact-head CI
-            - merge verified head and close Issue 1089
-          live_capital_authorized: false
-          protected_production_deployment_authorized: false
-          ```
-          """
-          TASK.write_text(task, encoding="utf-8")
           PY
 
           python tools/agents/check_portal_completeness_ledger.py
-          python -m pytest -q tests/tools/test_check_portal_completeness_ledger.py
           git diff --check
-
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add \
             docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.json \
-            docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.md \
-            docs/agents/tasks/active/FTAI-20260808-portal-remediation-1089.md
+            docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.md
           git commit -m 'docs(portal): reconcile issue 1089 completeness authority'
           git push origin HEAD:repair/1089-portal-api-mode-deployment

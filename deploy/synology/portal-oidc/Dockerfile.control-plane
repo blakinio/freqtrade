@@ -26,7 +26,7 @@ USER portal
 EXPOSE 8000
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=4 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=4).read()"
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=4).read()"
 
 ENTRYPOINT ["/usr/local/bin/portal-control-plane-entrypoint"]
 CMD ["uvicorn", "ai_platform.portal.identity.public_runtime:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]

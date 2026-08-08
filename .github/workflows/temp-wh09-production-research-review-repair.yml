@@ -23,7 +23,7 @@ jobs:
           persist-credentials: true
           fetch-depth: 0
 
-      - name: Apply fail-closed and bounded-journal repairs
+      - name: Apply bounded journal and fail-closed repairs
         shell: bash
         run: |
           set -euo pipefail
@@ -39,198 +39,361 @@ jobs:
           core_path = Path("ai_platform/wickhunter/production_research_runtime.py")
           core = core_path.read_text(encoding="utf-8")
 
-          field_anchor = '''    _active_traces: dict[str, ResearchScoreTrace] = field(
+          write_old = '''def _write_new_or_verify(path: Path, payload: dict[str, object]) -> None:
+              path.parent.mkdir(parents=True, exist_ok=True)
+              if path.parent.is_symlink() or path.is_symlink():
+              raise ProductionResearchRuntimeError("research journal path cannot traverse a symlink")
+              content = canonical_json(payload) + "\\n"
+              try:
+              descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o640)
+              except FileExistsError:
+              existing = _load_object(path, field_name=f"existing {path.name}")
+              if canonical_json(existing) != canonical_json(payload):
+                  raise ProductionResearchRuntimeError(f"immutable record collision for {path.name}")
+              return
+              try:
+              with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                  handle.write(content)
+                  handle.flush()
+                  os.fsync(handle.fileno())
+              except Exception:
+              path.unlink(missing_ok=True)
+              raise
+          '''
+          write_old = write_old.replace("              ", "    ")
+          write_new = '''def _write_new_or_verify(path: Path, payload: dict[str, object]) -> bool:
+              path.parent.mkdir(parents=True, exist_ok=True)
+              if path.parent.is_symlink() or path.is_symlink():
+              raise ProductionResearchRuntimeError("research journal path cannot traverse a symlink")
+              content = canonical_json(payload) + "\\n"
+              try:
+              descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o640)
+              except FileExistsError:
+              existing = _load_object(path, field_name=f"existing {path.name}")
+              if canonical_json(existing) != canonical_json(payload):
+                  raise ProductionResearchRuntimeError(f"immutable record collision for {path.name}")
+              return False
+              try:
+              with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                  handle.write(content)
+                  handle.flush()
+                  os.fsync(handle.fileno())
+              except Exception:
+              path.unlink(missing_ok=True)
+              raise
+              return True
+          '''
+          write_new = write_new.replace("              ", "    ")
+          core = replace_once(core, write_old, write_new, "immutable write return value")
+
+          fields_old = '''    _active_traces: dict[str, ResearchScoreTrace] = field(
               default_factory=dict,
               init=False,
               repr=False,
-          )
-          '''
-          field_replacement = field_anchor + '''    _decision_cache: dict[str, dict[str, Any]] = field(
-              default_factory=dict, init=False, repr=False
-          )
-              _outcome_cache: dict[str, dict[str, Any]] = field(
-              default_factory=dict, init=False, repr=False
-          )
-              _pending_outcomes: dict[str, dict[str, Any]] = field(
-              default_factory=dict, init=False, repr=False
-          )
-          '''
-          field_replacement = field_replacement.replace("              _outcome_cache", "    _outcome_cache").replace("              _pending_outcomes", "    _pending_outcomes")
-          if "_decision_cache:" not in core:
-              core = replace_once(core, field_anchor, field_replacement, "journal cache fields")
-
-          init_anchor = '        _write_new_or_verify(self.root / "identity.json", identity_payload)\n\n'
-          if "self._rebuild_indexes()" not in core:
-              core = replace_once(
-                  core,
-                  init_anchor,
-                  init_anchor + "        self._rebuild_indexes()\n\n",
-                  "journal startup index rebuild",
               )
+          '''
+          fields_old = fields_old.replace("              ", "        ")
+          fields_new = fields_old + '''    _pending_outcomes: dict[str, dict[str, Any]] = field(
+              default_factory=dict, init=False, repr=False
+              )
+              _decision_count: int = field(default=0, init=False, repr=False)
+              _simulated_signal_count: int = field(default=0, init=False, repr=False)
+              _directional_decision_count: int = field(default=0, init=False, repr=False)
+              _above_threshold_count: int = field(default=0, init=False, repr=False)
+              _confidence_count: int = field(default=0, init=False, repr=False)
+              _confidence_sum: Decimal = field(default=Decimal("0"), init=False, repr=False)
+              _confidence_min: Decimal | None = field(default=None, init=False, repr=False)
+              _confidence_max: Decimal | None = field(default=None, init=False, repr=False)
+              _outcome_count: int = field(default=0, init=False, repr=False)
+              _positive_outcome_count: int = field(default=0, init=False, repr=False)
+          '''
+          fields_new = fields_new.replace("              ", "    ")
+          core = replace_once(core, fields_old, fields_new, "journal aggregate fields")
 
-          method_anchor = '''    @property
+          init_old = '        _write_new_or_verify(self.root / "identity.json", identity_payload)\n\n'
+          init_new = init_old + '        self._rebuild_index()\n\n'
+          core = replace_once(core, init_old, init_new, "journal startup index")
+
+          property_anchor = '''    @property
               def runtime_store(self) -> ShadowRuntimeStore:
-          '''.replace("              def", "    def")
-          methods = '''    def _load_decision_file(self, path: Path) -> dict[str, Any]:
+          '''.replace("              ", "    ")
+          index_methods = '''    def _load_decision_file(self, path: Path) -> dict[str, Any]:
               payload = _verify_self_hash(
-                  _load_object(path, field_name="research decision"),
-                  hash_field="record_sha256",
-                  field_name="research decision",
+              _load_object(path, field_name="research decision"),
+              hash_field="record_sha256",
+              field_name="research decision",
               )
               decision_id = str(payload.get("decision_id", ""))
               if SHA256_RE.fullmatch(decision_id) is None or path.stem != decision_id:
-                  raise ProductionResearchRuntimeError("research decision identity is invalid")
+              raise ProductionResearchRuntimeError("research decision identity is invalid")
               return payload
 
               def _load_outcome_file(self, path: Path) -> dict[str, Any]:
               payload = _verify_self_hash(
-                  _load_object(path, field_name="research outcome"),
-                  hash_field="record_sha256",
-                  field_name="research outcome",
+              _load_object(path, field_name="research outcome"),
+              hash_field="record_sha256",
+              field_name="research outcome",
               )
               decision_id = str(payload.get("decision_id", ""))
               if SHA256_RE.fullmatch(decision_id) is None or path.stem != decision_id:
-                  raise ProductionResearchRuntimeError("research outcome decision identity is invalid")
+              raise ProductionResearchRuntimeError(
+                  "research outcome decision identity is invalid"
+              )
               return payload
 
-              def _cache_decision(self, payload: dict[str, Any]) -> None:
+              def _register_decision(self, payload: dict[str, Any]) -> None:
               decision_id = str(payload.get("decision_id", ""))
               if SHA256_RE.fullmatch(decision_id) is None:
-                  raise ProductionResearchRuntimeError("research decision identity is invalid")
-              self._decision_cache[decision_id] = payload
-              if payload.get("side") in {"long", "short"} and decision_id not in self._outcome_cache:
-                  self._pending_outcomes[decision_id] = payload
-              else:
-                  self._pending_outcomes.pop(decision_id, None)
+              raise ProductionResearchRuntimeError("research decision identity is invalid")
+              self._decision_count += 1
+              if payload.get("final_decision") == "SIMULATED_SIGNAL":
+              self._simulated_signal_count += 1
+              if payload.get("side") in {"long", "short"}:
+              self._directional_decision_count += 1
+              self._pending_outcomes[decision_id] = payload
+              if payload.get("above_no_trade_confidence") is True:
+              self._above_threshold_count += 1
+              confidence = payload.get("calibrated_confidence")
+              if confidence is not None:
+              value = Decimal(str(confidence))
+              self._confidence_count += 1
+              self._confidence_sum += value
+              self._confidence_min = value if self._confidence_min is None else min(self._confidence_min, value)
+              self._confidence_max = value if self._confidence_max is None else max(self._confidence_max, value)
 
-              def _cache_outcome(self, payload: dict[str, Any]) -> None:
+              def _register_outcome(self, payload: dict[str, Any]) -> None:
               decision_id = str(payload.get("decision_id", ""))
               if SHA256_RE.fullmatch(decision_id) is None:
-                  raise ProductionResearchRuntimeError("research outcome decision identity is invalid")
-              if decision_id not in self._decision_cache:
-                  raise ProductionResearchRuntimeError("research outcome is orphaned from its decision")
-              self._outcome_cache[decision_id] = payload
+              raise ProductionResearchRuntimeError(
+                  "research outcome decision identity is invalid"
+              )
+              if decision_id not in self._pending_outcomes:
+              raise ProductionResearchRuntimeError(
+                  "research outcome is orphaned from a pending directional decision"
+              )
+              self._outcome_count += 1
+              if payload.get("positive_outcome") is True:
+              self._positive_outcome_count += 1
               self._pending_outcomes.pop(decision_id, None)
 
-              def _rebuild_indexes(self) -> None:
-              self._decision_cache.clear()
-              self._outcome_cache.clear()
-              self._pending_outcomes.clear()
+              def _rebuild_index(self) -> None:
               for path in sorted((self.root / "decisions").glob("*.json")):
-                  self._cache_decision(self._load_decision_file(path))
+              self._register_decision(self._load_decision_file(path))
               for path in sorted((self.root / "outcomes").glob("*.json")):
-                  self._cache_outcome(self._load_outcome_file(path))
+              self._register_outcome(self._load_outcome_file(path))
 
           '''
-          methods = methods.replace("              def ", "    def ")
-          methods = methods.replace("\n              payload", "\n        payload")
-          methods = methods.replace("\n                  _load", "\n            _load")
-          methods = methods.replace("\n                  hash", "\n            hash")
-          methods = methods.replace("\n                  field", "\n            field")
-          methods = methods.replace("\n              )", "\n        )")
-          methods = methods.replace("\n              decision_id", "\n        decision_id")
-          methods = methods.replace("\n              if ", "\n        if ")
-          methods = methods.replace("\n                  raise", "\n            raise")
-          methods = methods.replace("\n              return", "\n        return")
-          methods = methods.replace("\n              self.", "\n        self.")
-          methods = methods.replace("\n                  self.", "\n            self.")
-          methods = methods.replace("\n              else:", "\n        else:")
-          methods = methods.replace("\n              for path", "\n        for path")
-          methods = methods.replace("\n                  self._cache", "\n            self._cache")
-          if "def _load_decision_file" not in core:
-              core = replace_once(core, method_anchor, methods + method_anchor, "journal cache methods")
+          # Normalize the intentionally compact literal to ordinary Python indentation.
+          lines = []
+          current_method = False
+          for raw in index_methods.splitlines():
+              stripped = raw.lstrip()
+              if not stripped:
+                  lines.append("")
+                  continue
+              if raw.startswith("    def "):
+                  current_method = True
+                  lines.append(raw)
+                  continue
+              # The literal uses six extra spaces for method-body lines.
+              if raw.startswith("              "):
+                  lines.append("        " + raw[14:])
+              else:
+                  lines.append(raw)
+          index_methods = "\n".join(lines) + "\n"
+          core = replace_once(core, property_anchor, index_methods + property_anchor, "journal index methods")
 
-          decision_write = '''                _write_new_or_verify(
-                      self.root / "decisions" / f"{evidence.shadow_decision_id}.json",
-                      payload,
-                  )
-          '''.replace("                      ", "                    ").replace("                  )", "                )")
-          decision_write_replacement = decision_write + "                self._cache_decision(payload)\n"
-          if "self._cache_decision(payload)" not in core.split("def record_decisions", 1)[1].split("def pending_outcome_symbols", 1)[0]:
-              core = replace_once(core, decision_write, decision_write_replacement, "decision cache update")
+          record_old = '''                _write_new_or_verify(
+              self.root / "decisions" / f"{evidence.shadow_decision_id}.json",
+              payload,
+              )
+          '''
+          record_old = record_old.replace("              ", "                    ")
+          record_new = '''                if _write_new_or_verify(
+                    self.root / "decisions" / f"{evidence.shadow_decision_id}.json",
+                    payload,
+                ):
+                    self._register_decision(payload)
+          '''
+          core = replace_once(core, record_old, record_new, "decision aggregate update")
 
           pending_pattern = re.compile(
               r"    def pending_outcome_symbols\(self, \*, observed_at_ms: int\) -> tuple\[str, \.\.\.\]:\n.*?(?=    def materialize_due_outcomes\()",
               re.S,
           )
-          pending_replacement = '''    def pending_outcome_symbols(self, *, observed_at_ms: int) -> tuple[str, ...]:
+          pending_new = '''    def pending_outcome_symbols(self, *, observed_at_ms: int) -> tuple[str, ...]:
               symbols = {
-                  str(decision["symbol"]).upper()
-                  for decision in self._pending_outcomes.values()
-                  if observed_at_ms
-                  >= int(decision["decision_timestamp_ms"]) + self.identity.outcome_horizon_ms
+              str(decision["symbol"]).upper()
+              for decision in self._pending_outcomes.values()
+              if observed_at_ms
+              >= int(decision["decision_timestamp_ms"]) + self.identity.outcome_horizon_ms
               }
               return tuple(sorted(symbols))
 
           '''
-          pending_replacement = pending_replacement.replace("              symbols", "        symbols").replace("              return", "        return")
-          pending_replacement = pending_replacement.replace("\n                  str", "\n            str").replace("\n                  for", "\n            for").replace("\n                  if", "\n            if").replace("\n                  >=", "\n            >=").replace("\n              }", "\n        }")
-          core, count = pending_pattern.subn(pending_replacement, core, count=1)
+          pending_new = "\n".join(
+              ("        " + line[14:] if line.startswith("              ") else line)
+              for line in pending_new.splitlines()
+          ) + "\n"
+          core, count = pending_pattern.subn(pending_new, core, count=1)
           if count != 1:
               raise SystemExit("unable to replace pending outcome scan")
 
-          materialize_old = '''        created = 0
-              outcome_root = self.root / "outcomes"
-              for decision_path in sorted((self.root / "decisions").glob("*.json")):
-              decision = _verify_self_hash(
-                  _load_object(decision_path, field_name="research decision"),
-                  hash_field="record_sha256",
-                  field_name="research decision",
-              )
-              decision_id = str(decision.get("decision_id", ""))
-              if SHA256_RE.fullmatch(decision_id) is None:
-                  raise ProductionResearchRuntimeError("research decision identity is invalid")
-              outcome_path = outcome_root / f"{decision_id}.json"
-              if outcome_path.exists():
-                  continue
-          '''
-          materialize_old = materialize_old.replace("              outcome_root", "        outcome_root").replace("              for decision_path", "        for decision_path").replace("              decision =", "            decision =").replace("\n                  _load", "\n                _load").replace("\n                  hash", "\n                hash").replace("\n                  field", "\n                field").replace("\n              )", "\n            )").replace("\n              decision_id", "\n            decision_id").replace("\n              if SHA", "\n            if SHA").replace("\n                  raise", "\n                raise").replace("\n              outcome_path", "\n            outcome_path").replace("\n              if outcome", "\n            if outcome").replace("\n                  continue", "\n                continue")
-          materialize_new = '''        created = 0
+          materialize_pattern = re.compile(
+              r"    def materialize_due_outcomes\(\n.*?(?=    def publish_telemetry\()",
+              re.S,
+          )
+          materialize_new = '''    def materialize_due_outcomes(
+              self,
+              *,
+              observed_at_ms: int,
+              mark_prices: dict[str, Decimal],
+              operator_commit: str,
+              ) -> int:
+              created = 0
               outcome_root = self.root / "outcomes"
               for decision_id, cached_decision in sorted(tuple(self._pending_outcomes.items())):
+              decision_timestamp_ms = int(cached_decision["decision_timestamp_ms"])
+              target_at_ms = decision_timestamp_ms + self.identity.outcome_horizon_ms
+              if observed_at_ms < target_at_ms:
+                  continue
               decision_path = self.root / "decisions" / f"{decision_id}.json"
               decision = self._load_decision_file(decision_path)
               if canonical_json(decision) != canonical_json(cached_decision):
                   raise ProductionResearchRuntimeError(
-                      "immutable research decision changed after startup"
+                  "immutable research decision changed after startup"
                   )
               outcome_path = outcome_root / f"{decision_id}.json"
               if outcome_path.exists():
-                  self._cache_outcome(self._load_outcome_file(outcome_path))
+                  raise ProductionResearchRuntimeError(
+                  "research outcome appeared outside the journal writer"
+                  )
+              side = decision.get("side")
+              if side not in {"long", "short"}:
+                  raise ProductionResearchRuntimeError(
+                  "pending research decision is not directional"
+                  )
+              symbol = str(decision["symbol"]).upper()
+              outcome_price = mark_prices.get(symbol)
+              if outcome_price is None or outcome_price <= 0:
                   continue
-          '''
-          materialize_new = materialize_new.replace("              outcome_root", "        outcome_root").replace("              for decision_id", "        for decision_id").replace("              decision_path", "            decision_path").replace("              decision =", "            decision =").replace("              if canonical", "            if canonical").replace("\n                  raise", "\n                raise").replace("\n                      \"immutable", "\n                    \"immutable").replace("\n                  )", "\n                )").replace("              outcome_path", "            outcome_path").replace("              if outcome", "            if outcome").replace("\n                  self._cache", "\n                self._cache").replace("\n                  continue", "\n                continue")
-          core = replace_once(core, materialize_old, materialize_new, "bounded outcome materialization")
+              entry_price = Decimal(str(decision["decision_price"]))
+              gross_return = (outcome_price / entry_price) - Decimal("1")
+              directional_return = gross_return if side == "long" else -gross_return
+              payload: dict[str, object] = {
+              "schema_version": RESEARCH_OUTCOME_SCHEMA,
+              "outcome_id": canonical_sha256(
+                  {
+                  "decision_id": decision_id,
+                  "target_at_ms": target_at_ms,
+                  "labeled_at_ms": observed_at_ms,
+                  "outcome_price": str(outcome_price),
+                  }
+              ),
+              "decision_id": decision_id,
+              "run_id": self.identity.run_id,
+              "operator_commit": _git_sha(operator_commit, field_name="operator_commit"),
+              "symbol": symbol,
+              "side": side,
+              "decision_timestamp_ms": decision_timestamp_ms,
+              "target_horizon_ms": self.identity.outcome_horizon_ms,
+              "target_at_ms": target_at_ms,
+              "labeled_at_ms": observed_at_ms,
+              "observation_delay_ms": observed_at_ms - target_at_ms,
+              "entry_price": str(entry_price),
+              "outcome_price": str(outcome_price),
+              "gross_return_ratio": str(gross_return.quantize(Decimal("0.00000001"))),
+              "directional_return_ratio": str(directional_return.quantize(Decimal("0.00000001"))),
+              "positive_outcome": directional_return > 0,
+              "semantics": "first_observed_mark_at_or_after_target_horizon_no_costs",
+              "deterministic_replay_equivalent": False,
+              "model_version": self.identity.model_version,
+              "model_hash": self.identity.model_hash,
+              "parameter_version": self.identity.parameter_version,
+              "parameter_hash": self.identity.parameter_hash,
+              "dataset_hash": self.identity.dataset_hash,
+              "model_source_commit": self.identity.model_source_commit,
+              **ZERO_AUTHORITY,
+              }
+              payload["record_sha256"] = canonical_sha256(payload)
+              if not _write_new_or_verify(outcome_path, payload):
+              raise ProductionResearchRuntimeError("research outcome write was not new")
+              self._register_outcome(payload)
+              created += 1
+              return created
 
-          outcome_write = '''            _write_new_or_verify(outcome_path, payload)
-              created += 1
-          '''.replace("              created", "            created")
-          outcome_write_replacement = '''            _write_new_or_verify(outcome_path, payload)
-              self._cache_outcome(payload)
-              created += 1
-          '''.replace("              self", "            self").replace("              created", "            created")
-          core = replace_once(core, outcome_write, outcome_write_replacement, "outcome cache update")
+          '''
+          normalized = []
+          for raw in materialize_new.splitlines():
+              if raw.startswith("              "):
+                  normalized.append("        " + raw[14:])
+              else:
+                  normalized.append(raw)
+          materialize_new = "\n".join(normalized) + "\n"
+          core, count = materialize_pattern.subn(materialize_new, core, count=1)
+          if count != 1:
+              raise SystemExit("unable to replace outcome materialization")
 
           telemetry_pattern = re.compile(
-              r"        decisions = tuple\(\n.*?        confidences = tuple\(\n",
+              r"        decisions = tuple\(\n.*?        confidence_summary: dict\[str, object\] = \{\n.*?        \}\n",
               re.S,
           )
-          telemetry_replacement = '''        decisions = tuple(
-              self._decision_cache[key] for key in sorted(self._decision_cache)
-          )
-              outcomes = tuple(self._outcome_cache[key] for key in sorted(self._outcome_cache))
-              confidences = tuple(
+          telemetry_new = '''        confidence_summary: dict[str, object] = {
+              "count": self._confidence_count,
+              "minimum": None if self._confidence_min is None else str(self._confidence_min),
+              "maximum": None if self._confidence_max is None else str(self._confidence_max),
+              "mean": (
+              None
+              if self._confidence_count == 0
+              else str(
+                  (self._confidence_sum / Decimal(self._confidence_count)).quantize(
+                  Decimal("0.000001")
+                  )
+              )
+              ),
+              }
           '''
-          telemetry_replacement = telemetry_replacement.replace("              self._decision", "            self._decision").replace("              outcomes", "        outcomes").replace("              confidences", "        confidences")
-          core, count = telemetry_pattern.subn(telemetry_replacement, core, count=1)
+          telemetry_new = "\n".join(
+              ("            " + line[14:] if line.startswith("              ") else line)
+              for line in telemetry_new.splitlines()
+          ) + "\n"
+          core, count = telemetry_pattern.subn(telemetry_new, core, count=1)
           if count != 1:
-              raise SystemExit("unable to replace telemetry directory scans")
-          core = replace_once(
-              core,
-              '            "pending_outcome_count": max(0, directional_decisions - len(outcomes)),\n',
-              '            "pending_outcome_count": len(self._pending_outcomes),\n',
-              "telemetry pending counter",
-          )
+              raise SystemExit("unable to replace telemetry aggregate scans")
+          replacements = {
+              '            "decision_count": len(decisions),': '            "decision_count": self._decision_count,',
+              '            "no_trade_count": len(decisions) - simulated_signals,': '            "no_trade_count": self._decision_count - self._simulated_signal_count,',
+              '            "simulated_signal_count": simulated_signals,': '            "simulated_signal_count": self._simulated_signal_count,',
+              '            "directional_decision_count": directional_decisions,': '            "directional_decision_count": self._directional_decision_count,',
+              '            "above_threshold_count": above_threshold,': '            "above_threshold_count": self._above_threshold_count,',
+              '            "outcome_count": len(outcomes),': '            "outcome_count": self._outcome_count,',
+              '            "pending_outcome_count": max(0, directional_decisions - len(outcomes)),': '            "pending_outcome_count": len(self._pending_outcomes),',
+              '            "positive_outcome_count": positive_outcomes,': '            "positive_outcome_count": self._positive_outcome_count,',
+          }
+          for old, new in replacements.items():
+              core = replace_once(core, old, new, old)
+          positive_old = '''            "positive_outcome_rate": (
+              None
+              if not outcomes
+              else str(
+                  (Decimal(positive_outcomes) / Decimal(len(outcomes))).quantize(
+                  Decimal("0.000001")
+                  )
+              )
+              ),
+          '''
+          positive_old = positive_old.replace("              ", "                ")
+          positive_new = '''            "positive_outcome_rate": (
+                None
+                if self._outcome_count == 0
+                else str(
+                    (
+                        Decimal(self._positive_outcome_count) / Decimal(self._outcome_count)
+                    ).quantize(Decimal("0.000001"))
+                )
+            ),
+          '''
+          core = replace_once(core, positive_old, positive_new, "positive outcome aggregate")
           core_path.write_text(core, encoding="utf-8")
 
           operator_path = Path("ai_platform/wickhunter/production_research_runtime_operator.py")
@@ -239,9 +402,17 @@ jobs:
               _atomic_health(
               self.health_path,
               self._health_payload(
-                  status="healthy",
+              status="healthy",
+              checked_at_ms=now_ms,
+              liquid20_snapshot_id=liquid20.snapshot_id,
+              runtime_health=runtime_health,
+              circuit_breaker_reasons=canonical_breaker_reasons,
+              error_code=None,
+              error_message=None,
+              ),
+              )
           '''
-          operator_old = operator_old.replace("              _atomic", "        _atomic").replace("              self.health", "            self.health").replace("              self._health", "            self._health").replace("                  status", "                status")
+          operator_old = operator_old.replace("              ", "            ")
           operator_new = '''        status = "fail_closed" if runtime_health == "fail_closed" else "healthy"
               if status == "healthy":
               self.last_success_at_ms = now_ms
@@ -254,49 +425,50 @@ jobs:
               _atomic_health(
               self.health_path,
               self._health_payload(
-                  status=status,
+              status=status,
+              checked_at_ms=now_ms,
+              liquid20_snapshot_id=liquid20.snapshot_id,
+              runtime_health=runtime_health,
+              circuit_breaker_reasons=canonical_breaker_reasons,
+              error_code=error_code,
+              error_message=error_message,
+              ),
+              )
           '''
-          operator_new = operator_new.replace("              if status", "        if status").replace("\n              self.last", "\n            self.last").replace("              error_code", "        error_code").replace("              error_message", "        error_message").replace("\n              None", "\n            None").replace("\n              if status", "\n            if status").replace("\n              else ", "\n            else ").replace("\n              )", "\n        )").replace("              _atomic", "        _atomic").replace("\n              self.health", "\n            self.health").replace("\n              self._health", "\n            self._health").replace("\n                  status", "\n                status")
-          operator = replace_once(operator, operator_old, operator_new, "truthful operator status")
-          operator = replace_once(
-              operator,
-              '''                error_code=None,
-                              error_message=None,
-              '''.replace("                              error_message", "                error_message"),
-              '''                error_code=error_code,
-                              error_message=error_message,
-              '''.replace("                              error_message", "                error_message"),
-              "operator fail-closed reason",
-          )
+          operator_new = "\n".join(
+              ("        " + line[14:] if line.startswith("              ") else line)
+              for line in operator_new.splitlines()
+          ) + "\n"
+          operator = replace_once(operator, operator_old, operator_new, "truthful fail-closed health")
           operator_path.write_text(operator, encoding="utf-8")
 
           health_path = Path("deploy/synology/wickhunter-production-research-runtime/research_runtime_healthcheck.py")
           health = health_path.read_text(encoding="utf-8")
-          health_anchor = '''        if health.get("status") != "healthy":
+          health_old = '''        if health.get("status") != "healthy":
               return _fail("research operator is fail-closed")
-          '''.replace("              return", "            return")
-          health_replacement = health_anchor + '''        if health.get("runtime_health") not in {"healthy", "degraded"}:
+          '''.replace("              ", "            ")
+          health_new = health_old + '''        if health.get("runtime_health") not in {"healthy", "degraded"}:
               return _fail("research runtime is fail-closed")
               if health.get("circuit_breaker_active") is True:
               return _fail("research runtime circuit breaker is active")
           '''
-          health_replacement = health_replacement.replace("              return", "            return").replace("              if health", "        if health")
-          if "research runtime circuit breaker is active" not in health:
-              health = replace_once(health, health_anchor, health_replacement, "healthcheck nested runtime state")
+          health_new = "\n".join(
+              ("            " + line[14:] if line.startswith("              ") else line)
+              for line in health_new.splitlines()
+          ) + "\n"
+          health = replace_once(health, health_old, health_new, "nested runtime healthcheck")
           health_path.write_text(health, encoding="utf-8")
 
           tests_path = Path("tests/ai_platform_integration/test_wickhunter_production_research_runtime.py")
           tests = tests_path.read_text(encoding="utf-8")
-          test_name = "test_journal_rebuilds_pending_index_without_repeated_directory_scans"
-          if test_name not in tests:
-              tests += '''\n\ndef test_journal_rebuilds_pending_index_without_repeated_directory_scans(\n    tmp_path: Path, monkeypatch: pytest.MonkeyPatch\n) -> None:\n    first = research.ProductionResearchJournal(tmp_path / "journal", _identity())\n    evidence = _journal_evidence()\n    trace = research.ResearchScoreTrace(\n        score_id="2" * 64,\n        raw_probability=Decimal("0.331543"),\n        calibrated_confidence=Decimal("0.333333"),\n    )\n    first.record_decisions(\n        requests=(_journal_request(),),\n        decisions=(evidence,),\n        traces={trace.score_id: trace},\n        operator_commit=CODE_SHA,\n    )\n\n    restarted = research.ProductionResearchJournal(first.root, _identity())\n\n    def forbid_glob(*_args: object, **_kwargs: object) -> object:\n        raise AssertionError("steady-state journal must not rescan historical directories")\n\n    monkeypatch.setattr(Path, "glob", forbid_glob)\n    assert restarted.pending_outcome_symbols(\n        observed_at_ms=CREATED_AT_MS + 900_000\n    ) == ("BTCUSDT",)\n    runtime_state = SimpleNamespace(\n        generation=1,\n        last_observed_at_ms=CREATED_AT_MS + 900_000,\n        positions=(),\n        closed_positions=(),\n        cumulative_realized_pnl_quote=Decimal("0"),\n        drawdown_ratio=Decimal("0"),\n    )\n    telemetry = restarted.publish_telemetry(\n        checked_at_ms=CREATED_AT_MS + 900_000,\n        operator_commit=CODE_SHA,\n        runtime_state=runtime_state,\n    )\n    assert telemetry["decision_count"] == 1\n    assert telemetry["pending_outcome_count"] == 1\n    assert restarted.materialize_due_outcomes(\n        observed_at_ms=CREATED_AT_MS + 900_000,\n        mark_prices={"BTCUSDT": Decimal("110")},\n        operator_commit=CODE_SHA,\n    ) == 1\n    telemetry = restarted.publish_telemetry(\n        checked_at_ms=CREATED_AT_MS + 900_001,\n        operator_commit=CODE_SHA,\n        runtime_state=runtime_state,\n    )\n    assert telemetry["outcome_count"] == 1\n    assert telemetry["pending_outcome_count"] == 0\n'''
+          if "test_journal_steady_state_avoids_historical_directory_scans" not in tests:
+              tests += '''\n\ndef test_journal_steady_state_avoids_historical_directory_scans(\n    tmp_path: Path, monkeypatch: pytest.MonkeyPatch\n) -> None:\n    first = research.ProductionResearchJournal(tmp_path / "journal", _identity())\n    evidence = _journal_evidence()\n    trace = research.ResearchScoreTrace(\n        score_id="2" * 64,\n        raw_probability=Decimal("0.331543"),\n        calibrated_confidence=Decimal("0.333333"),\n    )\n    first.record_decisions(\n        requests=(_journal_request(),),\n        decisions=(evidence,),\n        traces={trace.score_id: trace},\n        operator_commit=CODE_SHA,\n    )\n    restarted = research.ProductionResearchJournal(first.root, _identity())\n\n    def forbid_glob(*_args: object, **_kwargs: object) -> object:\n        raise AssertionError("steady-state journal must not rescan historical directories")\n\n    monkeypatch.setattr(Path, "glob", forbid_glob)\n    assert restarted.pending_outcome_symbols(\n        observed_at_ms=CREATED_AT_MS + 900_000\n    ) == ("BTCUSDT",)\n    runtime_state = SimpleNamespace(\n        generation=1,\n        last_observed_at_ms=CREATED_AT_MS + 900_000,\n        positions=(),\n        closed_positions=(),\n        cumulative_realized_pnl_quote=Decimal("0"),\n        drawdown_ratio=Decimal("0"),\n    )\n    telemetry = restarted.publish_telemetry(\n        checked_at_ms=CREATED_AT_MS + 900_000,\n        operator_commit=CODE_SHA,\n        runtime_state=runtime_state,\n    )\n    assert telemetry["decision_count"] == 1\n    assert telemetry["pending_outcome_count"] == 1\n    assert restarted.materialize_due_outcomes(\n        observed_at_ms=CREATED_AT_MS + 900_000,\n        mark_prices={"BTCUSDT": Decimal("110")},\n        operator_commit=CODE_SHA,\n    ) == 1\n    telemetry = restarted.publish_telemetry(\n        checked_at_ms=CREATED_AT_MS + 900_001,\n        operator_commit=CODE_SHA,\n        runtime_state=runtime_state,\n    )\n    assert telemetry["outcome_count"] == 1\n    assert telemetry["pending_outcome_count"] == 0\n    assert telemetry["positive_outcome_count"] == 1\n'''
           tests_path.write_text(tests, encoding="utf-8")
 
           deploy_tests_path = Path("tests/ai_platform_integration/test_wickhunter_production_research_runtime_deploy.py")
           deploy_tests = deploy_tests_path.read_text(encoding="utf-8")
-          deploy_test_name = "test_healthcheck_rejects_nested_fail_closed_runtime"
-          if deploy_test_name not in deploy_tests:
-              deploy_tests += '''\n\ndef test_healthcheck_rejects_nested_fail_closed_runtime() -> None:\n    healthcheck = (DEPLOY / "research_runtime_healthcheck.py").read_text(encoding="utf-8")\n    assert 'health.get("runtime_health") not in {"healthy", "degraded"}' in healthcheck\n    assert 'health.get("circuit_breaker_active") is True' in healthcheck\n    operator = (ROOT / "ai_platform" / "wickhunter" / "production_research_runtime_operator.py").read_text(encoding="utf-8")\n    assert 'status = "fail_closed" if runtime_health == "fail_closed" else "healthy"' in operator\n    assert 'error_code = None if status == "healthy" else "runtime_fail_closed"' in operator\n'''
+          if "test_healthcheck_rejects_nested_fail_closed_runtime" not in deploy_tests:
+              deploy_tests += '''\n\ndef test_healthcheck_rejects_nested_fail_closed_runtime() -> None:\n    healthcheck = (DEPLOY / "research_runtime_healthcheck.py").read_text(encoding="utf-8")\n    assert 'health.get("runtime_health") not in {"healthy", "degraded"}' in healthcheck\n    assert 'health.get("circuit_breaker_active") is True' in healthcheck\n    operator = (\n        ROOT / "ai_platform" / "wickhunter" / "production_research_runtime_operator.py"\n    ).read_text(encoding="utf-8")\n    assert 'status = "fail_closed" if runtime_health == "fail_closed" else "healthy"' in operator\n    assert 'error_code = None if status == "healthy" else "runtime_fail_closed"' in operator\n'''
           deploy_tests_path.write_text(deploy_tests, encoding="utf-8")
           PY
 
@@ -306,13 +478,8 @@ jobs:
             deploy/synology/wickhunter-production-research-runtime/research_runtime_healthcheck.py \
             tests/ai_platform_integration/test_wickhunter_production_research_runtime.py \
             tests/ai_platform_integration/test_wickhunter_production_research_runtime_deploy.py
-
           git diff --check
           git status --short
-          if git diff --quiet; then
-            echo "No repair changes required."
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
@@ -321,5 +488,9 @@ jobs:
             deploy/synology/wickhunter-production-research-runtime/research_runtime_healthcheck.py \
             tests/ai_platform_integration/test_wickhunter_production_research_runtime.py \
             tests/ai_platform_integration/test_wickhunter_production_research_runtime_deploy.py
+          if git diff --cached --quiet; then
+            echo "No repair changes required."
+            exit 0
+          fi
           git commit -m "fix(wickhunter): bound research journal and surface fail closed"
           git push origin HEAD:feat/wickhunter-wh09-production-research-runtime-20260808

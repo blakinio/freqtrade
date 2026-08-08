@@ -428,6 +428,21 @@
       ]
     },
     {
+      "classification": "canonical",
+      "lifecycle": "active",
+      "name": "Deploy WickHunter WH09 Production Research Runtime",
+      "owner": "wickhunter",
+      "path": ".github/workflows/ai-platform-wickhunter-wh09-production-research-runtime-deploy.yml",
+      "permissions": {
+        "contents": "read"
+      },
+      "review_date": "2027-02-02",
+      "risk_class": "high",
+      "triggers": [
+        "push"
+      ]
+    },
+    {
       "classification": "reusable_component",
       "lifecycle": "active",
       "name": "AI Platform CI",

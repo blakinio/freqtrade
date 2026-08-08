@@ -113,11 +113,18 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
 
     def write_report(path: Any, report: dict[str, Any]) -> str:
         source_database = state["source_database"]
+        candidate_database = state["candidate_database"]
         if source_database is not None:
+            if candidate_database is None:
+                raise deploy.DeploymentError(
+                    "PostgreSQL copy-on-write recovery report is missing candidate database identity"
+                )
             recovery = report.setdefault("database_recovery", {})
             recovery.update(
                 {
                     "pre_migration_backup_sha256": state["backup_sha256"],
+                    "source_database": source_database,
+                    "candidate_database": candidate_database,
                     "source_database_retained_for_rollback": True,
                     "restore_authorized": False,
                 }
@@ -128,6 +135,8 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
                     {
                         "state_transition": "postgresql_copy_on_write",
                         "pre_migration_backup_sha256": state["backup_sha256"],
+                        "source_database": source_database,
+                        "candidate_database": candidate_database,
                         "source_database_retained_for_rollback": True,
                     }
                 )

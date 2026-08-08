@@ -6,6 +6,7 @@ from ai_platform.wickhunter.contracts import BotMode
 from ai_platform.wickhunter.runtime_mode import (
     ManagedRuntimeModeRequest,
     RuntimeModeRejectionReason,
+    RuntimeModeResolution,
     RuntimeModeResolutionError,
     resolve_managed_runtime_mode,
 )
@@ -28,14 +29,14 @@ def _paper_request(**overrides: object) -> ManagedRuntimeModeRequest:
     return ManagedRuntimeModeRequest(**values)  # type: ignore[arg-type]
 
 
-def _assert_zero_authority(resolution: object) -> None:
-    assert getattr(resolution, "trading_credentials_present") is False
-    assert getattr(resolution, "order_adapter_present") is False
-    assert getattr(resolution, "real_exchange_execution_enabled") is False
-    assert getattr(resolution, "execution_enabled") is False
-    assert getattr(resolution, "orders_submitted") == 0
-    assert getattr(resolution, "live_capital_authorized") is False
-    assert getattr(resolution, "automatic_promotion_enabled") is False
+def _assert_zero_authority(resolution: RuntimeModeResolution) -> None:
+    assert resolution.trading_credentials_present is False
+    assert resolution.order_adapter_present is False
+    assert resolution.real_exchange_execution_enabled is False
+    assert resolution.execution_enabled is False
+    assert resolution.orders_submitted == 0
+    assert resolution.live_capital_authorized is False
+    assert resolution.automatic_promotion_enabled is False
 
 
 def test_shadow_resolves_with_zero_authority() -> None:

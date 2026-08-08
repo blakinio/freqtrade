@@ -11,7 +11,7 @@ WORKDIR /app
 
 ENV NEXT_TELEMETRY_DISABLED=1 \
     PORTAL_WEB_DATA_MODE=fixture \
-    PORTAL_ENVIRONMENT=staging
+    PORTAL_ENVIRONMENT=test
 
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
@@ -44,13 +44,35 @@ RUN rm -rf \
       /usr/local/bin/corepack \
       /usr/local/bin/yarn \
       /usr/local/bin/yarnpkg \
-    && test "$(node --version)" = "v22.23.2"
+    && test "$(node --version)" = "v22.23.2" \
+    && printf '%s\n' \
+      '#!/bin/sh' \
+      'set -eu' \
+      'case "${PORTAL_ENVIRONMENT:-}" in' \
+      '  staging|production)' \
+      '    if [ "${PORTAL_WEB_DATA_MODE:-}" != "api" ]; then' \
+      '      echo "fixture Portal data mode is forbidden in staging/production" >&2' \
+      '      exit 64' \
+      '    fi' \
+      '    if [ -z "${PORTAL_CONTROL_PLANE_URL:-}" ]; then' \
+      '      echo "PORTAL_CONTROL_PLANE_URL is required in staging/production" >&2' \
+      '      exit 64' \
+      '    fi' \
+      '    if [ "${PORTAL_IDENTITY_FIXTURE_MODE:-disabled}" != "disabled" ]; then' \
+      '      echo "identity fixture mode is forbidden in staging/production" >&2' \
+      '      exit 64' \
+      '    fi' \
+      '    ;;' \
+      'esac' \
+      'exec "$@"' \
+      > /usr/local/bin/portal-web-entrypoint \
+    && chmod 0555 /usr/local/bin/portal-web-entrypoint
 
 WORKDIR /app
 
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
-    PORTAL_WEB_DATA_MODE=fixture \
+    PORTAL_WEB_DATA_MODE=api \
     PORTAL_ENVIRONMENT=staging \
     HOSTNAME=0.0.0.0 \
     PORT=3000
@@ -66,4 +88,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=4 \
     CMD node -e "fetch('http://127.0.0.1:3000').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
 
+ENTRYPOINT ["/usr/local/bin/portal-web-entrypoint"]
 CMD ["node", "server.js"]

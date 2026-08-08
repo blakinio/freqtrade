@@ -25,7 +25,9 @@ def _configure_public_runtime(monkeypatch: pytest.MonkeyPatch, database_url: str
     monkeypatch.setenv("PORTAL_IDENTITY_ISSUER", "https://auth.example.test/application/o/portal/")
     monkeypatch.setenv("PORTAL_IDENTITY_CLIENT_ID", "portal-test")
     monkeypatch.setenv("PORTAL_IDENTITY_CLIENT_SECRET", "synthetic-test-secret")
-    monkeypatch.setenv("PORTAL_IDENTITY_REDIRECT_URI", "https://portal.example.test/api/identity/callback")
+    monkeypatch.setenv(
+        "PORTAL_IDENTITY_REDIRECT_URI", "https://portal.example.test/api/identity/callback"
+    )
     monkeypatch.setenv("PORTAL_IDENTITY_SESSION_HMAC_KEY_B64", _secret())
     monkeypatch.setenv("PORTAL_IDENTITY_FLOW_ENCRYPTION_KEY_B64", _secret())
     monkeypatch.setenv("PORTAL_IDENTITY_TRANSPORT_MODE", "secure_https")

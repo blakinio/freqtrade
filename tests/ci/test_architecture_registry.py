@@ -38,8 +38,7 @@ def test_architecture_registry_resolved_findings_are_not_open() -> None:
 
     assert resolved_issues.isdisjoint(open_issues)
     assert all(
-        isinstance(finding, dict) and finding.get("status") == "open"
-        for finding in open_findings
+        isinstance(finding, dict) and finding.get("status") == "open" for finding in open_findings
     )
 
 

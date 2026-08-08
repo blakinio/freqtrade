@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from ai_platform.portal.contracts.audit import AuditAction, AuditEvent, AuditResult
 from ai_platform.portal.contracts.bots import (
@@ -27,7 +28,10 @@ from ai_platform.portal.contracts.runtime_generation import (
 )
 from ai_platform.portal.control_plane.context import RequestContext
 from ai_platform.portal.control_plane.database import SessionFactory
-from ai_platform.portal.control_plane.repository import BotRepository
+from ai_platform.portal.control_plane.repository import (
+    BotRepository,
+    CommandIdempotencyRecord,
+)
 from ai_platform.portal.security.authorization import PermissionDeniedError, require_permission
 
 
@@ -227,12 +231,15 @@ class ControlPlaneService:
                 }
             )
             self._repository.replace_revision(session, promoted)
-            if self._repository.bump_state_version(
-                session,
-                tenant_id=context.tenant_id,
-                bot_id=bot_id,
-                expected_state_version=current.state_version,
-            ) is None:
+            if (
+                self._repository.bump_state_version(
+                    session,
+                    tenant_id=context.tenant_id,
+                    bot_id=bot_id,
+                    expected_state_version=current.state_version,
+                )
+                is None
+            ):
                 raise ControlPlaneConflictError("stale expected_state_version")
             self._repository.add_audit_event(
                 session,
@@ -278,12 +285,15 @@ class ControlPlaneService:
                 return revision
             deprecated = revision.model_copy(update={"state": BotConfigRevisionState.DEPRECATED})
             self._repository.replace_revision(session, deprecated)
-            if self._repository.bump_state_version(
-                session,
-                tenant_id=context.tenant_id,
-                bot_id=bot_id,
-                expected_state_version=current.state_version,
-            ) is None:
+            if (
+                self._repository.bump_state_version(
+                    session,
+                    tenant_id=context.tenant_id,
+                    bot_id=bot_id,
+                    expected_state_version=current.state_version,
+                )
+                is None
+            ):
                 raise ControlPlaneConflictError("stale expected_state_version")
             self._repository.add_audit_event(
                 session,
@@ -589,13 +599,13 @@ class ControlPlaneService:
 
     def _resolve_idempotent_result(
         self,
-        session: object,
+        session: Session,
         *,
         context: RequestContext,
         bot_id: str,
         operation: str,
         semantic_request_digest: str,
-        record: object,
+        record: CommandIdempotencyRecord,
     ) -> ActivationResult:
         if (
             record.operation != operation
@@ -615,7 +625,7 @@ class ControlPlaneService:
 
     def _require_bot_for_version(
         self,
-        session: object,
+        session: Session,
         context: RequestContext,
         bot_id: str,
         expected_state_version: int,

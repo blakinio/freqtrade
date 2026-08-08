@@ -81,6 +81,7 @@ The bounded producer contract now provides:
 - PAPER capability resolution only with positive, typed boolean authorization plus immutable authorization/candidate identity material;
 - direct reconstruction guards requiring a real `BotMode`, requiring a PAPER authorization digest for PAPER and forbidding it for SHADOW;
 - raw string modes such as `"paper"` / `"shadow"` fail closed instead of relying on `StrEnum` equality;
+- reconstructed capability and zero-authority fields require exact boolean values, and `orders_submitted` requires an actual integer zero rather than merely falsey/equal values;
 - stable fail-closed reasons for missing, negative or malformed PAPER eligibility, LIVE-blocked requests, RESEARCH requests and unsupported mode/schema state;
 - explicit `orders_submitted=0`, no credentials, no real order adapter, no real exchange execution, no live capital and no automatic promotion in every successful managed resolution.
 
@@ -100,77 +101,71 @@ BotConfigRevision
 
 The UI may offer SHADOW and PAPER only according to server-provided eligibility. LIVE remains visibly unavailable until a separate live-capital authorization package exists.
 
-## Validation evidence
-
-```yaml
-producer_code_head: 137cac48e03f78e349793361153e12507bd7e544
-freqtrade_ci:
-  run_id: 31280734057
-  conclusion: success
-risk_aware_component_ci:
-  run_id: 31280734172
-  conclusion: success
-  ai_platform_tests_and_lint: success
-codeql:
-  run_id: 31280708632
-  conclusion: success
-zizmor:
-  run_id: 31280708686
-  conclusion: success
-review_findings_repaired:
-  - pytest_reserved_request_parameter
-  - ruff_getattr_literal_field_access
-  - ruff_format_runtime_mode_expression
-  - PAPER_resolution_missing_authorization_identity
-  - PAPER_non_boolean_authorization_input
-  - reconstructed_raw_string_mode_bypassed_identity_checks
-```
-
-The documentation successor containing this checkpoint is not authorized to merge based on `producer_code_head`. Resolve PR #1397 live `head_sha` and require fresh exact-final-head CI/review before merge.
-
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 3
-updated_at: 2026-08-09T00:05:00+02:00
+checkpoint_version: 1
+updated_at: 2026-08-09T00:12:00+02:00
+head: live-pr-1397-head-must-be-resolved
 branch: feat/wickhunter-unified-runtime-mode-1396
-issue: 1396
 pr: 1397
 status: validating
-phase: producer_final_exact_head
-execution_mode: chat_github_actions
-context_pressure: medium
-context_growth: controlled
-decomposition_decision: phased
-session_rotation_count: 0
-invocation_started_at: 2026-08-08T23:31:00+02:00
-last_progress_at: 2026-08-09T00:05:00+02:00
-producer_code_head: 137cac48e03f78e349793361153e12507bd7e544
-live_head_source: pr_1397
-exact_final_head_required: true
-ci_checks_for_current_head: 4
-unchanged_state_checks: 0
-identical_failure_retries: 0
-repair_cycles_for_current_gate: 6
-repair_cycle_generation: unified_runtime_mode_contract
-context_reconstruction_attempts: 0
-stall_warnings: 0
+context_routes:
+  - docs/agents/PROMPTING_STANDARD.md
+  - docs/agents/PROMPTING_HANDOVER.md
+  - docs/agents/AUTONOMOUS_PROGRAM_CONTINUATION.md
+  - ai_platform/wickhunter/runtime_mode.py
+  - tests/ai_platform/test_wickhunter_runtime_mode.py
+  - PR #1388 canonical RuntimeGeneration consumer
+owned_paths:
+  - ai_platform/wickhunter/runtime_mode.py
+  - tests/ai_platform/test_wickhunter_runtime_mode.py
+  - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
 proven:
-  - canonical WickHunter BotMode defines RESEARCH, SHADOW, PAPER, LIVE_BLOCKED and is reused
-  - SHADOW resolves with zero real-trading authority
-  - PAPER requires typed positive authorization plus immutable authorization/candidate identity and remains simulation-only
-  - malformed truthy authorization input fails closed
-  - reconstructed PAPER resolution cannot omit authorization identity and SHADOW cannot carry it
-  - reconstructed/request modes must be actual BotMode instances; raw strings fail closed
+  - canonical WickHunter BotMode is reused for SHADOW PAPER RESEARCH and LIVE_BLOCKED
+  - SHADOW resolves with exact zero real-trading authority
+  - PAPER requires typed positive authorization plus immutable authorization and candidate identity
+  - malformed truthy PAPER authorization fails closed
+  - reconstructed PAPER requires authorization identity and SHADOW forbids it
+  - raw string runtime modes fail closed instead of relying on StrEnum equality
+  - reconstructed zero-authority booleans and orders_submitted require exact canonical types
   - LIVE_BLOCKED and RESEARCH fail closed for this managed runtime path
-  - canonical request/resolution digests bind mode and PAPER authorization identity
-  - code head 137cac48 passed Freqtrade CI, risk-aware AI Platform component CI, CodeQL and zizmor
-  - all material P2 findings on the producer code head were repaired before this checkpoint
-  - PR 1388 owns Portal RuntimeGeneration and rollout paths, so this producer did not fork that authority
+  - canonical request and resolution digests bind mode and PAPER authorization identity
+  - producer code before the latest type-hardening passed Freqtrade component CodeQL and zizmor gates
+  - PR #1388 owns Portal RuntimeGeneration and rollout paths and this producer does not fork that authority
+derived:
+  - the producer can be consumed as immutable generation material after canonical RuntimeGeneration integration
 unknown:
-  - final Portal mode selector and RuntimeGeneration binding until PR 1388 consumer integration is completed
+  - final Portal mode selector and desired versus observed mode binding until PR #1388 consumer integration is completed
 conflicts: []
+first_failure:
+  marker: FINAL_REVIEW_P2_EXACT_ZERO_AUTHORITY_TYPES_AND_CHECKPOINT_CONTRACT
+  evidence: Codex terminal review on aa1608b584d3d8daa945b865b4fae37a12b6aa68 identified falsey noncanonical authority values and an invalid custom checkpoint schema
+rejected_hypotheses:
+  - truthiness or equality is sufficient to prove canonical zero-authority field types
+  - a custom checkpoint_version 3 record is acceptable to the repository checkpoint parser
+changed_paths:
+  - ai_platform/wickhunter/runtime_mode.py
+  - tests/ai_platform/test_wickhunter_runtime_mode.py
+  - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
+validation:
+  - command: Freqtrade CI on 137cac48e03f78e349793361153e12507bd7e544
+    result: PASS
+    evidence: run 31280734057
+  - command: Risk-aware AI Platform component CI on 137cac48e03f78e349793361153e12507bd7e544
+    result: PASS
+    evidence: run 31280734172 including tests lint format codespell and sensitive-data scan
+  - command: CodeQL on 137cac48e03f78e349793361153e12507bd7e544
+    result: PASS
+    evidence: run 31280708632
+  - command: zizmor on 137cac48e03f78e349793361153e12507bd7e544
+    result: PASS
+    evidence: run 31280708686
+  - command: exact final head CI after zero-authority type hardening and checkpoint repair
+    result: NOT_RUN
+    evidence: resolve PR #1397 live head after this documentation successor and require all applicable gates before merge
 blockers:
-  - full_stack_completion_depends_on_pr_1388
-next_action: Resolve PR #1397 live head, require fresh exact-final-head CI and independent review with no material P1/P2, merge the producer, then integrate it into canonical PR #1388 RuntimeGeneration/rollout truth rather than creating a parallel authority.
+  - full stack Portal completion depends on canonical RuntimeGeneration consumer PR #1388
+  - producer merge requires fresh exact-final-head CI and independent review with no material P1 or P2
+next_action: Resolve PR #1397 live head after this checkpoint commit, run exact-final-head CI and independent review, merge the producer only when all applicable gates pass, then integrate it into PR #1388 rather than creating a parallel RuntimeGeneration authority.
 ```

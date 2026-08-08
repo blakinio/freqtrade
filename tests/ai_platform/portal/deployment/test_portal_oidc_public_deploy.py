@@ -109,7 +109,7 @@ def test_blueprint_has_exact_public_provider_scopes_and_redirect() -> None:
     assert "auth.quant.molehill.cloud" not in blueprint
 
 
-def test_public_runtime_requires_https_and_has_no_automatic_membership() -> None:
+def test_public_runtime_composes_full_control_plane_without_automatic_membership() -> None:
     runtime = (ROOT / "ai_platform" / "portal" / "identity" / "public_runtime.py").read_text(
         encoding="utf-8"
     )
@@ -117,12 +117,14 @@ def test_public_runtime_requires_https_and_has_no_automatic_membership() -> None
         ROOT / "ai_platform" / "portal" / "identity" / "bootstrap_membership.py"
     ).read_text(encoding="utf-8")
 
-    assert 'config.transport_mode != "secure_https"' in runtime
+    assert 'identity_config.transport_mode != "secure_https"' in runtime
+    assert "create_identity_enabled_app" in runtime
+    assert "_REQUIRED_COMPOSED_ROUTES" in runtime
+    assert "public_runtime_unprivileged" in runtime
+    assert '"/v1/bots"' in runtime
+    assert '"/v1/positions"' in runtime
+    assert '"/v1/terminal/intents"' in runtime
     assert "_ensure_local_owner_membership" not in runtime
-    assert "create_membership" not in runtime
-    assert "secure=True" in runtime
-    assert "SESSION_COOKIE_NAME" in runtime
-    assert "CSRF_COOKIE_NAME" in runtime
     assert "--confirm-exact-principal" in bootstrap
     assert "identity.membership_bootstrapped" in bootstrap
     assert "subject_sha256" in bootstrap
@@ -130,7 +132,7 @@ def test_public_runtime_requires_https_and_has_no_automatic_membership() -> None
     assert '"live_capital_authorized": False' in bootstrap
 
 
-def test_images_are_pinned_and_control_plane_runs_public_runtime() -> None:
+def test_images_are_pinned_and_control_plane_runs_authenticated_public_runtime() -> None:
     web = (ROOT / "deploy" / "synology" / "portal" / "Dockerfile").read_text(encoding="utf-8")
     control = (DEPLOYMENT / "Dockerfile.control-plane").read_text(encoding="utf-8")
     web_base = (
@@ -147,8 +149,12 @@ def test_images_are_pinned_and_control_plane_runs_public_runtime() -> None:
     assert f"FROM {web_base} AS node-security-runtime" in web
     assert f"FROM {web_base} AS runtime" in web
     assert web.count(f"FROM {web_base}") == 4
+    assert "PORTAL_WEB_DATA_MODE=api" in web
+    assert "fixture Portal data mode is forbidden in staging/production" in web
+    assert 'ENTRYPOINT ["/usr/local/bin/portal-web-entrypoint"]' in web
     assert f"FROM {control_base}" in control
     assert "ai_platform.portal.identity.public_runtime:app" in control
+    assert "127.0.0.1:8000/readyz" in control
     assert ":latest" not in web
     assert ":latest" not in control
     assert "USER portal" in control

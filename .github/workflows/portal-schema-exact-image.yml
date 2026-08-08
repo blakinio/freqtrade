@@ -209,7 +209,12 @@ jobs:
               tenant_id="ci-tenant",
               actor_id="ci-exact-image-actor",
               actor_type=ActorType.SYSTEM,
-              permissions=(Permission.BOT_CREATE, Permission.BOT_READ),
+              permissions=(
+                  Permission.BOT_CREATE,
+                  Permission.BOT_READ,
+                  Permission.MODEL_READ,
+                  Permission.MODEL_TRAIN,
+              ),
               request_id=UUID("00000000-0000-0000-0000-000000000001"),
               correlation_id=UUID("00000000-0000-0000-0000-000000000002"),
           )
@@ -250,12 +255,39 @@ jobs:
                   "ci-api-bot",
                   "ci-preserved-bot",
               ]
+              experiment = client.post(
+                  "/v1/strategy-lab/experiments",
+                  headers={"Idempotency-Key": "ci-strategy-lab-exact-image"},
+                  json={
+                      "strategy_id": "tv_supertrend_v1",
+                      "strategy_version": "1.0.0",
+                      "pair": "BTC/USDT",
+                      "timeframe": "15m",
+                      "timerange": {
+                          "start_at": "2026-01-01T00:00:00Z",
+                          "end_at": "2026-01-01T08:00:00Z",
+                      },
+                      "starting_balance": "10000",
+                      "fee_rate": "0.001",
+                      "slippage_rate": "0",
+                      "parameter_overrides": {},
+                      "execution_mode": "backtest",
+                  },
+              )
+              assert experiment.status_code == 201, experiment.text
+              experiment_body = experiment.json()
+              assert experiment_body["strategy_id"] == "tv_supertrend_v1"
+              assert experiment_body["research_only"] is True
+              assert experiment_body["order_submission_performed"] is False
               print(
                   json.dumps(
                       {
                           "status": "pass",
                           "representative_read": "pass",
                           "representative_mutation": "pass",
+                          "strategy_lab_experiment": "pass",
+                          "strategy_lab_research_only": True,
+                          "order_submission_performed": False,
                           "execution_mode": "dry_run",
                           "live_capital_authorized": False,
                           "secret_values_recorded": False,
@@ -413,6 +445,9 @@ jobs:
           assert transfer["schema_metadata_transfer"] == "excluded_dialect_specific_authority"
           assert product["representative_read"] == "pass"
           assert product["representative_mutation"] == "pass"
+          assert product["strategy_lab_experiment"] == "pass"
+          assert product["strategy_lab_research_only"] is True
+          assert product["order_submission_performed"] is False
           assert product["execution_mode"] == "dry_run"
           assert health["status"] == "ok"
           assert health["identity_fixture"] is False
@@ -429,6 +464,7 @@ jobs:
                       "state_transfer": "pass",
                       "representative_product_read": "pass",
                       "representative_product_mutation": "pass",
+                      "strategy_lab_experiment": "pass",
                       "restart_persistence": "pass",
                       "fixture_mode_rejected": True,
                       "identity_fixture": False,

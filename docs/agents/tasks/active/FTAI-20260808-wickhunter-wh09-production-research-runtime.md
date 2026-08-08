@@ -106,6 +106,8 @@ unchanged_state_checks: 0
 identical_failure_retries: 0
 repair_cycles_for_current_gate: 1
 repair_cycle_generation: recovery_live_head_semantics
+context_reconstruction_attempts: 1
+stall_warnings: 0
 latest_deployment:
   run_id: 31275253098
   job_id: 93147659559

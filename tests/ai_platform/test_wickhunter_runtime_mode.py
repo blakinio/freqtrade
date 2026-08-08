@@ -4,6 +4,7 @@ import pytest
 
 from ai_platform.wickhunter.contracts import BotMode
 from ai_platform.wickhunter.runtime_mode import (
+    RUNTIME_MODE_RESOLUTION_SCHEMA_VERSION,
     ManagedRuntimeModeRequest,
     RuntimeModeRejectionReason,
     RuntimeModeResolution,
@@ -14,6 +15,7 @@ from ai_platform.wickhunter.runtime_mode import (
 
 AUTH_DIGEST = "a" * 64
 MANIFEST_DIGEST = "b" * 64
+REQUEST_DIGEST = "d" * 64
 
 
 def _paper_request(**overrides: object) -> ManagedRuntimeModeRequest:
@@ -73,6 +75,10 @@ def test_eligible_paper_resolves_as_simulation_only() -> None:
         (
             _paper_request(paper_activation_authorized=False),
             RuntimeModeRejectionReason.PAPER_NOT_AUTHORIZED,
+        ),
+        (
+            _paper_request(paper_activation_authorized="false"),
+            RuntimeModeRejectionReason.PAPER_ELIGIBILITY_INVALID,
         ),
         (
             _paper_request(paper_authorization_digest="not-a-digest"),
@@ -137,6 +143,30 @@ def test_shadow_rejects_paper_authority_material() -> None:
         resolve_managed_runtime_mode(request)
 
     assert exc_info.value.reason is RuntimeModeRejectionReason.PAPER_ELIGIBILITY_INVALID
+
+
+def test_reconstructed_paper_resolution_requires_authorization_identity() -> None:
+    with pytest.raises(ValueError, match="PAPER resolution requires paper authorization identity"):
+        RuntimeModeResolution(
+            schema_version=RUNTIME_MODE_RESOLUTION_SCHEMA_VERSION,
+            mode=BotMode.PAPER,
+            request_digest=REQUEST_DIGEST,
+            paper_authorization_digest=None,
+            market_observation_enabled=True,
+            simulated_paper_state_enabled=True,
+        )
+
+
+def test_reconstructed_shadow_resolution_rejects_paper_authorization_identity() -> None:
+    with pytest.raises(ValueError, match="SHADOW resolution cannot contain paper authorization identity"):
+        RuntimeModeResolution(
+            schema_version=RUNTIME_MODE_RESOLUTION_SCHEMA_VERSION,
+            mode=BotMode.SHADOW,
+            request_digest=REQUEST_DIGEST,
+            paper_authorization_digest=AUTH_DIGEST,
+            market_observation_enabled=True,
+            simulated_paper_state_enabled=False,
+        )
 
 
 def test_request_and_resolution_digests_are_deterministic_and_mode_bound() -> None:

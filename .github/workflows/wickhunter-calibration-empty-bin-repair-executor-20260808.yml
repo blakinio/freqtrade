@@ -1,9 +1,9 @@
 name: WickHunter calibration empty-bin repair executor
 
 "on":
-  pull_request:
-    types: [opened, reopened, synchronize]
-    branches: [develop]
+  push:
+    branches:
+      - ops/wickhunter-calibration-empty-bin-repair-executor-20260808
     paths:
       - ".github/workflows/wickhunter-calibration-empty-bin-repair-executor-20260808.yml"
 
@@ -18,33 +18,32 @@ env:
   EXPECTED_BASE_SHA: 587e78fce252622beddd5c28b2ab8ccb14c5551b
   TARGET_BRANCH: fix/wickhunter-calibration-empty-bin-confidence-current-20260808
   EXPECTED_TARGET_HEAD: 587e78fce252622beddd5c28b2ab8ccb14c5551b
+  HELPER_BRANCH: ops/wickhunter-calibration-empty-bin-repair-executor-20260808
 
 jobs:
   repair:
-    if: >-
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.base.ref == 'develop'
+    if: github.ref_name == 'ops/wickhunter-calibration-empty-bin-repair-executor-20260808'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - name: Check out exact helper request
+      - name: Check out exact helper push
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: true
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.sha }}
 
-      - name: Prove exact one-file helper scope
+      - name: Prove exact helper and target identities
         shell: bash
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          [[ "$BASE_SHA" == "$EXPECTED_BASE_SHA" ]]
-          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          [[ "$GITHUB_REF_NAME" == "$HELPER_BRANCH" ]]
+          [[ "$(git rev-parse HEAD)" == "$HEAD_SHA" ]]
+          [[ "$(git merge-base "$EXPECTED_BASE_SHA" "$HEAD_SHA")" == "$EXPECTED_BASE_SHA" ]]
           expected=$'A\t.github/workflows/wickhunter-calibration-empty-bin-repair-executor-20260808.yml'
-          [[ "$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")" == "$expected" ]]
+          [[ "$(git diff --name-status "$EXPECTED_BASE_SHA" "$HEAD_SHA")" == "$expected" ]]
           git fetch origin "$TARGET_BRANCH"
           [[ "$(git rev-parse "origin/$TARGET_BRANCH")" == "$EXPECTED_TARGET_HEAD" ]]
 

@@ -21,7 +21,7 @@ continuation_policy: continue_until_real_stop
 task_completion_policy: finalize_archive_and_continue
 implementation_authorized: true
 internal_demo_production_deployment_authorized: true
-status: waiting
+status: validating
 base_branch: develop
 trusted_base_sha: 46cd873ccb0c60ec88657d9e7eccb18a93737fd5
 branch: diagnose/wickhunter-wh09-runtime-health-20260808
@@ -81,23 +81,28 @@ runtime_commit: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
 - Exact deployed identity from that run: container `6724290d3078f09fc82c434e239d2d8afd3686ddedd27ff7d400834538cfbfe0`; image `sha256:c5a67281912e262a183dd7a5804609a2f69ca356d5eb98e4a5a8da169e07a749`; source revision `ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5`.
 - Final E2E verification timed out after 720 seconds with `WH09 deployment E2E did not reach two advances: health is not a regular file`; no PASS report was emitted.
 - Synology also discarded the requested PIDs limit because the kernel/cgroup lacks that capability; this remains a separate hardening caveat before final acceptance.
-- Exact-head continuation audit on 2026-08-09 found a P1 in the prior diagnostic selector: GitHub Actions does not expose per-commit `added`, `modified`, and `removed` fields in the push payload available to workflows, so event-array-only classification could incorrectly select the normal deploy job for diagnostic v4.
-- Repair commit `ba391c90b23cbb017240a94192af8b15276445f2` derives diagnostic-v4 selection from the exact Git `before` -> `after` push range. It requires exact path equality, unshallows the checkout only if the `before` commit is unavailable, and fails classification closed when the range cannot be proven.
-- Validation repair `40a6bc310d9ffcedfa3992e511f3b71c284fce33` preserves that behavior while making Git output strictly typed UTF-8 and satisfying mypy/Ruff/pre-commit.
-- Regression-gate commit `6c5682f282c195acf88709a810e128303c3f9c64` moves the classifier regression into `tests/ci`, so the mandatory lightweight routing gate executes it instead of only linting it.
-- Focused regression coverage models an Actions-style push payload without changed-file arrays, proves whole-push exact-path detection, rejects `.bak` lookalikes and rejects an unprovable/null `before` SHA.
+- Continuation review first removed trust in GitHub Actions per-commit payload arrays and moved diagnostic-v4 selection to a proven Git push range with exact filename equality, unshallow-on-demand and fail-closed errors.
+- A later exact-head review found that an endpoint-only `git diff before..after` could miss diagnostic-v4 when one pushed commit touched the file and a later pushed commit restored the original final tree. The current repair therefore requires `before` to be an ancestor of `after` and enumerates changed paths across every commit in `before..after` using NUL-delimited Git history; a touched-then-reverted diagnostic request remains diagnostic.
+- Dedicated classifier tests now cover Actions-style payloads without changed-file arrays, exact-path versus `.bak`, touched-then-reverted diagnostic-v4 history, null/unprovable ranges and non-ancestor ranges.
 - Diagnostic v4 remains bound to the exact failed run/job, original 64-character container ID and exact image ID. Container discovery uses `docker ps -aq --no-trunc`; secret-free identity evidence is created before identity fail-fast; the diagnostic path contains no start/stop/restart/recreate/remove/kill command.
-- Fresh independent review on exact head `90237857d73afb60dbd99ae640ff977d774323bb` found two checkpoint-contract P2s only: unsupported validation result labels and missing required anti-stall counters. This checkpoint repair normalizes those fields without changing runtime, diagnostic, model, threshold or authority semantics.
+- Fresh review also required the durable checkpoint to preserve its bounded phase/task-shape and anti-stall state; those fields are restored below without changing runtime/model/threshold/authority semantics.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-09T00:56:05+02:00
+updated_at: 2026-08-09T01:08:12+02:00
 head: UNKNOWN
 branch: diagnose/wickhunter-wh09-runtime-health-20260808
 pr: 1394
-status: waiting
+status: validating
+phase: diagnose
+execution_mode: chat_github_actions
+context_pressure: medium
+context_growth: stable
+decomposition_decision: phased
+session_rotation_count: 3
+repair_cycle_generation: push_range_per_commit_enumeration
 context_routes:
   - docs/agents/PROMPTING_STANDARD.md
   - docs/agents/PROMPTING_HANDOVER.md
@@ -119,8 +124,10 @@ proven:
   - PAPER and all real trading authority remain disabled for the deployed WH09 generation
   - exact WH09 container was created and started on internal Synology by run 31275253098
   - the first actionable deployment failure is absence of runtime operator health.json after container start
-  - diagnostic-v4 routing no longer trusts GitHub Actions commit changed-file arrays
-  - diagnostic-v4 routing derives exact path membership from the Git push before/after range and fails closed if that range cannot be proven
+  - diagnostic-v4 routing does not trust GitHub Actions commit changed-file arrays
+  - diagnostic-v4 routing requires a proven ancestor before/after range and enumerates changed paths across every pushed commit
+  - a diagnostic-v4 touch followed by restoration in the same push still selects diagnostic mode
+  - exact path equality excludes .bak and prefix or suffix lookalikes
   - classifier regression is part of the mandatory lightweight routing test suite
   - diagnostic-v4 is bound to the exact recorded container and image and cannot recreate or restart it
   - identity-discovery evidence is persisted before container cardinality or identity fail-fast
@@ -139,6 +146,7 @@ rejected_hypotheses:
   - Synology CPU-CFS incompatibility is the remaining health failure; the container starts after the CPU-CFS repair
   - diagnostic mode may be selected by commit-message text or filename substrings
   - GitHub Actions push payload commit changed-file arrays are a valid routing authority
+  - endpoint-only final-tree diff is sufficient to prove no diagnostic-v4 touch occurred during the push
   - an identity mismatch may fail before any diagnostic artifact exists
 changed_paths:
   - .github/workflows/ai-platform-wickhunter-wh09-production-research-runtime-deploy.yml
@@ -148,24 +156,24 @@ changed_paths:
   - tests/ci/test_wickhunter_wh09_deploy_classifier.py
   - docs/agents/tasks/active/FTAI-20260808-wickhunter-wh09-production-research-runtime.md
 validation:
-  - command: pre-repair exact-head CI on c198c3725ade5d1f0e62408344d4b5f700fb4eff
+  - command: prior exact-head CI on 5ede492ed77af8ec47dbc71b31b30a68a925426e
     result: NOT_APPLICABLE
-    evidence: superseded by the later continuation audit finding on GitHub Actions push-payload routing and repair commit ba391c90b23cbb017240a94192af8b15276445f2
-  - command: bounded classifier validation on 40a6bc310d9ffcedfa3992e511f3b71c284fce33
-    result: PASS
-    evidence: lightweight compile+mypy, Ruff/format, routing/workflow validation and full pre-commit passed; the later test move changes the final closure head but does not invalidate this bounded result
-  - command: exact final head CI and independent review after checkpoint-contract repair
+    evidence: superseded by fresh review P1 requiring per-commit push-range enumeration rather than endpoint-only tree diff
+  - command: focused classifier regression after per-commit enumeration repair
     result: NOT_RUN
-    evidence: resolve PR #1394 live head after this checkpoint repair and require all applicable exact-head gates plus a fresh independent review before merge
+    evidence: exact final head will be resolved after this checkpoint successor and must pass the mandatory lightweight gate
+  - command: exact final head CI and independent review after per-commit classifier and checkpoint repair
+    result: NOT_RUN
+    evidence: resolve PR #1394 live head and require all applicable exact-head gates plus a fresh independent review before merge
 blockers:
-  - exact-final-head CI and fresh independent review must pass after this checkpoint repair
+  - exact-final-head CI and fresh independent review must pass after this repair
 next_action: Resolve PR #1394 live head after this checkpoint repair, require exact-final-head CI and a fresh independent review with zero material P1/P2, squash-merge only if green, then consume the diagnostic-v4 Synology artifact before any redeploy or runtime mutation.
 invocation_started_at: 2026-08-09T00:25:00+02:00
-last_progress_at: 2026-08-09T00:56:05+02:00
+last_progress_at: 2026-08-09T01:08:12+02:00
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 3
+repair_cycles_for_current_gate: 4
 context_reconstruction_attempts: 1
 stall_warnings: 0
 ```

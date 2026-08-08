@@ -73,6 +73,17 @@ if (fs.existsSync(packageRoot)) {{
     ) process.exit(1);
     stats.push(stat);
   }}
+}} else {{
+  for (const name of ["incremental-state.json", "run-request.json"]) {{
+    const candidate = path.join(runRoot, name);
+    const stat = fs.lstatSync(candidate);
+    if (
+      !stat.isFile()
+      || stat.isSymbolicLink()
+      || (stat.mode & 0o040) !== 0o040
+    ) process.exit(1);
+    stats.push(stat);
+  }}
 }}
 const groupId = stats[0].gid;
 if (stats.some((stat) => stat.gid !== groupId)) process.exit(1);
@@ -146,15 +157,21 @@ import os
 from datetime import UTC, datetime
 from sqlalchemy import or_, select
 from ai_platform.portal.control_plane.database import build_engine, build_session_factory
-from ai_platform.portal.identity.models import TenantMembershipRow
-from ai_platform.portal.identity.schema import MembershipStatus
+from ai_platform.portal.identity.models import IdentityPrincipalRow, TenantMembershipRow
+from ai_platform.portal.identity.schema import MembershipStatus, PrincipalStatus
 now = datetime.now(UTC)
 session_factory = build_session_factory(build_engine(os.environ['PORTAL_DATABASE_URL']))
 with session_factory() as session:
     rows = session.scalars(
-        select(TenantMembershipRow).where(
+        select(TenantMembershipRow)
+        .join(
+            IdentityPrincipalRow,
+            IdentityPrincipalRow.principal_id == TenantMembershipRow.principal_id,
+        )
+        .where(
             TenantMembershipRow.tenant_id == {MARKET_EVIDENCE_TENANT_ID!r},
             TenantMembershipRow.status == MembershipStatus.ACTIVE.value,
+            IdentityPrincipalRow.status == PrincipalStatus.ACTIVE.value,
             TenantMembershipRow.valid_from <= now,
             or_(
                 TenantMembershipRow.valid_until.is_(None),

@@ -25,9 +25,15 @@ const fs = require("node:fs");
 const path = require("node:path");
 const root = {MARKET_EVIDENCE_CONTAINER_ROOT!r};
 const rootStat = fs.lstatSync(root);
-if (!rootStat.isDirectory() || rootStat.isSymbolicLink() || (rootStat.mode & 0o050) !== 0o050) process.exit(1);
+if (
+  !rootStat.isDirectory()
+  || rootStat.isSymbolicLink()
+  || (rootStat.mode & 0o050) !== 0o050
+) process.exit(1);
 const nested = path.join(root, "runs");
-const runsRoot = fs.existsSync(nested) && fs.lstatSync(nested).isDirectory() ? nested : root;
+const runsRoot = (
+  fs.existsSync(nested) && fs.lstatSync(nested).isDirectory() ? nested : root
+);
 const runIds = fs.readdirSync(runsRoot, {{withFileTypes: true}})
   .filter((entry) => entry.isDirectory() && !entry.isSymbolicLink()
     && /^{RUN_ID_PATTERN}$/.test(entry.name))
@@ -38,23 +44,41 @@ if (runIds.length === 0) process.exit(1);
 const latestRun = runIds[0];
 const runRoot = path.join(runsRoot, latestRun);
 const runStat = fs.lstatSync(runRoot);
-if (!runStat.isDirectory() || runStat.isSymbolicLink() || (runStat.mode & 0o050) !== 0o050) process.exit(1);
+if (
+  !runStat.isDirectory()
+  || runStat.isSymbolicLink()
+  || (runStat.mode & 0o050) !== 0o050
+) process.exit(1);
 const stats = [rootStat, runStat];
 const packageRoot = path.join(runRoot, "immutable-package");
 if (fs.existsSync(packageRoot)) {{
   const packageStat = fs.lstatSync(packageRoot);
-  if (!packageStat.isDirectory() || packageStat.isSymbolicLink() || (packageStat.mode & 0o050) !== 0o050) process.exit(1);
+  if (
+    !packageStat.isDirectory()
+    || packageStat.isSymbolicLink()
+    || (packageStat.mode & 0o050) !== 0o050
+  ) process.exit(1);
   stats.push(packageStat);
-  for (const name of ["manifest.json", "run-state.json", "verification-report.json"]) {{
+  for (const name of [
+    "manifest.json",
+    "run-state.json",
+    "verification-report.json",
+  ]) {{
     const candidate = path.join(packageRoot, name);
     const stat = fs.lstatSync(candidate);
-    if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o040) !== 0o040) process.exit(1);
+    if (
+      !stat.isFile()
+      || stat.isSymbolicLink()
+      || (stat.mode & 0o040) !== 0o040
+    ) process.exit(1);
     stats.push(stat);
   }}
 }}
 const groupId = stats[0].gid;
 if (stats.some((stat) => stat.gid !== groupId)) process.exit(1);
-process.stdout.write({MARKET_EVIDENCE_PROBE_MARKER!r} + latestRun + "|" + groupId);
+process.stdout.write(
+  {MARKET_EVIDENCE_PROBE_MARKER!r} + latestRun + "|" + groupId
+);
 """.strip()
 
 
@@ -109,19 +133,21 @@ def _docker_host_group(deploy: Any, image: str) -> tuple[str, str]:
         or re.fullmatch(RUN_ID_PATTERN, run_id) is None
         or re.fullmatch(r"\d+", group_id) is None
     ):
-        raise deploy.DeploymentError("Market Evidence Docker-host preflight returned invalid metadata")
+        raise deploy.DeploymentError(
+            "Market Evidence Docker-host preflight returned invalid metadata"
+        )
     return run_id, group_id
 
 
 def _assert_tenant_authorized(deploy: Any) -> None:
     script = f"""
 import json
+import os
 from datetime import UTC, datetime
-from sqlalchemy import and_, or_, select
+from sqlalchemy import or_, select
 from ai_platform.portal.control_plane.database import build_engine, build_session_factory
 from ai_platform.portal.identity.models import TenantMembershipRow
 from ai_platform.portal.identity.schema import MembershipStatus
-import os
 now = datetime.now(UTC)
 session_factory = build_session_factory(build_engine(os.environ['PORTAL_DATABASE_URL']))
 with session_factory() as session:
@@ -130,7 +156,10 @@ with session_factory() as session:
             TenantMembershipRow.tenant_id == {MARKET_EVIDENCE_TENANT_ID!r},
             TenantMembershipRow.status == MembershipStatus.ACTIVE.value,
             TenantMembershipRow.valid_from <= now,
-            or_(TenantMembershipRow.valid_until.is_(None), TenantMembershipRow.valid_until > now),
+            or_(
+                TenantMembershipRow.valid_until.is_(None),
+                TenantMembershipRow.valid_until > now,
+            ),
         )
     ).all()
 valid = []
@@ -139,11 +168,20 @@ for row in rows:
         roles = json.loads(row.roles_json)
     except json.JSONDecodeError:
         continue
-    if isinstance(roles, list) and any(role in {sorted(AUTHORIZED_ROLES)!r} for role in roles):
+    if isinstance(roles, list) and any(
+        role in {sorted(AUTHORIZED_ROLES)!r} for role in roles
+    ):
         valid.append(row.membership_id)
 if not valid:
     raise SystemExit('no active authorized membership for Market Evidence tenant')
-print({MARKET_EVIDENCE_TENANT_MARKER!r} + json.dumps({{'tenant_id': {MARKET_EVIDENCE_TENANT_ID!r}, 'memberships': len(valid)}}, sort_keys=True))
+payload = {{
+    'tenant_id': {MARKET_EVIDENCE_TENANT_ID!r},
+    'memberships': len(valid),
+}}
+print(
+    {MARKET_EVIDENCE_TENANT_MARKER!r}
+    + json.dumps(payload, sort_keys=True)
+)
 """.strip()
     result = cast(
         subprocess.CompletedProcess[str],
@@ -161,15 +199,28 @@ print({MARKET_EVIDENCE_TENANT_MARKER!r} + json.dumps({{'tenant_id': {MARKET_EVID
         None,
     )
     if payload_text is None:
-        raise deploy.DeploymentError("Market Evidence tenant authorization probe returned no marker")
+        raise deploy.DeploymentError(
+            "Market Evidence tenant authorization probe returned no marker"
+        )
     try:
         payload = json.loads(payload_text)
     except json.JSONDecodeError as exc:
-        raise deploy.DeploymentError("Market Evidence tenant authorization probe returned invalid JSON") from exc
-    if payload.get("tenant_id") != MARKET_EVIDENCE_TENANT_ID or not isinstance(
-        payload.get("memberships"), int
-    ) or payload["memberships"] < 1:
-        raise deploy.DeploymentError("Market Evidence tenant authorization contract is not satisfied")
+        raise deploy.DeploymentError(
+            "Market Evidence tenant authorization probe returned invalid JSON"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise deploy.DeploymentError(
+            "Market Evidence tenant authorization probe returned invalid payload"
+        )
+    memberships = payload.get("memberships")
+    if (
+        payload.get("tenant_id") != MARKET_EVIDENCE_TENANT_ID
+        or not isinstance(memberships, int)
+        or memberships < 1
+    ):
+        raise deploy.DeploymentError(
+            "Market Evidence tenant authorization contract is not satisfied"
+        )
 
 
 def _group_add_present(args: list[str], group_id: str) -> bool:
@@ -179,7 +230,14 @@ def _group_add_present(args: list[str], group_id: str) -> bool:
     )
 
 
-def _market_web_args(original: Any, group_id: str, image: str, name: str, *, publish: bool) -> list[str]:
+def _market_web_args(
+    original: Any,
+    group_id: str,
+    image: str,
+    name: str,
+    *,
+    publish: bool,
+) -> list[str]:
     args = list(original(image, name, publish=publish))
     image_index = len(args) - 1
     additions: list[str] = []
@@ -210,15 +268,22 @@ def _verify_running_container(deploy: Any, group_id: str) -> None:
     )
     try:
         payload = json.loads(result.stdout)
-        container = payload[0]
+        if not isinstance(payload, list) or not payload or not isinstance(payload[0], dict):
+            raise TypeError
+        container = cast(dict[str, Any], payload[0])
     except (json.JSONDecodeError, IndexError, KeyError, TypeError) as exc:
-        raise deploy.DeploymentError("Market Evidence runtime verification returned invalid inspect data") from exc
+        raise deploy.DeploymentError(
+            "Market Evidence runtime verification returned invalid inspect data"
+        ) from exc
 
     mounts = container.get("Mounts") or []
+    if not isinstance(mounts, list):
+        raise deploy.DeploymentError("Market Evidence runtime mount inventory is invalid")
     expected_mounts = [
         mount
         for mount in mounts
-        if mount.get("Destination") == MARKET_EVIDENCE_CONTAINER_ROOT
+        if isinstance(mount, dict)
+        and mount.get("Destination") == MARKET_EVIDENCE_CONTAINER_ROOT
     ]
     if len(expected_mounts) != 1:
         raise deploy.DeploymentError("Market Evidence runtime mount is missing or ambiguous")
@@ -228,9 +293,17 @@ def _verify_running_container(deploy: Any, group_id: str) -> None:
         or mount.get("Source") != str(MARKET_EVIDENCE_HOST_ROOT)
         or mount.get("RW") is not False
     ):
-        raise deploy.DeploymentError("Market Evidence runtime mount is not the canonical read-only bind")
+        raise deploy.DeploymentError(
+            "Market Evidence runtime mount is not the canonical read-only bind"
+        )
 
-    env = set((container.get("Config") or {}).get("Env") or [])
+    config = container.get("Config") or {}
+    if not isinstance(config, dict):
+        raise deploy.DeploymentError("Market Evidence runtime config inventory is invalid")
+    env_values = config.get("Env") or []
+    if not isinstance(env_values, list):
+        raise deploy.DeploymentError("Market Evidence runtime environment inventory is invalid")
+    env = {str(value) for value in env_values}
     required_env = {
         f"PORTAL_MARKET_EVIDENCE_DATA_ROOT={MARKET_EVIDENCE_CONTAINER_ROOT}",
         f"PORTAL_MARKET_EVIDENCE_TENANT_ID={MARKET_EVIDENCE_TENANT_ID}",
@@ -238,7 +311,13 @@ def _verify_running_container(deploy: Any, group_id: str) -> None:
     if not required_env.issubset(env):
         raise deploy.DeploymentError("Market Evidence runtime environment is incomplete")
 
-    groups = {str(value) for value in ((container.get("HostConfig") or {}).get("GroupAdd") or [])}
+    host_config = container.get("HostConfig") or {}
+    if not isinstance(host_config, dict):
+        raise deploy.DeploymentError("Market Evidence runtime host config inventory is invalid")
+    group_values = host_config.get("GroupAdd") or []
+    if not isinstance(group_values, list):
+        raise deploy.DeploymentError("Market Evidence runtime group inventory is invalid")
+    groups = {str(value) for value in group_values}
     if group_id not in groups:
         raise deploy.DeploymentError("Market Evidence runtime supplementary group is missing")
 
@@ -250,7 +329,9 @@ def install(deploy: Any) -> None:
     def deploy_web(image: str, suffix: str) -> tuple[str | None, str]:
         run_id, group_id = _docker_host_group(deploy, image)
         if not run_id:
-            raise deploy.DeploymentError("Market Evidence preflight did not select an immutable run")
+            raise deploy.DeploymentError(
+                "Market Evidence preflight did not select an immutable run"
+            )
         _assert_tenant_authorized(deploy)
 
         def web_run_args(selected_image: str, name: str, *, publish: bool) -> list[str]:

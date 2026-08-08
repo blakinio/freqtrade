@@ -19,7 +19,10 @@ env:
   DEPLOY_COMMIT: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
   STATE_DIR: /var/lib/freqtrade-staging-state
   MODEL_PACKAGE_REL: wickhunter-candidate-materialization/packages/wickhunter-wh09-candidate-materialization-20260808-r1-h900s-7b23a958fd4d
-  LIQUID20_POINTER_REL: production-market-evidence-v2/latest
+  LIQUID20_CONTAINER: liquid20-live
+  LIQUID20_DATA_HOST: /volume1/docker/freqtrade-liquidations/data
+  LIQUID20_LIVE_HOST: /volume1/docker/freqtrade-liquidations/data/live
+  RUNTIME_STATE_REL: wickhunter-production-research-runtime
   JOURNAL_REL: wickhunter-production-research-runtime/journal
   OPERATOR_REL: wickhunter-production-research-runtime/operator
   COMPOSE_FILE: deploy/synology/wickhunter-production-research-runtime/compose.yaml
@@ -36,7 +39,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-          fetch-depth: 2
+          fetch-depth: 0
           ref: ${{ github.sha }}
 
       - name: Validate immutable deployment authorization
@@ -95,7 +98,7 @@ jobs:
           [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
           [[ "$RUNNER_OS_VALUE" == "Linux" ]]
           [[ "$RUNNER_ARCH_VALUE" == "X64" || "$RUNNER_ARCH_VALUE" == "ARM64" ]]
-          [[ -d "$STATE_DIR" && -w "$STATE_DIR" ]]
+          [[ -d "$STATE_DIR" && ! -L "$STATE_DIR" && -w "$STATE_DIR" ]]
           docker version >/dev/null
           docker compose version >/dev/null
 
@@ -104,43 +107,113 @@ jobs:
             BYBIT_API_KEY BYBIT_API_SECRET \
             OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
             EXCHANGE_API_KEY EXCHANGE_API_SECRET \
-            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET \
+            HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
           do
-            [[ -z "${!name:-}" ]] || { echo "Forbidden trading credential: $name" >&2; exit 1; }
+            [[ -z "${!name:-}" ]] || { echo "Forbidden credential or proxy environment: $name" >&2; exit 1; }
           done
 
+          state_root="$(readlink -f -- "$STATE_DIR")"
+          [[ "$state_root" == "$STATE_DIR" ]]
           host_state_dir="$(docker inspect \
             --format '{{range .Mounts}}{{if eq .Destination "/var/lib/freqtrade-staging-state"}}{{.Source}}{{end}}{{end}}' \
             freqtrade-synology-staging-runner)"
           [[ "$host_state_dir" =~ ^/volume1/docker/[A-Za-z0-9._/-]+$ ]]
           [[ "$host_state_dir" != *$'\n'* ]]
 
-          model_container="$STATE_DIR/$MODEL_PACKAGE_REL"
-          [[ -d "$model_container" && ! -L "$model_container" ]]
+          model_requested="$state_root/$MODEL_PACKAGE_REL"
+          [[ -d "$model_requested" && ! -L "$model_requested" ]]
+          model_container="$(readlink -f -- "$model_requested")"
+          [[ "$model_container" == "$model_requested" ]]
+          [[ "$model_container" == "$state_root"/* ]]
           [[ -f "$model_container/manifest.json" && ! -L "$model_container/manifest.json" ]]
+          model_rel="${model_container#"$state_root"/}"
 
-          liquid_container="$(readlink -f -- "$STATE_DIR/$LIQUID20_POINTER_REL")"
-          [[ -d "$liquid_container" && "$liquid_container" == "$STATE_DIR"/* ]]
-          liquid_rel="${liquid_container#"$STATE_DIR"/}"
-          reader_gid="$(stat -c '%g' -- "$liquid_container")"
+          [[ "$(docker inspect --format '{{.State.Running}}' "$LIQUID20_CONTAINER" 2>/dev/null)" == "true" ]]
+          liquid_data_source="$(docker inspect \
+            --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' \
+            "$LIQUID20_CONTAINER")"
+          [[ "$liquid_data_source" == "$LIQUID20_DATA_HOST" ]]
+          reader_gid="$(docker exec "$LIQUID20_CONTAINER" stat -c '%g' /data/live)"
           [[ "$reader_gid" =~ ^[0-9]+$ ]]
+          liquid_run_id="$(docker exec --interactive "$LIQUID20_CONTAINER" python - <<'PY'
+          import json
+          import re
+          from pathlib import Path
 
-          journal_container="$STATE_DIR/$JOURNAL_REL"
-          operator_container="$STATE_DIR/$OPERATOR_REL"
-          mkdir -p -- "$journal_container" "$operator_container"
-          [[ ! -L "$journal_container" && ! -L "$operator_container" ]]
-          if find "$journal_container" "$operator_container" -xdev -type l -print -quit | grep -q .; then
+          root = Path("/data/live")
+          if not root.is_dir() or root.is_symlink():
+              raise SystemExit("Liquid20 live root is invalid")
+          pointer = root / "live-state-v1.json"
+          if not pointer.is_file() or pointer.is_symlink():
+              raise SystemExit("Liquid20 live pointer is invalid")
+          payload = json.loads(pointer.read_text(encoding="utf-8"))
+          if payload.get("schema_version") != 1:
+              raise SystemExit("Liquid20 pointer schema mismatch")
+          if payload.get("contract") != "liquidation-live-state-v1":
+              raise SystemExit("Liquid20 pointer contract mismatch")
+          run_id = payload.get("active_run_id")
+          if not isinstance(run_id, str) or re.fullmatch(r"liquid20-\d{8}T\d{6}Z-\d+", run_id) is None:
+              raise SystemExit("Liquid20 active run identity is invalid")
+          state = payload.get("state")
+          if not isinstance(state, dict) or state.get("run_id") != run_id:
+              raise SystemExit("Liquid20 pointer state identity mismatch")
+          if state.get("run_state") != "active":
+              raise SystemExit("Liquid20 active run is not active")
+          for key in ("execution_enabled", "trading_authorized", "trading_credentials_present"):
+              if state.get(key) is not False:
+                  raise SystemExit(f"Liquid20 authority flag {key} is not false")
+          runs_root = root / "runs"
+          run_root = runs_root / run_id
+          run_state = run_root / "run-state-v1.json"
+          for path in (runs_root, run_root):
+              if not path.is_dir() or path.is_symlink():
+                  raise SystemExit(f"Liquid20 run path is invalid: {path}")
+          if not run_state.is_file() or run_state.is_symlink():
+              raise SystemExit("Liquid20 run state is invalid")
+          persisted = json.loads(run_state.read_text(encoding="utf-8"))
+          if persisted.get("run_id") != run_id or persisted.get("run_state") != "active":
+              raise SystemExit("Liquid20 persisted run state mismatch")
+          print(run_id)
+          PY
+          )"
+          [[ "$liquid_run_id" =~ ^liquid20-[0-9]{8}T[0-9]{6}Z-[0-9]+$ ]]
+
+          runtime_container="$state_root/$RUNTIME_STATE_REL"
+          if [[ -e "$runtime_container" || -L "$runtime_container" ]]; then
+            [[ -d "$runtime_container" && ! -L "$runtime_container" ]]
+          else
+            mkdir -- "$runtime_container"
+          fi
+          runtime_container="$(readlink -f -- "$runtime_container")"
+          [[ "$runtime_container" == "$state_root/$RUNTIME_STATE_REL" ]]
+
+          journal_container="$state_root/$JOURNAL_REL"
+          operator_container="$state_root/$OPERATOR_REL"
+          for path in "$journal_container" "$operator_container"; do
+            if [[ -e "$path" || -L "$path" ]]; then
+              [[ -d "$path" && ! -L "$path" ]]
+            else
+              mkdir -- "$path"
+            fi
+            resolved="$(readlink -f -- "$path")"
+            [[ "$resolved" == "$path" ]]
+            [[ "$resolved" == "$runtime_container"/* ]]
+          done
+          if find "$runtime_container" -xdev -type l -print -quit | grep -q .; then
             echo "Runtime state contains a forbidden symlink" >&2
             exit 1
           fi
-          chown -R -- 65532:65532 "$journal_container" "$operator_container"
+          chown -R --no-dereference 65532:65532 "$journal_container" "$operator_container"
 
+          journal_rel="${journal_container#"$state_root"/}"
+          operator_rel="${operator_container#"$state_root"/}"
           {
-            printf 'MODEL_ROOT_HOST=%s/%s\n' "$host_state_dir" "$MODEL_PACKAGE_REL"
-            printf 'LIQUID20_LIVE_HOST=%s/%s\n' "$host_state_dir" "$liquid_rel"
+            printf 'MODEL_ROOT_HOST=%s/%s\n' "$host_state_dir" "$model_rel"
             printf 'LIQUID20_READER_GID=%s\n' "$reader_gid"
-            printf 'JOURNAL_ROOT_HOST=%s/%s\n' "$host_state_dir" "$JOURNAL_REL"
-            printf 'OPERATOR_STATE_HOST=%s/%s\n' "$host_state_dir" "$OPERATOR_REL"
+            printf 'LIQUID20_ACTIVE_RUN_ID=%s\n' "$liquid_run_id"
+            printf 'JOURNAL_ROOT_HOST=%s/%s\n' "$host_state_dir" "$journal_rel"
+            printf 'OPERATOR_STATE_HOST=%s/%s\n' "$host_state_dir" "$operator_rel"
             printf 'JOURNAL_CONTAINER=%s\n' "$journal_container"
             printf 'OPERATOR_CONTAINER=%s\n' "$operator_container"
           } >> "$GITHUB_ENV"
@@ -160,10 +233,29 @@ jobs:
           export SUPERVISOR_CYCLES=0
           export HEALTH_MAX_AGE_SECONDS=600
           docker compose -f "$COMPOSE_FILE" config --quiet
-          docker compose -f "$COMPOSE_FILE" up -d --build --remove-orphans wickhunter-production-research-runtime
+          docker compose -f "$COMPOSE_FILE" up -d --build --force-recreate --remove-orphans wickhunter-production-research-runtime
           container_id="$(docker compose -f "$COMPOSE_FILE" ps -q wickhunter-production-research-runtime)"
           [[ -n "$container_id" ]]
-          printf 'RUNTIME_CONTAINER_ID=%s\n' "$container_id" >> "$GITHUB_ENV"
+          started_at="$(docker inspect --format '{{.State.StartedAt}}' "$container_id")"
+          started_at_ms="$(python3 - "$started_at" <<'PY'
+          import re
+          import sys
+          from datetime import datetime
+
+          raw = sys.argv[1]
+          match = re.fullmatch(r"(.+?)(?:\.(\d+))?Z", raw)
+          if match is None:
+              raise SystemExit("unexpected Docker StartedAt format")
+          fraction = (match.group(2) or "0")[:6].ljust(6, "0")
+          instant = datetime.fromisoformat(f"{match.group(1)}.{fraction}+00:00")
+          print(int(instant.timestamp() * 1000))
+          PY
+          )"
+          [[ "$started_at_ms" =~ ^[0-9]+$ ]]
+          {
+            printf 'RUNTIME_CONTAINER_ID=%s\n' "$container_id"
+            printf 'RUNTIME_STARTED_AT_MS=%s\n' "$started_at_ms"
+          } >> "$GITHUB_ENV"
 
       - name: Verify health, two advancing cycles and zero trading authority
         shell: bash
@@ -177,7 +269,7 @@ jobs:
               python /app/deploy/synology/wickhunter-production-research-runtime/research_runtime_healthcheck.py \
               >/dev/null 2>&1 && \
               [[ -f "$OPERATOR_CONTAINER/health.json" && -f "$JOURNAL_CONTAINER/telemetry.json" ]]; then
-              if python3 - "$OPERATOR_CONTAINER/health.json" "$JOURNAL_CONTAINER/telemetry.json" "$DEPLOY_COMMIT" <<'PY'
+              if python3 - "$OPERATOR_CONTAINER/health.json" "$JOURNAL_CONTAINER/telemetry.json" "$DEPLOY_COMMIT" "$RUNTIME_STARTED_AT_MS" <<'PY'
           import json
           import sys
           from pathlib import Path
@@ -185,6 +277,7 @@ jobs:
           health = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
           telemetry = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
           commit = sys.argv[3]
+          runtime_started_at_ms = int(sys.argv[4])
           false_keys = (
               "protected_holdout_accessed",
               "automatic_promotion_enabled",
@@ -202,6 +295,8 @@ jobs:
                   raise SystemExit(f"{label} threshold changed")
               if payload.get("orders_submitted") != 0:
                   raise SystemExit(f"{label} submitted an order")
+              if int(payload.get("checked_at_ms", 0)) <= runtime_started_at_ms:
+                  raise SystemExit(f"{label} predates the deployed container")
               for key in false_keys:
                   if payload.get(key) is not False:
                       raise SystemExit(f"{label} authority flag {key} is not false")
@@ -224,14 +319,21 @@ jobs:
             exit 1
           fi
 
-          first_checked="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["checked_at_ms"])' "$JOURNAL_CONTAINER/telemetry.json")"
-          first_generation="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["runtime_generation"])' "$JOURNAL_CONTAINER/telemetry.json")"
-          first_decisions="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["decision_count"])' "$JOURNAL_CONTAINER/telemetry.json")"
+          read -r baseline_checked baseline_generation baseline_decisions < <(
+            python3 - "$JOURNAL_CONTAINER/telemetry.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          print(payload["checked_at_ms"], payload["runtime_generation"], payload["decision_count"])
+          PY
+          )
 
-          advanced=false
-          for _ in $(seq 1 18); do
-            sleep 5
-            if python3 - "$JOURNAL_CONTAINER/telemetry.json" "$first_checked" "$first_generation" "$first_decisions" <<'PY'
+          for required_advance in 1 2; do
+            advanced=false
+            for _ in $(seq 1 24); do
+              sleep 5
+              if python3 - "$JOURNAL_CONTAINER/telemetry.json" "$baseline_checked" "$baseline_generation" "$baseline_decisions" <<'PY'
           import json
           import sys
           from pathlib import Path
@@ -243,12 +345,26 @@ jobs:
           if int(payload["decision_count"]) <= int(sys.argv[4]):
               raise SystemExit(1)
           PY
-            then advanced=true; break; fi
+              then
+                read -r baseline_checked baseline_generation baseline_decisions < <(
+                  python3 - "$JOURNAL_CONTAINER/telemetry.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          print(payload["checked_at_ms"], payload["runtime_generation"], payload["decision_count"])
+          PY
+                )
+                advanced=true
+                break
+              fi
+            done
+            if [[ "$advanced" != "true" ]]; then
+              echo "Runtime did not produce post-deployment advance $required_advance of 2" >&2
+              docker logs --tail 200 "$RUNTIME_CONTAINER_ID" || true
+              exit 1
+            fi
           done
-          if [[ "$advanced" != "true" ]]; then
-            docker logs --tail 200 "$RUNTIME_CONTAINER_ID" || true
-            exit 1
-          fi
 
           [[ "$(docker inspect --format '{{.Config.User}}' "$RUNTIME_CONTAINER_ID")" == "65532:65532" ]]
           [[ "$(docker inspect --format '{{.HostConfig.Privileged}}' "$RUNTIME_CONTAINER_ID")" == "false" ]]
@@ -257,7 +373,7 @@ jobs:
           docker exec "$RUNTIME_CONTAINER_ID" \
             python /app/deploy/synology/wickhunter-production-research-runtime/research_runtime_healthcheck.py
 
-          python3 - "$OPERATOR_CONTAINER/health.json" "$JOURNAL_CONTAINER/telemetry.json" "$evidence/deployment-report.json" <<'PY'
+          python3 - "$OPERATOR_CONTAINER/health.json" "$JOURNAL_CONTAINER/telemetry.json" "$evidence/deployment-report.json" "$RUNTIME_STARTED_AT_MS" "$LIQUID20_ACTIVE_RUN_ID" <<'PY'
           import json
           import sys
           import time
@@ -269,6 +385,9 @@ jobs:
               "schema_version": 1,
               "verified_at_ns": time.time_ns(),
               "deployed_commit": health["operator_commit"],
+              "runtime_started_at_ms": int(sys.argv[4]),
+              "liquid20_active_run_id": sys.argv[5],
+              "post_deployment_advances": 2,
               "mode": telemetry["mode"],
               "operator_status": health["status"],
               "runtime_health": health["runtime_health"],

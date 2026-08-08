@@ -5,6 +5,8 @@
   "deployment_authorization_commit": "c64df386a4fa3ba739b6eaa1a223ca798a7bcae2",
   "previous_run_id": 31275253098,
   "previous_job_id": 93147659559,
+  "expected_container_id": "6724290d3078f09fc82c434e239d2d8afd3686ddedd27ff7d400834538cfbfe0",
+  "expected_image_id": "sha256:c5a67281912e262a183dd7a5804609a2f69ca356d5eb98e4a5a8da169e07a749",
   "failure_class": "runtime_health_file_absent_after_container_start",
   "diagnostic_only": true,
   "container_recreate_authorized": false,

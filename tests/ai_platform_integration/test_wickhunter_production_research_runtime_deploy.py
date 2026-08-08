@@ -184,7 +184,7 @@ def test_diagnostic_v4_is_read_only_and_bound_to_failed_deployment() -> None:
     assert "6724290d3078f09fc82c434e239d2d8afd3686ddedd27ff7d400834538cfbfe0" in workflow
     assert EXPECTED_DIAGNOSTIC_IMAGE_ID in workflow
     assert "docker logs --tail 300" in workflow
-    assert "docker compose up" in workflow
+    assert 'docker compose -f "$COMPOSE_FILE" up' in workflow
     assert "if: always()" in workflow
     assert "contains(github.event.head_commit.added" in workflow
     assert "!contains(github.event.head_commit.added" in workflow
@@ -192,7 +192,7 @@ def test_diagnostic_v4_is_read_only_and_bound_to_failed_deployment() -> None:
 
     diagnose_index = workflow.index("  diagnose:")
     diagnostic_section = workflow[diagnose_index:]
-    assert "docker compose up" not in diagnostic_section
+    assert 'docker compose -f "$COMPOSE_FILE" up' not in diagnostic_section
     assert "docker restart" not in diagnostic_section
     assert "docker start" not in diagnostic_section
     assert "docker stop" not in diagnostic_section

@@ -404,6 +404,19 @@ class ProductionResearchJournal:
         init=False,
         repr=False,
     )
+    _pending_outcomes: dict[str, dict[str, object]] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    _decision_count: int = field(default=0, init=False, repr=False)
+    _simulated_signal_count: int = field(default=0, init=False, repr=False)
+    _directional_decision_count: int = field(default=0, init=False, repr=False)
+    _above_threshold_count: int = field(default=0, init=False, repr=False)
+    _confidence_count: int = field(default=0, init=False, repr=False)
+    _confidence_sum: Decimal = field(default=Decimal("0"), init=False, repr=False)
+    _confidence_min: Decimal | None = field(default=None, init=False, repr=False)
+    _confidence_max: Decimal | None = field(default=None, init=False, repr=False)
+    _outcome_count: int = field(default=0, init=False, repr=False)
+    _positive_outcome_count: int = field(default=0, init=False, repr=False)
 
     def __post_init__(self) -> None:
         _absolute_root(self.root, field_name="research journal root", create=True)
@@ -415,6 +428,76 @@ class ProductionResearchJournal:
         identity_payload = json.loads(canonical_json(self.identity))
         identity_payload["identity_sha256"] = self.identity.identity_sha256
         _write_new_or_verify(self.root / "identity.json", identity_payload)
+        self._rebuild_index()
+
+    def _load_decision_file(self, path: Path) -> dict[str, object]:
+        payload = _verify_self_hash(
+            _load_object(path, field_name="research decision"),
+            hash_field="record_sha256",
+            field_name="research decision",
+        )
+        decision_id = str(payload.get("decision_id", ""))
+        if SHA256_RE.fullmatch(decision_id) is None or path.stem != decision_id:
+            raise ProductionResearchRuntimeError("research decision identity is invalid")
+        return payload
+
+    def _load_outcome_file(self, path: Path) -> dict[str, object]:
+        payload = _verify_self_hash(
+            _load_object(path, field_name="research outcome"),
+            hash_field="record_sha256",
+            field_name="research outcome",
+        )
+        decision_id = str(payload.get("decision_id", ""))
+        if SHA256_RE.fullmatch(decision_id) is None or path.stem != decision_id:
+            raise ProductionResearchRuntimeError(
+                "research outcome decision identity is invalid"
+            )
+        return payload
+
+    def _register_decision(self, payload: dict[str, object]) -> None:
+        decision_id = str(payload.get("decision_id", ""))
+        if SHA256_RE.fullmatch(decision_id) is None:
+            raise ProductionResearchRuntimeError("research decision identity is invalid")
+        self._decision_count += 1
+        if payload.get("final_decision") == "SIMULATED_SIGNAL":
+            self._simulated_signal_count += 1
+        if payload.get("side") in {"long", "short"}:
+            self._directional_decision_count += 1
+            self._pending_outcomes[decision_id] = payload
+        if payload.get("above_no_trade_confidence") is True:
+            self._above_threshold_count += 1
+        confidence = payload.get("calibrated_confidence")
+        if confidence is not None:
+            value = Decimal(str(confidence))
+            self._confidence_count += 1
+            self._confidence_sum += value
+            self._confidence_min = (
+                value if self._confidence_min is None else min(self._confidence_min, value)
+            )
+            self._confidence_max = (
+                value if self._confidence_max is None else max(self._confidence_max, value)
+            )
+
+    def _register_outcome(self, payload: dict[str, object]) -> None:
+        decision_id = str(payload.get("decision_id", ""))
+        if SHA256_RE.fullmatch(decision_id) is None:
+            raise ProductionResearchRuntimeError(
+                "research outcome decision identity is invalid"
+            )
+        if decision_id not in self._pending_outcomes:
+            raise ProductionResearchRuntimeError(
+                "research outcome is orphaned from a pending directional decision"
+            )
+        self._outcome_count += 1
+        if payload.get("positive_outcome") is True:
+            self._positive_outcome_count += 1
+        self._pending_outcomes.pop(decision_id, None)
+
+    def _rebuild_index(self) -> None:
+        for path in sorted((self.root / "decisions").glob("*.json")):
+            self._register_decision(self._load_decision_file(path))
+        for path in sorted((self.root / "outcomes").glob("*.json")):
+            self._register_outcome(self._load_outcome_file(path))
 
     @property
     def runtime_store(self) -> ShadowRuntimeStore:
@@ -519,34 +602,22 @@ class ProductionResearchJournal:
                     evidence=evidence,
                     operator_commit=operator_commit,
                 )
-                _write_new_or_verify(
-                    self.root / "decisions" / f"{evidence.shadow_decision_id}.json",
-                    payload,
-                )
+                decision_path = self.root / "decisions" / f"{evidence.shadow_decision_id}.json"
+                is_new = not decision_path.exists()
+                _write_new_or_verify(decision_path, payload)
+                if is_new:
+                    self._register_decision(payload)
         finally:
             self._active_traces = {}
         return len(decisions)
 
     def pending_outcome_symbols(self, *, observed_at_ms: int) -> tuple[str, ...]:
-        symbols: set[str] = set()
-        outcome_root = self.root / "outcomes"
-        for decision_path in sorted((self.root / "decisions").glob("*.json")):
-            decision = _verify_self_hash(
-                _load_object(decision_path, field_name="research decision"),
-                hash_field="record_sha256",
-                field_name="research decision",
-            )
-            decision_id = str(decision.get("decision_id", ""))
-            if SHA256_RE.fullmatch(decision_id) is None:
-                raise ProductionResearchRuntimeError("research decision identity is invalid")
-            if (outcome_root / f"{decision_id}.json").exists():
-                continue
-            if decision.get("side") not in {"long", "short"}:
-                continue
-            decision_timestamp_ms = int(decision["decision_timestamp_ms"])
-            target_at_ms = decision_timestamp_ms + self.identity.outcome_horizon_ms
-            if observed_at_ms >= target_at_ms:
-                symbols.add(str(decision["symbol"]).upper())
+        symbols = {
+            str(decision["symbol"]).upper()
+            for decision in self._pending_outcomes.values()
+            if observed_at_ms
+            >= int(decision["decision_timestamp_ms"]) + self.identity.outcome_horizon_ms
+        }
         return tuple(sorted(symbols))
 
     def materialize_due_outcomes(
@@ -558,25 +629,27 @@ class ProductionResearchJournal:
     ) -> int:
         created = 0
         outcome_root = self.root / "outcomes"
-        for decision_path in sorted((self.root / "decisions").glob("*.json")):
-            decision = _verify_self_hash(
-                _load_object(decision_path, field_name="research decision"),
-                hash_field="record_sha256",
-                field_name="research decision",
-            )
-            decision_id = str(decision.get("decision_id", ""))
-            if SHA256_RE.fullmatch(decision_id) is None:
-                raise ProductionResearchRuntimeError("research decision identity is invalid")
-            outcome_path = outcome_root / f"{decision_id}.json"
-            if outcome_path.exists():
-                continue
-            side = decision.get("side")
-            if side not in {"long", "short"}:
-                continue
-            decision_timestamp_ms = int(decision["decision_timestamp_ms"])
+        for decision_id, cached_decision in sorted(tuple(self._pending_outcomes.items())):
+            decision_timestamp_ms = int(cached_decision["decision_timestamp_ms"])
             target_at_ms = decision_timestamp_ms + self.identity.outcome_horizon_ms
             if observed_at_ms < target_at_ms:
                 continue
+            decision_path = self.root / "decisions" / f"{decision_id}.json"
+            decision = self._load_decision_file(decision_path)
+            if canonical_json(decision) != canonical_json(cached_decision):
+                raise ProductionResearchRuntimeError(
+                    "immutable research decision changed after startup"
+                )
+            outcome_path = outcome_root / f"{decision_id}.json"
+            if outcome_path.exists():
+                raise ProductionResearchRuntimeError(
+                    "research outcome appeared outside the journal writer"
+                )
+            side = decision.get("side")
+            if side not in {"long", "short"}:
+                raise ProductionResearchRuntimeError(
+                    "pending research decision is not directional"
+                )
             symbol = str(decision["symbol"]).upper()
             outcome_price = mark_prices.get(symbol)
             if outcome_price is None or outcome_price <= 0:
@@ -607,7 +680,9 @@ class ProductionResearchJournal:
                 "entry_price": str(entry_price),
                 "outcome_price": str(outcome_price),
                 "gross_return_ratio": str(gross_return.quantize(Decimal("0.00000001"))),
-                "directional_return_ratio": str(directional_return.quantize(Decimal("0.00000001"))),
+                "directional_return_ratio": str(
+                    directional_return.quantize(Decimal("0.00000001"))
+                ),
                 "positive_outcome": directional_return > 0,
                 "semantics": "first_observed_mark_at_or_after_target_horizon_no_costs",
                 "deterministic_replay_equivalent": False,
@@ -621,6 +696,7 @@ class ProductionResearchJournal:
             }
             payload["record_sha256"] = canonical_sha256(payload)
             _write_new_or_verify(outcome_path, payload)
+            self._register_outcome(payload)
             created += 1
         return created
 
@@ -631,44 +707,15 @@ class ProductionResearchJournal:
         operator_commit: str,
         runtime_state: Any,
     ) -> dict[str, object]:
-        decisions = tuple(
-            _verify_self_hash(
-                _load_object(path, field_name="research decision"),
-                hash_field="record_sha256",
-                field_name="research decision",
-            )
-            for path in sorted((self.root / "decisions").glob("*.json"))
-        )
-        outcomes = tuple(
-            _verify_self_hash(
-                _load_object(path, field_name="research outcome"),
-                hash_field="record_sha256",
-                field_name="research outcome",
-            )
-            for path in sorted((self.root / "outcomes").glob("*.json"))
-        )
-        confidences = tuple(
-            Decimal(str(row["calibrated_confidence"]))
-            for row in decisions
-            if row.get("calibrated_confidence") is not None
-        )
-        above_threshold = sum(
-            1 for row in decisions if row.get("above_no_trade_confidence") is True
-        )
-        simulated_signals = sum(
-            1 for row in decisions if row.get("final_decision") == "SIMULATED_SIGNAL"
-        )
-        positive_outcomes = sum(1 for row in outcomes if row.get("positive_outcome") is True)
-        directional_decisions = sum(1 for row in decisions if row.get("side") in {"long", "short"})
         confidence_summary: dict[str, object] = {
-            "count": len(confidences),
-            "minimum": None if not confidences else str(min(confidences)),
-            "maximum": None if not confidences else str(max(confidences)),
+            "count": self._confidence_count,
+            "minimum": None if self._confidence_min is None else str(self._confidence_min),
+            "maximum": None if self._confidence_max is None else str(self._confidence_max),
             "mean": (
                 None
-                if not confidences
+                if self._confidence_count == 0
                 else str(
-                    (sum(confidences, Decimal("0")) / Decimal(len(confidences))).quantize(
+                    (self._confidence_sum / Decimal(self._confidence_count)).quantize(
                         Decimal("0.000001")
                     )
                 )
@@ -688,22 +735,22 @@ class ProductionResearchJournal:
             "dataset_hash": self.identity.dataset_hash,
             "no_trade_confidence": str(self.identity.no_trade_confidence),
             "outcome_horizon_ms": self.identity.outcome_horizon_ms,
-            "decision_count": len(decisions),
-            "no_trade_count": len(decisions) - simulated_signals,
-            "simulated_signal_count": simulated_signals,
-            "directional_decision_count": directional_decisions,
-            "above_threshold_count": above_threshold,
+            "decision_count": self._decision_count,
+            "no_trade_count": self._decision_count - self._simulated_signal_count,
+            "simulated_signal_count": self._simulated_signal_count,
+            "directional_decision_count": self._directional_decision_count,
+            "above_threshold_count": self._above_threshold_count,
             "confidence": confidence_summary,
-            "outcome_count": len(outcomes),
-            "pending_outcome_count": max(0, directional_decisions - len(outcomes)),
-            "positive_outcome_count": positive_outcomes,
+            "outcome_count": self._outcome_count,
+            "pending_outcome_count": len(self._pending_outcomes),
+            "positive_outcome_count": self._positive_outcome_count,
             "positive_outcome_rate": (
                 None
-                if not outcomes
+                if self._outcome_count == 0
                 else str(
-                    (Decimal(positive_outcomes) / Decimal(len(outcomes))).quantize(
-                        Decimal("0.000001")
-                    )
+                    (
+                        Decimal(self._positive_outcome_count) / Decimal(self._outcome_count)
+                    ).quantize(Decimal("0.000001"))
                 )
             ),
             "runtime_generation": runtime_state.generation,

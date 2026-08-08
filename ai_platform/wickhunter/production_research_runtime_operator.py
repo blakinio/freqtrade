@@ -181,17 +181,25 @@ class ProductionResearchRuntimeOperator(CandidatePaperRuntimeOperator):
         runtime_health = (
             "fail_closed" if canonical_breaker_reasons else result.snapshot.health.value
         )
-        self.last_success_at_ms = now_ms
+        status = "fail_closed" if runtime_health == "fail_closed" else "healthy"
+        if status == "healthy":
+            self.last_success_at_ms = now_ms
+        error_code = None if status == "healthy" else "runtime_fail_closed"
+        error_message = (
+            None
+            if status == "healthy"
+            else ",".join(canonical_breaker_reasons) or "runtime reported fail_closed"
+        )
         _atomic_health(
             self.health_path,
             self._health_payload(
-                status="healthy",
+                status=status,
                 checked_at_ms=now_ms,
                 liquid20_snapshot_id=liquid20.snapshot_id,
                 runtime_health=runtime_health,
                 circuit_breaker_reasons=canonical_breaker_reasons,
-                error_code=None,
-                error_message=None,
+                error_code=error_code,
+                error_message=error_message,
             ),
         )
         return result.state.generation

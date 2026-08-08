@@ -61,3 +61,12 @@ def test_image_runs_nonroot_exact_commit_operator() -> None:
     assert (
         'ENTRYPOINT ["python", "-m", "ai_platform.wickhunter.production_research_runtime_operator"]'
     ) in dockerfile
+def test_healthcheck_rejects_nested_fail_closed_runtime() -> None:
+    healthcheck = (DEPLOY / "research_runtime_healthcheck.py").read_text(encoding="utf-8")
+    assert 'health.get("runtime_health") not in {"healthy", "degraded"}' in healthcheck
+    assert 'health.get("circuit_breaker_active") is True' in healthcheck
+    operator = (
+        ROOT / "ai_platform" / "wickhunter" / "production_research_runtime_operator.py"
+    ).read_text(encoding="utf-8")
+    assert 'status = "fail_closed" if runtime_health == "fail_closed" else "healthy"' in operator
+    assert 'error_code = None if status == "healthy" else "runtime_fail_closed"' in operator

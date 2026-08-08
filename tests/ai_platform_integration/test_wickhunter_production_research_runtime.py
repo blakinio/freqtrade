@@ -338,3 +338,56 @@ def test_service_restores_persisted_shadow_state(
     )
     assert second.runtime.state == first.runtime.state
     assert second.runtime.state.mode is BotMode.SHADOW
+def test_journal_steady_state_avoids_historical_directory_scans(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = research.ProductionResearchJournal(tmp_path / "journal", _identity())
+    evidence = _journal_evidence()
+    trace = research.ResearchScoreTrace(
+        score_id="2" * 64,
+        raw_probability=Decimal("0.331543"),
+        calibrated_confidence=Decimal("0.333333"),
+    )
+    first.record_decisions(
+        requests=(_journal_request(),),
+        decisions=(evidence,),
+        traces={trace.score_id: trace},
+        operator_commit=CODE_SHA,
+    )
+    restarted = research.ProductionResearchJournal(first.root, _identity())
+
+    def forbid_glob(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("steady-state journal must not rescan historical directories")
+
+    monkeypatch.setattr(Path, "glob", forbid_glob)
+    assert restarted.pending_outcome_symbols(
+        observed_at_ms=CREATED_AT_MS + 900_000
+    ) == ("BTCUSDT",)
+    runtime_state = SimpleNamespace(
+        generation=1,
+        last_observed_at_ms=CREATED_AT_MS + 900_000,
+        positions=(),
+        closed_positions=(),
+        cumulative_realized_pnl_quote=Decimal("0"),
+        drawdown_ratio=Decimal("0"),
+    )
+    telemetry = restarted.publish_telemetry(
+        checked_at_ms=CREATED_AT_MS + 900_000,
+        operator_commit=CODE_SHA,
+        runtime_state=runtime_state,
+    )
+    assert telemetry["decision_count"] == 1
+    assert telemetry["pending_outcome_count"] == 1
+    assert restarted.materialize_due_outcomes(
+        observed_at_ms=CREATED_AT_MS + 900_000,
+        mark_prices={"BTCUSDT": Decimal("110")},
+        operator_commit=CODE_SHA,
+    ) == 1
+    telemetry = restarted.publish_telemetry(
+        checked_at_ms=CREATED_AT_MS + 900_001,
+        operator_commit=CODE_SHA,
+        runtime_state=runtime_state,
+    )
+    assert telemetry["outcome_count"] == 1
+    assert telemetry["pending_outcome_count"] == 0
+    assert telemetry["positive_outcome_count"] == 1

@@ -72,6 +72,10 @@ def main() -> int:  # noqa: C901
             return _fail("health schema mismatch")
         if health.get("status") != "healthy":
             return _fail("research operator is fail-closed")
+        if health.get("runtime_health") not in {"healthy", "degraded"}:
+            return _fail("research runtime is fail-closed")
+        if health.get("circuit_breaker_active") is True:
+            return _fail("research runtime circuit breaker is active")
         if health.get("mode") != "shadow":
             return _fail("research operator mode is not SHADOW")
         if health.get("no_trade_confidence") != "0.60":

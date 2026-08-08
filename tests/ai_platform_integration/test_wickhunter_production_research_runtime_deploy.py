@@ -186,9 +186,10 @@ def test_diagnostic_v4_is_read_only_and_bound_to_failed_deployment() -> None:
     assert "docker logs --tail 300" in workflow
     assert 'docker compose -f "$COMPOSE_FILE" up' in workflow
     assert "if: always()" in workflow
-    assert "toJSON(github.event.commits)" in workflow
-    assert "!contains(toJSON(github.event.commits)" in workflow
-    assert "contains(toJSON(github.event.commits)" in workflow
+    assert "toJSON(github.event.commits)" not in workflow
+    for field in ("added", "modified", "removed"):
+        selector = f"toJSON(github.event.commits.*.{field})"
+        assert workflow.count(selector) == 2
 
     diagnose_index = workflow.index("  diagnose:")
     diagnostic_section = workflow[diagnose_index:]

@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any, cast
 
 from sqlalchemy import func, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from ai_platform.portal.contracts.audit import AuditEvent
@@ -110,18 +112,21 @@ class BotRepository:
         generation_id: str,
         expected_state_version: int,
     ) -> BotInstance | None:
-        result = session.execute(
-            update(BotRow)
-            .where(
-                BotRow.tenant_id == tenant_id,
-                BotRow.bot_id == bot_id,
-                BotRow.state_version == expected_state_version,
-            )
-            .values(
-                desired_revision_id=revision_id,
-                desired_runtime_generation_id=generation_id,
-                state_version=expected_state_version + 1,
-            )
+        result = cast(
+            CursorResult[Any],
+            session.execute(
+                update(BotRow)
+                .where(
+                    BotRow.tenant_id == tenant_id,
+                    BotRow.bot_id == bot_id,
+                    BotRow.state_version == expected_state_version,
+                )
+                .values(
+                    desired_revision_id=revision_id,
+                    desired_runtime_generation_id=generation_id,
+                    state_version=expected_state_version + 1,
+                )
+            ),
         )
         if result.rowcount != 1:
             return None
@@ -136,14 +141,17 @@ class BotRepository:
         bot_id: str,
         expected_state_version: int,
     ) -> BotInstance | None:
-        result = session.execute(
-            update(BotRow)
-            .where(
-                BotRow.tenant_id == tenant_id,
-                BotRow.bot_id == bot_id,
-                BotRow.state_version == expected_state_version,
-            )
-            .values(state_version=expected_state_version + 1)
+        result = cast(
+            CursorResult[Any],
+            session.execute(
+                update(BotRow)
+                .where(
+                    BotRow.tenant_id == tenant_id,
+                    BotRow.bot_id == bot_id,
+                    BotRow.state_version == expected_state_version,
+                )
+                .values(state_version=expected_state_version + 1)
+            ),
         )
         if result.rowcount != 1:
             return None

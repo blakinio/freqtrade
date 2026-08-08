@@ -41,6 +41,7 @@ from ai_platform.portal.execution.private_read import RuntimeReadFreshness
 
 
 NOW = datetime(2026, 7, 27, 13, 0, tzinfo=UTC)
+GENERATION_ID = "generation-3"
 
 
 def _capabilities() -> tuple[BotManagementCapability, ...]:
@@ -72,6 +73,7 @@ def _target() -> CommandTarget:
         tenant_id="tenant-a",
         bot_id="bot-1",
         config_revision=3,
+        runtime_generation_id=GENERATION_ID,
         runtime_id="runtime-1",
         runtime_revision=7,
     )
@@ -152,6 +154,7 @@ def _runtime() -> AuthoritativeBotRuntimeState:
         tenant_id="tenant-a",
         bot_id="bot-1",
         config_revision=3,
+        runtime_generation_id=GENERATION_ID,
         runtime_id="runtime-1",
         runtime_revision=7,
         environment=Environment.STAGING,
@@ -219,7 +222,9 @@ def test_all_command_families_persist_without_execution_evidence() -> None:
     assert all(outcome.execution_attempt_ref is None for outcome in outcomes)
     assert all(outcome.reconciliation_ref is None for outcome in outcomes)
     for command in commands:
-        assert service.list_history(context, command.command_id)[0].command == command
+        history = service.list_history(context, command.command_id)
+        assert history[0].command == command
+        assert history[0].command.target.runtime_generation_id == GENERATION_ID
 
 
 def test_pending_reconciliation_appends_history_without_success() -> None:

@@ -262,10 +262,7 @@ def _market_web_args(
 
 
 def _is_market_evidence_mount(value: Any) -> TypeGuard[dict[str, Any]]:
-    return (
-        isinstance(value, dict)
-        and value.get("Destination") == MARKET_EVIDENCE_CONTAINER_ROOT
-    )
+    return isinstance(value, dict) and value.get("Destination") == MARKET_EVIDENCE_CONTAINER_ROOT
 
 
 def _verify_running_container(deploy: Any, group_id: str) -> None:

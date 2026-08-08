@@ -25,14 +25,15 @@ internal_demo_production_deployment_authorized: true
 status: validating
 base_branch: develop
 trusted_base_sha: 46cd873ccb0c60ec88657d9e7eccb18a93737fd5
-branch: fix/wickhunter-wh09-synology-cpu-cfs-compat-20260808
+branch: diagnose/wickhunter-wh09-runtime-health-20260808
 related_issue: 1386
-related_pr: 1392
+related_pr: 1394
 implementation_pr: 1387
 implementation_merge_commit: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
 prior_deployment_control_pr: 1390
 prior_deployment_retry_pr: 1391
-prior_deployment_retry_merge_commit: 286376990bf9afeb1832f1d643a2b3dd6d2e12d5
+prior_synology_compat_pr: 1392
+prior_synology_compat_merge_commit: c64df386a4fa3ba739b6eaa1a223ca798a7bcae2
 upstream_discovery_issue: 1384
 upstream_discovery_pr: 1385
 no_trade_confidence: 0.60
@@ -83,58 +84,61 @@ model_root_host: /var/lib/freqtrade-staging-state/wickhunter-candidate-materiali
 
 - Discovery PR `#1385` merged at `46cd873ccb0c60ec88657d9e7eccb18a93737fd5`; it selected chronological evidence growth rather than weakening the frozen threshold.
 - Runtime implementation PR `#1387` merged at `ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5` after exact-head CI and fresh audit. H900 remains `BotMode.SHADOW`, `candidate_paper_validation_authorized=false`, with immutable decision journals and delayed 900 s outcomes.
-- Fresh implementation audit run `31262860311`, job `93116251497`, passed the dedicated WH09 runtime tests with zero open material findings after the test-only `CandidateAction.ENTER` fixture was corrected to `ENTER_LONG`.
-- Deployment-control PR `#1390` merged as `3af40aaa3820c91fdf8382e2a8cd61577babb90d`. Its first protected deployment run `31268955706` was cancelled by the former 20-minute image-export budget.
-- Deployment-retry PR `#1391` merged as `286376990bf9afeb1832f1d643a2b3dd6d2e12d5`. It preserved the exact runtime identity, exact-image reuse/rebuild and Compose `--no-build` startup; final required CI and review gates passed before merge.
-- Protected deploy run `31273808566`, job `93144045334`, passed immutable authorization, exact runtime checkout, runner identity, credential/proxy absence, zero-authority checks, Liquid20 identity/path validation and exact-image identity. Container creation then failed with Docker daemon error `NanoCPUs can not be set, as your kernel does not support CPU CFS scheduler or the cgroup is not mounted`.
-- The new failure is materially different from the prior image-export/Compose deadline failure. It is isolated to Synology kernel/cgroup incompatibility with Compose `cpus: 2.0`; it does not change model science or trading authority.
-- Repair PR `#1392` is bounded to removing the CPU-CFS/NanoCPUs quota while retaining memory/PID limits and all other container/security/SHADOW safeguards, plus immutable retry request v3 bound to run `31273808566` / job `93144045334`.
-- Exact deployment/config/test repair head is `486bafff6e1e3b0822ee144581a33eb589a032eb`. The following checkpoint commit is documentation-only.
-- The workflow repair snapshots the authorized deployment Compose before checking out exact runtime commit `ec0f53cc...`, builds/reuses the image from the untouched exact runtime source, then restores only the authorized Synology-compatible Compose for `docker compose config/up`.
+- Fresh implementation audit run `31262860311`, job `93116251497`, passed the dedicated WH09 runtime tests with zero open material findings.
+- Deployment-control PR `#1390` and deployment-retry PR `#1391` established the protected Synology route and exact-image reuse/build semantics.
+- Synology compatibility PR `#1392` merged at `c64df386a4fa3ba739b6eaa1a223ca798a7bcae2`; it removed only the unsupported CPU-CFS/NanoCPUs quota while retaining the remaining SHADOW hardening and exact runtime identity.
+- Protected deployment run `31275253098`, job `93147659559`, then passed immutable authorization, authorized Compose snapshot, exact runtime checkout, runner/credential/zero-authority/host-path validation and container creation/start. The prior CPU-CFS failure is therefore resolved.
+- The running container used exact image `wickhunter-production-research-runtime:ec0f53cc4df7` / image id `sha256:c5a67281912e262a183dd7a5804609a2f69ca356d5eb98e4a5a8da169e07a749` and exact runtime revision `ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5`.
+- Final E2E verification in the same run failed after the full 720 s window with `WH09 deployment E2E did not reach two advances: health is not a regular file`. No deployment PASS report was emitted.
+- The same container-start log reports `Your kernel does not support PIDs limit capabilities or the cgroup is not mounted. PIDs limit discarded.` This is a separate hardening caveat that must be resolved or explicitly dispositioned before claiming A8 complete.
+- Diagnostic PR `#1394` is read-only with respect to the deployed container. It adds immutable diagnostic request v4 and a bounded self-hosted diagnostic workflow that does not recreate the container and captures only safe runtime state, restart/error status, expected mount metadata, health/telemetry file metadata and bounded container logs.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-08T21:23:00+02:00
-branch: fix/wickhunter-wh09-synology-cpu-cfs-compat-20260808
-pr: 1392
+updated_at: 2026-08-08T22:05:00+02:00
+branch: diagnose/wickhunter-wh09-runtime-health-20260808
+pr: 1394
 status: validating
-phase: validate
+phase: diagnose
 execution_mode: chat_github_actions
 context_pressure: medium
 context_growth: stable
 decomposition_decision: phased
 session_rotation_count: 2
 invocation_started_at: 2026-08-08T21:04:00+02:00
-last_progress_at: 2026-08-08T21:23:00+02:00
+last_progress_at: 2026-08-08T22:05:00+02:00
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 1
-repair_cycle_generation: synology_cpu_cfs_compat
-repair_cycle_reset_reason: materially_new_failure_signature_after_successful_exact_image_and_predeploy_validation
+repair_cycles_for_current_gate: 2
+repair_cycle_generation: runtime_health_absent_diagnostic
+repair_cycle_reset_reason: materially_new_failure_signature_after_successful_container_start
 context_reconstruction_attempts: 1
 stall_warnings: 0
-failed_deployment:
-  run_id: 31273808566
-  job_id: 93144045334
-  authorization_commit: 286376990bf9afeb1832f1d643a2b3dd6d2e12d5
+latest_deployment:
+  run_id: 31275253098
+  job_id: 93147659559
+  authorization_commit: c64df386a4fa3ba739b6eaa1a223ca798a7bcae2
   runtime_commit: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
-  first_actionable_failure: synology_kernel_rejects_nanocpus_without_cpu_cfs
+  container_started: true
+  first_actionable_failure: runtime_health_file_absent_after_container_start
+  terminal_error: health_is_not_a_regular_file
+  additional_platform_warning: pids_limit_discarded_by_synology_kernel
   passed_before_failure:
-    - immutable deployment authorization
+    - immutable diagnostic/deployment authorization
+    - authorized Synology compose snapshot
     - exact runtime checkout
     - runner and host-path validation
-    - credential/proxy absence
-    - zero trading authority
+    - credential absence and zero trading authority
     - exact runtime image identity
-repair:
-  pr: 1392
-  exact_code_head: 486bafff6e1e3b0822ee144581a33eb589a032eb
-  checkpoint_successor_scope: documentation_only
-  strategy: remove_cpu_cfs_quota_only_and_deploy_authorized_compose_after_exact_image_identity
-  immutable_retry_request: retry-wh09-production-research-20260808-v3.json
+    - container creation and start
+diagnostic:
+  pr: 1394
+  request: diagnose-wh09-production-research-20260808-v4.json
+  container_recreate_authorized: false
+  purpose: inspect_existing_container_state_logs_mounts_and_health_telemetry_files
 owned_paths:
   - docs/agents/tasks/active/FTAI-20260808-wickhunter-wh09-production-research-runtime.md
   - ai_platform/wickhunter/production_research_runtime.py
@@ -143,20 +147,22 @@ owned_paths:
   - tests/ai_platform_integration/test_wickhunter_production_research_runtime_deploy.py
   - deploy/synology/wickhunter-production-research-runtime/
   - .github/workflows/ai-platform-wickhunter-wh09-production-research-runtime-deploy.yml
+  - .github/workflows/ai-platform-wickhunter-wh09-synology-runtime-diagnostic.yml
   - .github/workflow-registry.yaml
 proven:
   - H900 research inference is bound to exact package/model/parameter/dataset/code identities
   - frozen no_trade_confidence remains 0.60 and PAPER candidate authorization remains false
-  - immutable decision journaling, delayed H900 outcome labeling, restart persistence and zero-authority telemetry are implemented
+  - immutable decision journaling, delayed H900 outcome labeling, restart persistence and zero-authority telemetry are implemented in tested code
   - fresh dedicated implementation audit passes with zero open material findings
-  - implementation PR 1387 is merged at ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
-  - canonical Liquid20 live source is active and passed deployment preflight in run 31273808566
-  - PR 1391 merged at 286376990bf9afeb1832f1d643a2b3dd6d2e12d5 after exact-head CI and review
+  - exact WH09 container can now be created and started on the internal Synology
 unknown:
-  - internal Synology deployment E2E remains unproven because container creation stopped before health/two-cycle verification
+  - why the started container never produced /runtime/operator/health.json during 720 seconds
+  - whether telemetry.json exists independently of health.json
+  - whether the container is running, restarting or exited after the failed verification job
+  - whether PIDs limiting can be enforced by an alternative mechanism on this Synology kernel
 conflicts: []
 blockers: []
-next_action: Complete exact-head CI and fresh review of PR 1392; if green with no material findings, merge it and verify the protected retry-v3 Synology SHADOW deployment reaches healthy state plus two post-start advances with zero trading authority.
+next_action: Validate and merge diagnostic-only PR 1394, inspect the existing Synology container without recreation, then repair only the first proven runtime/root-path failure and separately disposition the unsupported PIDs-limit hardening control.
 ```
 
 ## Recovery checkpoint
@@ -164,26 +170,24 @@ next_action: Complete exact-head CI and fresh review of PR 1392; if green with n
 ```yaml
 recovery:
   policy_version: 1
-  generation: 5
+  generation: 6
   session_id: owner-20260808-2104-cest
   session_started_at: 2026-08-08T21:04:00+02:00
-  checkpointed_at: 2026-08-08T21:23:00+02:00
-  last_progress_at: 2026-08-08T21:23:00+02:00
-  phase: validate
-  exact_head: 486bafff6e1e3b0822ee144581a33eb589a032eb
-  exact_head_role: final_deployment_config_workflow_and_test_head
-  checkpoint_successor_scope: documentation_only
-  pull_request: 1392
-  active_operation: exact-head CI and fresh independent review for bounded Synology CPU-CFS compatibility repair
+  checkpointed_at: 2026-08-08T22:05:00+02:00
+  last_progress_at: 2026-08-08T22:05:00+02:00
+  phase: diagnose
+  exact_head: live PR 1394 head; resolve from GitHub before mutation
+  pull_request: 1394
+  active_operation: validate bounded read-only Synology diagnostics for existing WH09 container
   external_run_ids:
-    - 31273808566
-    - 93144045334
-  operation_started_at: 2026-08-08T21:20:48+02:00
-  wait_deadline_at: 2026-08-08T22:05:00+02:00
-  check_generation: synology-cpu-cfs-compat-final-validation
+    - 31275253098
+    - 93147659559
+  operation_started_at: 2026-08-08T22:03:00+02:00
+  wait_deadline_at: null
+  check_generation: runtime-health-diagnostic-v4
   checks_used: 0
   status: active
   safe_to_resume: true
-  resume_condition: required PR 1392 checks and fresh independent review complete; live PR head may be a documentation-only successor and must be reconciled from GitHub before merge
-  next_action: If exact-head required checks are green and review has no material finding, merge PR 1392 and verify the triggered retry-v3 Synology deployment E2E; otherwise repair only the first actionable failure.
+  resume_condition: PR 1394 exact-head CI/review permits diagnostic merge and the diagnostic run returns current container/log/filesystem evidence
+  next_action: Merge PR 1394 only after required exact-head gates, consume its diagnostic evidence, and make no redeploy until the health-file absence cause is proven.
 ```

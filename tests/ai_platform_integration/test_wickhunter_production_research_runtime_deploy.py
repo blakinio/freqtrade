@@ -15,6 +15,13 @@ WORKFLOW = (
 RETRY_V2 = DEPLOY / "run-requests" / "retry-wh09-production-research-20260808-v2.json"
 RETRY_V3 = DEPLOY / "run-requests" / "retry-wh09-production-research-20260808-v3.json"
 DIAGNOSTIC_V4 = DEPLOY / "run-requests" / "diagnose-wh09-production-research-20260808-v4.json"
+DIAGNOSTIC_PATH = (
+    "deploy/synology/wickhunter-production-research-runtime/run-requests/"
+    "diagnose-wh09-production-research-20260808-v4.json"
+)
+EXPECTED_DIAGNOSTIC_IMAGE_ID = (
+    "sha256:c5a67281912e262a183dd7a5804609a2f69ca356d5eb98e4a5a8da169e07a749"
+)
 
 
 def test_compose_keeps_zero_authority_and_hardened_mounts() -> None:
@@ -169,14 +176,13 @@ def test_bounded_deploy_retries_preserve_exact_image_and_authorized_compose() ->
 def test_diagnostic_v4_is_read_only_and_bound_to_failed_deployment() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     diagnostic = json.loads(DIAGNOSTIC_V4.read_text(encoding="utf-8"))
-    path = "deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json"
 
-    assert path in workflow
+    assert DIAGNOSTIC_PATH in workflow
     assert "Inspect existing WH09 SHADOW runtime without recreation" in workflow
     assert "EXPECTED_DIAGNOSTIC_CONTAINER_ID" in workflow
     assert "EXPECTED_DIAGNOSTIC_IMAGE_ID" in workflow
     assert "6724290d3078f09fc82c434e239d2d8afd3686ddedd27ff7d400834538cfbfe0" in workflow
-    assert "sha256:c5a67281912e262a183dd7a5804609a2f69ca356d5eb98e4a5a8da169e07a749" in workflow
+    assert EXPECTED_DIAGNOSTIC_IMAGE_ID in workflow
     assert "docker logs --tail 300" in workflow
     assert "docker compose up" in workflow
     assert "if: always()" in workflow
@@ -200,7 +206,7 @@ def test_diagnostic_v4_is_read_only_and_bound_to_failed_deployment() -> None:
         "previous_run_id": 31275253098,
         "previous_job_id": 93147659559,
         "expected_container_id": "6724290d3078f09fc82c434e239d2d8afd3686ddedd27ff7d400834538cfbfe0",
-        "expected_image_id": "sha256:c5a67281912e262a183dd7a5804609a2f69ca356d5eb98e4a5a8da169e07a749",
+        "expected_image_id": EXPECTED_DIAGNOSTIC_IMAGE_ID,
         "failure_class": "runtime_health_file_absent_after_container_start",
         "diagnostic_only": True,
         "container_recreate_authorized": False,

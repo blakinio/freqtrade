@@ -180,7 +180,12 @@ jobs:
           for key in ("execution_enabled", "trading_authorized", "trading_credentials_present"):
               if state.get(key) is not False:
                   raise SystemExit(f"Liquid20 authority flag {key} is not false")
-          run_state = root / "runs" / run_id / "run-state-v1.json"
+          runs_root = root / "runs"
+          run_root = runs_root / run_id
+          run_state = run_root / "run-state-v1.json"
+          for path in (runs_root, run_root):
+              if not path.is_dir() or path.is_symlink():
+                  raise SystemExit(f"Liquid20 run path is invalid: {path}")
           if not run_state.is_file() or run_state.is_symlink():
               raise SystemExit("Liquid20 persisted run state is invalid")
           persisted = json.loads(run_state.read_text(encoding="utf-8"))

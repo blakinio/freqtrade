@@ -80,16 +80,16 @@ runtime_commit: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
 - Exact deployed identity from that run: container `6724290d3078f09fc82c434e239d2d8afd3686ddedd27ff7d400834538cfbfe0`; image `sha256:c5a67281912e262a183dd7a5804609a2f69ca356d5eb98e4a5a8da169e07a749`; source revision `ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5`.
 - Final E2E verification timed out after 720 seconds with `WH09 deployment E2E did not reach two advances: health is not a regular file`; no PASS report was emitted.
 - Synology also discarded the requested PIDs limit because the kernel/cgroup lacks that capability; this remains a separate hardening caveat before final acceptance.
-- PR `#1394` keeps diagnostics inside the existing registered WH09 deployment workflow. Diagnostic v4 must classify mode across the whole push using changed-file arrays only, so commit-message text cannot switch deployment mode.
+- PR `#1394` keeps diagnostics inside the existing registered WH09 deployment workflow. Diagnostic v4 now classifies mode across the whole push exclusively through each commit's `added`, `modified`, and `removed` filename arrays, so commit message or author metadata cannot switch deployment mode.
 - Diagnostic v4 binds the exact failed run/job, original 64-character container ID and exact image ID. Container discovery uses `docker ps -aq --no-trunc` before exact comparison. The diagnostic job contains no start/stop/restart/recreate/remove/kill path and uploads evidence with `if: always()`.
-- Review P2 for exact deployed identity and prior P1 findings (truncated Docker ID, invalid deploy-command test assertion, incomplete whole-push classification) are already repaired. The remaining current P2 requires changed-file-array-only mode classification rather than serializing whole commit objects.
-- Exact diagnostic workflow/request/test code head remains `d3f13de0233c13d7add30f5ab631e600022d4ac8`; this commit restores only the mandatory durable delivery classification and acceptance inventory.
+- All previously open P1/P2 review findings are repaired and resolved as of diagnostic code head `6f02ed7c70b04fd0964fde462abc6cb860de34d3`; focused static regression coverage requires changed-file-array-only routing and forbids whole-commit serialization.
+- This checkpoint commit is documentation-only; it does not change the diagnostic workflow, runtime, model, threshold or authority.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-08T22:45:00+02:00
+updated_at: 2026-08-08T22:58:00+02:00
 branch: diagnose/wickhunter-wh09-runtime-health-20260808
 pr: 1394
 status: validating
@@ -97,13 +97,13 @@ phase: diagnose
 execution_mode: chat_github_actions
 context_pressure: medium
 context_growth: stable
-session_rotation_count: 2
-invocation_started_at: 2026-08-08T21:04:00+02:00
-last_progress_at: 2026-08-08T22:45:00+02:00
+session_rotation_count: 3
+invocation_started_at: 2026-08-08T22:51:00+02:00
+last_progress_at: 2026-08-08T22:58:00+02:00
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 2
+repair_cycles_for_current_gate: 3
 repair_cycle_generation: runtime_health_absent_diagnostic_v4
 latest_deployment:
   run_id: 31275253098
@@ -117,10 +117,11 @@ latest_deployment:
   additional_platform_warning: pids_limit_discarded_by_synology_kernel
 diagnostic:
   pr: 1394
-  exact_code_head: d3f13de0233c13d7add30f5ab631e600022d4ac8
+  exact_code_head: 6f02ed7c70b04fd0964fde462abc6cb860de34d3
+  checkpoint_successor_scope: documentation_only
   request: diagnose-wh09-production-research-20260808-v4.json
   whole_push_classification: true
-  changed_file_arrays_only_required: true
+  changed_file_arrays_only: true
   deploy_job_skipped_for_v4: true
   container_recreate_authorized: false
   expected_container_id: 6724290d3078f09fc82c434e239d2d8afd3686ddedd27ff7d400834538cfbfe0
@@ -131,6 +132,7 @@ proven:
   - PAPER and all real trading authority remain disabled
   - exact WH09 container can be created and started on internal Synology
   - diagnostic path cannot recreate the container
+  - diagnostic/deploy mode selection ignores commit metadata and uses changed-file arrays only
 unknown:
   - why the started container never produced health.json
   - whether telemetry.json exists independently
@@ -138,7 +140,7 @@ unknown:
   - whether an enforceable alternative to PIDs limiting exists on this Synology kernel
 conflicts: []
 blockers: []
-next_action: Repair changed-file-array-only whole-push diagnostic classification, then complete exact-head CI and fresh review of PR 1394; merge only if green and consume diagnostic v4 evidence before any redeploy.
+next_action: Complete exact-head CI and fresh independent review of PR 1394; if green with no material finding, merge and consume diagnostic v4 evidence before any redeploy.
 ```
 
 ## Recovery checkpoint
@@ -146,25 +148,26 @@ next_action: Repair changed-file-array-only whole-push diagnostic classification
 ```yaml
 recovery:
   policy_version: 1
-  generation: 6
-  session_id: owner-20260808-2104-cest
-  session_started_at: 2026-08-08T21:04:00+02:00
-  checkpointed_at: 2026-08-08T22:45:00+02:00
-  last_progress_at: 2026-08-08T22:45:00+02:00
+  generation: 7
+  session_id: owner-20260808-2251-cest
+  session_started_at: 2026-08-08T22:51:00+02:00
+  checkpointed_at: 2026-08-08T22:58:00+02:00
+  last_progress_at: 2026-08-08T22:58:00+02:00
   phase: diagnose
-  exact_head: d3f13de0233c13d7add30f5ab631e600022d4ac8
-  exact_head_role: final_diagnostic_workflow_request_and_test_head_before_changed_file_array_fix
+  exact_head: 6f02ed7c70b04fd0964fde462abc6cb860de34d3
+  exact_head_role: final_diagnostic_workflow_and_test_head
+  checkpoint_successor_scope: documentation_only
   pull_request: 1394
-  active_operation: repair changed-file-array-only mode classification and validate read-only Synology diagnostics
+  active_operation: exact-head CI and fresh independent review before diagnostic-only merge
   external_run_ids:
     - 31275253098
     - 93147659559
-  operation_started_at: 2026-08-08T22:44:00+02:00
-  wait_deadline_at: 2026-08-08T23:29:00+02:00
+  operation_started_at: 2026-08-08T22:58:00+02:00
+  wait_deadline_at: 2026-08-08T23:43:00+02:00
   check_generation: runtime-health-diagnostic-v4-final
   checks_used: 0
   status: active
   safe_to_resume: true
-  resume_condition: changed-file-array-only classification is committed and required PR 1394 checks/review complete
+  resume_condition: exact-head required CI and fresh review complete with zero material findings
   next_action: If exact-head checks are green and no material review finding remains, merge PR 1394 and consume the diagnostic evidence before any redeploy.
 ```

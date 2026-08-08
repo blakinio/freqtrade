@@ -47,6 +47,7 @@ class BotRuntimeTruth(BaseModel):
     bot: BotInstance
     revisions: tuple[BotConfigRevision, ...]
     desired_generation: RuntimeGeneration | None
+    observed_generation: RuntimeGeneration | None
     latest_rollout: BotRollout | None
     pending_rollout: bool
 
@@ -96,6 +97,15 @@ def build_router(
                 if bot.desired_runtime_generation_id is not None
                 else None
             )
+            observed_generation = (
+                repository.get_runtime_generation(
+                    session,
+                    context.tenant_id,
+                    bot.observed_runtime_generation_id,
+                )
+                if bot.observed_runtime_generation_id is not None
+                else None
+            )
             rollout_row = session.scalar(
                 select(BotRolloutRow)
                 .where(
@@ -109,6 +119,7 @@ def build_router(
             bot=bot,
             revisions=revisions,
             desired_generation=desired_generation,
+            observed_generation=observed_generation,
             latest_rollout=_rollout_from_row(rollout_row),
             pending_rollout=(
                 bot.desired_runtime_generation_id != bot.observed_runtime_generation_id

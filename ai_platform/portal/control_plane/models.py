@@ -179,7 +179,9 @@ class RuntimeGenerationObservationRow(Base):
     observed_config_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     source_sequence: Mapped[int | None] = mapped_column(Integer, nullable=True)
     source_version: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    source_observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    source_observed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     reconciled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     identity_status: Mapped[str] = mapped_column(String(32), nullable=False)
     freshness_status: Mapped[str] = mapped_column(String(32), nullable=False)

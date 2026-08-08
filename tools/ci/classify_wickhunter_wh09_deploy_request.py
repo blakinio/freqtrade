@@ -46,38 +46,41 @@ def _required_sha(event: dict[str, Any], field: str) -> str:
     return value
 
 
-def _git(
-    repo_root: Path,
-    *args: str,
-    text: bool = True,
-) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[bytes]:
+def _git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
             ["git", *args],
             cwd=repo_root,
             check=True,
             capture_output=True,
-            text=text,
+            text=True,
+            encoding="utf-8",
+            errors="strict",
         )
-    except (OSError, subprocess.CalledProcessError) as exc:
+    except (OSError, subprocess.CalledProcessError, UnicodeDecodeError) as exc:
         raise DeployRequestClassificationError(f"git command failed: {' '.join(args)}") from exc
 
 
 def _commit_exists(repo_root: Path, sha: str) -> bool:
-    completed = subprocess.run(
-        ["git", "cat-file", "-e", f"{sha}^{{commit}}"],
-        cwd=repo_root,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            ["git", "cat-file", "-e", f"{sha}^{{commit}}"],
+            cwd=repo_root,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    except OSError as exc:
+        raise DeployRequestClassificationError("git command failed: cat-file") from exc
     return completed.returncode == 0
 
 
 def _ensure_push_range_available(repo_root: Path, before: str, after: str) -> None:
     head = _git(repo_root, "rev-parse", "HEAD").stdout.strip()
     if head != after:
-        raise DeployRequestClassificationError("checked-out HEAD does not match push event after SHA")
+        raise DeployRequestClassificationError(
+            "checked-out HEAD does not match push event after SHA"
+        )
     if not _commit_exists(repo_root, after):
         raise DeployRequestClassificationError("push event after commit is unavailable")
     if _commit_exists(repo_root, before):
@@ -88,7 +91,9 @@ def _ensure_push_range_available(repo_root: Path, before: str, after: str) -> No
         raise DeployRequestClassificationError("push event before commit is unavailable")
     _git(repo_root, "fetch", "--no-tags", "--prune", "--unshallow", "origin")
     if not _commit_exists(repo_root, before):
-        raise DeployRequestClassificationError("push event before commit is unavailable after unshallow")
+        raise DeployRequestClassificationError(
+            "push event before commit is unavailable after unshallow"
+        )
 
 
 def changed_paths_for_push(event: dict[str, Any], repo_root: Path) -> tuple[str, ...]:
@@ -104,13 +109,8 @@ def changed_paths_for_push(event: dict[str, Any], repo_root: Path) -> tuple[str,
         before,
         after,
         "--",
-        text=False,
     )
-    try:
-        raw_paths = completed.stdout.split(b"\0")
-        return tuple(item.decode("utf-8") for item in raw_paths if item)
-    except UnicodeDecodeError as exc:
-        raise DeployRequestClassificationError("changed path is not valid UTF-8") from exc
+    return tuple(item for item in completed.stdout.split("\0") if item)
 
 
 def diagnostic_request_changed_in_push(
@@ -129,7 +129,7 @@ def main() -> int:
     parser.add_argument("--event", required=True, type=Path)
     parser.add_argument("--target-path", required=True)
     parser.add_argument("--github-output", required=True, type=Path)
-    parser.add_argument("--repo-root", type=Path, default=Path("."))
+    parser.add_argument("--repo-root", type=Path, default=Path())
     args = parser.parse_args()
 
     event = json.loads(args.event.read_text(encoding="utf-8"))

@@ -38,7 +38,9 @@ def _repo(tmp_path: Path) -> Path:
     return repo
 
 
-def test_actions_style_push_without_changed_file_arrays_uses_exact_git_range(tmp_path: Path) -> None:
+def test_actions_style_push_without_changed_file_arrays_uses_exact_git_range(
+    tmp_path: Path,
+) -> None:
     repo = _repo(tmp_path)
     before = _git(repo, "rev-parse", "HEAD")
 

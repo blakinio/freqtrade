@@ -82,14 +82,14 @@ runtime_commit: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
 - Synology also discarded the requested PIDs limit because the kernel/cgroup lacks that capability; this remains a separate hardening caveat before final acceptance.
 - PR `#1394` keeps diagnostics inside the existing registered WH09 deployment workflow. Diagnostic v4 now classifies mode across the whole push exclusively through each commit's `added`, `modified`, and `removed` filename arrays, so commit message or author metadata cannot switch deployment mode.
 - Diagnostic v4 binds the exact failed run/job, original 64-character container ID and exact image ID. Container discovery uses `docker ps -aq --no-trunc` before exact comparison. The diagnostic job contains no start/stop/restart/recreate/remove/kill path and uploads evidence with `if: always()`.
-- All previously open P1/P2 review findings are repaired and resolved as of diagnostic code head `6f02ed7c70b04fd0964fde462abc6cb860de34d3`; focused static regression coverage requires changed-file-array-only routing and forbids whole-commit serialization.
-- This checkpoint commit is documentation-only; it does not change the diagnostic workflow, runtime, model, threshold or authority.
+- All diagnostic workflow/test P1/P2 findings are repaired and resolved as of diagnostic code head `6f02ed7c70b04fd0964fde462abc6cb860de34d3`; focused static regression coverage requires changed-file-array-only routing and forbids whole-commit serialization.
+- Recovery does not treat that functional parent as merge authority: any replacement worker must resolve the current live PR #1394 head and require exact-final-head CI before merge.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-08T22:58:00+02:00
+updated_at: 2026-08-08T23:05:00+02:00
 branch: diagnose/wickhunter-wh09-runtime-health-20260808
 pr: 1394
 status: validating
@@ -99,12 +99,12 @@ context_pressure: medium
 context_growth: stable
 session_rotation_count: 3
 invocation_started_at: 2026-08-08T22:51:00+02:00
-last_progress_at: 2026-08-08T22:58:00+02:00
+last_progress_at: 2026-08-08T23:05:00+02:00
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 3
-repair_cycle_generation: runtime_health_absent_diagnostic_v4
+repair_cycles_for_current_gate: 1
+repair_cycle_generation: recovery_live_head_semantics
 latest_deployment:
   run_id: 31275253098
   job_id: 93147659559
@@ -118,7 +118,6 @@ latest_deployment:
 diagnostic:
   pr: 1394
   exact_code_head: 6f02ed7c70b04fd0964fde462abc6cb860de34d3
-  checkpoint_successor_scope: documentation_only
   request: diagnose-wh09-production-research-20260808-v4.json
   whole_push_classification: true
   changed_file_arrays_only: true
@@ -140,7 +139,7 @@ unknown:
   - whether an enforceable alternative to PIDs limiting exists on this Synology kernel
 conflicts: []
 blockers: []
-next_action: Complete exact-head CI and fresh independent review of PR 1394; if green with no material finding, merge and consume diagnostic v4 evidence before any redeploy.
+next_action: Resolve live PR #1394 head, require exact-final-head CI plus fresh independent review, then merge only if green and consume diagnostic v4 evidence before any redeploy.
 ```
 
 ## Recovery checkpoint
@@ -148,26 +147,28 @@ next_action: Complete exact-head CI and fresh independent review of PR 1394; if 
 ```yaml
 recovery:
   policy_version: 1
-  generation: 7
+  generation: 8
   session_id: owner-20260808-2251-cest
   session_started_at: 2026-08-08T22:51:00+02:00
-  checkpointed_at: 2026-08-08T22:58:00+02:00
-  last_progress_at: 2026-08-08T22:58:00+02:00
+  checkpointed_at: 2026-08-08T23:05:00+02:00
+  last_progress_at: 2026-08-08T23:05:00+02:00
   phase: diagnose
-  exact_head: 6f02ed7c70b04fd0964fde462abc6cb860de34d3
-  exact_head_role: final_diagnostic_workflow_and_test_head
-  checkpoint_successor_scope: documentation_only
+  diagnostic_code_head: 6f02ed7c70b04fd0964fde462abc6cb860de34d3
+  live_head_source: pr_1394
+  exact_final_head_required: true
+  parent_checkpoint_head: d52e1a93d49ee29d0b883b783f1de062b3b67153
+  parent_checkpoint_role: documentation_predecessor_only
   pull_request: 1394
-  active_operation: exact-head CI and fresh independent review before diagnostic-only merge
+  active_operation: resolve live PR head, validate that exact final head, then perform diagnostic-only merge
   external_run_ids:
     - 31275253098
     - 93147659559
-  operation_started_at: 2026-08-08T22:58:00+02:00
-  wait_deadline_at: 2026-08-08T23:43:00+02:00
-  check_generation: runtime-health-diagnostic-v4-final
+  operation_started_at: 2026-08-08T23:05:00+02:00
+  wait_deadline_at: 2026-08-08T23:50:00+02:00
+  check_generation: runtime-health-diagnostic-v4-final-live-head
   checks_used: 0
   status: active
   safe_to_resume: true
-  resume_condition: exact-head required CI and fresh review complete with zero material findings
-  next_action: If exact-head checks are green and no material review finding remains, merge PR 1394 and consume the diagnostic evidence before any redeploy.
+  resume_condition: resolve PR 1394 live head, then require required CI and fresh review on that exact head with zero material findings
+  next_action: Query PR 1394 live head; never use diagnostic_code_head as merge authority. Merge only after exact-final-head checks are green and no material review finding remains, then consume diagnostic evidence before any redeploy.
 ```

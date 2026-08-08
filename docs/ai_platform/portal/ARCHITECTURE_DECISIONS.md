@@ -283,3 +283,76 @@ The platform has evolved beyond its original research MVP and now contains sever
 Consequence:
 
 Architecture reviews and autonomous agents must begin with `ARCHITECTURE_REGISTRY.yaml`, follow its authority order, and cite exact evidence for every current-state claim. Documentation alone never creates runtime, production, credential, trading or live-capital authority.
+
+## ADR-020 — Secure dry-run runtime control uses RuntimeGeneration, Runtime Supervisor and per-runtime Gateway
+
+Status: `accepted`
+
+Accepted by owner: `2026-08-08`
+
+Decision:
+
+The canonical next execution-plane architecture is **Option C** from Issue #1358:
+
+```text
+browser -> portal-web -> portal-api -> PostgreSQL
+                                |
+                                v
+                           portal-worker
+                          /             \
+          generation-bound Gateway      narrow lifecycle request
+                    |                           |
+                    v                           v
+              Freqtrade API              Runtime Supervisor
+                    |                           |
+                    v                           v
+          isolated Freqtrade runtime       container engine
+```
+
+The following invariants are binding:
+
+1. **`RuntimeGeneration` is the execution identity.** Every runtime read, command, reconciliation record and execution claim binds to an immutable generation containing exact tenant, bot, config revision, image/artifact digests, strategy/model/risk identities, exchange mode/revision, isolation-profile version and gateway-contract version.
+2. **Bot config authoring is separate from rollout.** Latest/authored revision, desired revision and observed active runtime generation/revision are distinct. A `DRAFT` revision is never executable merely because it was saved. Running-bot changes require an explicit apply/restart-with-revision mutation.
+3. **Runtime replacement is initially stop-then-replace.** Blue/green concurrent execution is deferred until a separate measured need and safety design exist.
+4. **Runtime Supervisor is the only Portal component with container-engine authority.** Portal API, ordinary workers, web, AI/training workers and exchange-verification workers do not receive raw Docker/container-engine access. The supervisor accepts only validated immutable generation specifications and rejects arbitrary image, mount, port, capability, environment and command passthrough.
+5. **Per-runtime Gateway is the only Portal-to-Freqtrade application boundary.** It exposes narrowly reviewed read/valuation/reduce-only/submission capabilities and is not a general Freqtrade reverse proxy. No browser/public ingress reaches it.
+6. **Same-host Portal-to-Gateway transport defaults to Unix domain sockets with OS ACLs and generation-bound socket identity.** A future multi-host variant must use authenticated TLS/mTLS workload identity. Plain routable HTTP is not an accepted trust boundary.
+7. **Freqtrade API credentials are generation-local.** They exist only between the Gateway and its Freqtrade runtime and rotate on replacement; Portal workers do not receive them.
+8. **Dry-run does not require private exchange trading credentials.** Exchange connectivity distinguishes `PUBLIC_DATA` from `PRIVATE_TRADING`. Current dry-run runtimes use public-data venue metadata/capabilities without exchange key/secret material. Private trading credentials remain separately governed and do not become activatable through this ADR.
+9. **Runtime storage is split by trust class.** Portal-authoritative generation/identity evidence is control-owned and never runtime-writable; immutable config/artifacts are read-only; Freqtrade trade/state data is explicit durable writable state for the generation; temporary/log/cache writes are explicit and bounded.
+10. **A reviewed RuntimeIsolationProfile is mandatory.** It includes non-root/no privilege gain, `no-new-privileges`, capability minimization, read-only root, explicit writable mounts/tmpfs, CPU/memory/PID/log bounds, immutable image digest, no Docker socket, no Portal DB/Vault/NATS/Redis/unrelated-runtime reachability, and only required public market-data egress plus the local Gateway relationship.
+11. **Reconciliation, not acknowledgement or event delivery, is authoritative.** PostgreSQL durable state is the recovery spine. Events may reduce latency but do not replace durable desired state, command identity or reconciliation. Ordering is generation-first, then source sequence/version when available, then durable reconciliation epoch/attempt, with source timestamps used for freshness and hashes for duplicate/conflict detection.
+12. **Emergency execution uses a monotonic safety fence.** Kill-switch activation/release advances an `ExecutionSafetyEpoch`; exposure-increasing commands must carry the exact current generation and epoch, and stale epochs fail closed. Risk-reducing operations remain governed by a separately explicit reduce-only policy.
+13. **Process roles split by privilege, not by premature business microservices.** The target deployable profiles are `portal-api`, ordinary `portal-worker`, `runtime-supervisor`, `exchange-verification-worker` and `training-worker`, with the minimum authority required for each. Domain ownership remains modular-monolith-first unless ADR-002 revisit criteria are met.
+14. **Freqtrade remains replaceable and upstream-isolated.** This target architecture requires no upstream `freqtrade/` core modification; Freqtrade remains behind the private adapter/Gateway boundary.
+
+Reason:
+
+Directly wiring the existing P3/PI/BM components into one general worker would combine container-engine authority, private runtime control and secret-adjacent responsibilities, while leaving runtime-generation identity, writable control evidence, replacement persistence, transport consistency and kill-switch races unresolved. A bounded supervisor and per-runtime Gateway reduce blast radius, make provenance explicit, preserve one-bot/one-runtime isolation and keep Freqtrade private without prematurely decomposing the control-plane business domains.
+
+Migration impact:
+
+Implementation must proceed in dependency order and remain fail closed between stages:
+
+1. separate config draft/authored, desired revision and observed runtime generation state;
+2. introduce control-owned `RuntimeGeneration` persistence and trusted storage separation;
+3. implement and validate the reusable `RuntimeIsolationProfile`;
+4. introduce the narrow Runtime Supervisor boundary;
+5. introduce the generation-bound per-runtime Gateway and generation-local Freqtrade API authentication;
+6. compose PI-01 authoritative reconciliation with monotonic/generation-aware ordering;
+7. converge PI-02 valuation on the same Gateway read boundary;
+8. add kill-switch execution safety epoch/fencing;
+9. compose PI-08 exposure-increasing submission and BM-07 private activation only after the preceding safety gates pass;
+10. compose authenticated API-mode deployment/E2E and only then connect downstream AI/learning producers to authoritative runtime evidence.
+
+Until a stage is implemented and verified, existing higher-risk operations remain unavailable/fail closed rather than falling back to direct Freqtrade access.
+
+Affected architecture/issues:
+
+- #1086, #1091, #1092, #1093, #1097, #1099, #1100, #1120, #1136;
+- #1353, #1354, #1355, #1357;
+- owner decision package #1358.
+
+Consequence:
+
+Older target-state wording that implies a generic worker directly controls Docker/Freqtrade, that every dry-run runtime receives exchange trading credentials, or that runtime identity is only `(tenant_id, bot_id)` is superseded by this ADR. Target-state documents must be interpreted through ADR-020 until they are updated. Documentation acceptance does not prove implementation and grants no production, exchange-credential, withdrawal, model-promotion or live-capital authority.

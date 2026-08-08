@@ -18,6 +18,8 @@ RUN pip install --no-cache-dir --requirement /tmp/portal-identity-requirements.t
 
 COPY --chown=portal:portal ai_platform /app/ai_platform
 COPY --chown=portal:portal ai_strategy_engine/src/strategy_engine /app/strategy_engine
+COPY --chown=portal:portal ai_strategy_engine/configs/feature_registry.v1.yaml /app/ai_strategy_engine/configs/feature_registry.v1.yaml
+COPY --chown=portal:portal ai_strategy_engine/schemas/feature-registry.v1.schema.json /app/ai_strategy_engine/schemas/feature-registry.v1.schema.json
 COPY deploy/synology/portal-oidc/control-plane-entrypoint.sh /usr/local/bin/portal-control-plane-entrypoint
 RUN chmod 0555 /usr/local/bin/portal-control-plane-entrypoint
 

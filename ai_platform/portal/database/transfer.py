@@ -64,7 +64,8 @@ def _source_authority(source: Engine) -> tuple[str, dict[str, Any], frozenset[st
             authority = "structural_pre_logout_replay"
         else:
             raise PortalStateTransferError(
-                "legacy SQLite schema is divergent; backup, quarantine and explicit recovery are required"
+                "legacy SQLite schema is divergent; backup, quarantine and explicit "
+                "recovery are required"
             )
 
     integrity = scan_database_integrity(source)
@@ -155,7 +156,9 @@ def transfer_portal_state(source: Engine, target: Engine) -> dict[str, Any]:
 
     target_integrity = scan_database_integrity(target)
     if target_integrity["status"] != "clean":
-        raise PortalStateTransferError("PostgreSQL integrity verification failed after state transfer")
+        raise PortalStateTransferError(
+            "PostgreSQL integrity verification failed after state transfer"
+        )
 
     return {
         "status": "transferred",

@@ -81,7 +81,7 @@ def build_public_app() -> FastAPI:
             "live_capital_authorized": False,
         }
 
-    @app.get("/readyz", include_in_schema=False)
+    @app.get("/readyz", include_in_schema=False, response_model=None)
     def readyz() -> dict[str, object] | JSONResponse:
         try:
             current_schema = assert_schema_ready(engine)

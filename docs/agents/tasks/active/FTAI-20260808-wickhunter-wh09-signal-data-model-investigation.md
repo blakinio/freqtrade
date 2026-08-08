@@ -21,16 +21,19 @@ run_scope: autonomous_program
 continuation_policy: continue_until_real_stop
 task_completion_policy: finalize_archive_and_continue
 implementation_authorized: false
-status: investigating
+follow_up_implementation_authorized: true
+status: waiting
 base_branch: develop
 trusted_base_sha: 7b23a958fd4d2bb43569c7f693d2247ef43d1ae9
 branch: research/wickhunter-wh09-signal-data-model-investigation-20260808
 related_issue: 1384
-related_pr: none
+related_pr: 1385
+diagnostic_run_id: 31256231378
+diagnostic_job_id: 93099869458
 invocation_started_at: 2026-08-08T13:48:00+02:00
-last_progress_at: 2026-08-08T13:55:00+02:00
-ci_checks_for_current_head: 0
-unchanged_state_checks: 0
+last_progress_at: 2026-08-08T14:06:00+02:00
+ci_checks_for_current_head: 2
+unchanged_state_checks: 2
 identical_failure_retries: 0
 repair_cycles_for_current_gate: 0
 context_reconstruction_attempts: 0
@@ -49,7 +52,7 @@ live_capital_authorized: false
 
 ## Objective
 
-Determine, from trusted WH09 train/validation evidence, why the terminal 900-second replay/model chain cannot produce an independently defensible operational candidate at the frozen `no_trade_confidence=0.60`, and precommit the smallest next scientific work package without lowering the threshold, reusing test/protected-holdout evidence for selection, repeating H900, or starting Runtime/PAPER.
+Determine, from trusted WH09 train/validation evidence, why the terminal 900-second replay/model chain cannot produce an independently defensible operational candidate at the frozen `no_trade_confidence=0.60`, and precommit the smallest next scientific work package without lowering the threshold, reusing test/protected-holdout evidence for selection, repeating H900, or starting Runtime/PAPER prematurely.
 
 ## Trusted starting state
 
@@ -66,7 +69,7 @@ Determine, from trusted WH09 train/validation evidence, why the terminal 900-sec
 
 ## Authorization and scope
 
-### Allowed
+### Allowed in this discovery task
 
 - read repository code, immutable H900 artifacts and train/validation evidence;
 - inspect label prevalence, score distributions, calibration support, feature separability, feature redundancy, model-capacity assumptions, split geometry and class imbalance;
@@ -74,13 +77,19 @@ Determine, from trusted WH09 train/validation evidence, why the terminal 900-sec
 - if existing evidence is insufficient, design at most one new bounded diagnostic using train + validation only, with a precommitted analysis plan and no candidate promotion;
 - open one focused discovery PR for durable findings/task state when coherent.
 
+### Owner-authorized follow-up after the discovery gate
+
+The owner explicitly authorized implementation after this diagnostic selects an evidence-backed route. The intended live-facing phase is PAPER/demo only, not real-capital trading. The follow-up should reuse and extend the existing `candidate_paper_runtime_*` / `shadow_runtime_*` stack rather than create a parallel engine, and should provide durable operator-visible telemetry for model decisions, `NO_TRADE` reasons, confidence, model/parameter identities, simulated positions, PnL/expectancy/drawdown, symbol/side/regime breakdowns and model/data drift. Retraining remains separate from promotion; later champion/challenger/baseline comparison is desired. No automatic promotion is authorized.
+
+This authorization does not permit bypassing the current candidate gate or starting PAPER with the terminal H900 model that cannot produce an actionable score at `0.60`.
+
 ### Forbidden
 
 - lowering or bypassing `no_trade_confidence=0.60`;
 - choosing a solution using test or protected holdout outcomes;
 - protected holdout access;
 - repeating the consumed H900 heavy replay;
-- starting candidate-bound Runtime, preflight or a PAPER observation window;
+- starting candidate-bound Runtime, preflight or a PAPER observation window before an independently defensible candidate exists;
 - changing trading credentials, order adapters, execution, promotion, orders or live capital;
 - using test results as an optimizer objective, model-family selector, feature selector or calibration selector;
 - silently changing the WH09 scientific target or strategy objective.
@@ -124,6 +133,15 @@ The discovery phase is complete only when all are true:
 
 The artifact does not package the required per-case feature/score rows. A single bounded runner diagnostic is therefore justified if it remains train+validation-only and does not rematerialize H900 or produce/promote a candidate.
 
+## Evidence checkpoint 2 — bounded diagnostic and runtime reuse
+
+- PR `#1385` exact diagnostic head: `5c678c4bb29dec80d8df0fdd1b555ce3a30ea724` before this checkpoint commit;
+- bounded diagnostic workflow run: `31256231378`, job `93099869458` on `freqtrade-synology-staging`;
+- authority validation passed; dependency installation passed; the train+validation diagnostic step is still executing;
+- no retraining, replay rematerialization, candidate creation, PAPER start, promotion, credentials, order adapter, execution, orders or real-capital authority is part of that diagnostic;
+- repository inventory confirms an existing PAPER/shadow runtime foundation: `candidate_paper_runtime_operator.py`, `candidate_paper_runtime_service.py`, `candidate_paper_runtime_supervisor.py`, parity services/supervisors, `shadow_runtime_*`, persistent storage/snapshot modules and `paper_validation.py`;
+- follow-up PAPER observability should extend that stack, not fork it.
+
 ## Context checkpoint
 
 ```yaml
@@ -136,11 +154,11 @@ context_growth: stable
 context_score: 7
 estimate_confidence: medium
 decomposition_decision: discovery_first
-validation_level: evidence_review
-last_completed_step: issue 1384 created and structural confidence-ceiling cause proven from exact H900 artifact plus scorer contract
+validation_level: bounded_train_validation_diagnostic
+last_completed_step: owner follow-up implementation direction persisted and existing PAPER/shadow runtime foundation inventoried while the single bounded diagnostic continues
 session_rotation_count: 0
 heavy_validation_runs: 0
-status: investigating
-blocker: none
-next_action: design one bounded train+validation-only diagnostic that quantifies raw score separation, calibration-bin support and feature stability without creating a candidate or touching test/protected holdout selection
+status: waiting
+blocker: external GitHub Actions diagnostic run 31256231378 is still executing; exact-head polling budget exhausted for this invocation
+next_action: when run 31256231378 reaches terminal state, inspect its artifact once, rank the scientific root cause, precommit exactly one next work package, remove the temporary diagnostic workflow from PR 1385, and continue through final exact-head validation
 ```

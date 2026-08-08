@@ -12,6 +12,7 @@ from ai_platform.portal.control_plane.database import Base, build_engine
 from ai_platform.portal.database.model_registry import load_portal_models
 from ai_platform.portal.database.schema import (
     INITIAL_SCHEMA_REVISION,
+    MIGRATION_TABLE_NAME,
     OIDC_LOGOUT_REPLAY_TABLE_NAME,
     assert_schema_ready,
     scan_database_integrity,
@@ -25,7 +26,11 @@ class PortalStateTransferError(RuntimeError):
 
 def _manifest_tables() -> tuple[Table, ...]:
     manifest = load_portal_models()
-    return tuple(table for table in Base.metadata.sorted_tables if table.name in manifest)
+    return tuple(
+        table
+        for table in Base.metadata.sorted_tables
+        if table.name in manifest and table.name != MIGRATION_TABLE_NAME
+    )
 
 
 def _source_authority(source: Engine) -> tuple[str, dict[str, Any], frozenset[str]]:
@@ -120,8 +125,8 @@ def transfer_portal_state(source: Engine, target: Engine) -> dict[str, Any]:
     }
     if nonempty_target:
         raise PortalStateTransferError(
-            "target PostgreSQL contains Portal rows; refusing non-idempotent state transfer; "
-            f"nonempty_table_counts={json.dumps(nonempty_target, sort_keys=True)}"
+            "target PostgreSQL contains Portal business rows; refusing non-idempotent state "
+            f"transfer; nonempty_table_counts={json.dumps(nonempty_target, sort_keys=True)}"
         )
 
     copied_counts: dict[str, int] = {}
@@ -176,6 +181,7 @@ def transfer_portal_state(source: Engine, target: Engine) -> dict[str, Any]:
         "rows_copied": sum(copied_counts.values()),
         "row_counts": copied_counts,
         "integrity": "clean",
+        "schema_metadata_transfer": "excluded_dialect_specific_authority",
         "safety": {
             "row_values_recorded": False,
             "secret_values_recorded": False,

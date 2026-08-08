@@ -1,0 +1,193 @@
+name: Temporary WH09 production research runtime repair
+
+on:
+  push:
+    branches:
+      - feat/wickhunter-wh09-production-research-runtime-20260808
+    paths:
+      - .github/workflows/temp-wh09-production-research-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact feature branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: feat/wickhunter-wh09-production-research-runtime-20260808
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Apply bounded repairs and repository formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          core = Path("ai_platform/wickhunter/production_research_runtime.py")
+          text = core.read_text(encoding="utf-8")
+          text = text.replace("        os.chmod(temporary, 0o640)\n", "        temporary.chmod(0o640)\n")
+          anchor = "    def materialize_due_outcomes(\n"
+          method = '''    def pending_outcome_symbols(self, *, observed_at_ms: int) -> tuple[str, ...]:
+              symbols: set[str] = set()
+              outcome_root = self.root / "outcomes"
+              for decision_path in sorted((self.root / "decisions").glob("*.json")):
+                  decision = _verify_self_hash(
+                      _load_object(decision_path, field_name="research decision"),
+                      hash_field="record_sha256",
+                      field_name="research decision",
+                  )
+                  decision_id = str(decision.get("decision_id", ""))
+                  if SHA256_RE.fullmatch(decision_id) is None:
+                      raise ProductionResearchRuntimeError("research decision identity is invalid")
+                  if (outcome_root / f"{decision_id}.json").exists():
+                      continue
+                  if decision.get("side") not in {"long", "short"}:
+                      continue
+                  decision_timestamp_ms = int(decision["decision_timestamp_ms"])
+                  target_at_ms = decision_timestamp_ms + self.identity.outcome_horizon_ms
+                  if observed_at_ms >= target_at_ms:
+                      symbols.add(str(decision["symbol"]).upper())
+              return tuple(sorted(symbols))
+
+'''
+          if "def pending_outcome_symbols" not in text:
+              if anchor not in text:
+                  raise SystemExit("core pending-outcome insertion anchor missing")
+              text = text.replace(anchor, method + anchor, 1)
+          core.write_text(text, encoding="utf-8")
+
+          operator = Path("ai_platform/wickhunter/production_research_runtime_operator.py")
+          text = operator.read_text(encoding="utf-8")
+          text = text.replace(
+              "from dataclasses import dataclass\n",
+              "from dataclasses import dataclass, field\n",
+              1,
+          )
+          class_anchor = (
+              "class ProductionResearchRuntimeOperator(CandidatePaperRuntimeOperator):\n"
+              "    service: ProductionResearchRuntimeService\n"
+          )
+          class_replacement = class_anchor + "    last_success_at_ms: int | None = field(default=None, init=False)\n"
+          if "field(default=None, init=False)" not in text:
+              if class_anchor not in text:
+                  raise SystemExit("operator dataclass insertion anchor missing")
+              text = text.replace(class_anchor, class_replacement, 1)
+
+          old_market = '''        open_position_symbols = tuple(
+              sorted({position.symbol.upper() for position in self.service.runtime.state.positions})
+          )
+          market_symbols = tuple(
+              sorted({*liquid20.universe.selected_symbols, *open_position_symbols})
+          )
+          markets, unavailable_symbols = self._fetch_public_market_snapshots(
+              symbols=market_symbols,
+              observed_at_ms=now_ms,
+          )
+          unavailable_open_positions = tuple(
+              sorted(set(open_position_symbols) & set(unavailable_symbols))
+          )
+'''
+          new_market = '''        open_position_symbols = tuple(
+              sorted({position.symbol.upper() for position in self.service.runtime.state.positions})
+          )
+          pending_outcome_symbols = self.service.journal.pending_outcome_symbols(
+              observed_at_ms=now_ms
+          )
+          decision_market_symbols = tuple(
+              sorted({*liquid20.universe.selected_symbols, *open_position_symbols})
+          )
+          market_symbols = tuple(
+              sorted({*decision_market_symbols, *pending_outcome_symbols})
+          )
+          markets, unavailable_symbols = self._fetch_public_market_snapshots(
+              symbols=market_symbols,
+              observed_at_ms=now_ms,
+          )
+          unavailable_open_positions = tuple(
+              sorted(set(open_position_symbols) & set(unavailable_symbols))
+          )
+'''
+          if old_market not in text:
+              raise SystemExit("operator market expansion anchor missing")
+          text = text.replace(old_market, new_market, 1)
+
+          old_tick = '''        tick = self._compose_tick(
+              liquid20=liquid20,
+              markets=markets,
+              observed_at_ms=now_ms,
+              unavailable_symbols=unavailable_symbols,
+          )
+          result = self.service.step(tick)
+'''
+          new_tick = '''        market_by_symbol = {market.symbol: market for market in markets}
+          decision_markets = tuple(
+              market_by_symbol[symbol]
+              for symbol in decision_market_symbols
+              if symbol in market_by_symbol
+          )
+          tick = self._compose_tick(
+              liquid20=liquid20,
+              markets=decision_markets,
+              observed_at_ms=now_ms,
+              unavailable_symbols=unavailable_symbols,
+          )
+          result = self.service.step(tick)
+          self.service.journal.materialize_due_outcomes(
+              observed_at_ms=now_ms,
+              mark_prices={market.symbol: market.decision_price for market in markets},
+              operator_commit=self.operator_commit,
+          )
+          self.service.journal.publish_telemetry(
+              checked_at_ms=now_ms,
+              operator_commit=self.operator_commit,
+              runtime_state=result.state,
+          )
+'''
+          if old_tick not in text:
+              raise SystemExit("operator tick expansion anchor missing")
+          text = text.replace(old_tick, new_tick, 1)
+          operator.write_text(text, encoding="utf-8")
+
+          tests = Path("tests/ai_platform_integration/test_wickhunter_production_research_runtime.py")
+          text = tests.read_text(encoding="utf-8")
+          text = text.replace('model_root=Path("/tmp/model"),', 'model_root=Path.cwd() / "model-fixture",')
+          text = text.replace('match="frozen 0.60"', 'match=r"frozen 0\\.60"')
+          tests.write_text(text, encoding="utf-8")
+
+          task = Path("docs/agents/tasks/active/FTAI-20260808-wickhunter-wh09-production-research-runtime.md")
+          task.write_text(task.read_text(encoding="utf-8").rstrip() + "\n", encoding="utf-8")
+          PY
+
+          python -m pip install --disable-pip-version-check ruff==0.15.20 pre-commit
+          python -m ruff check --fix \
+            ai_platform/wickhunter/production_research_runtime.py \
+            ai_platform/wickhunter/production_research_runtime_operator.py \
+            deploy/synology/wickhunter-production-research-runtime/research_runtime_healthcheck.py \
+            tests/ai_platform_integration/test_wickhunter_production_research_runtime.py \
+            tests/ai_platform_integration/test_wickhunter_production_research_runtime_deploy.py
+          python -m ruff format \
+            ai_platform/wickhunter/production_research_runtime.py \
+            ai_platform/wickhunter/production_research_runtime_operator.py \
+            deploy/synology/wickhunter-production-research-runtime/research_runtime_healthcheck.py \
+            tests/ai_platform_integration/test_wickhunter_production_research_runtime.py \
+            tests/ai_platform_integration/test_wickhunter_production_research_runtime_deploy.py
+          pre-commit run --all-files
+
+      - name: Remove temporary workflow and commit bounded repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/temp-wh09-production-research-repair.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git diff --cached --check
+          ! git diff --cached --quiet
+          git commit -m "fix(wickhunter): harden WH09 production research runtime"
+          git push origin HEAD:feat/wickhunter-wh09-production-research-runtime-20260808

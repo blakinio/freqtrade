@@ -449,9 +449,7 @@ class ProductionResearchJournal:
         )
         decision_id = str(payload.get("decision_id", ""))
         if SHA256_RE.fullmatch(decision_id) is None or path.stem != decision_id:
-            raise ProductionResearchRuntimeError(
-                "research outcome decision identity is invalid"
-            )
+            raise ProductionResearchRuntimeError("research outcome decision identity is invalid")
         return payload
 
     def _register_decision(self, payload: dict[str, object]) -> None:
@@ -481,9 +479,7 @@ class ProductionResearchJournal:
     def _register_outcome(self, payload: dict[str, object]) -> None:
         decision_id = str(payload.get("decision_id", ""))
         if SHA256_RE.fullmatch(decision_id) is None:
-            raise ProductionResearchRuntimeError(
-                "research outcome decision identity is invalid"
-            )
+            raise ProductionResearchRuntimeError("research outcome decision identity is invalid")
         if decision_id not in self._pending_outcomes:
             raise ProductionResearchRuntimeError(
                 "research outcome is orphaned from a pending directional decision"
@@ -616,7 +612,7 @@ class ProductionResearchJournal:
             str(decision["symbol"]).upper()
             for decision in self._pending_outcomes.values()
             if observed_at_ms
-            >= int(decision["decision_timestamp_ms"]) + self.identity.outcome_horizon_ms
+            >= int(str(decision["decision_timestamp_ms"])) + self.identity.outcome_horizon_ms
         }
         return tuple(sorted(symbols))
 
@@ -630,7 +626,7 @@ class ProductionResearchJournal:
         created = 0
         outcome_root = self.root / "outcomes"
         for decision_id, cached_decision in sorted(tuple(self._pending_outcomes.items())):
-            decision_timestamp_ms = int(cached_decision["decision_timestamp_ms"])
+            decision_timestamp_ms = int(str(cached_decision["decision_timestamp_ms"]))
             target_at_ms = decision_timestamp_ms + self.identity.outcome_horizon_ms
             if observed_at_ms < target_at_ms:
                 continue
@@ -647,9 +643,7 @@ class ProductionResearchJournal:
                 )
             side = decision.get("side")
             if side not in {"long", "short"}:
-                raise ProductionResearchRuntimeError(
-                    "pending research decision is not directional"
-                )
+                raise ProductionResearchRuntimeError("pending research decision is not directional")
             symbol = str(decision["symbol"]).upper()
             outcome_price = mark_prices.get(symbol)
             if outcome_price is None or outcome_price <= 0:
@@ -680,9 +674,7 @@ class ProductionResearchJournal:
                 "entry_price": str(entry_price),
                 "outcome_price": str(outcome_price),
                 "gross_return_ratio": str(gross_return.quantize(Decimal("0.00000001"))),
-                "directional_return_ratio": str(
-                    directional_return.quantize(Decimal("0.00000001"))
-                ),
+                "directional_return_ratio": str(directional_return.quantize(Decimal("0.00000001"))),
                 "positive_outcome": directional_return > 0,
                 "semantics": "first_observed_mark_at_or_after_target_horizon_no_costs",
                 "deterministic_replay_equivalent": False,
@@ -748,9 +740,9 @@ class ProductionResearchJournal:
                 None
                 if self._outcome_count == 0
                 else str(
-                    (
-                        Decimal(self._positive_outcome_count) / Decimal(self._outcome_count)
-                    ).quantize(Decimal("0.000001"))
+                    (Decimal(self._positive_outcome_count) / Decimal(self._outcome_count)).quantize(
+                        Decimal("0.000001")
+                    )
                 )
             ),
             "runtime_generation": runtime_state.generation,

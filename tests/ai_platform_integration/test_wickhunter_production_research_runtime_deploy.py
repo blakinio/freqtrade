@@ -61,6 +61,8 @@ def test_image_runs_nonroot_exact_commit_operator() -> None:
     assert (
         'ENTRYPOINT ["python", "-m", "ai_platform.wickhunter.production_research_runtime_operator"]'
     ) in dockerfile
+
+
 def test_healthcheck_rejects_nested_fail_closed_runtime() -> None:
     healthcheck = (DEPLOY / "research_runtime_healthcheck.py").read_text(encoding="utf-8")
     assert 'health.get("runtime_health") not in {"healthy", "degraded"}' in healthcheck

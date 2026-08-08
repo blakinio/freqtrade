@@ -338,6 +338,8 @@ def test_service_restores_persisted_shadow_state(
     )
     assert second.runtime.state == first.runtime.state
     assert second.runtime.state.mode is BotMode.SHADOW
+
+
 def test_journal_steady_state_avoids_historical_directory_scans(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -360,9 +362,7 @@ def test_journal_steady_state_avoids_historical_directory_scans(
         raise AssertionError("steady-state journal must not rescan historical directories")
 
     monkeypatch.setattr(Path, "glob", forbid_glob)
-    assert restarted.pending_outcome_symbols(
-        observed_at_ms=CREATED_AT_MS + 900_000
-    ) == ("BTCUSDT",)
+    assert restarted.pending_outcome_symbols(observed_at_ms=CREATED_AT_MS + 900_000) == ("BTCUSDT",)
     runtime_state = SimpleNamespace(
         generation=1,
         last_observed_at_ms=CREATED_AT_MS + 900_000,
@@ -378,11 +378,14 @@ def test_journal_steady_state_avoids_historical_directory_scans(
     )
     assert telemetry["decision_count"] == 1
     assert telemetry["pending_outcome_count"] == 1
-    assert restarted.materialize_due_outcomes(
-        observed_at_ms=CREATED_AT_MS + 900_000,
-        mark_prices={"BTCUSDT": Decimal("110")},
-        operator_commit=CODE_SHA,
-    ) == 1
+    assert (
+        restarted.materialize_due_outcomes(
+            observed_at_ms=CREATED_AT_MS + 900_000,
+            mark_prices={"BTCUSDT": Decimal("110")},
+            operator_commit=CODE_SHA,
+        )
+        == 1
+    )
     telemetry = restarted.publish_telemetry(
         checked_at_ms=CREATED_AT_MS + 900_001,
         operator_commit=CODE_SHA,

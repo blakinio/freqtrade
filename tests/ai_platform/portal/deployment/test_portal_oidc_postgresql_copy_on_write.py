@@ -34,23 +34,35 @@ def test_existing_postgresql_is_cloned_after_quiesce_before_migration() -> None:
     deploy._create_postgres_database = lambda database_name: events.append(
         ("unexpected-direct-create", database_name)
     )
-    deploy._quiesce_existing_portal = lambda: events.append("quiesce") or {
-        "web_exists": True,
-        "web_running": True,
-        "control_exists": True,
-        "control_running": True,
-    }
-    deploy._backup_postgres = lambda database_name, sha: events.append(
-        ("backup", database_name, sha)
-    ) or "backup-sha256"
+
+    def quiesce_existing_portal() -> dict[str, bool]:
+        events.append("quiesce")
+        return {
+            "web_exists": True,
+            "web_running": True,
+            "control_exists": True,
+            "control_running": True,
+        }
+
+    deploy._quiesce_existing_portal = quiesce_existing_portal
+
+    def backup_postgres(database_name: str, sha: str) -> str:
+        events.append(("backup", database_name, sha))
+        return "backup-sha256"
+
+    deploy._backup_postgres = backup_postgres
     deploy._postgres_database_exists = lambda database_name: database_name in databases
-    deploy._drop_candidate_database = lambda database_name: (
-        events.append(("drop", database_name)),
-        databases.discard(database_name),
-    )
-    deploy._restore_previous_portal = lambda previous, control_backup, web_backup: events.append(
-        ("restore", previous, control_backup, web_backup)
-    )
+
+    def drop_candidate_database(database_name: str) -> None:
+        events.append(("drop", database_name))
+        databases.discard(database_name)
+
+    deploy._drop_candidate_database = drop_candidate_database
+
+    def restore_previous_portal(previous, control_backup, web_backup) -> None:
+        events.append(("restore", previous, control_backup, web_backup))
+
+    deploy._restore_previous_portal = restore_previous_portal
 
     def run(command, *, sensitive=False, **_kwargs):
         events.append(("run", tuple(command), sensitive))
@@ -97,15 +109,15 @@ def test_existing_postgresql_is_cloned_after_quiesce_before_migration() -> None:
     createdb_event = next(
         event
         for event in events
-        if isinstance(event, tuple)
-        and event[0] == "run"
-        and "createdb" in event[1]
+        if isinstance(event, tuple) and event[0] == "run" and "createdb" in event[1]
     )
     assert createdb_event[1][-2:] == (
         "portal_candidate_oldoldold",
         "portal_candidate_aaaaaaaaaaaa",
     )
-    assert events.index("quiesce") < events.index(("backup", "portal_candidate_oldoldold", "a" * 40))
+    assert events.index("quiesce") < events.index(
+        ("backup", "portal_candidate_oldoldold", "a" * 40)
+    )
     assert captured_report["database"] == {
         "state_transition": "postgresql_copy_on_write",
         "pre_migration_backup_sha256": "backup-sha256",

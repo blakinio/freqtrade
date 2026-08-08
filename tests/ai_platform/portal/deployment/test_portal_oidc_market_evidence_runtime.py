@@ -30,8 +30,7 @@ def test_market_web_args_adds_canonical_read_only_mount_identity_and_group() -> 
         del name, publish
         return ["docker", "run", "--group-add", "123", image]
 
-    market_web_args = getattr(runtime, "_market_web_args")
-    args = market_web_args(original, "456", IMAGE, "candidate", publish=False)
+    args = runtime._market_web_args(original, "456", IMAGE, "candidate", publish=False)
 
     assert args[-1] == IMAGE
     assert args.count("--group-add") == 2
@@ -50,8 +49,7 @@ def test_market_web_args_does_not_duplicate_existing_supplementary_group() -> No
         del name, publish
         return ["docker", "run", "--group-add", "456", image]
 
-    market_web_args = getattr(runtime, "_market_web_args")
-    args = market_web_args(original, "456", IMAGE, "candidate", publish=False)
+    args = runtime._market_web_args(original, "456", IMAGE, "candidate", publish=False)
 
     assert args.count("--group-add") == 1
 
@@ -66,9 +64,8 @@ def test_docker_host_preflight_requires_valid_immutable_run_marker() -> None:
         )
 
     deploy = SimpleNamespace(_run=run, DeploymentError=RuntimeError)
-    docker_host_group = getattr(runtime, "_docker_host_group")
 
-    assert docker_host_group(deploy, IMAGE) == (run_id, "321")
+    assert runtime._docker_host_group(deploy, IMAGE) == (run_id, "321")
 
     def invalid_run(command: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
         return _completed(
@@ -78,7 +75,7 @@ def test_docker_host_preflight_requires_valid_immutable_run_marker() -> None:
 
     deploy._run = invalid_run
     with pytest.raises(RuntimeError, match="invalid metadata"):
-        docker_host_group(deploy, IMAGE)
+        runtime._docker_host_group(deploy, IMAGE)
 
 
 def test_tenant_authorization_probe_is_fail_closed() -> None:
@@ -93,10 +90,9 @@ def test_tenant_authorization_probe_is_fail_closed() -> None:
         DeploymentError=RuntimeError,
         CONTROL_CONTAINER="freqtrade-portal-control-plane",
     )
-    assert_tenant_authorized = getattr(runtime, "_assert_tenant_authorized")
 
     with pytest.raises(RuntimeError, match="returned no marker"):
-        assert_tenant_authorized(deploy)
+        runtime._assert_tenant_authorized(deploy)
 
     rendered = calls[0][-1]
     assert runtime.MARKET_EVIDENCE_TENANT_ID in rendered
@@ -118,14 +114,8 @@ def test_running_container_verification_requires_exact_read_only_contract() -> N
             ],
             "Config": {
                 "Env": [
-                    (
-                        "PORTAL_MARKET_EVIDENCE_DATA_ROOT="
-                        f"{runtime.MARKET_EVIDENCE_CONTAINER_ROOT}"
-                    ),
-                    (
-                        "PORTAL_MARKET_EVIDENCE_TENANT_ID="
-                        f"{runtime.MARKET_EVIDENCE_TENANT_ID}"
-                    ),
+                    (f"PORTAL_MARKET_EVIDENCE_DATA_ROOT={runtime.MARKET_EVIDENCE_CONTAINER_ROOT}"),
+                    (f"PORTAL_MARKET_EVIDENCE_TENANT_ID={runtime.MARKET_EVIDENCE_TENANT_ID}"),
                 ]
             },
             "HostConfig": {"GroupAdd": ["321"]},
@@ -140,15 +130,14 @@ def test_running_container_verification_requires_exact_read_only_contract() -> N
         DeploymentError=RuntimeError,
         PORTAL_CONTAINER="freqtrade-portal-web",
     )
-    verify_running_container = getattr(runtime, "_verify_running_container")
 
-    verify_running_container(deploy, "321")
+    runtime._verify_running_container(deploy, "321")
 
     mounts = inspect_payload[0]["Mounts"]
     assert isinstance(mounts, list)
     mounts[0]["RW"] = True
     with pytest.raises(RuntimeError, match="canonical read-only bind"):
-        verify_running_container(deploy, "321")
+        runtime._verify_running_container(deploy, "321")
 
 
 def test_install_injects_contract_for_candidate_and_final_web_then_restores(

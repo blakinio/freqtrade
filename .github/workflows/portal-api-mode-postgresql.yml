@@ -129,8 +129,25 @@ jobs:
             "$CONTROL_IMAGE" - <<'PY'
           import os
           from sqlalchemy import text
+          from ai_platform.portal.contracts.bots import BotSpec
+          from ai_platform.portal.contracts.environment import Environment, ExecutionMode
           from ai_platform.portal.control_plane.database import build_engine
 
+          spec = BotSpec(
+              tenant_id="ci-tenant",
+              strategy_version="ci-strategy-v1",
+              model_version="ci-model-v1",
+              risk_policy_version="ci-risk-v1",
+              exchange_connection_ref="ci-exchange-reference",
+              pair_universe=("BTC/USDT",),
+              timeframe="5m",
+              capital_allocation="100",
+              capital_currency="USDT",
+              runtime_version="ci-runtime-v1",
+              config_revision=1,
+              environment=Environment.PRODUCTION,
+              execution_mode=ExecutionMode.DRY_RUN,
+          )
           engine = build_engine(os.environ["PORTAL_DATABASE_URL"])
           try:
               with engine.begin() as connection:
@@ -144,7 +161,7 @@ jobs:
                           "tenant_id": "ci-tenant",
                           "bot_id": "ci-preserved-bot",
                           "name": "Preserved dry-run bot",
-                          "spec_json": "{}",
+                          "spec_json": spec.canonical_json(),
                           "desired_state": "STOPPED",
                           "observed_state": "STOPPED",
                           "current_revision": 1,
@@ -174,6 +191,96 @@ jobs:
             -m ai_platform.portal.database.transfer \
             --source-sqlite /legacy/portal.db \
             --output /evidence/state-transfer.json >/dev/null
+
+          docker run --rm -i \
+            --network "$network" \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=32m \
+            --user 10001:10001 \
+            --mount "type=bind,src=$evidence,dst=/evidence" \
+            --env PORTAL_DATABASE_URL="$pg_url" \
+            --entrypoint python \
+            "$CONTROL_IMAGE" - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from uuid import UUID
+
+          from fastapi.testclient import TestClient
+
+          from ai_platform.portal.contracts.identity import ActorType, Permission
+          from ai_platform.portal.control_plane.api import create_app
+          from ai_platform.portal.control_plane.context import RequestContext
+          from ai_platform.portal.control_plane.database import build_engine, build_session_factory
+
+          engine = build_engine(os.environ["PORTAL_DATABASE_URL"])
+          session_factory = build_session_factory(engine)
+          context = RequestContext(
+              tenant_id="ci-tenant",
+              actor_id="ci-exact-image-actor",
+              actor_type=ActorType.SYSTEM,
+              permissions=(Permission.BOT_CREATE, Permission.BOT_READ),
+              request_id=UUID("00000000-0000-0000-0000-000000000001"),
+              correlation_id=UUID("00000000-0000-0000-0000-000000000002"),
+          )
+          app = create_app(session_factory, identity_context_provider=lambda: context)
+          client = TestClient(app)
+          try:
+              before = client.get("/v1/bots")
+              assert before.status_code == 200, before.text
+              before_bots = before.json()
+              assert [bot["bot_id"] for bot in before_bots] == ["ci-preserved-bot"]
+              assert before_bots[0]["spec"]["execution_mode"] == "dry_run"
+
+              request = {
+                  "bot_id": "ci-api-bot",
+                  "name": "Exact-image API dry-run bot",
+                  "spec": {
+                      "tenant_id": "ci-tenant",
+                      "strategy_version": "ci-strategy-v1",
+                      "model_version": "ci-model-v1",
+                      "risk_policy_version": "ci-risk-v1",
+                      "exchange_connection_ref": "ci-exchange-reference",
+                      "pair_universe": ["ETH/USDT"],
+                      "timeframe": "5m",
+                      "capital_allocation": "50",
+                      "capital_currency": "USDT",
+                      "runtime_version": "ci-runtime-v1",
+                      "config_revision": 1,
+                      "environment": "production",
+                      "execution_mode": "dry_run",
+                  },
+              }
+              created = client.post("/v1/bots", json=request)
+              assert created.status_code == 201, created.text
+              assert created.json()["bot_id"] == "ci-api-bot"
+              assert created.json()["spec"]["execution_mode"] == "dry_run"
+
+              after = client.get("/v1/bots")
+              assert after.status_code == 200, after.text
+              after_ids = [bot["bot_id"] for bot in after.json()]
+              assert after_ids == ["ci-api-bot", "ci-preserved-bot"]
+
+              evidence = {
+                  "status": "pass",
+                  "trusted_context": "synthetic_nonprotected_exact_image",
+                  "representative_read": "pass",
+                  "representative_mutation": "pass",
+                  "preserved_bot_visible": True,
+                  "created_bot_visible": True,
+                  "bot_count_after_mutation": len(after_ids),
+                  "execution_mode": "dry_run",
+                  "live_capital_authorized": False,
+                  "secret_values_recorded": False,
+              }
+              Path("/evidence/product-contract.json").write_text(
+                  json.dumps(evidence, indent=2, sort_keys=True) + "\n",
+                  encoding="utf-8",
+              )
+          finally:
+              client.close()
+              engine.dispose()
+          PY
 
           start_control() {
             docker run --detach --name "$control" \
@@ -261,6 +368,14 @@ jobs:
                           )
                       ).scalar_one()
                   )
+                  created = int(
+                      connection.execute(
+                          text(
+                              "SELECT COUNT(*) FROM portal_bots "
+                              "WHERE tenant_id='ci-tenant' AND bot_id='ci-api-bot'"
+                          )
+                      ).scalar_one()
+                  )
           finally:
               engine.dispose()
 
@@ -275,6 +390,7 @@ jobs:
           assert ready["live_capital_authorized"] is False
           assert unauthorized_status == 401
           assert preserved == 1
+          assert created == 1
           print(
               json.dumps(
                   {
@@ -284,6 +400,7 @@ jobs:
                       "required_router_inventory_complete": True,
                       "unauthenticated_product_route_status": unauthorized_status,
                       "preserved_bot_rows": preserved,
+                      "created_bot_rows": created,
                       "live_capital_authorized": False,
                   },
                   sort_keys=True,
@@ -316,7 +433,7 @@ jobs:
           engine = build_engine(os.environ["PORTAL_DATABASE_URL"])
           try:
               with engine.connect() as connection:
-                  count = int(
+                  preserved = int(
                       connection.execute(
                           text(
                               "SELECT COUNT(*) FROM portal_bots "
@@ -324,7 +441,16 @@ jobs:
                           )
                       ).scalar_one()
                   )
-              assert count == 1
+                  created = int(
+                      connection.execute(
+                          text(
+                              "SELECT COUNT(*) FROM portal_bots "
+                              "WHERE tenant_id='ci-tenant' AND bot_id='ci-api-bot'"
+                          )
+                      ).scalar_one()
+                  )
+              assert preserved == 1
+              assert created == 1
           finally:
               engine.dispose()
           PY
@@ -350,6 +476,7 @@ jobs:
           evidence = pathlib.Path(sys.argv[1])
           transfer = json.loads((evidence / "state-transfer.json").read_text(encoding="utf-8"))
           runtime = json.loads((evidence / "runtime.json").read_text(encoding="utf-8"))
+          product = json.loads((evidence / "product-contract.json").read_text(encoding="utf-8"))
           image_id = lambda image: subprocess.check_output(
               ["docker", "image", "inspect", "--format", "{{.Id}}", image], text=True
           ).strip()
@@ -361,9 +488,12 @@ jobs:
               "schema_revision": runtime["schema_revision"],
               "state_transfer_status": transfer["status"],
               "rows_transferred": transfer["rows_copied"],
+              "representative_product_read": product["representative_read"],
+              "representative_product_mutation": product["representative_mutation"],
               "restart_persistence": "pass",
               "fixture_mode_rejected": True,
               "identity_fixture": False,
+              "execution_mode": "dry_run",
               "live_capital_authorized": False,
               "secret_values_recorded": False,
           }

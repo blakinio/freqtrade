@@ -7,7 +7,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REGISTRY_PATH = REPO_ROOT / "ARCHITECTURE_REGISTRY.yaml"
 DECISIONS_PATH = REPO_ROOT / "docs" / "ai_platform" / "portal" / "ARCHITECTURE_DECISIONS.md"
-SHA256_RE = re.compile(r"^[0-9a-f]{40}$")
+GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 def _registry() -> dict[str, object]:
@@ -71,9 +71,9 @@ def test_registry_keeps_review_provenance_separate_from_latest_change() -> None:
     audited_base_sha = review.get("audited_base_sha")
     synchronized_base_sha = review.get("synchronized_base_sha")
     change_base_sha = change.get("base_sha")
-    assert isinstance(audited_base_sha, str) and SHA256_RE.fullmatch(audited_base_sha)
-    assert isinstance(synchronized_base_sha, str) and SHA256_RE.fullmatch(synchronized_base_sha)
-    assert isinstance(change_base_sha, str) and SHA256_RE.fullmatch(change_base_sha)
+    assert isinstance(audited_base_sha, str) and GIT_SHA_RE.fullmatch(audited_base_sha)
+    assert isinstance(synchronized_base_sha, str) and GIT_SHA_RE.fullmatch(synchronized_base_sha)
+    assert isinstance(change_base_sha, str) and GIT_SHA_RE.fullmatch(change_base_sha)
 
     # Preserve the proven historical #1251 review while that review remains the
     # registry's declared review identity. A later bounded review may replace

@@ -9,7 +9,7 @@ import type {
   LifecycleIntentResult,
 } from "@/lib/bot-command-contracts";
 import type { BotDesiredState, BotObservedState } from "@/lib/contracts";
-import type { BotRuntimeTruth } from "@/lib/runtime-generation";
+import type { BotRuntimeTruth } from "@/lib/runtime-generation-contracts";
 
 export function BotLifecycleControls({
   botId,
@@ -57,33 +57,6 @@ export function BotLifecycleControls({
     };
   }, [botId]);
 
-  const startAction: LifecycleAction = desiredState === "PAUSED" ? "RESUME" : "START";
-  const actions: Array<{
-    action: LifecycleAction;
-    label: string;
-    allowed: boolean;
-    inactive: boolean;
-  }> = [
-    {
-      action: startAction,
-      label: startAction === "RESUME" ? "Resume" : "Start",
-      allowed: permissions.start,
-      inactive: desiredState === "RUNNING",
-    },
-    {
-      action: "PAUSE_NEW_ENTRIES",
-      label: "Pause",
-      allowed: permissions.pause,
-      inactive: desiredState === "PAUSED",
-    },
-    {
-      action: "STOP_KEEP_POSITIONS",
-      label: "Stop",
-      allowed: permissions.stop,
-      inactive: desiredState === "STOPPED",
-    },
-  ];
-
   const revisions = runtimeTruth?.revisions ?? [];
   const latestSaved = revisions.reduce(
     (latest, revision) =>
@@ -101,8 +74,40 @@ export function BotLifecycleControls({
   const desiredGeneration = runtimeTruth?.desired_generation ?? null;
   const activeGenerationId = runtimeTruth?.bot.observed_runtime_generation_id ?? null;
   const rollout = runtimeTruth?.latest_rollout ?? null;
+  const desiredConfigRevision = desiredGeneration?.config_revision_number ?? null;
+
+  const startAction: LifecycleAction = desiredState === "PAUSED" ? "RESUME" : "START";
+  const actions: Array<{
+    action: LifecycleAction;
+    label: string;
+    allowed: boolean;
+    inactive: boolean;
+  }> = [
+    {
+      action: startAction,
+      label: startAction === "RESUME" ? "Resume" : "Start",
+      allowed: permissions.start && desiredGeneration !== null,
+      inactive: desiredState === "RUNNING",
+    },
+    {
+      action: "PAUSE_NEW_ENTRIES",
+      label: "Pause",
+      allowed: permissions.pause,
+      inactive: desiredState === "PAUSED",
+    },
+    {
+      action: "STOP_KEEP_POSITIONS",
+      label: "Stop",
+      allowed: permissions.stop,
+      inactive: desiredState === "STOPPED",
+    },
+  ];
 
   async function requestAction(action: LifecycleAction) {
+    if ((action === "START" || action === "RESUME") && desiredConfigRevision === null) {
+      setError("No desired RuntimeGeneration is available. Promote and apply a revision first.");
+      return;
+    }
     const confirmed = window.confirm(
       `Record lifecycle command intent ${action} for ${botId}? This does not execute a runtime action or submit trades.`,
     );
@@ -120,7 +125,7 @@ export function BotLifecycleControls({
           body: JSON.stringify({
             bot_id: botId,
             action,
-            expected_config_revision: configRevision,
+            expected_config_revision: desiredConfigRevision ?? configRevision,
             idempotency_key: crypto.randomUUID(),
           }),
         },
@@ -202,7 +207,13 @@ export function BotLifecycleControls({
             disabled={pending !== null || !action.allowed || action.inactive}
             key={action.action}
             onClick={() => requestAction(action.action)}
-            title={action.allowed ? undefined : `Missing bot.${action.label.toLowerCase()} permission`}
+            title={
+              action.allowed
+                ? undefined
+                : action.action === "START" || action.action === "RESUME"
+                  ? "A PROMOTED revision must be explicitly applied before start or resume"
+                  : `Missing bot.${action.label.toLowerCase()} permission`
+            }
             type="button"
           >
             {pending === action.action ? `${action.label}…` : action.label}

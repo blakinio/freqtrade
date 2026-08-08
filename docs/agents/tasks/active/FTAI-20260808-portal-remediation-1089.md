@@ -7,8 +7,8 @@ issue: 1089
 repository: blakinio/freqtrade
 lane: freqtrade-portal
 task_kind: implementation
-phase: implementation
-status: active
+phase: validation
+status: validating
 priority: high
 prompting_standard_version: 2.1
 execution_policy_version: 2
@@ -32,12 +32,16 @@ base_branch: develop
 base_head: c64df386a4fa3ba739b6eaa1a223ca798a7bcae2
 pr: 1393
 owned_paths:
+  - .github/workflows/portal-api-mode-postgresql.yml
+  - ai_platform/portal/database/transfer.py
   - ai_platform/portal/identity/public_runtime.py
   - ai_platform/portal/web/lib/portal-api.ts
   - deploy/synology/portal/Dockerfile
   - deploy/synology/portal-oidc/Dockerfile.control-plane
   - deploy/synology/portal-oidc/control-plane-entrypoint.sh
   - deploy/synology/portal-oidc/deploy.py
+  - deploy/synology/portal-oidc/requirements.txt
+  - tests/ai_platform/portal/database/test_state_transfer.py
   - tests/ai_platform/portal/deployment/test_portal_oidc_public_deploy.py
   - tests/ai_platform/portal/identity/test_public_runtime_composition.py
   - docs/agents/tasks/active/FTAI-20260808-portal-remediation-1089.md
@@ -53,45 +57,19 @@ protected_production_deployment_authorized: false
 
 ## Objective
 
-Repair Issue #1089 without inventing a second Portal architecture. Reuse `identity/http.py::create_identity_enabled_app()` as the authenticated composition seam around the canonical control plane, keep the public API process unprivileged, run the web tier in API mode for staging/production, and make database/schema/readiness failures fail closed before traffic acceptance.
+Repair Issue #1089 without inventing a second Portal architecture. Reuse the existing identity-enabled canonical control-plane composition, make staging/production web strictly API-backed, move the public Portal deployment to a private PostgreSQL topology with explicit schema authority, preserve legacy SQLite state during cutover, and fail closed before traffic acceptance.
 
-## Verified starting state
+## Implemented repair candidate
 
-- Synology OIDC deploy sets `PORTAL_WEB_DATA_MODE=fixture` while declaring `PORTAL_ENVIRONMENT=production`.
-- The control-plane image starts `ai_platform.portal.identity.public_runtime:app`, whose previous app registered identity/session routes rather than the full canonical Portal router set.
-- The same deploy writes a production SQLite URL even though public production startup requires PostgreSQL.
-- `identity/http.py::create_identity_enabled_app()` already composes real identity-derived request context with `control_plane.api.create_app()` and CSRF middleware.
-- The canonical control plane defaults privileged/external runtime providers to unavailable/fail-closed implementations; default bot-management composition has no Docker socket, exchange secret or direct Freqtrade mutation authority.
-- Issue #1122 already delivered the versioned schema authority and migration CLI; this task consumes it rather than recreating schema ownership.
-- Draft PR #1388 changes `control_plane/api.py` and schema/model paths. This task avoids those paths until that PR is resolved.
-
-## Implemented slice on PR #1393
-
-- `identity/public_runtime.py` now constructs the existing identity-enabled canonical Portal control plane rather than an identity-only app.
-- Startup asserts a representative canonical product-router inventory including bots, operations, terminal, models, strategies, valuation and runtime-observability routes.
-- Public API state is explicitly marked unprivileged; no live-capital authority is introduced.
-- `/healthz` is a dependency-free liveness contract compatible with existing exact-image probes.
-- `/readyz` verifies current schema readiness, a database transaction and the complete required router inventory; failure is a generic secret-free 503.
-- The control-plane image healthcheck now targets `/readyz`.
-- The web runtime defaults to `PORTAL_WEB_DATA_MODE=api` and its runtime entrypoint rejects fixture data mode, identity fixture mode or missing control-plane URL in staging/production.
-- Focused source/deployment and runtime composition tests cover the new composition and fail-closed contracts.
-
-## Scope still remaining
-
-1. Replace the protected Synology deployer's production SQLite URL and fixture web wiring with a supported PostgreSQL + API-mode contract.
-2. Run the versioned migration command explicitly before control-plane promotion and retain readiness as a startup/cutover gate.
-3. Preserve existing authoritative identity/product state during the SQLite-to-PostgreSQL transition or refuse cutover until an explicit migration/restore path is completed; never silently reset state.
-4. Prove exact deployment images together in API mode against the supported PostgreSQL topology.
-5. Complete API-mode critical browser evidence, fresh independent audit, exact-head required CI, documentation/status reconciliation and protected-target acceptance separation.
-
-## Non-goals / safety boundary
-
-- No protected Synology deployment from this implementation branch.
-- No live trading, withdrawals or live-capital authority.
-- No Docker/container-engine socket or Freqtrade/exchange/Vault execution credential in the public API process.
-- No change to the private runtime-supervisor authority owned by later runtime work.
-- No fixture fallback in staging/production.
-- No secret values in source, logs, reports or artifacts.
+- The public runtime composes identity with the canonical Portal control plane and rejects production SQLite.
+- `/healthz` is liveness-only; `/readyz` verifies database connectivity, schema revision and required product-router composition.
+- The web image defaults to API mode and refuses fixture data mode, identity fixture mode or a missing control-plane URL in staging/production.
+- The control-plane image contains the full runtime dependency set, including `jsonschema==4.26.0`, after exact-image CI exposed the missing package.
+- `ai_platform.portal.database.transfer` provides an offline, value-preserving SQLite-to-PostgreSQL transfer path. It accepts only known current/pre-logout schema shapes, runs integrity checks, requires a fresh PostgreSQL target, copies authoritative model tables in dependency order, verifies row counts and records value-free evidence.
+- The Synology deployer now provisions only a private, digest-pinned PostgreSQL service with no published database port; writes candidate runtime state separately; quiesces the old Portal before state transition; snapshots legacy SQLite before transfer; runs the authoritative migration CLI before candidate promotion; validates readiness; selects web API mode; and activates the candidate runtime env only after control/web/public probes succeed.
+- Existing PostgreSQL deployments receive a protected pre-migration backup before migration/readiness validation.
+- A retained non-protected exact-image workflow builds the exact control/web images, migrates PostgreSQL, transfers a persisted synthetic dry-run bot from SQLite, boots API mode, proves unauthorized product access fails closed, restarts the control plane and proves the row survives, and proves production fixture mode is rejected.
+- No protected Synology deployment, production secret, live trading, withdrawal, model promotion or live-capital mutation is authorized or performed by this task.
 
 ## Acceptance plan
 
@@ -99,38 +77,78 @@ Repair Issue #1089 without inventing a second Portal architecture. Reuse `identi
 - [x] Identity/session and representative product routes are present in one app and require identity-derived tenant context.
 - [x] `/healthz` is liveness-only and `/readyz` proves database/schema/router composition without exposing secrets.
 - [x] Production/staging web startup rejects fixture mode and requires a server-side control-plane URL.
-- [ ] Synology deployment uses API mode and a supported PostgreSQL topology, applies versioned migration explicitly, and fails closed before cutover on migration/readiness failure.
+- [x] Synology deployment selects API mode and a private PostgreSQL topology, applies versioned migration explicitly, snapshots legacy SQLite before transfer and gates promotion on readiness.
 - [x] Deployment image/process contract keeps public API unprivileged and private providers server-side.
-- [ ] Exact deployment images boot together in API mode against PostgreSQL in non-protected CI evidence.
-- [ ] Focused backend/deployment tests pass on the final implementation head.
+- [ ] New exact-image PostgreSQL workflow passes on the current implementation head.
+- [ ] Focused backend/deployment tests pass on the current implementation head.
 - [ ] Required repository workflows pass on the exact final implementation head.
 - [ ] Fresh independent audit reports zero material findings or all findings are repaired.
+- [ ] API-mode E2E acceptance passes at the available non-protected boundary; protected-target acceptance remains separately identified.
 - [ ] PR review threads are resolved and no duplicate repair PR owns this Issue.
 - [ ] Protected-target acceptance is reported separately and never inferred from CI.
+
+## Validation evidence so far
+
+- Old exact-image run `31275863765` failed after full control-plane composition because the exact image lacked `jsonschema`; the bounded runtime requirements now include the repository-pinned `jsonschema==4.26.0`.
+- Old Freqtrade CI `31275863804` failed only because `ruff-format` reformatted `test_public_runtime_composition.py`; that exact formatting change is now committed.
+- Those runs are stale evidence after the PostgreSQL implementation and are not final acceptance.
+
+## Recovery checkpoint
+
+```yaml
+policy_version: 1
+generation: 1
+session_id: 20260808T200400Z-owner-continuation
+session_started_at: 2026-08-08T20:04:00Z
+checkpointed_at: 2026-08-08T20:21:18Z
+last_progress_at: 2026-08-08T20:21:18Z
+phase: validation
+exact_head: 46f98d5666b00a231ac9b999167402fe30a637f0
+pull_request: 1393
+active_operation: GitHub Actions validation of PostgreSQL API-mode repair
+external_run_ids: []
+operation_started_at: null
+wait_deadline_at: null
+check_generation: implementation-postgresql-v1
+checks_used: 0
+status: active
+safe_to_resume: true
+resume_condition: current-head GitHub Actions exist or a new actionable validation failure is available
+next_action: Inspect one aggregate CI snapshot for the exact current head, isolate the first actionable failure, and perform one focused repair; if the implementation is green, proceed to fresh independent audit and E2E evidence.
+```
 
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 3
-updated_at: 2026-08-08T20:02:00Z
-status: active
+checkpoint_version: 4
+updated_at: 2026-08-08T20:21:18Z
+status: validating
 branch: repair/1089-portal-api-mode-deployment
 base_head: c64df386a4fa3ba739b6eaa1a223ca798a7bcae2
-source_head_before_checkpoint: 0a0ef4eb03138ff72122e7402a366808a850fd71
+head: 46f98d5666b00a231ac9b999167402fe30a637f0
 pr: 1393
+invocation_started_at: 2026-08-08T20:04:00Z
+last_progress_at: 2026-08-08T20:21:18Z
+ci_checks_for_current_head: 0
+unchanged_state_checks: 0
+identical_failure_retries: 0
+repair_cycles_for_current_gate: 0
+context_reconstruction_attempts: 1
+stall_warnings: 0
 proven:
-  - issue 1089 is claimed by ftai-1089-20260808T194400Z-gpt56sol
-  - draft implementation PR 1393 exists and is linked to issue 1089
-  - public runtime now composes identity with the canonical product control plane
-  - staging/production web runtime now fails closed unless API mode and a control-plane URL are selected
-  - control-plane container readiness is distinct from liveness and verifies schema/database/router composition
-  - current exact-image workflow already launches the two images together in API mode for staging evidence
+  - public runtime composes authenticated canonical product routes and separates liveness/readiness
+  - production/staging web fails closed outside API mode
+  - public production runtime rejects SQLite
+  - Synology deployment candidate now uses a private digest-pinned PostgreSQL topology and explicit schema CLI
+  - legacy SQLite state is snapshotted and transferred only through bounded schema/integrity acceptance
+  - exact-image PostgreSQL validation workflow is retained on the repair branch
 unknown:
-  - final CI outcome after the current source changes
+  - exact current-head CI outcome for the PostgreSQL implementation
+  - independent audit result
+  - final non-protected API-mode E2E result
   - protected Synology target acceptance outcome
 conflicts:
-  - PR 1388 owns control-plane API/schema/model paths; those paths remain untouched by this repair
-blockers:
-  - canonical Synology deploy.py still selects production SQLite and fixture web mode, so PR 1393 must remain draft until that wiring and state-transition contract are repaired
-next_action: Repair the canonical Synology deployer to require/preserve supported PostgreSQL state, run versioned migration before promotion, select API web mode and reject any unsafe legacy-state cutover; then run exact-head CI and independent audit.
+  - PR 1388 owns control-plane API/schema/model paths; those paths remain untouched
+blockers: []
+next_action: Inspect one aggregate CI snapshot for head 46f98d5666b00a231ac9b999167402fe30a637f0 and repair the first actionable failure with a focused hypothesis.
 ```

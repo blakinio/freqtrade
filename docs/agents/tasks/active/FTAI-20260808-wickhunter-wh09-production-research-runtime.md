@@ -83,6 +83,8 @@ runtime_commit: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
 - Synology also discarded the requested PIDs limit because the kernel/cgroup lacks that capability; this remains a separate hardening caveat before final acceptance.
 - Exact-head continuation audit on 2026-08-09 found a P1 in the prior diagnostic selector: GitHub Actions does not expose per-commit `added`, `modified`, and `removed` fields in the push payload available to workflows, so event-array-only classification could incorrectly select the normal deploy job for diagnostic v4.
 - Repair commit `ba391c90b23cbb017240a94192af8b15276445f2` derives diagnostic-v4 selection from the exact Git `before` -> `after` push range. It requires exact path equality, unshallows the checkout only if the `before` commit is unavailable, and fails classification closed when the range cannot be proven.
+- Validation repair `40a6bc310d9ffcedfa3992e511f3b71c284fce33` preserves that behavior while making Git output strictly typed UTF-8 and satisfying mypy/Ruff/pre-commit.
+- Regression-gate commit `6c5682f282c195acf88709a810e128303c3f9c64` moves the classifier regression into `tests/ci`, so the mandatory lightweight routing gate executes it instead of only linting it.
 - Focused regression coverage models an Actions-style push payload without changed-file arrays, proves whole-push exact-path detection, rejects `.bak` lookalikes and rejects an unprovable/null `before` SHA.
 - Diagnostic v4 remains bound to the exact failed run/job, original 64-character container ID and exact image ID. Container discovery uses `docker ps -aq --no-trunc`; secret-free identity evidence is created before identity fail-fast; the diagnostic path contains no start/stop/restart/recreate/remove/kill command.
 
@@ -90,7 +92,7 @@ runtime_commit: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-09T00:37:00+02:00
+updated_at: 2026-08-09T00:45:00+02:00
 head: UNKNOWN
 branch: diagnose/wickhunter-wh09-runtime-health-20260808
 pr: 1394
@@ -102,13 +104,13 @@ context_routes:
   - .github/workflows/ai-platform-wickhunter-wh09-production-research-runtime-deploy.yml
   - tools/ci/classify_wickhunter_wh09_deploy_request.py
   - tests/ai_platform_integration/test_wickhunter_production_research_runtime_deploy.py
-  - tests/ai_platform_integration/test_wickhunter_wh09_deploy_classifier.py
+  - tests/ci/test_wickhunter_wh09_deploy_classifier.py
 owned_paths:
   - .github/workflows/ai-platform-wickhunter-wh09-production-research-runtime-deploy.yml
   - deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json
   - tools/ci/classify_wickhunter_wh09_deploy_request.py
   - tests/ai_platform_integration/test_wickhunter_production_research_runtime_deploy.py
-  - tests/ai_platform_integration/test_wickhunter_wh09_deploy_classifier.py
+  - tests/ci/test_wickhunter_wh09_deploy_classifier.py
   - docs/agents/tasks/active/FTAI-20260808-wickhunter-wh09-production-research-runtime.md
 proven:
   - H900 model and runtime identities remain frozen
@@ -118,6 +120,7 @@ proven:
   - the first actionable deployment failure is absence of runtime operator health.json after container start
   - diagnostic-v4 routing no longer trusts GitHub Actions commit changed-file arrays
   - diagnostic-v4 routing derives exact path membership from the Git push before/after range and fails closed if that range cannot be proven
+  - classifier regression is part of the mandatory lightweight routing test suite
   - diagnostic-v4 is bound to the exact recorded container and image and cannot recreate or restart it
   - identity-discovery evidence is persisted before container cardinality or identity fail-fast
 derived:
@@ -141,17 +144,20 @@ changed_paths:
   - deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json
   - tools/ci/classify_wickhunter_wh09_deploy_request.py
   - tests/ai_platform_integration/test_wickhunter_production_research_runtime_deploy.py
-  - tests/ai_platform_integration/test_wickhunter_wh09_deploy_classifier.py
+  - tests/ci/test_wickhunter_wh09_deploy_classifier.py
   - docs/agents/tasks/active/FTAI-20260808-wickhunter-wh09-production-research-runtime.md
 validation:
   - command: pre-repair exact-head CI on c198c3725ade5d1f0e62408344d4b5f700fb4eff
     result: SUPERSEDED
     evidence: the later continuation audit found the GitHub Actions push-payload P1 and repair commit ba391c90b23cbb017240a94192af8b15276445f2 supersedes those routing results
-  - command: exact final head CI and independent review after git-range repair and this checkpoint update
+  - command: bounded classifier validation on 40a6bc310d9ffcedfa3992e511f3b71c284fce33
+    result: PASS_BUT_SUPERSEDED_BY_TEST_MOVE
+    evidence: lightweight compile+mypy, Ruff/format, routing/workflow validation and full pre-commit passed before moving the regression into tests/ci
+  - command: exact final head CI and independent review after routed regression checkpoint
     result: NOT_RUN
-    evidence: resolve PR #1394 live head and require all applicable exact-head gates before merge
+    evidence: resolve PR #1394 live head after this checkpoint commit and require all applicable exact-head gates before merge
 blockers:
-  - exact-final-head CI and fresh independent review must pass after the git-range repair/checkpoint update
+  - exact-final-head CI and fresh independent review must pass after this checkpoint update
 next_action: Resolve PR #1394 live head after this checkpoint commit, require exact-final-head CI and a fresh independent review with zero material P1/P2, squash-merge only if green, then consume the diagnostic-v4 Synology artifact before any redeploy or runtime mutation.
 context_reconstruction_attempts: 1
 stall_warnings: 0

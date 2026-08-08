@@ -30,7 +30,8 @@ def test_market_web_args_adds_canonical_read_only_mount_identity_and_group() -> 
         del name, publish
         return ["docker", "run", "--group-add", "123", image]
 
-    args = runtime._market_web_args(original, "456", IMAGE, "candidate", publish=False)
+    market_web_args = getattr(runtime, "_market_web_args")
+    args = market_web_args(original, "456", IMAGE, "candidate", publish=False)
 
     assert args[-1] == IMAGE
     assert args.count("--group-add") == 2
@@ -49,7 +50,8 @@ def test_market_web_args_does_not_duplicate_existing_supplementary_group() -> No
         del name, publish
         return ["docker", "run", "--group-add", "456", image]
 
-    args = runtime._market_web_args(original, "456", IMAGE, "candidate", publish=False)
+    market_web_args = getattr(runtime, "_market_web_args")
+    args = market_web_args(original, "456", IMAGE, "candidate", publish=False)
 
     assert args.count("--group-add") == 1
 
@@ -58,18 +60,25 @@ def test_docker_host_preflight_requires_valid_immutable_run_marker() -> None:
     run_id = "wickhunter-production-market-evidence-20260808-v2-r1"
 
     def run(command: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
-        return _completed(command, f"noise\n{runtime.MARKET_EVIDENCE_PROBE_MARKER}{run_id}|321\n")
+        return _completed(
+            command,
+            f"noise\n{runtime.MARKET_EVIDENCE_PROBE_MARKER}{run_id}|321\n",
+        )
 
     deploy = SimpleNamespace(_run=run, DeploymentError=RuntimeError)
+    docker_host_group = getattr(runtime, "_docker_host_group")
 
-    assert runtime._docker_host_group(deploy, IMAGE) == (run_id, "321")
+    assert docker_host_group(deploy, IMAGE) == (run_id, "321")
 
     def invalid_run(command: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
-        return _completed(command, f"{runtime.MARKET_EVIDENCE_PROBE_MARKER}latest|321\n")
+        return _completed(
+            command,
+            f"{runtime.MARKET_EVIDENCE_PROBE_MARKER}latest|321\n",
+        )
 
     deploy._run = invalid_run
     with pytest.raises(RuntimeError, match="invalid metadata"):
-        runtime._docker_host_group(deploy, IMAGE)
+        docker_host_group(deploy, IMAGE)
 
 
 def test_tenant_authorization_probe_is_fail_closed() -> None:
@@ -84,9 +93,10 @@ def test_tenant_authorization_probe_is_fail_closed() -> None:
         DeploymentError=RuntimeError,
         CONTROL_CONTAINER="freqtrade-portal-control-plane",
     )
+    assert_tenant_authorized = getattr(runtime, "_assert_tenant_authorized")
 
     with pytest.raises(RuntimeError, match="returned no marker"):
-        runtime._assert_tenant_authorized(deploy)
+        assert_tenant_authorized(deploy)
 
     rendered = calls[0][-1]
     assert runtime.MARKET_EVIDENCE_TENANT_ID in rendered
@@ -96,7 +106,7 @@ def test_tenant_authorization_probe_is_fail_closed() -> None:
 
 
 def test_running_container_verification_requires_exact_read_only_contract() -> None:
-    inspect_payload = [
+    inspect_payload: list[dict[str, Any]] = [
         {
             "Mounts": [
                 {
@@ -108,8 +118,14 @@ def test_running_container_verification_requires_exact_read_only_contract() -> N
             ],
             "Config": {
                 "Env": [
-                    f"PORTAL_MARKET_EVIDENCE_DATA_ROOT={runtime.MARKET_EVIDENCE_CONTAINER_ROOT}",
-                    f"PORTAL_MARKET_EVIDENCE_TENANT_ID={runtime.MARKET_EVIDENCE_TENANT_ID}",
+                    (
+                        "PORTAL_MARKET_EVIDENCE_DATA_ROOT="
+                        f"{runtime.MARKET_EVIDENCE_CONTAINER_ROOT}"
+                    ),
+                    (
+                        "PORTAL_MARKET_EVIDENCE_TENANT_ID="
+                        f"{runtime.MARKET_EVIDENCE_TENANT_ID}"
+                    ),
                 ]
             },
             "HostConfig": {"GroupAdd": ["321"]},
@@ -124,15 +140,20 @@ def test_running_container_verification_requires_exact_read_only_contract() -> N
         DeploymentError=RuntimeError,
         PORTAL_CONTAINER="freqtrade-portal-web",
     )
+    verify_running_container = getattr(runtime, "_verify_running_container")
 
-    runtime._verify_running_container(deploy, "321")
+    verify_running_container(deploy, "321")
 
-    inspect_payload[0]["Mounts"][0]["RW"] = True
+    mounts = inspect_payload[0]["Mounts"]
+    assert isinstance(mounts, list)
+    mounts[0]["RW"] = True
     with pytest.raises(RuntimeError, match="canonical read-only bind"):
-        runtime._verify_running_container(deploy, "321")
+        verify_running_container(deploy, "321")
 
 
-def test_install_injects_contract_for_candidate_and_final_web_then_restores() -> None:
+def test_install_injects_contract_for_candidate_and_final_web_then_restores(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     seen_args: list[list[str]] = []
 
     def base_args(image: str, name: str, *, publish: bool) -> list[str]:
@@ -151,12 +172,16 @@ def test_install_injects_contract_for_candidate_and_final_web_then_restores() ->
         DeploymentError=RuntimeError,
     )
 
-    runtime._docker_host_group = lambda _deploy, _image: (  # type: ignore[assignment]
-        "wickhunter-production-market-evidence-20260808-v2-r1",
-        "321",
+    monkeypatch.setattr(
+        runtime,
+        "_docker_host_group",
+        lambda _deploy, _image: (
+            "wickhunter-production-market-evidence-20260808-v2-r1",
+            "321",
+        ),
     )
-    runtime._assert_tenant_authorized = lambda _deploy: None  # type: ignore[assignment]
-    runtime._verify_running_container = lambda _deploy, _gid: None  # type: ignore[assignment]
+    monkeypatch.setattr(runtime, "_assert_tenant_authorized", lambda _deploy: None)
+    monkeypatch.setattr(runtime, "_verify_running_container", lambda _deploy, _gid: None)
 
     runtime.install(deploy)
     original_after_install = deploy._web_run_args

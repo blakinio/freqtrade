@@ -21,7 +21,7 @@ continuation_policy: continue_until_real_stop
 task_completion_policy: finalize_archive_and_continue
 implementation_authorized: true
 internal_demo_production_deployment_authorized: true
-status: validating
+status: waiting
 base_branch: develop
 trusted_base_sha: 46cd873ccb0c60ec88657d9e7eccb18a93737fd5
 branch: diagnose/wickhunter-wh09-runtime-health-20260808
@@ -93,11 +93,11 @@ runtime_commit: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-09T00:53:00+02:00
+updated_at: 2026-08-09T00:56:05+02:00
 head: UNKNOWN
 branch: diagnose/wickhunter-wh09-runtime-health-20260808
 pr: 1394
-status: validating
+status: waiting
 context_routes:
   - docs/agents/PROMPTING_STANDARD.md
   - docs/agents/PROMPTING_HANDOVER.md
@@ -160,12 +160,12 @@ validation:
 blockers:
   - exact-final-head CI and fresh independent review must pass after this checkpoint repair
 next_action: Resolve PR #1394 live head after this checkpoint repair, require exact-final-head CI and a fresh independent review with zero material P1/P2, squash-merge only if green, then consume the diagnostic-v4 Synology artifact before any redeploy or runtime mutation.
-invocation_started_at: 2026-08-09T00:44:00+02:00
-last_progress_at: 2026-08-09T00:53:00+02:00
+invocation_started_at: 2026-08-09T00:25:00+02:00
+last_progress_at: 2026-08-09T00:56:05+02:00
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 1
+repair_cycles_for_current_gate: 3
 context_reconstruction_attempts: 1
 stall_warnings: 0
 ```

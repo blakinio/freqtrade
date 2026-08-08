@@ -6,7 +6,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 DEPLOY = ROOT / "deploy" / "synology" / "wickhunter-production-research-runtime"
-WORKFLOW = ROOT / ".github" / "workflows" / "ai-platform-wickhunter-wh09-production-research-runtime-deploy.yml"
+WORKFLOW = (
+    ROOT
+    / ".github"
+    / "workflows"
+    / "ai-platform-wickhunter-wh09-production-research-runtime-deploy.yml"
+)
 RETRY = DEPLOY / "run-requests" / "retry-wh09-production-research-20260808-v2.json"
 
 

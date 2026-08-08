@@ -4,14 +4,35 @@ repository: blakinio/freqtrade
 default_branch: develop
 
 review:
-  last_reviewed_at: "2026-08-06"
-  audited_base_sha: cbf9f57ea8d5783f85d19fe0f8557dfe3178705a
-  synchronized_base_sha: 8bc117ff4e9774c3400fcfb53e7f3f72659a1f7a
+  last_reviewed_at: "2026-08-08"
+  audited_base_sha: c9aedeb75c9de5e6df18c36968c3f6a9126fd29c
+  synchronized_base_sha: c9aedeb75c9de5e6df18c36968c3f6a9126fd29c
   review_issue: 1251
   review_task: FTAI-ARCH-001
   review_pr: 1255
   review_report: docs/ai_platform/reviews/2026-08-05-architecture-ci-review.md
-  status: review_ready
+  status: completed
+  resolved_findings:
+    - issue: 1251
+      id: FTAI-ARCH-001
+      status: completed
+    - issue: 1252
+      id: FTAI-CI-001
+      status: completed
+
+latest_architecture_change:
+  accepted_at: "2026-08-08"
+  issue: 1358
+  task: FTAI-20260808-portal-runtime-architecture-1358
+  decision: ADR-020
+  status: accepted
+  affected_domains:
+    - portal_and_ux
+    - identity_and_security
+    - execution_and_risk
+    - data_and_observability
+    - deployment_and_operations
+  implementation_note: Acceptance defines target architecture only; implementation remains tracked by open Issues and exact code/test/deployment evidence.
 
 classification_values:
   - canonical_registry
@@ -45,6 +66,7 @@ authority:
     - Target-only or mixed documents must never be reported as fully implemented without exact evidence.
     - Historical baselines preserve context but do not override accepted decisions or current-state evidence.
     - Material architecture changes update this registry and the accepted decision log in the same change set.
+    - ADR-020 supersedes older target-state wording that conflicts with RuntimeGeneration, Runtime Supervisor, per-runtime Gateway, dry-run public-data connectivity or generation-bound reconciliation/fencing.
 
 system_domains:
   research_and_strategy:
@@ -63,6 +85,7 @@ system_domains:
       - tests/ai_platform/portal/
       - ai_platform/portal/web/e2e/
     implementation_status: mixed
+    accepted_decision_overlay: ADR-020
   identity_and_security:
     code_roots:
       - ai_platform/portal/identity/
@@ -72,6 +95,7 @@ system_domains:
       - tests/ai_platform/portal/identity/
       - tests/ai_platform/portal/security/
     implementation_status: mixed
+    accepted_decision_overlay: ADR-020
   execution_and_risk:
     code_roots:
       - freqtrade/
@@ -81,6 +105,7 @@ system_domains:
       - tests/
       - tests/ai_platform/portal/
     implementation_status: mixed
+    accepted_decision_overlay: ADR-020
     safety_note: Live-capital authority requires a separate explicit owner-approved lifecycle package.
   data_and_observability:
     code_roots:
@@ -91,6 +116,7 @@ system_domains:
       - tests/ai_platform/portal/database/
       - tests/ai_platform/portal/telemetry/
     implementation_status: mixed
+    accepted_decision_overlay: ADR-020
   deployment_and_operations:
     code_roots:
       - deploy/
@@ -100,6 +126,7 @@ system_domains:
       - docs/agents/evidence/
       - artifacts/
     implementation_status: mixed
+    accepted_decision_overlay: ADR-020
   ci_and_quality:
     code_roots:
       - .github/workflows/
@@ -108,10 +135,7 @@ system_domains:
     evidence_roots:
       - tests/ci/
     implementation_status: partially_implemented
-    open_findings:
-      - issue: 1252
-        id: FTAI-CI-001
-        summary: Inventory and retire historical GitHub Actions workflows.
+    open_findings: []
 
 documents:
   - path: ARCHITECTURE_REGISTRY.yaml
@@ -121,7 +145,7 @@ documents:
     authority: canonical_index
     implementation_status: not_applicable
     owner_role: A3-architecture-ci-reviewer
-    last_reviewed_at: "2026-08-06"
+    last_reviewed_at: "2026-08-08"
 
   - path: docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md
     title: AI Trading Portal architecture decisions
@@ -130,7 +154,8 @@ documents:
     authority: binding_until_superseded
     implementation_status: mixed
     owner_role: architecture-owner
-    last_reviewed_at: "2026-08-05"
+    last_reviewed_at: "2026-08-08"
+    latest_decision: ADR-020
 
   - path: docs/ai_platform/portal/SYSTEM_ARCHITECTURE.md
     title: AI Trading Portal system architecture
@@ -139,8 +164,9 @@ documents:
     authority: target_state_subject_to_accepted_decisions
     implementation_status: mixed
     owner_role: architecture-owner
-    last_reviewed_at: "2026-08-05"
+    last_reviewed_at: "2026-08-08"
     evidence_rule: Each implementation claim requires exact code, test, workflow or deployed-target evidence.
+    supersession_note: Interpret execution/runtime topology through ADR-020 where older generic worker, direct private Freqtrade, runtime credential or runtime-identity wording conflicts.
 
   - path: docs/ai_platform/portal/BOT_MANAGEMENT_PRODUCT_ARCHITECTURE.md
     title: Bot management product architecture
@@ -150,6 +176,7 @@ documents:
     implementation_status: mixed
     owner_role: bot-management-domain-owner
     last_reviewed_at: "2026-08-05"
+    supersession_note: Config authoring/desired/observed runtime revision semantics are constrained by ADR-020.
 
   - path: docs/ai_platform/portal/AI_ML_AND_LEARNING_ARCHITECTURE.md
     title: AI, ML and learning architecture
@@ -208,13 +235,23 @@ documents:
     last_reviewed_at: "2026-08-06"
 
 open_architecture_findings:
-  - issue: 1251
-    id: FTAI-ARCH-001
-    severity: high
-    status: active
-    summary: Establish the canonical registry and reconcile architecture-document authority.
-  - issue: 1252
-    id: FTAI-CI-001
+  - issue: 1355
+    id: FTAI-ARCH-RUNTIME-SUPERVISOR
+    severity: critical
+    status: open
+    summary: Isolate container-engine authority behind the Runtime Supervisor boundary required by ADR-020.
+  - issue: 1353
+    id: FTAI-ARCH-RUNTIME-TRUSTED-STATE
     severity: high
     status: open
-    summary: Inventory and retire historical GitHub Actions workflows.
+    summary: Separate Portal-authoritative RuntimeGeneration/config evidence from runtime-writable Freqtrade state.
+  - issue: 1354
+    id: FTAI-ARCH-RUNTIME-ISOLATION
+    severity: high
+    status: open
+    summary: Enforce the ADR-020 runtime isolation, resource and network profile for every generation.
+  - issue: 1357
+    id: FTAI-ARCH-BOT-REVISION-STATE
+    severity: high
+    status: open
+    summary: Separate authored/draft, desired and observed active bot revision/runtime-generation state.

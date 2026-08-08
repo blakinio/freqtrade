@@ -246,10 +246,11 @@ jobs:
           export HEALTH_MAX_AGE_SECONDS=600
           docker compose -f "$COMPOSE_FILE" config --quiet
 
+          revision=""
           if docker image inspect "$WICKHUNTER_RESEARCH_RUNTIME_IMAGE" >/dev/null 2>&1; then
             revision="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$WICKHUNTER_RESEARCH_RUNTIME_IMAGE")"
-            [[ "$revision" == "$DEPLOY_COMMIT" ]]
-          else
+          fi
+          if [[ "$revision" != "$DEPLOY_COMMIT" ]]; then
             docker build \
               --progress=plain \
               --build-arg "OPERATOR_COMMIT=$DEPLOY_COMMIT" \

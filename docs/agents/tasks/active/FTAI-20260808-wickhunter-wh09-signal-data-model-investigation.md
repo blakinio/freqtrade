@@ -25,10 +25,10 @@ status: investigating
 base_branch: develop
 trusted_base_sha: 7b23a958fd4d2bb43569c7f693d2247ef43d1ae9
 branch: research/wickhunter-wh09-signal-data-model-investigation-20260808
-related_issue: pending
+related_issue: 1384
 related_pr: none
 invocation_started_at: 2026-08-08T13:48:00+02:00
-last_progress_at: 2026-08-08T13:53:00+02:00
+last_progress_at: 2026-08-08T13:55:00+02:00
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
@@ -105,6 +105,25 @@ The discovery phase is complete only when all are true:
 - the frozen `0.60` threshold and all zero-authority invariants remain unchanged;
 - any related request-only PR is terminal and no unintended related PR remains open.
 
+## Evidence checkpoint 1 — terminal H900 structural finding
+
+`PROVEN` from artifact `9020825618` and `ai_platform/wickhunter/lightgbm_scorer.py` on trusted base:
+
+- training positive prevalence is `18 / 348 = 5.17%`;
+- calibration support is `87` cases;
+- the persisted monotonic calibration probabilities top out at `0.333333333333`;
+- the scorer uses `confidence = calibration.apply(raw_probability)` and sets `risk_multiplier=0` whenever `confidence < 0.60`;
+- therefore the persisted H900 model is mechanically incapable of emitting an actionable model score under the frozen threshold, independently of the final test outcomes.
+
+`UNKNOWN` from the packaged artifact alone:
+
+- raw score distributions on train/calibration/validation;
+- positive/negative support per calibration bin;
+- whether raw separation contains a defensible `>=0.60` posterior region before the current calibration mapping;
+- whether the ceiling is primarily data scarcity/class imbalance, calibration design, feature insufficiency, model capacity, label design, or a combination.
+
+The artifact does not package the required per-case feature/score rows. A single bounded runner diagnostic is therefore justified if it remains train+validation-only and does not rematerialize H900 or produce/promote a candidate.
+
 ## Context checkpoint
 
 ```yaml
@@ -118,10 +137,10 @@ context_score: 7
 estimate_confidence: medium
 decomposition_decision: discovery_first
 validation_level: evidence_review
-last_completed_step: branch and durable task record created after terminal H900
+last_completed_step: issue 1384 created and structural confidence-ceiling cause proven from exact H900 artifact plus scorer contract
 session_rotation_count: 0
 heavy_validation_runs: 0
 status: investigating
 blocker: none
-next_action: create the dedicated issue, persist exact H900 root-cause evidence, then determine whether existing evidence is sufficient or one bounded train+validation diagnostic is required
+next_action: design one bounded train+validation-only diagnostic that quantifies raw score separation, calibration-bin support and feature stability without creating a candidate or touching test/protected holdout selection
 ```

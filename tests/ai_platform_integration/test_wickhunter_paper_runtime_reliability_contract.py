@@ -22,9 +22,11 @@ def test_wickhunter_runtime_uses_restart_safe_supervisor() -> None:
     dockerfile = DOCKERFILE.read_text(encoding="utf-8")
     supervisor = SUPERVISOR.read_text(encoding="utf-8")
 
-    assert (
-        'ENTRYPOINT ["python", "-m", "ai_platform.wickhunter.candidate_paper_runtime_supervisor"]'
-    ) in dockerfile
+    expected_entrypoint = (
+        'ENTRYPOINT ["python", "-m", '
+        '"ai_platform.wickhunter.candidate_paper_runtime_parity_supervisor"]'
+    )
+    assert expected_entrypoint in dockerfile
     assert "MAX_CYCLE_ATTEMPTS = 3" in supervisor
     assert 'state_root / "cycle-telemetry.json"' in supervisor
     assert 'state_root / "early-fail.json"' in supervisor

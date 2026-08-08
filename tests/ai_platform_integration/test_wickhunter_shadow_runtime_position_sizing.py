@@ -6,6 +6,7 @@ from typing import cast
 
 from ai_platform.wickhunter.contracts import (
     BotMode,
+    DriftState,
     LiquidationSourceState,
     RiskOutcome,
     ShadowDecisionEvidence,
@@ -143,6 +144,8 @@ def test_allowed_decision_with_unrepresentable_quantity_does_not_fail_runtime() 
                     observed_at_ms=OBSERVED_MS - 500,
                 ),
             ),
+            model_drift=DriftState.HEALTHY,
+            data_drift=DriftState.HEALTHY,
             validation_state="accepted_candidate_only",
             retraining_state="idle",
         )

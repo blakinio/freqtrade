@@ -1,5 +1,8 @@
 # AI Trading Portal — System Architecture
 
+> [!IMPORTANT]
+> ADR-020 and `RUNTIME_ISOLATION_AND_SUPERVISOR_CONTRACT.md` are the binding execution-plane overlay for Portal-managed dry-run runtimes. Where older generic execution-adapter, credential, runtime-identity or container-isolation wording conflicts, the ADR-020 contracts take precedence. Target wording does not prove implementation.
+
 ## 1. Architectural objective
 
 Build a modern, secure and evolvable trading platform that presents a coherent product experience while keeping Freqtrade, model training, execution credentials and autonomous agents behind explicit trust and policy boundaries.
@@ -45,24 +48,30 @@ The architecture must support:
 | Analytics API | Notification Service | Audit | Workflow / Bot Orchestrator       |
 +--------------------------+----------------------+--------------------------------+
                            |                      |
-                           | events               | commands
+                           | events               | desired state / lifecycle
                            v                      v
                  +------------------+    +-----------------------------+
-                 | Event Bus        |    | Execution Adapter Boundary  |
-                 | NATS JetStream   |    | Freqtrade API/WS private    |
+                 | Event Bus        |    |       Portal Worker         |
+                 | NATS JetStream   |    | orchestration/reconcile     |
                  +---------+--------+    +--------------+--------------+
                            |                            |
-                           v                            v
+                           |                    +-------+-------+
+                           |                    |               |
+                           |                    v               v
+                           |             Runtime Gateway   Runtime Supervisor
+                           |                    |               |
+                           |                    v               v
 +----------------------------------------------------------------------------------+
 |                               EXECUTION PLANE                                    |
 |                                                                                  |
-|      Freqtrade Runtime A       Freqtrade Runtime B       Freqtrade Runtime N      |
-|      strategy/model pin        strategy/model pin        strategy/model pin       |
-|      private network           private network           private network          |
+|      RuntimeGeneration A      RuntimeGeneration B      RuntimeGeneration N       |
+|      Gateway + Freqtrade      Gateway + Freqtrade      Gateway + Freqtrade       |
+|      immutable isolation      immutable isolation      immutable isolation       |
+|      private generation net   private generation net   private generation net    |
 |             |                         |                         |                 |
 |             +-------------------------+-------------------------+                 |
 |                                       |                                           |
-|                                    Exchanges                                      |
+|                         approved public market-data egress                       |
 +----------------------------------------------------------------------------------+
 
 +----------------------------------------------------------------------------------+
@@ -88,6 +97,8 @@ The architecture must support:
 | Failure Evidence -> AI Diagnosis -> Regression Test -> Patch Branch -> PR         |
 +----------------------------------------------------------------------------------+
 ```
+
+`Runtime Supervisor` is the only Portal component with container-engine authority. The per-generation Gateway is the only Portal-to-Freqtrade application boundary. These security-oriented process profiles refine, rather than abandon, the modular-monolith control-plane architecture.
 
 ## 3. Architectural style
 
@@ -124,7 +135,7 @@ Rules:
 - long-running work is asynchronous and idempotent;
 - no frontend code knows Freqtrade-specific credentials or internal runtime addresses.
 
-A module becomes a separate service only when scaling, security or independent release requirements justify it.
+A module becomes a separate service only when scaling, security or independent release requirements justify it. ADR-020 exercises that criterion only for the narrow Runtime Supervisor and per-generation Gateway trust boundaries; it does not authorize broad domain microservice decomposition.
 
 ### 3.2 Recommended technology baseline
 
@@ -141,7 +152,7 @@ Target baseline, subject to implementation validation:
 - **Observability:** OpenTelemetry instrumentation with Prometheus-compatible metrics and centralized logs/traces.
 - **Execution packaging:** Docker initially; Kubernetes-compatible contracts without requiring Kubernetes for MVP.
 
-Technology selection must not weaken the domain boundaries in this document.
+Technology selection must not weaken the domain boundaries in this document or the accepted runtime isolation contract.
 
 ## 4. Portal / UX Plane
 
@@ -166,6 +177,7 @@ The browser must never receive:
 - Freqtrade REST credentials;
 - Freqtrade WebSocket tokens;
 - private runtime hostnames;
+- Runtime Supervisor endpoints/credentials;
 - infrastructure service credentials;
 - model-registry write credentials.
 
@@ -221,6 +233,8 @@ ERROR
 
 The orchestrator reconciles desired and observed state. UI requests change intent; they do not directly manipulate containers.
 
+ADR-020 additionally separates latest/authored revision, desired revision/generation and observed active generation. `RuntimeGeneration` is the immutable execution identity; a saved draft does not become executable automatically.
+
 ### 5.2 Bot configuration revisions
 
 Every material bot configuration change creates an immutable revision:
@@ -240,29 +254,37 @@ BotConfigRevision
   created_at
 ```
 
-A running bot is always attributable to one exact revision.
+A running bot is always attributable to one exact revision and one exact `RuntimeGeneration`.
 
 ### 5.3 Execution adapter
 
-The canonical private internal interface is versioned by the portal contracts and currently exposes:
+Portal-facing execution contracts remain engine-independent. The historical/internal `ExecutionAdapter` abstraction may expose lifecycle/read/submit semantics, but ADR-020 splits their privileged implementation across two narrower boundaries:
 
 ```text
-ExecutionAdapter
-  provision_bot(bot, context)
-  start_bot(bot, context)
-  pause_bot(tenant_id, bot_id, context)
-  stop_bot(tenant_id, bot_id, context)
-  get_health(tenant_id, bot_id, context)
-  get_runtime_status(tenant_id, bot_id, context)
-  submit_approved_intent(ApprovedExecutionIntent, context)
-  get_open_positions(tenant_id, bot_id, context)
-  get_orders(tenant_id, bot_id, context)
-  get_trades(tenant_id, bot_id, context)
+lifecycle materialization
+  Portal Worker -> Runtime Supervisor -> container engine
+
+application/runtime reads and approved commands
+  Portal Worker -> generation Gateway -> Freqtrade private API
 ```
 
-The first implementation is `FreqtradeExecutionAdapter`. It implements private dry-run runtime lifecycle and health, but current order submission and portfolio/order/trade queries deliberately fail closed. `submit_approved_intent` raises `ORDER_SUBMISSION_NOT_IMPLEMENTED`; the P10 deterministic simulator is the only implemented `ApprovedExecutionIntent` submitter used for simulated trade acceptance.
+Normal Portal processes do not call Docker/container-engine APIs and do not call Freqtrade directly.
 
-This prevents portal API contracts from becoming coupled to Freqtrade endpoint details and leaves room for future bounded private Freqtrade submission integration or alternative execution engines without creating a browser-to-runtime path.
+Logical product capabilities remain equivalent to:
+
+```text
+provision exact generation
+start/pause/stop exact generation
+get lifecycle/health evidence
+submit approved generation-bound intent
+get open positions/orders/trades through Gateway
+```
+
+The Gateway is not a raw reverse proxy and the Supervisor is not an arbitrary container API.
+
+At the trusted task base, the existing `FreqtradeExecutionAdapter` still represents pre-ADR-020 implementation state: it implements bounded private dry-run lifecycle/health, while direct approved-intent order submission and portfolio/order/trade query coverage remain fail-closed/incomplete as recorded by exact current code and tests. That legacy state is evidence of implementation progress, not the final ADR-020 security topology.
+
+Current implementation completeness must be established from exact code/test/deployment evidence. Older repository adapters that predate ADR-020 must not be represented as the final composed security boundary merely because their interface exists.
 
 ## 6. Execution Plane
 
@@ -271,31 +293,66 @@ This prevents portal API contracts from becoming coupled to Freqtrade endpoint d
 The default initial isolation unit is:
 
 ```text
-one BotInstance -> one isolated Freqtrade runtime
+one BotInstance -> one active RuntimeGeneration -> one isolated Freqtrade runtime + Gateway
 ```
 
 Reasons:
 
 - independent restart and rollout;
-- per-bot strategy/model pinning;
+- per-bot strategy/model/config/isolation-plan pinning;
 - clear resource and log attribution;
 - fault containment;
-- safer secret injection;
+- generation-local runtime API secret scoping;
 - easier rollback and incident isolation.
 
-Later optimization may group compatible workloads only after proving that isolation and attribution remain intact.
+Later optimization may group compatible workloads only after proving that isolation and attribution remain intact and after a separate architecture decision.
 
 ### 6.2 Runtime rules
 
-Each runtime must:
+Each Portal-managed dry-run runtime must:
 
-- be reachable only on private networking;
+- be reachable only through its private generation-local relationship;
 - default to dry-run unless a separately approved lifecycle state authorizes otherwise;
-- receive exchange credentials at runtime from the secret boundary;
-- use an immutable strategy/model/config revision;
-- expose health/telemetry only to trusted internal collectors;
-- emit correlation-aware events;
-- be replaceable rather than manually mutated in place.
+- use `PUBLIC_DATA` exchange connectivity without private exchange trading credentials in the current dry-run scope;
+- use immutable strategy/model/config/image/risk/isolation identities;
+- bind an immutable `RuntimeIsolationProfile` and resolved `RuntimeIsolationPlan`;
+- expose Freqtrade application access only to its generation-local Gateway;
+- expose lifecycle state only through the Runtime Supervisor boundary;
+- emit correlation/generation-aware evidence;
+- be replaceable rather than manually mutated in place;
+- use engine restart policy `NO`, with recovery owned by desired-state reconciliation.
+
+Private exchange trading credentials remain a separately governed future authority and are not introduced by dry-run runtime provisioning.
+
+### 6.3 Runtime isolation and Supervisor contract
+
+`RUNTIME_ISOLATION_AND_SUPERVISOR_CONTRACT.md` is binding for the detailed dry-run execution envelope. Its required shape includes:
+
+```text
+RuntimeIsolationProfile (immutable/versioned)
+        +
+RuntimeHostCapabilityReport (Supervisor evidence)
+        -> deterministic resolved RuntimeIsolationPlan
+        -> immutable RuntimeGeneration with profile + plan digests
+        -> EnsureProvisioned / structural attestation
+        -> EnsureRunning / effective enforcement attestation
+```
+
+Security invariants have no fallback. Capability-resolved alternatives must be pre-approved and preserve the required hard bound. Missing effective CPU, memory/swap, PID, storage, log, tmpfs or network containment makes the host incompatible for the Portal runtime.
+
+Configured Docker/Compose flags alone are not sufficient evidence. Post-create/post-start attestation must verify effective host/kernel enforcement. This rule is informed by current WH09 Synology evidence where CPU CFS/NanoCPUs was unavailable and a later diagnostic run reported the configured PID limit was discarded.
+
+Runtime filesystem/storage classes are:
+
+```text
+control-owned evidence     NOT runtime writable / preferably not mounted
+immutable runtime inputs   RO
+durable Freqtrade state    RW, generation-scoped, hard bounded
+ephemeral tmp/cache        bounded tmpfs/log resources
+generation secrets         separate ephemeral secret boundary
+```
+
+Every generation has isolated networking and a versioned market-data egress policy. Freqtrade has no host/public port and cannot reach Portal DB, Vault, Redis, NATS, the container engine, host-management endpoints or unrelated generations.
 
 ## 7. Risk Plane
 
@@ -335,6 +392,8 @@ Initial policy families:
 
 Risk policy versions are immutable and independently auditable from model versions.
 
+ADR-020 additionally requires exact generation and monotonic `ExecutionSafetyEpoch` fencing for exposure-increasing commands. Runtime/container state is not authoritative proof of orders, positions or execution success; Gateway plus reconciliation remains authoritative.
+
 ## 8. AI / Research Plane
 
 The AI plane remains separate from execution authority.
@@ -348,18 +407,20 @@ Data -> Features -> Training -> Candidate -> Validation -> Registry -> Promotion
 
 The portal may request training, display experiments and manage approved promotions, but the production runtime only consumes immutable promoted artifacts allowed by lifecycle policy.
 
-Research compute must use credentials and networking separate from production exchange connectivity.
+Research compute must use credentials and networking separate from production exchange connectivity. Training/research workers have no Runtime Supervisor/container-engine authority for Portal-managed runtimes.
 
 ## 9. Data Plane
 
 Authoritative ownership:
 
-- **Portal PostgreSQL:** users, tenants, bots, revisions, policies, model metadata, audit indexes.
-- **Freqtrade runtime DB:** runtime-local trade lifecycle evidence for that execution instance.
+- **Portal PostgreSQL:** users, tenants, bots, revisions, `RuntimeGeneration`, desired/rollout state, policies, model metadata and audit indexes.
+- **Freqtrade runtime DB:** generation-local execution evidence/state; durable writable storage is explicitly generation-scoped and bounded.
 - **Portal trade mirror:** normalized cross-runtime query model; not a hidden rewrite of runtime truth.
 - **Object storage:** model artifacts, datasets, manifests, backtests, E2E artifacts and large reports.
 - **Event bus:** real-time domain/event distribution, not the only durable system of record.
 - **Telemetry backend:** operational metrics/logs/traces.
+
+The Runtime Supervisor may receive only a dedicated minimal read-only generation view required for safe materialization. It does not receive general Portal DB write authority.
 
 Use an outbox/inbox pattern for state-changing event publication and idempotent consumers.
 
@@ -395,40 +456,46 @@ resource_type
 resource_id
 ```
 
-No secret values are permitted in event payloads.
+Runtime/execution events additionally bind exact `RuntimeGeneration` where applicable. No secret values are permitted in event payloads.
 
 ## 11. Deployment evolution
 
 ### Stage A — local/development
 
 ```text
-Docker Compose
+Docker Compose / host-local processes
   portal-web
   portal-api
   portal-worker
+  runtime-supervisor
+  per-generation gateways/test runtimes where exercised
   postgres
   redis
   nats
   object-storage
   simulator
-  freqtrade-test-runtimes
 ```
+
+The Runtime Supervisor is a security process boundary, not a public service. Same-host transport uses UDS + ACL/peer identity according to ADR-020.
 
 ### Stage B — production-like staging
 
 - Cloudflare edge and Tunnel;
 - isolated staging identity/tenant space;
-- Vault/KMS-backed secrets;
+- Vault/KMS-backed secrets where the relevant boundary requires them;
 - deterministic exchange simulator by default;
-- optional exchange sandbox/testnet where safe;
+- Portal dry-run Freqtrade uses `PUBLIC_DATA` and no private exchange trading credentials;
+- Runtime Supervisor remains private and is the sole Portal engine-authority process;
+- generation isolation/effective-enforcement acceptance is required on the real host;
+- optional exchange sandbox/testnet only where separately safe and authorized;
 - centralized observability;
 - Playwright E2E through the external protected route.
 
-Production-like staging acceptance requires real protected external ingress validation. Repository-side P11 policy/verifier/workflow evidence and simulation-first P12 evidence do not satisfy this requirement by themselves.
+Production-like staging acceptance requires real protected external ingress validation. Repository-side policy/workflow evidence and simulation-first evidence do not satisfy real target acceptance by themselves.
 
 ### Stage C — production execution
 
-Requires a separate explicit work package and lifecycle approval. Deployment may remain container-based or move to Kubernetes. Architecture contracts must not require public container ports or direct browser-to-runtime access.
+Requires a separate explicit work package and lifecycle approval. Deployment may remain container-based or move to Kubernetes. Architecture contracts must not require public container ports or direct browser-to-runtime access. No live-capital authority follows from the dry-run architecture.
 
 ## 12. Multi-tenancy
 
@@ -440,8 +507,13 @@ Requirements:
 - authorization enforced server-side on every access path;
 - PostgreSQL row-level security considered as defense in depth for sensitive tables;
 - tenant-scoped encryption context for high-value secrets where supported;
-- cross-tenant access included in security E2E tests;
-- background workers carry explicit tenant context.
+- object-storage keys/namespaces include non-guessable tenant scope;
+- events include tenant scope but never secrets;
+- logs avoid cross-tenant payload leakage;
+- E2E includes User A -> User B denial tests;
+- background workers carry explicit tenant context;
+- RuntimeGeneration/Supervisor operations are exact tenant+bot+generation bound;
+- unrelated runtime networks cannot communicate.
 
 A single-user initial deployment is treated as one tenant, not as an excuse to omit tenancy boundaries.
 
@@ -451,22 +523,29 @@ The architecture prefers explicit states over hidden retries.
 
 Examples:
 
-- runtime provisioning failure -> `ERROR` with machine-readable reason;
-- exchange unavailable -> risk/execution gate closes new entries;
+- host lacks a required hard isolation control -> `HOST_INCOMPATIBLE` or a narrower reason; generation does not start;
+- runtime provisioning/attestation failure -> `ERROR` with machine-readable reason;
+- isolation plan/spec mismatch -> conflict/fail closed;
+- exchange public data unavailable -> risk/execution gate closes new entries;
 - stale model/data -> inference rejected or deterministic fallback according to policy;
 - event consumer retry -> idempotent processing;
 - model artifact unavailable -> runtime does not silently switch versions;
-- portal unavailable -> existing execution runtime follows predeclared safe behavior, not arbitrary remote commands.
+- stale/retired generation message -> cannot resurrect the generation;
+- portal unavailable -> engine restart policy does not independently resurrect historical runtimes; recovery follows explicit desired-state reconciliation.
 
 ## 14. Architectural invariants
 
 1. No public path reaches Freqtrade directly.
-2. No AI model has unrestricted execution authority.
-3. No execution intent bypasses deterministic risk approval before reaching a private submitter boundary.
-4. No research job can directly mutate production configuration or access production exchange credentials.
-5. No model is identified only by a mutable filename.
-6. No trade is unattributable to strategy/model/config/risk versions.
-7. No autonomous repair bypasses branch/CI/PR controls or patches production directly.
-8. No live-capital state is entered implicitly.
-9. No completed research contract or protected holdout boundary is retroactively rewritten by portal implementation.
-10. No simulated or repository-only evidence is represented as real production-like staging acceptance.
+2. No public/browser path reaches Runtime Supervisor.
+3. Runtime Supervisor is the only Portal component with raw container-engine lifecycle authority.
+4. No AI model has unrestricted execution authority.
+5. No execution intent bypasses deterministic risk approval before reaching a private submitter boundary.
+6. No research job can directly mutate production configuration, control Portal-managed runtimes or access production exchange credentials.
+7. No model is identified only by a mutable filename and no Portal runtime image is identified only by a mutable tag.
+8. No trade is unattributable to strategy/model/config/risk/runtime-generation identities.
+9. No executable RuntimeGeneration lacks immutable isolation profile and plan identity.
+10. Requested container-engine controls are not considered effective until attested at the actual host/kernel boundary.
+11. No autonomous repair bypasses branch/CI/PR controls or patches production directly.
+12. No live-capital state is entered implicitly.
+13. No completed research contract or protected holdout boundary is retroactively rewritten by portal implementation.
+14. No simulated, repository-only or target-architecture evidence is represented as real production-like staging/host enforcement acceptance.

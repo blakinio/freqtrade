@@ -117,7 +117,8 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
         if source_database is not None:
             if candidate_database is None:
                 raise deploy.DeploymentError(
-                    "PostgreSQL copy-on-write recovery report is missing candidate database identity"
+                    "PostgreSQL copy-on-write recovery report is missing "
+                    "candidate database identity"
                 )
             recovery = report.setdefault("database_recovery", {})
             recovery.update(

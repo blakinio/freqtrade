@@ -57,7 +57,7 @@ jobs:
           done
 
       - name: Install uv and Python
-        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v7.2.1
+        uses: astral-sh/setup-uv@803947b9bd8e9f986429fa0c5a41c367cd732b41 # v7.2.1
         with:
           activate-environment: true
           python-version: "3.13"

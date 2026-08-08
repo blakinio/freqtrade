@@ -50,6 +50,7 @@ export interface BotRuntimeTruth {
   bot: RuntimeGenerationAwareBot;
   revisions: BotConfigRevisionTruth[];
   desired_generation: RuntimeGenerationTruth | null;
+  observed_generation: RuntimeGenerationTruth | null;
   latest_rollout: BotRolloutTruth | null;
   pending_rollout: boolean;
 }

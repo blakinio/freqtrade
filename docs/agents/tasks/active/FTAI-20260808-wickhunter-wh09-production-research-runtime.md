@@ -87,12 +87,13 @@ runtime_commit: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
 - Regression-gate commit `6c5682f282c195acf88709a810e128303c3f9c64` moves the classifier regression into `tests/ci`, so the mandatory lightweight routing gate executes it instead of only linting it.
 - Focused regression coverage models an Actions-style push payload without changed-file arrays, proves whole-push exact-path detection, rejects `.bak` lookalikes and rejects an unprovable/null `before` SHA.
 - Diagnostic v4 remains bound to the exact failed run/job, original 64-character container ID and exact image ID. Container discovery uses `docker ps -aq --no-trunc`; secret-free identity evidence is created before identity fail-fast; the diagnostic path contains no start/stop/restart/recreate/remove/kill command.
+- Fresh independent review on exact head `90237857d73afb60dbd99ae640ff977d774323bb` found two checkpoint-contract P2s only: unsupported validation result labels and missing required anti-stall counters. This checkpoint repair normalizes those fields without changing runtime, diagnostic, model, threshold or authority semantics.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-09T00:45:00+02:00
+updated_at: 2026-08-09T00:53:00+02:00
 head: UNKNOWN
 branch: diagnose/wickhunter-wh09-runtime-health-20260808
 pr: 1394
@@ -148,17 +149,23 @@ changed_paths:
   - docs/agents/tasks/active/FTAI-20260808-wickhunter-wh09-production-research-runtime.md
 validation:
   - command: pre-repair exact-head CI on c198c3725ade5d1f0e62408344d4b5f700fb4eff
-    result: SUPERSEDED
-    evidence: the later continuation audit found the GitHub Actions push-payload P1 and repair commit ba391c90b23cbb017240a94192af8b15276445f2 supersedes those routing results
+    result: NOT_APPLICABLE
+    evidence: superseded by the later continuation audit finding on GitHub Actions push-payload routing and repair commit ba391c90b23cbb017240a94192af8b15276445f2
   - command: bounded classifier validation on 40a6bc310d9ffcedfa3992e511f3b71c284fce33
-    result: PASS_BUT_SUPERSEDED_BY_TEST_MOVE
-    evidence: lightweight compile+mypy, Ruff/format, routing/workflow validation and full pre-commit passed before moving the regression into tests/ci
-  - command: exact final head CI and independent review after routed regression checkpoint
+    result: PASS
+    evidence: lightweight compile+mypy, Ruff/format, routing/workflow validation and full pre-commit passed; the later test move changes the final closure head but does not invalidate this bounded result
+  - command: exact final head CI and independent review after checkpoint-contract repair
     result: NOT_RUN
-    evidence: resolve PR #1394 live head after this checkpoint commit and require all applicable exact-head gates before merge
+    evidence: resolve PR #1394 live head after this checkpoint repair and require all applicable exact-head gates plus a fresh independent review before merge
 blockers:
-  - exact-final-head CI and fresh independent review must pass after this checkpoint update
-next_action: Resolve PR #1394 live head after this checkpoint commit, require exact-final-head CI and a fresh independent review with zero material P1/P2, squash-merge only if green, then consume the diagnostic-v4 Synology artifact before any redeploy or runtime mutation.
+  - exact-final-head CI and fresh independent review must pass after this checkpoint repair
+next_action: Resolve PR #1394 live head after this checkpoint repair, require exact-final-head CI and a fresh independent review with zero material P1/P2, squash-merge only if green, then consume the diagnostic-v4 Synology artifact before any redeploy or runtime mutation.
+invocation_started_at: 2026-08-09T00:44:00+02:00
+last_progress_at: 2026-08-09T00:53:00+02:00
+ci_checks_for_current_head: 0
+unchanged_state_checks: 0
+identical_failure_retries: 0
+repair_cycles_for_current_gate: 1
 context_reconstruction_attempts: 1
 stall_warnings: 0
 ```

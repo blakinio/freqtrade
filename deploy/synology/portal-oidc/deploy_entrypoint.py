@@ -306,11 +306,16 @@ def main() -> int:
         "portal_oidc_discovery",
         DEPLOYMENT_DIR / "diagnose_discovery.py",
     )
+    copy_on_write = _load_module(
+        "portal_oidc_postgresql_copy_on_write",
+        DEPLOYMENT_DIR / "postgresql_copy_on_write.py",
+    )
     deploy._discovery_from_identity_container = lambda: discovery.deployment_probe(  # type: ignore[attr-defined]
         deploy.DeploymentError
     )
     _install_verified_build_timeout(deploy)
     _install_docker_host_liquidations_preflight(deploy)
+    copy_on_write.install(deploy)
     return int(deploy.main())
 
 

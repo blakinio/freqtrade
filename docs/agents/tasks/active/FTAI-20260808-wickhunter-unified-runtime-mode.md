@@ -105,8 +105,8 @@ The UI may offer SHADOW and PAPER only according to server-provided eligibility.
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-09T00:12:00+02:00
-head: live-pr-1397-head-must-be-resolved
+updated_at: 2026-08-09T00:18:00+02:00
+head: UNKNOWN
 branch: feat/wickhunter-unified-runtime-mode-1396
 pr: 1397
 status: validating

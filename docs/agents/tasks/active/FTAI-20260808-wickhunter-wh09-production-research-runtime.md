@@ -25,11 +25,14 @@ internal_demo_production_deployment_authorized: true
 status: validating
 base_branch: develop
 trusted_base_sha: 46cd873ccb0c60ec88657d9e7eccb18a93737fd5
-branch: ops/wickhunter-wh09-production-research-deploy-closeout-20260808
+branch: fix/wickhunter-wh09-synology-cpu-cfs-compat-20260808
 related_issue: 1386
-related_pr: 1391
+related_pr: 1392
 implementation_pr: 1387
 implementation_merge_commit: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
+prior_deployment_control_pr: 1390
+prior_deployment_retry_pr: 1391
+prior_deployment_retry_merge_commit: 286376990bf9afeb1832f1d643a2b3dd6d2e12d5
 upstream_discovery_issue: 1384
 upstream_discovery_pr: 1385
 no_trade_confidence: 0.60
@@ -78,72 +81,57 @@ model_root_host: /var/lib/freqtrade-staging-state/wickhunter-candidate-materiali
 
 ## Implementation and validation evidence
 
-- Predecessor discovery PR `#1385` is terminal and merged at `46cd873ccb0c60ec88657d9e7eccb18a93737fd5`; it selected independent chronological evidence growth rather than threshold weakening.
-- Runtime implementation PR `#1387` is terminal and merged at `ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5` after exact-head CI and fresh review.
-- The implementation reuses the existing Liquid20/public-market and `ShadowRuntime` foundations, keeps H900 in `BotMode.SHADOW`, forces `candidate_paper_validation_authorized=false`, and does not create or consume PAPER activation.
-- The runtime records immutable self-hashed decisions containing raw LightGBM probability, calibrated confidence, final decision/reason codes and model/parameter/dataset/code identities; delayed directional outcomes are created only at/after 900 s.
-- Due 900 s outcome symbols remain labelable after leaving the current Liquid20 selected universe without re-entering the current decision universe.
-- The hardened Synology package is non-root/read-only/capability-dropped, mounts model and Liquid20 read-only, exposes no inbound port and contains no exchange credential/order-adapter path.
-- Normal exact-head CI on implementation head `5003c31c...` passed Freqtrade CI, Risk-aware component CI, CodeQL and zizmor before merge.
-- Fresh independent implementation audit workflow run `31262860311`, job `93116251497`, completed `success` after running the two dedicated `tests/ai_platform_integration/test_wickhunter_production_research_runtime*.py` files: `8 passed`.
-- The implementation audit re-falsified frozen threshold/horizon, zero-authority fields, absence of PAPER activation, absence of API credentials/Docker socket/inbound ports, deployment hardening, compile, Ruff and Ruff-format.
-- Audit finding `WH09-PRR-AUDIT-001`: the first dedicated audit attempt found an invalid test-only enum fixture (`CandidateAction.ENTER`); severity `low`, product impact `none`, disposition `fixed`. The corrected fixture uses `ENTER_LONG`; the rerun above passed. Open material implementation findings: `0`.
-- Protected deployment-control PR `#1390` merged to `develop` as `3af40aaa3820c91fdf8382e2a8cd61577babb90d` and triggered protected deployment run `31268955706`.
-- Deployment run `31268955706` attempt 1 reached exact authorization/runner/path validation but was cancelled by the former 20-minute job budget during Docker image export.
-- Bounded rerun job `93139010419` completed exact image export, proving the exact `ec0f53cc4df7` image was written, then failed at `docker compose up --build` with `DeadlineExceeded`; it did not reach health/two-cycle E2E.
-- Repair PR `#1391` preserves the exact H900 runtime/model/authority contract, changes only the deployment retry path, reuses an exact OCI-revision-matching image, rebuilds a missing/mismatched tag from the exact checked-out implementation, and performs Compose startup with `--no-build`.
-- The deployment-control resolver binds Liquid20 to the canonical persistent collector host root `/volume1/docker/freqtrade-liquidations/data/live`, verifies the running `liquid20-live` container maps `/data` from `/volume1/docker/freqtrade-liquidations/data`, validates the active `liquidation-live-state-v1` pointer/run including non-symlink `runs/` and active-run parents, and discovers the current numeric reader GID without relying on a stale alias.
-- Final deployment-workflow/test head before this documentation-only checkpoint reconciliation is `d1bcd5a576e4ecaca5491309f70d7d49c1c174a4`.
-- Exact-head security checks on `d1bcd5a576e4ecaca5491309f70d7d49c1c174a4`: CodeQL `31272779043` PASS and zizmor `31272779011` PASS. Freqtrade CI `31272779000` and Risk-aware component CI `31272779123` are the head-specific validation generations to consume before merge.
-- Fresh Codex review submission on exact deployment head `d1bcd5a576e4ecaca5491309f70d7d49c1c174a4` found no runtime/deployment P1/P2 after prior fixes; its only new P2 concerned durable checkpoint metadata and is addressed by this documentation-only successor.
-- Temporary audit/repair workflows are absent from the final intended changed-file set.
+- Discovery PR `#1385` merged at `46cd873ccb0c60ec88657d9e7eccb18a93737fd5`; it selected chronological evidence growth rather than weakening the frozen threshold.
+- Runtime implementation PR `#1387` merged at `ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5` after exact-head CI and fresh audit. H900 remains `BotMode.SHADOW`, `candidate_paper_validation_authorized=false`, with immutable decision journals and delayed 900 s outcomes.
+- Fresh implementation audit run `31262860311`, job `93116251497`, passed the dedicated WH09 runtime tests with zero open material findings after the test-only `CandidateAction.ENTER` fixture was corrected to `ENTER_LONG`.
+- Deployment-control PR `#1390` merged as `3af40aaa3820c91fdf8382e2a8cd61577babb90d`. Its first protected deployment run `31268955706` was cancelled by the former 20-minute image-export budget.
+- Deployment-retry PR `#1391` merged as `286376990bf9afeb1832f1d643a2b3dd6d2e12d5`. It preserved the exact runtime identity, exact-image reuse/rebuild and Compose `--no-build` startup; final required CI and review gates passed before merge.
+- Protected deploy run `31273808566`, job `93144045334`, passed immutable authorization, exact runtime checkout, runner identity, credential/proxy absence, zero-authority checks, Liquid20 identity/path validation and exact-image identity. Container creation then failed with Docker daemon error `NanoCPUs can not be set, as your kernel does not support CPU CFS scheduler or the cgroup is not mounted`.
+- The new failure is materially different from the prior image-export/Compose deadline failure. It is isolated to Synology kernel/cgroup incompatibility with Compose `cpus: 2.0`; it does not change model science or trading authority.
+- Repair PR `#1392` is bounded to removing the CPU-CFS/NanoCPUs quota while retaining memory/PID limits and all other container/security/SHADOW safeguards, plus immutable retry request v3 bound to run `31273808566` / job `93144045334`.
+- The workflow repair must snapshot the authorized deployment Compose before checking out exact runtime commit `ec0f53cc...`, build/reuse the image from the untouched exact runtime source, then restore only the authorized Synology-compatible Compose for `docker compose config/up`.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-08T20:52:00+02:00
-branch: ops/wickhunter-wh09-production-research-deploy-closeout-20260808
-pr: 1391
+updated_at: 2026-08-08T21:20:00+02:00
+branch: fix/wickhunter-wh09-synology-cpu-cfs-compat-20260808
+pr: 1392
 status: validating
-phase: validate
+phase: repair
 execution_mode: chat_github_actions
 context_pressure: medium
 context_growth: stable
 decomposition_decision: phased
 session_rotation_count: 2
-invocation_started_at: 2026-08-08T20:22:00+02:00
-last_progress_at: 2026-08-08T20:52:00+02:00
-ci_checks_for_current_head: 2
+invocation_started_at: 2026-08-08T21:04:00+02:00
+last_progress_at: 2026-08-08T21:20:00+02:00
+ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 3
+repair_cycles_for_current_gate: 1
+repair_cycle_generation: synology_cpu_cfs_compat
+repair_cycle_reset_reason: materially_new_failure_signature_after_successful_exact_image_and_predeploy_validation
 context_reconstruction_attempts: 1
 stall_warnings: 0
-fresh_implementation_audit:
-  result: PASS
-  run_id: 31262860311
-  job_id: 93116251497
-  focused_tests: 8
-  material_findings_open: 0
-deployment_retry_history:
-  first_run_id: 31268955706
-  first_job_id: 93131580725
-  first_result: cancelled_during_image_export_timeout
-  second_job_id: 93139010419
-  second_result: compose_build_deadline_exceeded_after_exact_image_export
-  repair_pr: 1391
-  current_strategy: exact_image_revision_reuse_or_rebuild_then_compose_no_build
-deployment_validation_head:
-  sha: d1bcd5a576e4ecaca5491309f70d7d49c1c174a4
-  scope: final_workflow_and_test_head
-  freqtrade_ci_run: 31272779000
-  component_ci_run: 31272779123
-  codeql_run: 31272779043
-  zizmor_run: 31272779011
-  codeql_result: PASS
-  zizmor_result: PASS
-  checkpoint_successor_scope: documentation_only
+failed_deployment:
+  run_id: 31273808566
+  job_id: 93144045334
+  authorization_commit: 286376990bf9afeb1832f1d643a2b3dd6d2e12d5
+  runtime_commit: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
+  first_actionable_failure: synology_kernel_rejects_nanocpus_without_cpu_cfs
+  passed_before_failure:
+    - immutable deployment authorization
+    - exact runtime checkout
+    - runner and host-path validation
+    - credential/proxy absence
+    - zero trading authority
+    - exact runtime image identity
+repair:
+  pr: 1392
+  strategy: remove_cpu_cfs_quota_only_and_deploy_authorized_compose_after_exact_image_identity
+  immutable_retry_request: retry-wh09-production-research-20260808-v3.json
 owned_paths:
   - docs/agents/tasks/active/FTAI-20260808-wickhunter-wh09-production-research-runtime.md
   - ai_platform/wickhunter/production_research_runtime.py
@@ -159,14 +147,13 @@ proven:
   - immutable decision journaling, delayed H900 outcome labeling, restart persistence and zero-authority telemetry are implemented
   - fresh dedicated implementation audit passes with zero open material findings
   - implementation PR 1387 is merged at ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
-  - canonical Liquid20 live source is the liquid20-live /data/live root backed by /volume1/docker/freqtrade-liquidations/data/live
-  - failed deployment rerun 93139010419 nevertheless proved the exact runtime image export completed before Compose failed
-  - final deployment workflow and focused deployment test head is d1bcd5a576e4ecaca5491309f70d7d49c1c174a4
+  - canonical Liquid20 live source is active and passed deployment preflight in run 31273808566
+  - PR 1391 merged at 286376990bf9afeb1832f1d643a2b3dd6d2e12d5 after exact-head CI and review
 unknown:
-  - exact internal Synology deployment acceptance remains pending merge and protected execution of repair PR 1391
+  - internal Synology deployment E2E remains unproven because container creation stopped before health/two-cycle verification
 conflicts: []
 blockers: []
-next_action: Consume terminal Freqtrade CI 31272779000 and Risk-aware component CI 31272779123 for deployment head d1bcd5a576e4ecaca5491309f70d7d49c1c174a4; if green, merge PR 1391 and verify the protected Synology SHADOW deployment reaches health plus two post-start advances with zero trading authority.
+next_action: Complete focused validation and fresh review of PR 1392; if exact-head gates pass, merge it and verify the protected retry-v3 Synology SHADOW deployment reaches healthy state plus two post-start advances with zero trading authority.
 ```
 
 ## Recovery checkpoint
@@ -174,28 +161,24 @@ next_action: Consume terminal Freqtrade CI 31272779000 and Risk-aware component 
 ```yaml
 recovery:
   policy_version: 1
-  generation: 4
-  session_id: owner-20260808-2022-cest
-  session_started_at: 2026-08-08T20:22:00+02:00
-  checkpointed_at: 2026-08-08T20:52:00+02:00
-  last_progress_at: 2026-08-08T20:52:00+02:00
-  phase: validate
-  exact_head: d1bcd5a576e4ecaca5491309f70d7d49c1c174a4
-  exact_head_role: final_deployment_workflow_and_test_head
-  checkpoint_successor_scope: documentation_only
-  pull_request: 1391
-  active_operation: consume terminal exact-head CI for d1bcd5a576e4ecaca5491309f70d7d49c1c174a4, then merge and verify protected Synology deployment
+  generation: 5
+  session_id: owner-20260808-2104-cest
+  session_started_at: 2026-08-08T21:04:00+02:00
+  checkpointed_at: 2026-08-08T21:20:00+02:00
+  last_progress_at: 2026-08-08T21:20:00+02:00
+  phase: repair
+  exact_head: live PR 1392 head; resolve from GitHub before mutation
+  pull_request: 1392
+  active_operation: validate bounded Synology CPU-CFS compatibility repair before protected deployment retry v3
   external_run_ids:
-    - 31272779000
-    - 31272779123
-    - 31272779043
-    - 31272779011
-  operation_started_at: 2026-08-08T20:47:19+02:00
-  wait_deadline_at: 2026-08-08T21:30:00+02:00
-  check_generation: deployment-repair-d1bcd5a-final-validation
-  checks_used: 2
+    - 31273808566
+    - 93144045334
+  operation_started_at: 2026-08-08T21:12:13+02:00
+  wait_deadline_at: null
+  check_generation: synology-cpu-cfs-compat-repair-v1
+  checks_used: 0
   status: active
   safe_to_resume: true
-  resume_condition: Freqtrade CI 31272779000 and Risk-aware component CI 31272779123 terminal; live PR head may be a documentation-only checkpoint successor and must be reconciled from GitHub before mutation
-  next_action: If both head-specific runs are green, merge PR 1391 and verify its protected develop-push Synology deployment E2E; otherwise inspect the first actionable failing gate without repeating an identical failed operation.
+  resume_condition: PR 1392 contains only bounded CPU-CFS compatibility repair, focused tests and immutable retry-v3 authorization
+  next_action: Validate PR 1392 exact head, obtain fresh independent review, then merge only if all required gates pass and verify the triggered Synology deployment E2E.
 ```

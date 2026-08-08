@@ -4,7 +4,7 @@ import json
 import re
 import subprocess
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, TypeGuard, cast
 
 
 MARKET_EVIDENCE_HOST_ROOT = Path(
@@ -261,6 +261,13 @@ def _market_web_args(
     return [*args[:image_index], *additions, *args[image_index:]]
 
 
+def _is_market_evidence_mount(value: Any) -> TypeGuard[dict[str, Any]]:
+    return (
+        isinstance(value, dict)
+        and value.get("Destination") == MARKET_EVIDENCE_CONTAINER_ROOT
+    )
+
+
 def _verify_running_container(deploy: Any, group_id: str) -> None:
     result = cast(
         subprocess.CompletedProcess[str],
@@ -279,9 +286,7 @@ def _verify_running_container(deploy: Any, group_id: str) -> None:
     mounts = container.get("Mounts") or []
     if not isinstance(mounts, list):
         raise deploy.DeploymentError("Market Evidence runtime mount inventory is invalid")
-    expected_mounts = [
-        mount for mount in mounts if isinstance(mount, dict) and mount.get("Destination") == MARKET_EVIDENCE_CONTAINER_ROOT
-    ]
+    expected_mounts = [mount for mount in mounts if _is_market_evidence_mount(mount)]
     if len(expected_mounts) != 1:
         raise deploy.DeploymentError("Market Evidence runtime mount is missing or ambiguous")
     mount = expected_mounts[0]

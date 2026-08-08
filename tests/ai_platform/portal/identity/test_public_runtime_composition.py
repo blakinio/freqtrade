@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import importlib
+import sys
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,9 @@ from fastapi.testclient import TestClient
 
 from ai_platform.portal.control_plane.database import build_engine
 from ai_platform.portal.database.schema import EXPECTED_SCHEMA_REVISION, migrate_database
+
+
+PUBLIC_RUNTIME_MODULE = "ai_platform.portal.identity.public_runtime"
 
 
 def _secret() -> str:
@@ -38,6 +42,16 @@ def _migrated_sqlite(tmp_path: Path) -> str:
     return database_url
 
 
+def _load_public_runtime():
+    previous = sys.modules.pop(PUBLIC_RUNTIME_MODULE, None)
+    if previous is not None:
+        engine = getattr(getattr(previous, "app", None), "state", None)
+        database_engine = getattr(engine, "database_engine", None)
+        if database_engine is not None:
+            database_engine.dispose()
+    return importlib.import_module(PUBLIC_RUNTIME_MODULE)
+
+
 def test_public_runtime_composes_identity_and_canonical_product_routes(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -45,9 +59,8 @@ def test_public_runtime_composes_identity_and_canonical_product_routes(
     database_url = _migrated_sqlite(tmp_path)
     _configure_public_runtime(monkeypatch, database_url)
 
-    runtime = importlib.import_module("ai_platform.portal.identity.public_runtime")
-    runtime = importlib.reload(runtime)
-    app = runtime.build_public_app()
+    runtime = _load_public_runtime()
+    app = runtime.app
     client = TestClient(app)
     try:
         paths = {route.path for route in app.routes}
@@ -57,8 +70,9 @@ def test_public_runtime_composes_identity_and_canonical_product_routes(
         liveness = client.get("/healthz")
         assert liveness.status_code == 200
         assert liveness.json() == {
-            "status": "alive",
+            "status": "ok",
             "role": "portal-api",
+            "identity_fixture": False,
             "live_capital_authorized": False,
         }
 
@@ -76,7 +90,6 @@ def test_public_runtime_composes_identity_and_canonical_product_routes(
         assert client.get("/v1/positions").status_code == 401
     finally:
         app.state.database_engine.dispose()
-        runtime.app.state.database_engine.dispose()
 
 
 def test_public_production_runtime_rejects_sqlite(
@@ -86,8 +99,7 @@ def test_public_production_runtime_rejects_sqlite(
     database_url = _migrated_sqlite(tmp_path)
     _configure_public_runtime(monkeypatch, database_url)
 
-    runtime = importlib.import_module("ai_platform.portal.identity.public_runtime")
-    runtime = importlib.reload(runtime)
+    runtime = _load_public_runtime()
     runtime.app.state.database_engine.dispose()
 
     monkeypatch.setenv("PORTAL_ENVIRONMENT", "production")

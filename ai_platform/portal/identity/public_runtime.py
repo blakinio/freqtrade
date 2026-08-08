@@ -74,8 +74,9 @@ def build_public_app() -> FastAPI:
     @app.get("/healthz", include_in_schema=False)
     def healthz() -> dict[str, object]:
         return {
-            "status": "alive",
+            "status": "ok",
             "role": "portal-api",
+            "identity_fixture": False,
             "live_capital_authorized": False,
         }
 

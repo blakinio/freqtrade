@@ -54,6 +54,34 @@ The phrase `Zweryfikuj WickHunter WH-XX` starts a fresh validator session only w
 | `WH-08` | `docs/agents/tasks/FTAI-20260801-wickhunter-wh08-portal-observability-v1.md` |
 | `WH-09` | `docs/agents/tasks/FTAI-20260801-wickhunter-wh09-paper-validation-v1.md` |
 
+## WH09 parallel specialist commands
+
+Canonical prompts: `docs/agents/prompts/WICKHUNTER_WH09_PARALLEL_AGENTS.md`.
+
+These commands resolve through live WH09 state, Issue #1144 and the canonical prompt file. They do not authorize duplicate heavy computations or broaden model, deployment, credential, order, execution or live-capital authority.
+
+### `Uruchom WickHunter WH09 Signal/Data autonomicznie`
+
+Run Agent 1 — WH09 Signal and Data Evidence Analyst. Prefer consumption of an existing valid diagnostic over launching another one. Apply only the precommitted route rule and never select a candidate.
+
+### `Uruchom WickHunter WH09 Calibration autonomicznie`
+
+Run Agent 2 — WH09 Model and Calibration Analyst. Until the route is decision-grade, remain read-only. Implement calibration changes only after the Coordinator records `CALIBRATION_ROUTE_ADMISSIBLE`.
+
+### `Uruchom WickHunter WH09 Replay 900s autonomicznie`
+
+Run Agent 3 — WH09 Replay and Longer-Horizon Data Analyst. Before route resolution, prepare/read-only validate the 900-second path. Heavy rematerialization is allowed only after the Coordinator records `LONGER_HORIZON_ROUTE_REQUIRED`.
+
+### `Uruchom WickHunter WH09 Runtime autonomicznie`
+
+Run Agent 4 — WH09 PAPER Runtime and Acceptance Validator. Audit and prepare preflight in parallel, but do not start a fresh preflight/24-hour window until an operational candidate is proven.
+
+### `Uruchom WickHunter WH09 Coordinator autonomicznie`
+
+Run Agent 5 — WH09 Parallel Coordinator. Coordinate the four specialist roles, maintain at most two heavy trusted-runner computations across the lane, forbid duplicate experiments, record exactly one scientific route decision, integrate the successful route and continue through preflight/acceptance until a real stop.
+
+For any of these roles, `Kontynuuj` may replace `Uruchom`; the receiving agent must resume the live checkpoint rather than create a duplicate task, branch, PR or workflow.
+
 ## Twenty-two session phases
 
 The coordinator may use these phase identifiers in checkpoints and PR descriptions. The owner does not need to name them unless a specific phase is desired.
@@ -101,6 +129,12 @@ or:
 
 ```text
 Zweryfikuj WickHunter WH-04.
+```
+
+or:
+
+```text
+Uruchom WickHunter WH09 Coordinator autonomicznie.
 ```
 
 The receiving coordinator must resolve all detailed instructions from live repository state and must not ask the owner to paste the long prompt stored or generated elsewhere.

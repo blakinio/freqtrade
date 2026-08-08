@@ -31,6 +31,7 @@ from ai_platform.portal.execution.private_read import RuntimeReadFreshness
 
 
 NOW = datetime(2026, 7, 27, 12, 0, tzinfo=UTC)
+GENERATION_ID = "generation-1"
 
 
 def _capabilities(
@@ -72,6 +73,7 @@ def _command(
     action: LifecycleAction = LifecycleAction.START,
     capability: BotManagementCapability = BotManagementCapability.BOT_START,
     config_revision: int = 1,
+    runtime_generation_id: str = GENERATION_ID,
     runtime_id: str = "runtime-1",
     runtime_revision: int = 1,
 ) -> BotLifecycleCommand:
@@ -95,6 +97,7 @@ def _command(
             tenant_id=command_tenant,
             bot_id="bot-1",
             config_revision=config_revision,
+            runtime_generation_id=runtime_generation_id,
             runtime_id=runtime_id,
             runtime_revision=runtime_revision,
         ),
@@ -109,6 +112,7 @@ def _runtime(
     *,
     tenant_id: str = "tenant-a",
     config_revision: int = 1,
+    runtime_generation_id: str = GENERATION_ID,
     runtime_id: str = "runtime-1",
     runtime_revision: int = 1,
     freshness: RuntimeReadFreshness = RuntimeReadFreshness.CURRENT,
@@ -118,6 +122,7 @@ def _runtime(
         tenant_id=tenant_id,
         bot_id="bot-1",
         config_revision=config_revision,
+        runtime_generation_id=runtime_generation_id,
         runtime_id=runtime_id,
         runtime_revision=runtime_revision,
         environment=Environment.STAGING,
@@ -189,6 +194,19 @@ def test_revision_mismatch_is_rejected_with_observed_revision(
     assert outcome.status == CommandOutcomeStatus.REJECTED
     assert outcome.reason_codes == (CommandReasonCode.STALE_REVISION,)
     assert outcome.observed_config_revision == 2
+
+
+def test_generation_mismatch_is_rejected_with_observed_generation(
+    service: BotCommandService,
+) -> None:
+    context = _context()
+    command = _command(context, runtime_generation_id="generation-old")
+
+    outcome = service.submit_lifecycle(context, command, _runtime())
+
+    assert outcome.status == CommandOutcomeStatus.REJECTED
+    assert outcome.reason_codes == (CommandReasonCode.STALE_GENERATION,)
+    assert outcome.observed_runtime_generation_id == GENERATION_ID
 
 
 def test_stale_runtime_blocks_command(service: BotCommandService) -> None:

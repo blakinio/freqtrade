@@ -20,11 +20,12 @@ run_scope: autonomous_program
 continuation_policy: continue_until_real_stop
 task_completion_policy: checkpoint_and_handover
 implementation_authorized: true
-status: implementing
+status: validating
 base_branch: develop
 trusted_base_sha: 3f60af82000cac47baa0a3a4302603eb1522363f
 branch: feat/wickhunter-unified-runtime-mode-1396
 related_issue: 1396
+related_pr: 1397
 depends_on_issue: 1357
 depends_on_pr: 1388
 live_capital_authorized: false
@@ -57,7 +58,7 @@ This slice deliberately avoids every Portal/runtime-generation path currently ow
 - `A6`: reject `LIVE_BLOCKED` and `RESEARCH` as managed executable trading runtime modes in this product path.
 - `A7`: expose stable machine-readable rejection reason codes.
 - `A8`: prove canonical serialization/digest changes when mode or eligibility identity changes.
-- `A9`: focused tests prove SHADOW, eligible PAPER, ineligible PAPER, LIVE/RESEARCH rejection and zero-authority invariants.
+- `A9`: focused tests prove SHADOW, eligible PAPER, ineligible/malformed PAPER, LIVE/RESEARCH rejection, reconstruction invariants and zero-authority invariants.
 - `A10`: do not modify paths owned by PR #1388; document the consumer handoff needed for full Portal/runtime-generation/browser completion.
 
 ## Owned paths for this slice
@@ -65,13 +66,28 @@ This slice deliberately avoids every Portal/runtime-generation path currently ow
 ```yaml
 owned_paths:
   - ai_platform/wickhunter/runtime_mode.py
-  - tests/ai_platform/wickhunter/test_runtime_mode.py
+  - tests/ai_platform/test_wickhunter_runtime_mode.py
   - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
 ```
 
+## Producer result
+
+The bounded producer contract now provides:
+
+- canonical `BotMode` reuse rather than another mode enum;
+- immutable `ManagedRuntimeModeRequest` with canonical request digest;
+- immutable `RuntimeModeResolution` with canonical resolution digest;
+- SHADOW capability resolution with zero real-trading authority;
+- PAPER capability resolution only with positive, typed boolean authorization plus immutable authorization/candidate identity material;
+- direct reconstruction guards requiring a PAPER authorization digest for PAPER and forbidding it for SHADOW;
+- stable fail-closed reasons for missing, negative or malformed PAPER eligibility, LIVE-blocked requests, RESEARCH requests and unsupported mode/schema state;
+- explicit `orders_submitted=0`, no credentials, no real order adapter, no real exchange execution, no live capital and no automatic promotion in every successful managed resolution.
+
+The current WH09 H900 deployment is not made PAPER-eligible by this producer. It remains SHADOW until its own PAPER eligibility/authorization evidence exists.
+
 ## Required consumer after #1357 / PR #1388
 
-The canonical Portal integration must later bind this mode contract into:
+The canonical Portal integration must bind this mode contract into:
 
 ```text
 BotConfigRevision
@@ -83,37 +99,74 @@ BotConfigRevision
 
 The UI may offer SHADOW and PAPER only according to server-provided eligibility. LIVE remains visibly unavailable until a separate live-capital authorization package exists.
 
+## Validation evidence
+
+```yaml
+producer_code_head: fdb70ee0e4c36b5acab4a382496157a6c3bb11ca
+freqtrade_ci:
+  run_id: 31280379593
+  conclusion: success
+risk_aware_component_ci:
+  run_id: 31280379705
+  conclusion: success
+  ai_platform_tests_and_lint: success
+zizmor:
+  run_id: 31280379590
+  conclusion: success
+codeql:
+  run_id: 31280379605
+  conclusion_at_checkpoint: in_progress
+review_findings_repaired:
+  - pytest_reserved_request_parameter
+  - ruff_getattr_literal_field_access
+  - ruff_format_runtime_mode_expression
+  - PAPER_resolution_missing_authorization_identity
+  - PAPER_non_boolean_authorization_input
+```
+
+The documentation successor containing this checkpoint is not authorized to merge based on `producer_code_head`. Resolve PR #1397 live `head_sha` and require fresh exact-final-head CI/review before merge.
+
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 1
-updated_at: 2026-08-08T23:36:00+02:00
+checkpoint_version: 2
+updated_at: 2026-08-08T23:56:00+02:00
 branch: feat/wickhunter-unified-runtime-mode-1396
 issue: 1396
-status: implementing
-phase: producer_contract
+pr: 1397
+status: validating
+phase: producer_final_exact_head
 execution_mode: chat_github_actions
-context_pressure: low
-context_growth: stable
+context_pressure: medium
+context_growth: controlled
 decomposition_decision: phased
 session_rotation_count: 0
 invocation_started_at: 2026-08-08T23:31:00+02:00
-last_progress_at: 2026-08-08T23:36:00+02:00
+last_progress_at: 2026-08-08T23:56:00+02:00
+producer_code_head: fdb70ee0e4c36b5acab4a382496157a6c3bb11ca
+live_head_source: pr_1397
+exact_final_head_required: true
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 0
+repair_cycles_for_current_gate: 5
 repair_cycle_generation: unified_runtime_mode_contract
 context_reconstruction_attempts: 0
 stall_warnings: 0
 proven:
-  - canonical WickHunter BotMode already defines RESEARCH, SHADOW, PAPER, LIVE_BLOCKED
-  - existing PAPER request and observation contracts accept SHADOW/PAPER and enforce zero real-trading authority
-  - PR 1388 owns Portal RuntimeGeneration and rollout paths, so this slice must not fork that authority
+  - canonical WickHunter BotMode defines RESEARCH, SHADOW, PAPER, LIVE_BLOCKED and is reused
+  - SHADOW resolves with zero real-trading authority
+  - PAPER requires typed positive authorization plus immutable authorization/candidate identity and remains simulation-only
+  - malformed truthy authorization input fails closed
+  - reconstructed PAPER resolution cannot omit authorization identity and SHADOW cannot carry it
+  - LIVE_BLOCKED and RESEARCH fail closed for this managed runtime path
+  - canonical request/resolution digests bind mode and PAPER authorization identity
+  - code head fdb70ee0 passed Freqtrade CI and risk-aware AI Platform component CI including tests/lint
+  - PR 1388 owns Portal RuntimeGeneration and rollout paths, so this producer did not fork that authority
 unknown:
-  - final Portal mode selector and RuntimeGeneration binding until PR 1388 integration seam is stable
+  - final Portal mode selector and RuntimeGeneration binding until PR 1388 consumer integration is completed
 conflicts: []
 blockers:
   - full_stack_completion_depends_on_pr_1388
-next_action: Implement and test the conflict-free WickHunter runtime-mode producer contract, then hand it to the canonical RuntimeGeneration consumer instead of creating a parallel authority.
+next_action: Resolve PR #1397 live head, require fresh exact-final-head CI and independent review with no material P1/P2, merge the producer, then integrate it into canonical PR #1388 RuntimeGeneration/rollout truth rather than creating a parallel authority.
 ```

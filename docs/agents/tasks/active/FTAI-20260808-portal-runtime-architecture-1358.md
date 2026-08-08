@@ -22,19 +22,20 @@ branch: docs/portal-runtime-architecture-1358-20260808
 pull_request: 1367
 issue: 1358
 related_issue: 1356
-implementation_authorized: documentation_only
+implementation_authorized: documentation_and_governance_test
 live_capital_authorized: false
 protected_production_deployment_authorized: false
 owned_paths:
   - ARCHITECTURE_REGISTRY.yaml
   - docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md
+  - tests/ci/test_architecture_registry.py
   - docs/agents/tasks/active/FTAI-20260808-portal-runtime-architecture-1358.md
   - docs/agents/tasks/archive/FTAI-20260808-portal-runtime-architecture-1358.md
 ```
 
 ## Objective
 
-Record the owner's acceptance of Issue #1358 Option C as the binding dry-run runtime-control architecture, reconcile the canonical architecture registry, and leave implementation/runtime behavior unchanged.
+Record the owner's acceptance of Issue #1358 Option C as the binding dry-run runtime-control architecture, reconcile the canonical architecture registry, add the bounded registry lifecycle guard required by #1356, and leave product/runtime behavior unchanged.
 
 ## Accepted architecture scope
 
@@ -54,36 +55,53 @@ Record the owner's acceptance of Issue #1358 Option C as the binding dry-run run
 ## Acceptance inventory
 
 - [x] `ARCHITECTURE_DECISIONS.md` contains accepted ADR-020 with migration/consequence boundaries and no live-capital authority.
-- [x] `ARCHITECTURE_REGISTRY.yaml` removes closed #1251/#1252 from open findings, marks the completed architecture review truthfully, and indexes ADR-020 plus still-open runtime architecture findings.
+- [x] `ARCHITECTURE_REGISTRY.yaml` removes closed #1251/#1252 from open findings and marks the completed architecture review truthfully.
+- [x] Historical #1251 review SHA/report provenance remains unchanged; the new ADR-020 decision records its own verified base SHA separately.
+- [x] Registry indexes ADR-020 plus still-open runtime architecture findings #1353/#1354/#1355/#1357.
 - [x] Registry preserves accepted-decision precedence over older target-state text.
+- [x] `tests/ci/test_architecture_registry.py` prevents resolved findings from also remaining in the open-finding set and verifies the latest accepted ADR exists in the binding decision log.
 - [x] No product code, deployment, credentials, trading configuration or runtime behavior changes.
-- [ ] Documentation/governance validation passes on the exact final head.
-- [ ] Fresh documentation audit finds no material contradiction.
-- [ ] Related PRs are terminal and Issues #1356/#1358 are reconciled only after merge.
+- [x] Fresh architecture-document audit found no remaining material contradiction after remediation.
+- [ ] Focused registry guard and required exact-head CI pass.
+- [ ] PR #1367 is terminal; Issues #1356/#1358 are closed by the merged decision/governance change.
+
+## Fresh architecture-document audit
+
+Audit input was reconstructed from the exact PR diff, the owner-accepted #1358 proposal, live Issues #1251/#1252/#1353/#1354/#1355/#1356/#1357/#1358 and the current accepted decision hierarchy rather than from the implementation summary.
+
+Material findings found and remediated before final CI:
+
+1. **Historical review provenance was initially overwritten by current synchronization metadata.** The FTAI-ARCH-001 `audited_base_sha`/`synchronized_base_sha` and review date now remain bound to the original #1251/#1255 review evidence; ADR-020 has a separate `latest_architecture_change.base_sha`.
+2. **The initial PR incorrectly proposed closing #1356 without its preventive lifecycle guard.** A focused CI regression test now enforces resolved/open finding disjointness and accepted-ADR linkage, so #1356 can close with the merged change.
+
+No remaining critical/high/material-medium documentation finding was identified. Open #1353/#1354/#1355/#1357 remain implementation findings and are not misrepresented as implemented merely because their architectural direction is accepted by ADR-020.
 
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 2
-updated_at: 2026-08-08T09:24:08+02:00
+checkpoint_version: 3
+updated_at: 2026-08-08T09:30:02+02:00
 status: validating
-phase: exact_head_documentation_validation
+phase: terminal_exact_head_validation
 base_head: 62dc76164bd771e47365d7076af10cbd878061dd
 branch: docs/portal-runtime-architecture-1358-20260808
 pull_request: 1367
+validation_input_head: 9ce48ec854073d59deb67ccb3223b7b9612cdb59
 proven:
   - owner explicitly accepted Option C from Issue 1358
   - Issues 1251 and 1252 are closed/completed
+  - Issues 1353, 1354, 1355 and 1357 remain open implementation findings
+  - Issue 1356 remains open until the lifecycle guard and registry repair merge
   - no competing open PR was found for Issue 1358 or architecture registry work
   - ADR-020 and the registry reconciliation are committed on the task branch
-  - the branch was merge-forwarded without force to current develop 62dc76164bd771e47365d7076af10cbd878061dd
+  - the branch was merge-forwarded without force to develop 62dc76164bd771e47365d7076af10cbd878061dd
   - the develop delta since task start is WickHunter-only and does not overlap owned paths
+  - fresh documentation audit found and repaired two material governance-documentation defects
   - PR 1367 is the sole delivery PR for this architecture acceptance change
 unknown:
-  - exact-head CI result for the final validation head
-  - fresh documentation audit result
+  - exact-head focused/required CI result after the final checkpoint commit
 blockers: []
-next_action: Run fresh documentation consistency audit and exact-head required CI for PR #1367, then terminalize the PR if all gates pass.
+next_action: Observe aggregate required CI for the final PR head; if green and current-base/review state remains clean, mark the PR ready and merge without bypass.
 ```
 
 ## Recovery checkpoint
@@ -91,22 +109,22 @@ next_action: Run fresh documentation consistency audit and exact-head required C
 ```yaml
 recovery:
   policy_version: 1
-  generation: 1
+  generation: 2
   session_id: portal-runtime-architecture-20260808T0915+0200
   session_started_at: 2026-08-08T09:15:00+02:00
-  checkpointed_at: 2026-08-08T09:24:08+02:00
-  last_progress_at: 2026-08-08T09:24:08+02:00
-  phase: exact_head_documentation_validation
-  exact_head: 35069acfbc310c166ed86433bb215089d8db5fc4
+  checkpointed_at: 2026-08-08T09:30:02+02:00
+  last_progress_at: 2026-08-08T09:30:02+02:00
+  phase: terminal_exact_head_validation
+  exact_head: 9ce48ec854073d59deb67ccb3223b7b9612cdb59
   pull_request: 1367
-  active_operation: exact-head CI and fresh documentation audit
+  active_operation: exact-head focused and required CI
   external_run_ids: []
-  operation_started_at: 2026-08-08T09:24:08+02:00
-  wait_deadline_at: 2026-08-08T10:09:08+02:00
-  check_generation: architecture-acceptance-1367
+  operation_started_at: 2026-08-08T09:30:02+02:00
+  wait_deadline_at: 2026-08-08T10:15:02+02:00
+  check_generation: architecture-acceptance-1367-final
   checks_used: 0
   status: active
   safe_to_resume: true
   resume_condition: PR 1367 exact-head CI/review state changes or current develop advances materially on owned architecture paths
-  next_action: Inspect the fresh exact diff for semantic contradictions, then observe aggregate required CI for the final head.
+  next_action: Aggregate exact-head workflow state for PR 1367 and merge only after every required gate passes.
 ```

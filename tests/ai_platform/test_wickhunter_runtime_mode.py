@@ -63,7 +63,7 @@ def test_eligible_paper_resolves_as_simulation_only() -> None:
 
 
 @pytest.mark.parametrize(
-    ("request", "reason"),
+    ("mode_request", "reason"),
     [
         (
             ManagedRuntimeModeRequest(mode=BotMode.PAPER),
@@ -84,11 +84,11 @@ def test_eligible_paper_resolves_as_simulation_only() -> None:
     ],
 )
 def test_paper_rejects_missing_negative_or_malformed_evidence(
-    request: ManagedRuntimeModeRequest,
+    mode_request: ManagedRuntimeModeRequest,
     reason: RuntimeModeRejectionReason,
 ) -> None:
     with pytest.raises(RuntimeModeResolutionError) as exc_info:
-        resolve_managed_runtime_mode(request)
+        resolve_managed_runtime_mode(mode_request)
 
     assert exc_info.value.reason is reason
 

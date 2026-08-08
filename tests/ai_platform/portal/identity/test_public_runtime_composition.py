@@ -65,7 +65,7 @@ def test_public_runtime_composes_identity_and_canonical_product_routes(
     app = runtime.app
     client = TestClient(app)
     try:
-        paths = {route.path for route in app.routes}
+        paths = set(app.openapi()["paths"])
         assert runtime._REQUIRED_COMPOSED_ROUTES <= paths
         assert app.state.public_runtime_unprivileged is True
 

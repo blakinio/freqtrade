@@ -544,8 +544,11 @@ def _fit_calibration(
     probabilities: list[Decimal] = []
     previous = Decimal("0")
     for count, positive in zip(counts, positives, strict=True):
-        calibrated = Decimal(positive + 1) / Decimal(count + 2)
-        calibrated = max(previous, calibrated).quantize(Decimal("0.000000000001"))
+        if count == 0:
+            calibrated = previous
+        else:
+            calibrated = Decimal(positive + 1) / Decimal(count + 2)
+            calibrated = max(previous, calibrated).quantize(Decimal("0.000000000001"))
         probabilities.append(calibrated)
         previous = calibrated
     probabilities[-1] = max(probabilities[-1], previous)

@@ -470,3 +470,44 @@ def test_builds_verifies_reproduces_and_rejects_tampering(
             price_path_root=price_root,
             output_root=output,
         )
+
+
+def test_build_labels_excludes_only_split_boundary_ineligible_rows() -> None:
+    decision_timestamp_ms = START + 10_000
+    eligible_row = subject._DatasetRow("train", SYMBOL, decision_timestamp_ms, "1" * 64)
+    ineligible_row = subject._DatasetRow("train", SYMBOL, START + 95_000, "2" * 64)
+    request = subject.ReplayRequest(
+        schema_version=subject.REQUEST_SCHEMA_VERSION,
+        package_id="boundary-filter-test",
+        dataset_id=DATASET_ID,
+        dataset_manifest_sha256="3" * 64,
+        market_manifest_sha256=MARKET_HASH,
+        price_path_package_id="price-path-boundary-test",
+        price_path_manifest_sha256=PRICE_PATH_HASH,
+        source_commit_sha=CODE_SHA,
+        split_geometry_sha256=SPLIT_HASH,
+        split_windows=(subject.ReplaySplitWindow("train", START, START + 100_000),),
+        sides=(TradeDirection.LONG, TradeDirection.SHORT),
+        policy=_policy(),
+        protected_holdout_excluded=True,
+        immutable_inputs_mutated=False,
+        model_execution_authorized=False,
+        performance_research_authorized=False,
+        execution_enabled=False,
+        live_capital_authorized=False,
+        trading_credentials_present=False,
+        orders_submitted=0,
+    )
+    trades = {
+        SYMBOL: (
+            _trade(1, decision_timestamp_ms, "100"),
+            _trade(2, decision_timestamp_ms + 10_000, "101"),
+        )
+    }
+
+    labels = subject._build_labels(
+        rows=(eligible_row, ineligible_row), trades_by_symbol=trades, request=request
+    )
+
+    assert len(labels) == 2
+    assert {label.dataset_row_sha256 for label in labels} == {"1" * 64}

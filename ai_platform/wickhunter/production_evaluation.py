@@ -577,8 +577,8 @@ def load_verified_evaluation_dataset(
     rows = _load_dataset_rows(dataset_root, dataset_manifest)
     labels_by_row = _load_labels(replay_root, replay_manifest)
 
-    if set(rows) != set(labels_by_row):
-        raise ProductionEvaluationError("dataset rows and replay labels do not form an exact join")
+    if not set(labels_by_row).issubset(rows):
+        raise ProductionEvaluationError("replay labels reference unknown dataset rows")
     cases = tuple(
         sorted(
             (
@@ -589,6 +589,7 @@ def load_verified_evaluation_dataset(
                     labels=labels_by_row[row_sha],
                 )
                 for row_sha, row in rows.items()
+                if row_sha in labels_by_row
             ),
             key=lambda case: (
                 case.split_name,
@@ -598,6 +599,12 @@ def load_verified_evaluation_dataset(
             ),
         )
     )
+    if replay_manifest.get("source_decision_count", len(rows)) != len(rows):
+        raise ProductionEvaluationError("evaluation source decision count does not match dataset")
+    if replay_manifest.get("excluded_split_boundary_decision_count", len(rows) - len(cases)) != len(
+        rows
+    ) - len(cases):
+        raise ProductionEvaluationError("evaluation excluded decision count mismatch")
     if len(cases) != replay_manifest.get("decision_count"):
         raise ProductionEvaluationError("evaluation case count does not match replay decisions")
     if replay_manifest.get("label_count") != len(cases) * 2:

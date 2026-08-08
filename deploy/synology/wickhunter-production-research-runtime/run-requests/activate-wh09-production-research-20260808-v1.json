@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "request_id": "wickhunter-wh09-production-research-activation-20260808-v1",
+  "target_environment": "synology-staging",
+  "deploy_commit": "ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5",
+  "mode": "shadow",
+  "model_package_id": "wickhunter-wh09-candidate-materialization-20260808-r1-h900s-7b23a958fd4d",
+  "no_trade_confidence": "0.60",
+  "outcome_horizon_seconds": 900,
+  "persistent_internal_demo_production_authorized": true,
+  "paper_activation_authorized": false,
+  "automatic_promotion_enabled": false,
+  "trading_credentials_present": false,
+  "order_adapter_present": false,
+  "execution_enabled": false,
+  "orders_submitted": 0,
+  "live_capital_authorized": false
+}

@@ -7,6 +7,7 @@ name: Deploy WickHunter WH09 Production Research Runtime
     paths:
       - deploy/synology/wickhunter-production-research-runtime/run-requests/activate-wh09-production-research-20260808-v1.json
       - deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260808-v2.json
+      - deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260808-v3.json
 
 permissions:
   contents: read
@@ -18,6 +19,7 @@ concurrency:
 env:
   REQUEST_PATH: deploy/synology/wickhunter-production-research-runtime/run-requests/activate-wh09-production-research-20260808-v1.json
   RETRY_PATH: deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260808-v2.json
+  RETRY_V3_PATH: deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260808-v3.json
   DEPLOY_COMMIT: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
   STATE_DIR: /var/lib/freqtrade-staging-state
   MODEL_PACKAGE_REL: wickhunter-candidate-materialization/packages/wickhunter-wh09-candidate-materialization-20260808-r1-h900s-7b23a958fd4d
@@ -90,15 +92,53 @@ jobs:
               "orders_submitted": 0,
               "live_capital_authorized": False,
           }
+          retry_v3_expected = {
+              "schema_version": 1,
+              "request_id": "wickhunter-wh09-production-research-deploy-retry-20260808-v3",
+              "deploy_commit": "ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5",
+              "previous_run_id": 31273808566,
+              "previous_job_id": 93144045334,
+              "failure_class": "synology_kernel_rejects_nanocpus_without_cpu_cfs",
+              "reuse_exact_image_if_present": True,
+              "synology_cpu_cfs_limit_disabled": True,
+              "persistent_internal_demo_production_authorized": True,
+              "mode": "shadow",
+              "no_trade_confidence": "0.60",
+              "paper_activation_authorized": False,
+              "automatic_promotion_enabled": False,
+              "trading_credentials_present": False,
+              "order_adapter_present": False,
+              "execution_enabled": False,
+              "orders_submitted": 0,
+              "live_capital_authorized": False,
+          }
           request = json.loads(Path("deploy/synology/wickhunter-production-research-runtime/run-requests/activate-wh09-production-research-20260808-v1.json").read_text(encoding="utf-8"))
           retry = json.loads(Path("deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260808-v2.json").read_text(encoding="utf-8"))
+          retry_v3 = json.loads(Path("deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260808-v3.json").read_text(encoding="utf-8"))
           if request != request_expected:
               raise SystemExit("WH09 deployment authorization contract mismatch")
           if retry != retry_expected:
-              raise SystemExit("WH09 deployment retry contract mismatch")
+              raise SystemExit("WH09 deployment retry v2 contract mismatch")
+          if retry_v3 != retry_v3_expected:
+              raise SystemExit("WH09 deployment retry v3 contract mismatch")
           PY
           git cat-file -e "$DEPLOY_COMMIT^{commit}"
           git merge-base --is-ancestor "$DEPLOY_COMMIT" "$GITHUB_SHA"
+
+      - name: Snapshot authorized Synology compose
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          AUTHORIZED_COMPOSE_SNAPSHOT="$RUNNER_TEMP/wickhunter-wh09-authorized-compose.yaml"
+          cp -- "$COMPOSE_FILE" "$AUTHORIZED_COMPOSE_SNAPSHOT"
+          if grep -Eq '^[[:space:]]+(cpus|cpu_quota|cpu_period):' "$AUTHORIZED_COMPOSE_SNAPSHOT"; then
+            echo "Authorized compose contains forbidden CPU-CFS/NanoCPUs fields" >&2
+            exit 1
+          fi
+          grep -Fq 'pids_limit: 256' "$AUTHORIZED_COMPOSE_SNAPSHOT"
+          grep -Fq 'mem_limit: 2g' "$AUTHORIZED_COMPOSE_SNAPSHOT"
+          printf 'AUTHORIZED_COMPOSE_SNAPSHOT=%s\n' "$AUTHORIZED_COMPOSE_SNAPSHOT" >> "$GITHUB_ENV"
 
       - name: Checkout exact merged runtime implementation
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
@@ -249,7 +289,6 @@ jobs:
           export CIRCUIT_BREAKER_ACTIVE=false
           export SUPERVISOR_CYCLES=0
           export HEALTH_MAX_AGE_SECONDS=600
-          docker compose -f "$COMPOSE_FILE" config --quiet
 
           revision=""
           if docker image inspect "$WICKHUNTER_RESEARCH_RUNTIME_IMAGE" >/dev/null 2>&1; then
@@ -267,6 +306,12 @@ jobs:
           image_id="$(docker image inspect --format '{{.Id}}' "$WICKHUNTER_RESEARCH_RUNTIME_IMAGE")"
           [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]
 
+          cp -- "$AUTHORIZED_COMPOSE_SNAPSHOT" "$COMPOSE_FILE"
+          if grep -Eq '^[[:space:]]+(cpus|cpu_quota|cpu_period):' "$COMPOSE_FILE"; then
+            echo "Authorized compose contains forbidden CPU-CFS/NanoCPUs fields" >&2
+            exit 1
+          fi
+          docker compose -f "$COMPOSE_FILE" config --quiet
           docker compose -f "$COMPOSE_FILE" up \
             -d --no-build --force-recreate --remove-orphans \
             wickhunter-production-research-runtime
@@ -435,7 +480,7 @@ jobs:
           report = {
               "schema_version": 1,
               "result": "PASS",
-              "request_id": "wickhunter-wh09-production-research-deploy-retry-20260808-v2",
+              "request_id": "wickhunter-wh09-production-research-deploy-retry-20260808-v3",
               "deployment_commit": deploy_commit,
               "workflow_authorization_commit": os.environ["GITHUB_SHA"],
               "runner_name": os.environ.get("RUNNER_NAME", "freqtrade-synology-staging"),
@@ -444,6 +489,7 @@ jobs:
               "image": os.environ["WICKHUNTER_RESEARCH_RUNTIME_IMAGE"],
               "image_id": os.environ["RUNTIME_IMAGE_ID"],
               "liquid20_active_run_id": os.environ["LIQUID20_ACTIVE_RUN_ID"],
+              "synology_cpu_cfs_limit_disabled": True,
               "baseline": {
                   "checked_at_ms": baseline[0],
                   "runtime_generation": baseline[1],

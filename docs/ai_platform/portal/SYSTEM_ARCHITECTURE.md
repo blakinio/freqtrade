@@ -282,6 +282,8 @@ get open positions/orders/trades through Gateway
 
 The Gateway is not a raw reverse proxy and the Supervisor is not an arbitrary container API.
 
+At the trusted task base, the existing `FreqtradeExecutionAdapter` still represents pre-ADR-020 implementation state: it implements bounded private dry-run lifecycle/health, while direct approved-intent order submission and portfolio/order/trade query coverage remain fail-closed/incomplete as recorded by exact current code and tests. That legacy state is evidence of implementation progress, not the final ADR-020 security topology.
+
 Current implementation completeness must be established from exact code/test/deployment evidence. Older repository adapters that predate ADR-020 must not be represented as the final composed security boundary merely because their interface exists.
 
 ## 6. Execution Plane
@@ -504,10 +506,12 @@ Requirements:
 - `tenant_id` on tenant-owned records;
 - authorization enforced server-side on every access path;
 - PostgreSQL row-level security considered as defense in depth for sensitive tables;
+- tenant-scoped encryption context for high-value secrets where supported;
 - object-storage keys/namespaces include non-guessable tenant scope;
 - events include tenant scope but never secrets;
 - logs avoid cross-tenant payload leakage;
 - E2E includes User A -> User B denial tests;
+- background workers carry explicit tenant context;
 - RuntimeGeneration/Supervisor operations are exact tenant+bot+generation bound;
 - unrelated runtime networks cannot communicate.
 

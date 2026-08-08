@@ -58,7 +58,7 @@ This slice deliberately avoids every Portal/runtime-generation path currently ow
 - `A6`: reject `LIVE_BLOCKED` and `RESEARCH` as managed executable trading runtime modes in this product path.
 - `A7`: expose stable machine-readable rejection reason codes.
 - `A8`: prove canonical serialization/digest changes when mode or eligibility identity changes.
-- `A9`: focused tests prove SHADOW, eligible PAPER, ineligible/malformed PAPER, LIVE/RESEARCH rejection, reconstruction invariants and zero-authority invariants.
+- `A9`: focused tests prove SHADOW, eligible PAPER, ineligible/malformed PAPER, LIVE/RESEARCH rejection, reconstruction/type invariants and zero-authority invariants.
 - `A10`: do not modify paths owned by PR #1388; document the consumer handoff needed for full Portal/runtime-generation/browser completion.
 
 ## Owned paths for this slice
@@ -79,7 +79,8 @@ The bounded producer contract now provides:
 - immutable `RuntimeModeResolution` with canonical resolution digest;
 - SHADOW capability resolution with zero real-trading authority;
 - PAPER capability resolution only with positive, typed boolean authorization plus immutable authorization/candidate identity material;
-- direct reconstruction guards requiring a PAPER authorization digest for PAPER and forbidding it for SHADOW;
+- direct reconstruction guards requiring a real `BotMode`, requiring a PAPER authorization digest for PAPER and forbidding it for SHADOW;
+- raw string modes such as `"paper"` / `"shadow"` fail closed instead of relying on `StrEnum` equality;
 - stable fail-closed reasons for missing, negative or malformed PAPER eligibility, LIVE-blocked requests, RESEARCH requests and unsupported mode/schema state;
 - explicit `orders_submitted=0`, no credentials, no real order adapter, no real exchange execution, no live capital and no automatic promotion in every successful managed resolution.
 
@@ -102,26 +103,27 @@ The UI may offer SHADOW and PAPER only according to server-provided eligibility.
 ## Validation evidence
 
 ```yaml
-producer_code_head: fdb70ee0e4c36b5acab4a382496157a6c3bb11ca
+producer_code_head: 137cac48e03f78e349793361153e12507bd7e544
 freqtrade_ci:
-  run_id: 31280379593
+  run_id: 31280734057
   conclusion: success
 risk_aware_component_ci:
-  run_id: 31280379705
+  run_id: 31280734172
   conclusion: success
   ai_platform_tests_and_lint: success
-zizmor:
-  run_id: 31280379590
-  conclusion: success
 codeql:
-  run_id: 31280379605
-  conclusion_at_checkpoint: in_progress
+  run_id: 31280708632
+  conclusion: success
+zizmor:
+  run_id: 31280708686
+  conclusion: success
 review_findings_repaired:
   - pytest_reserved_request_parameter
   - ruff_getattr_literal_field_access
   - ruff_format_runtime_mode_expression
   - PAPER_resolution_missing_authorization_identity
   - PAPER_non_boolean_authorization_input
+  - reconstructed_raw_string_mode_bypassed_identity_checks
 ```
 
 The documentation successor containing this checkpoint is not authorized to merge based on `producer_code_head`. Resolve PR #1397 live `head_sha` and require fresh exact-final-head CI/review before merge.
@@ -129,8 +131,8 @@ The documentation successor containing this checkpoint is not authorized to merg
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 2
-updated_at: 2026-08-08T23:56:00+02:00
+checkpoint_version: 3
+updated_at: 2026-08-09T00:05:00+02:00
 branch: feat/wickhunter-unified-runtime-mode-1396
 issue: 1396
 pr: 1397
@@ -142,14 +144,14 @@ context_growth: controlled
 decomposition_decision: phased
 session_rotation_count: 0
 invocation_started_at: 2026-08-08T23:31:00+02:00
-last_progress_at: 2026-08-08T23:56:00+02:00
-producer_code_head: fdb70ee0e4c36b5acab4a382496157a6c3bb11ca
+last_progress_at: 2026-08-09T00:05:00+02:00
+producer_code_head: 137cac48e03f78e349793361153e12507bd7e544
 live_head_source: pr_1397
 exact_final_head_required: true
-ci_checks_for_current_head: 0
+ci_checks_for_current_head: 4
 unchanged_state_checks: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 5
+repair_cycles_for_current_gate: 6
 repair_cycle_generation: unified_runtime_mode_contract
 context_reconstruction_attempts: 0
 stall_warnings: 0
@@ -159,9 +161,11 @@ proven:
   - PAPER requires typed positive authorization plus immutable authorization/candidate identity and remains simulation-only
   - malformed truthy authorization input fails closed
   - reconstructed PAPER resolution cannot omit authorization identity and SHADOW cannot carry it
+  - reconstructed/request modes must be actual BotMode instances; raw strings fail closed
   - LIVE_BLOCKED and RESEARCH fail closed for this managed runtime path
   - canonical request/resolution digests bind mode and PAPER authorization identity
-  - code head fdb70ee0 passed Freqtrade CI and risk-aware AI Platform component CI including tests/lint
+  - code head 137cac48 passed Freqtrade CI, risk-aware AI Platform component CI, CodeQL and zizmor
+  - all material P2 findings on the producer code head were repaired before this checkpoint
   - PR 1388 owns Portal RuntimeGeneration and rollout paths, so this producer did not fork that authority
 unknown:
   - final Portal mode selector and RuntimeGeneration binding until PR 1388 consumer integration is completed

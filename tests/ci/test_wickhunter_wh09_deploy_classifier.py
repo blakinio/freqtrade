@@ -61,6 +61,21 @@ def test_actions_style_push_without_changed_file_arrays_uses_exact_git_range(
     assert diagnostic_request_changed_in_push(event, DIAGNOSTIC_PATH, repo_root=repo) is True
 
 
+def test_git_range_classifier_detects_touch_reverted_before_final_tree(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    before = _git(repo, "rev-parse", "HEAD")
+    target = repo / DIAGNOSTIC_PATH
+    target.parent.mkdir(parents=True)
+    target.write_text("{}\n", encoding="utf-8")
+    _commit(repo, "touch diagnostic request")
+    target.unlink()
+    after = _commit(repo, "restore final tree")
+
+    assert not target.exists()
+    event = {"before": before, "after": after, "commits": [{"id": after}]}
+    assert diagnostic_request_changed_in_push(event, DIAGNOSTIC_PATH, repo_root=repo) is True
+
+
 def test_git_range_classifier_requires_exact_path_element(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     before = _git(repo, "rev-parse", "HEAD")
@@ -71,6 +86,23 @@ def test_git_range_classifier_requires_exact_path_element(tmp_path: Path) -> Non
 
     event = {"before": before, "after": after, "commits": [{"id": after}]}
     assert diagnostic_request_changed_in_push(event, DIAGNOSTIC_PATH, repo_root=repo) is False
+
+
+def test_git_range_classifier_rejects_non_ancestor_before(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    base = _git(repo, "rev-parse", "HEAD")
+
+    subprocess.run(["git", "checkout", "-b", "side", base], cwd=repo, check=True)
+    (repo / "side.txt").write_text("side\n", encoding="utf-8")
+    before = _commit(repo, "side commit")
+
+    subprocess.run(["git", "checkout", "develop"], cwd=repo, check=True)
+    (repo / "after.txt").write_text("after\n", encoding="utf-8")
+    after = _commit(repo, "after commit")
+
+    event = {"before": before, "after": after, "commits": [{"id": after}]}
+    with pytest.raises(DeployRequestClassificationError, match="not an ancestor"):
+        diagnostic_request_changed_in_push(event, DIAGNOSTIC_PATH, repo_root=repo)
 
 
 def test_git_range_classifier_fails_closed_for_unprovable_push_range(tmp_path: Path) -> None:

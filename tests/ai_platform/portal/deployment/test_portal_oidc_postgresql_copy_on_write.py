@@ -121,10 +121,14 @@ def test_existing_postgresql_is_cloned_after_quiesce_before_migration() -> None:
     assert captured_report["database"] == {
         "state_transition": "postgresql_copy_on_write",
         "pre_migration_backup_sha256": "backup-sha256",
+        "source_database": "portal_candidate_oldoldold",
+        "candidate_database": "portal_candidate_aaaaaaaaaaaa",
         "source_database_retained_for_rollback": True,
     }
     assert captured_report["database_recovery"] == {
         "pre_migration_backup_sha256": "backup-sha256",
+        "source_database": "portal_candidate_oldoldold",
+        "candidate_database": "portal_candidate_aaaaaaaaaaaa",
         "source_database_retained_for_rollback": True,
         "restore_authorized": False,
     }

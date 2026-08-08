@@ -5,8 +5,8 @@ default_branch: develop
 
 review:
   last_reviewed_at: "2026-08-08"
-  audited_base_sha: c9aedeb75c9de5e6df18c36968c3f6a9126fd29c
-  synchronized_base_sha: c9aedeb75c9de5e6df18c36968c3f6a9126fd29c
+  audited_base_sha: 62dc76164bd771e47365d7076af10cbd878061dd
+  synchronized_base_sha: 62dc76164bd771e47365d7076af10cbd878061dd
   review_issue: 1251
   review_task: FTAI-ARCH-001
   review_pr: 1255

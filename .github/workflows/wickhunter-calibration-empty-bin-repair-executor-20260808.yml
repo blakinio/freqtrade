@@ -59,47 +59,63 @@ jobs:
 
           scorer = Path("ai_platform/wickhunter/lightgbm_scorer.py")
           text = scorer.read_text(encoding="utf-8")
-          old = '''    for count, positive in zip(counts, positives, strict=True):
-              calibrated = Decimal(positive + 1) / Decimal(count + 2)
-              calibrated = max(previous, calibrated).quantize(Decimal("0.000000000001"))
-              probabilities.append(calibrated)
-              previous = calibrated
-          probabilities[-1] = max(probabilities[-1], previous)
-          '''
-          new = '''    for count, positive in zip(counts, positives, strict=True):
-              if count == 0:
-                  calibrated = previous
-              else:
-                  calibrated = Decimal(positive + 1) / Decimal(count + 2)
-                  calibrated = max(previous, calibrated).quantize(Decimal("0.000000000001"))
-              probabilities.append(calibrated)
-              previous = calibrated
-          probabilities[-1] = max(probabilities[-1], previous)
-          '''
+          old = (
+              '    for count, positive in zip(counts, positives, strict=True):\n'
+              '        calibrated = Decimal(positive + 1) / Decimal(count + 2)\n'
+              '        calibrated = max(previous, calibrated).quantize(Decimal("0.000000000001"))\n'
+              '        probabilities.append(calibrated)\n'
+              '        previous = calibrated\n'
+              '    probabilities[-1] = max(probabilities[-1], previous)\n'
+          )
+          new = (
+              '    for count, positive in zip(counts, positives, strict=True):\n'
+              '        if count == 0:\n'
+              '            calibrated = previous\n'
+              '        else:\n'
+              '            calibrated = Decimal(positive + 1) / Decimal(count + 2)\n'
+              '            calibrated = max(previous, calibrated).quantize(Decimal("0.000000000001"))\n'
+              '        probabilities.append(calibrated)\n'
+              '        previous = calibrated\n'
+              '    probabilities[-1] = max(probabilities[-1], previous)\n'
+          )
           if text.count(old) != 1:
               raise SystemExit("unexpected calibration implementation identity")
           scorer.write_text(text.replace(old, new), encoding="utf-8")
 
           tests = Path("tests/ai_platform_integration/test_wickhunter_lightgbm_scorer.py")
           body = tests.read_text(encoding="utf-8")
-          old_import = '''    LightGBMTrainingPolicy,
-              evaluate_lightgbm_against_baseline,
-              train_lightgbm_scorer,
+          old_import = (
+              '    LightGBMTrainingPolicy,\n'
+              '    evaluate_lightgbm_against_baseline,\n'
+              '    train_lightgbm_scorer,\n'
           )
-          '''
-          new_import = '''    LightGBMTrainingPolicy,
-              _fit_calibration,
-              evaluate_lightgbm_against_baseline,
-              train_lightgbm_scorer,
+          new_import = (
+              '    LightGBMTrainingPolicy,\n'
+              '    _fit_calibration,\n'
+              '    evaluate_lightgbm_against_baseline,\n'
+              '    train_lightgbm_scorer,\n'
           )
-          '''
           if body.count(old_import) != 1:
               raise SystemExit("unexpected scorer import identity")
           body = body.replace(old_import, new_import)
           marker = "def test_empty_calibration_bins_do_not_invent_confidence()"
           if marker in body:
               raise SystemExit("calibration regression tests already present")
-          body += '''\n\ndef test_empty_calibration_bins_do_not_invent_confidence() -> None:\n    curve = _fit_calibration((0.01, 0.02), (0, 0), bins=10)\n\n    assert curve.probabilities == (Decimal("0.250000000000"),) * 10\n\n\ndef test_leading_empty_calibration_bins_remain_unsupported() -> None:\n    curve = _fit_calibration((0.75,), (1,), bins=10)\n\n    assert curve.probabilities[:7] == (Decimal("0"),) * 7\n    assert curve.probabilities[7:] == (Decimal("0.666666666667"),) * 3\n'''
+          body += '''
+
+
+def test_empty_calibration_bins_do_not_invent_confidence() -> None:
+    curve = _fit_calibration((0.01, 0.02), (0, 0), bins=10)
+
+    assert curve.probabilities == (Decimal("0.250000000000"),) * 10
+
+
+def test_leading_empty_calibration_bins_remain_unsupported() -> None:
+    curve = _fit_calibration((0.75,), (1,), bins=10)
+
+    assert curve.probabilities[:7] == (Decimal("0"),) * 7
+    assert curve.probabilities[7:] == (Decimal("0.666666666667"),) * 3
+'''
           tests.write_text(body, encoding="utf-8")
           PY
 

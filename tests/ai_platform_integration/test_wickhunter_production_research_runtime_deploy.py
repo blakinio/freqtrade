@@ -188,6 +188,7 @@ def test_diagnostic_v4_is_read_only_and_bound_to_failed_deployment() -> None:
     assert "if: always()" in workflow
     assert "contains(github.event.head_commit.added" in workflow
     assert "!contains(github.event.head_commit.added" in workflow
+    assert "!contains(github.event.head_commit.removed" in workflow
 
     diagnose_index = workflow.index("  diagnose:")
     diagnostic_section = workflow[diagnose_index:]

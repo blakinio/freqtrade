@@ -15,11 +15,11 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  WORKFLOW_PATH: .github/workflows/wickhunter-wh09-replay-h900-heavy-20260808-r1.yml
   TRUSTED_BASE_SHA: 7b23a958fd4d2bb43569c7f693d2247ef43d1ae9
   PINNED_PAYLOAD_COMMIT: c07104e66f16d3117cdf1c9c09da49baa6392fb2
   PINNED_PAYLOAD_BLOB: 14cdfbfffe40d492b0fc62fc2a337ccddc0a0f3a
   PINNED_PAYLOAD_PATH: .github/workflows/wickhunter-wh09-replay-h900-heavy-20260808-r1.yml
+  REQUEST_PATH: .github/workflows/wickhunter-wh09-replay-h900-heavy-20260808-r1.yml
   DATASET_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-datasets/wickhunter-wh01-production-dataset-20260731-v3-e02199bfac82-eaccc5ec-8f5be573
   DATASET_ID: wickhunter-wh01-production-dataset-20260731-v3-e02199bfac82-eaccc5ec-8f5be573
   DATASET_MANIFEST_SHA256: fbf6c4fc35ad012db010eda29a6110c114669d972a1cc14533d9cda733cd23a1
@@ -77,7 +77,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Validate exact request, runner and closed authority
+      - name: Validate request, runner and closed authority
         id: identity
         shell: bash
         env:
@@ -89,26 +89,20 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$BASE_SHA" == "$TRUSTED_BASE_SHA" ]]
-          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
-          expected=$'A\t.github/workflows/wickhunter-wh09-replay-h900-heavy-20260808-r1.yml'
-          [[ "$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")" == "$expected" ]]
+          [[ "$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")" == "$(printf 'A\t%s' "$REQUEST_PATH")" ]]
           [[ "$(git rev-parse HEAD)" == "$HEAD_SHA" ]]
           [[ "$(git rev-parse "$PINNED_PAYLOAD_COMMIT:$PINNED_PAYLOAD_PATH")" == "$PINNED_PAYLOAD_BLOB" ]]
           [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
-          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
-          [[ "$RUNNER_ARCH_VALUE" == "X64" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" && "$RUNNER_ARCH_VALUE" == "X64" ]]
           for name in \
             OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
             BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
             FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
-            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET \
+            HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
           do
-            [[ -z "${!name:-}" ]] || { echo "recognized trading credential present: $name" >&2; exit 1; }
-          done
-          for name in HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
-            [[ -z "${!name:-}" ]] || { echo "proxy environment present: $name" >&2; exit 1; }
+            [[ -z "${!name:-}" ]] || { echo "forbidden environment present: $name" >&2; exit 1; }
           done
           for path in "$DATASET_ROOT" "$SOURCE_ROOT"; do
             [[ -d "$path" && ! -L "$path" ]]
@@ -129,8 +123,7 @@ jobs:
           import textwrap
           from pathlib import Path
 
-          source = Path(os.environ["RUNNER_TEMP"]) / "wh09-h900-payload.yml"
-          lines = source.read_text(encoding="utf-8").splitlines()
+          lines = (Path(os.environ["RUNNER_TEMP"]) / "wh09-h900-payload.yml").read_text(encoding="utf-8").splitlines()
           blocks = []
           index = 0
           while index < len(lines):
@@ -150,7 +143,7 @@ jobs:
           (Path(os.environ["RUNNER_TEMP"]) / "wh09-h900-audit.py").write_text(blocks[1], encoding="utf-8")
           PY
 
-      - name: Install uv and locked dependencies
+      - name: Install uv and dependencies
         uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v7.2.1
         with:
           activate-environment: true
@@ -173,7 +166,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          python3 "$RUNNER_TEMP/wh09-h900-producer.py"
+          PYTHONPATH="$GITHUB_WORKSPACE" python3 "$RUNNER_TEMP/wh09-h900-producer.py"
 
       - name: Run focused source tests
         shell: bash
@@ -222,7 +215,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Validate exact audit boundary
+      - name: Validate fresh audit boundary
         shell: bash
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -235,19 +228,16 @@ jobs:
           [[ "$SOURCE_COMMIT_SHA" == "$BASE_SHA" ]]
           [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
           [[ "$(git rev-parse HEAD)" == "$HEAD_SHA" ]]
+          [[ "$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")" == "$(printf 'A\t%s' "$REQUEST_PATH")" ]]
           [[ "$(git rev-parse "$PINNED_PAYLOAD_COMMIT:$PINNED_PAYLOAD_PATH")" == "$PINNED_PAYLOAD_BLOB" ]]
-          expected=$'A\t.github/workflows/wickhunter-wh09-replay-h900-heavy-20260808-r1.yml'
-          [[ "$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")" == "$expected" ]]
           for name in \
             OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
             BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
             FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
-            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET \
+            HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
           do
-            [[ -z "${!name:-}" ]] || { echo "recognized trading credential present: $name" >&2; exit 1; }
-          done
-          for name in HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
-            [[ -z "${!name:-}" ]] || { echo "proxy environment present: $name" >&2; exit 1; }
+            [[ -z "${!name:-}" ]] || { echo "forbidden environment present: $name" >&2; exit 1; }
           done
 
       - name: Extract SHA-bound reviewed audit payload
@@ -317,7 +307,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          python3 "$RUNNER_TEMP/wh09-h900-audit.py"
+          PYTHONPATH="$GITHUB_WORKSPACE" python3 "$RUNNER_TEMP/wh09-h900-audit.py"
 
       - name: Independently rerun focused verification tests
         shell: bash

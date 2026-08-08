@@ -133,6 +133,8 @@ def test_images_are_pinned_complete_and_run_api_mode() -> None:
     assert "127.0.0.1:8000/readyz" in control
     assert "ai_strategy_engine/configs/feature_registry.v1.yaml" in control
     assert "ai_strategy_engine/schemas/feature-registry.v1.schema.json" in control
+    assert "ai_strategy_engine/strategies/tv_supertrend_v1.json" in control
+    assert "ai_strategy_engine/strategies/tv_squeeze_momentum_v1.json" in control
     assert "jsonschema==4.26.0" in requirements
     assert ":latest" not in web
     assert ":latest" not in control
@@ -281,7 +283,10 @@ def test_nonprotected_exact_image_workflow_proves_postgresql_api_mode() -> None:
         "PORTAL_WEB_DATA_MODE=api",
         "production fixture mode unexpectedly started",
         'ready["database_dialect"] == "postgresql"',
-        "assert count == 1",
+        '"representative_product_read": product["representative_read"]',
+        '"representative_product_mutation": product["representative_mutation"]',
+        'assert preserved == 1',
+        'assert created == 1',
     ):
         assert required in workflow
     assert "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0" in workflow

@@ -182,8 +182,9 @@ def test_control_plane_uses_candidate_postgresql_env_without_legacy_state_mount(
     assert "ai.freqtrade.database-dialect=postgresql" in args
 
 
-def test_web_runtime_is_api_mode_and_control_plane_is_internal() -> None:
+def test_web_runtime_is_api_mode_and_control_plane_is_internal(monkeypatch) -> None:
     source = (DEPLOYMENT / "deploy.py").read_text(encoding="utf-8")
+    monkeypatch.setattr(module, "_liquidations_group_id", lambda: "4242")
     args = module._web_run_args("image", "candidate", publish=False)
 
     control_section = source[

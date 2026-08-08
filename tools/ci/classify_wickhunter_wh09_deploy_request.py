@@ -75,6 +75,26 @@ def _commit_exists(repo_root: Path, sha: str) -> bool:
     return completed.returncode == 0
 
 
+def _require_ancestor(repo_root: Path, before: str, after: str) -> None:
+    try:
+        completed = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", before, after],
+            cwd=repo_root,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    except OSError as exc:
+        raise DeployRequestClassificationError("git command failed: merge-base") from exc
+    if completed.returncode == 0:
+        return
+    if completed.returncode == 1:
+        raise DeployRequestClassificationError(
+            "push event before commit is not an ancestor of after commit"
+        )
+    raise DeployRequestClassificationError("git command failed: merge-base --is-ancestor")
+
+
 def _ensure_push_range_available(repo_root: Path, before: str, after: str) -> None:
     head = _git(repo_root, "rev-parse", "HEAD").stdout.strip()
     if head != after:
@@ -83,17 +103,18 @@ def _ensure_push_range_available(repo_root: Path, before: str, after: str) -> No
         )
     if not _commit_exists(repo_root, after):
         raise DeployRequestClassificationError("push event after commit is unavailable")
-    if _commit_exists(repo_root, before):
-        return
-
-    shallow = _git(repo_root, "rev-parse", "--is-shallow-repository").stdout.strip()
-    if shallow != "true":
-        raise DeployRequestClassificationError("push event before commit is unavailable")
-    _git(repo_root, "fetch", "--no-tags", "--prune", "--unshallow", "origin")
     if not _commit_exists(repo_root, before):
-        raise DeployRequestClassificationError(
-            "push event before commit is unavailable after unshallow"
-        )
+        shallow = _git(repo_root, "rev-parse", "--is-shallow-repository").stdout.strip()
+        if shallow != "true":
+            raise DeployRequestClassificationError("push event before commit is unavailable")
+        _git(repo_root, "fetch", "--no-tags", "--prune", "--unshallow", "origin")
+        if not _commit_exists(repo_root, before):
+            raise DeployRequestClassificationError(
+                "push event before commit is unavailable after unshallow"
+            )
+    if before == after:
+        raise DeployRequestClassificationError("push event before and after commits are identical")
+    _require_ancestor(repo_root, before, after)
 
 
 def changed_paths_for_push(event: dict[str, Any], repo_root: Path) -> tuple[str, ...]:
@@ -102,15 +123,16 @@ def changed_paths_for_push(event: dict[str, Any], repo_root: Path) -> tuple[str,
     _ensure_push_range_available(repo_root, before, after)
     completed = _git(
         repo_root,
-        "diff",
+        "log",
+        "--format=",
         "--name-only",
         "--no-renames",
+        "--diff-merges=first-parent",
         "-z",
-        before,
-        after,
+        f"{before}..{after}",
         "--",
     )
-    return tuple(item for item in completed.stdout.split("\0") if item)
+    return tuple(dict.fromkeys(item for item in completed.stdout.split("\0") if item))
 
 
 def diagnostic_request_changed_in_push(

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 
-def install(deploy: Any) -> None:
+def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes one cutover contract
     """Install rollback-safe PostgreSQL candidate cloning on the protected deploy entrypoint."""
 
     original_deploy = deploy.deploy
@@ -62,7 +62,9 @@ def install(deploy: Any) -> None:
             return previous
         if candidate_database is None or implementation_sha is None:
             deploy._restore_previous_portal(previous, None, None)
-            raise deploy.DeploymentError("PostgreSQL copy-on-write candidate contract is incomplete")
+            raise deploy.DeploymentError(
+                "PostgreSQL copy-on-write candidate contract is incomplete"
+            )
 
         try:
             state["backup_sha256"] = deploy._backup_postgres(

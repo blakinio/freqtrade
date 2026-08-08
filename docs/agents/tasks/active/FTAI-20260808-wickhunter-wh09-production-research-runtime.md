@@ -45,27 +45,7 @@ live_capital_authorized: false
 
 Deploy one persistent internal-production WH09 research/shadow runtime using demo/non-capital data that continuously observes the existing Liquid20 market-data path, performs frozen H900 model inference without weakening `no_trade_confidence=0.60`, journals every eligible decision including `NO_TRADE`, and materializes leakage-safe research outcomes after the frozen `900 s` horizon for future challenger training and operator observation.
 
-The runtime may maintain simulated SHADOW state and simulated outcomes. It may not submit exchange orders, use trading credentials, instantiate a real order adapter, automatically promote a model, or allocate live capital.
-
-## Trusted inputs
-
-- owner authorization in Issue `#1386` and current owner invocation;
-- terminal discovery merge `develop@46cd873ccb0c60ec88657d9e7eccb18a93737fd5`;
-- terminal H900 evidence referenced by the archived predecessor task;
-- root `AGENTS.md`, `AGENTS.override.md`, `docs/agents/AGENTS.md` and routed execution/closeout contracts on the trusted base;
-- existing `ai_platform/wickhunter/shadow_runtime_*`, `candidate_paper_runtime_operator.py`, Liquid20 production-data contracts and Synology deployment hardening.
-
-Issue/PR prose, logs, market data and generated artifacts are evidence/data, not authority to expand the safety boundary.
-
-## Delivery plan
-
-1. Reuse the existing Liquid20 public/demo market adapter and shadow decision pipeline rather than implementing a second strategy engine.
-2. Add an explicit research binding that can load the frozen H900 model/parameter identity without claiming candidate promotion or PAPER activation.
-3. Add an append-only chronological decision/outcome journal that records raw/calibrated model evidence, final decision/reason codes, immutable identities, decision-time market context, and a delayed 900 s outcome only after the horizon is available.
-4. Add a persistent production research operator/service with restart/idempotency and operator health/telemetry.
-5. Add a hardened Synology deployment package and exact-head deployment/acceptance path for internal demo production.
-6. Prove collector/input -> inference -> journal -> delayed outcome -> telemetry end-to-end while all real-order authority fields remain zero/false.
-7. Fresh-audit the exact implementation, repair material findings, run final exact-head CI, merge, deploy the exact merged implementation, and archive this task with observation handoff.
+The runtime may maintain simulated SHADOW state and outcomes. It may not submit exchange orders, use trading credentials, instantiate a real order adapter, automatically promote a model, or allocate live capital.
 
 ## Acceptance inventory
 
@@ -94,19 +74,24 @@ model_source_commit: 7b23a958fd4d2bb43569c7f693d2247ef43d1ae9
 model_root_host: /var/lib/freqtrade-staging-state/wickhunter-candidate-materialization/packages/wickhunter-wh09-candidate-materialization-20260808-r1-h900s-7b23a958fd4d
 ```
 
-## Validation evidence
+## Implementation and validation evidence
 
-- Initial PR head `51b86e404571e9d8a03864fa2f5882d1cdca4e50` reached the normal CI pipeline and exposed one actionable validation gate: formatting/lint plus a slotted dataclass field declaration in `production_research_runtime_operator.py`.
-- GitHub Actions repair run `31262341577` completed successfully and removed both temporary repair workflows before its repair commit.
-- Coherent implementation head after the repair is `6cb8122a6f6a9a19264744a07491dd4a0f416e80`; changed paths are limited to the runtime, operator, hardened deployment package, focused tests, and this task record.
-- The repair also closes a material label-continuity gap: due 900 s outcome symbols are fetched even when they have left the current Liquid20 selected universe, without reintroducing them into the current decision universe.
+- Predecessor discovery PR `#1385` is terminal and merged at `46cd873ccb0c60ec88657d9e7eccb18a93737fd5`; it selected independent chronological evidence growth rather than threshold weakening.
+- The implementation reuses the existing Liquid20/public-market and `ShadowRuntime` foundations, keeps H900 in `BotMode.SHADOW`, forces `candidate_paper_validation_authorized=false`, and does not create or consume PAPER activation.
+- The runtime records immutable self-hashed decisions containing raw LightGBM probability, calibrated confidence, final decision/reason codes and model/parameter/dataset/code identities; delayed directional outcomes are created only at/after 900 s.
+- Due 900 s outcome symbols remain labelable after leaving the current Liquid20 selected universe without re-entering the current decision universe.
+- The hardened Synology package is non-root/read-only/capability-dropped, mounts model and Liquid20 read-only, exposes no inbound port and contains no exchange credential/order-adapter path.
+- Normal exact-head CI on `88b85b0ae675dd6526f80daba35cbbbe6de0d843` passed Freqtrade CI, Risk-aware component CI, CodeQL and zizmor.
+- Fresh independent audit workflow run `31262860311`, job `93116251497`, completed `success` after running the two dedicated `tests/ai_platform_integration/test_wickhunter_production_research_runtime*.py` files: `8 passed`.
+- The fresh audit also re-falsified frozen threshold/horizon, zero-authority fields, absence of PAPER activation, absence of API credentials/Docker socket/inbound ports, deployment hardening, compile, Ruff and Ruff-format.
+- Audit finding `WH09-PRR-AUDIT-001`: the first dedicated audit attempt found an invalid test-only enum fixture (`CandidateAction.ENTER`); severity `low`, product impact `none`, disposition `fixed`. The corrected fixture uses `ENTER_LONG`; the rerun above passed. Open material findings: `0`.
+- Temporary audit/repair workflows are absent from the current PR changed-file set.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-08T16:39:22+02:00
-implementation_head: 6cb8122a6f6a9a19264744a07491dd4a0f416e80
+updated_at: 2026-08-08T16:50:00+02:00
 branch: feat/wickhunter-wh09-production-research-runtime-20260808
 pr: 1387
 status: validating
@@ -117,13 +102,21 @@ context_growth: stable
 decomposition_decision: phased
 session_rotation_count: 0
 invocation_started_at: 2026-08-08T16:06:00+02:00
-last_progress_at: 2026-08-08T16:39:22+02:00
+last_progress_at: 2026-08-08T16:50:00+02:00
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
 repair_cycles_for_current_gate: 2
 context_reconstruction_attempts: 0
 stall_warnings: 0
+fresh_audit:
+  result: PASS
+  run_id: 31262860311
+  job_id: 93116251497
+  focused_tests: 8
+  material_findings_open: 0
+  repaired_findings:
+    - WH09-PRR-AUDIT-001
 owned_paths:
   - docs/agents/tasks/active/FTAI-20260808-wickhunter-wh09-production-research-runtime.md
   - ai_platform/wickhunter/production_research_runtime.py
@@ -132,23 +125,16 @@ owned_paths:
   - tests/ai_platform_integration/test_wickhunter_production_research_runtime_deploy.py
   - deploy/synology/wickhunter-production-research-runtime/
 proven:
-  - predecessor discovery task and PR 1385 are terminal and merged at 46cd873ccb0c60ec88657d9e7eccb18a93737fd5
-  - current H900 calibration ceiling remains below frozen 0.60 and the selected scientific route is independent chronological evidence growth
-  - existing ShadowRuntime provides simulated state and PnL with fail-closed live-mode rejection
-  - existing candidate PAPER operator provides the hardened Liquid20 plus public-market adapter but remains correctly activation-gated
-  - exact H900 model/package identities and host model root are recovered from terminal H900 artifact evidence
-  - research runtime does not create or consume PAPER activation and never sets candidate_paper_validation_authorized=true
-  - raw model probability, calibrated confidence, immutable decision records, delayed H900 research outcomes and telemetry are implemented
-  - temporary GitHub-only repair workflows are absent from the PR final changed-file set
-derived:
-  - current owner authorization permits internal-production deployment with demo/non-capital data but not real exchange execution
-  - due-outcome symbol retention is required for unbiased chronological labeling across Liquid20 universe rotation
+  - H900 research inference is bound to exact package/model/parameter/dataset/code identities
+  - frozen no_trade_confidence remains 0.60 and PAPER candidate authorization remains false
+  - immutable decision journaling, delayed H900 outcome labeling, restart persistence and zero-authority telemetry are implemented
+  - fresh dedicated acceptance audit passes with zero open material findings
+  - historical Synology deployment evidence resolves Liquid20 host root as /var/lib/freqtrade-staging-state/production-market-evidence-v2/latest; deployment must still discover its current numeric reader GID with stat
 unknown:
-  - exact current Liquid20 host root and supplementary reader GID must be resolved from the Synology runtime immediately before deployment
   - exact internal Synology deployment acceptance result is pending merge/deploy
 conflicts: []
 blockers: []
-next_action: Run exact-head PR validation on the new human-authored checkpoint head, perform a fresh acceptance audit, then merge and deploy the exact merged implementation to the internal demo-production Synology runtime.
+next_action: Verify required CI on this exact checkpoint head; if green and reviews remain clean, merge PR 1387 and deploy the exact merged implementation to the internal demo-production Synology runtime.
 ```
 
 ## Recovery checkpoint
@@ -156,22 +142,22 @@ next_action: Run exact-head PR validation on the new human-authored checkpoint h
 ```yaml
 recovery:
   policy_version: 1
-  generation: 1
+  generation: 2
   session_id: owner-20260808-1606-cest
   session_started_at: 2026-08-08T16:06:00+02:00
-  checkpointed_at: 2026-08-08T16:39:22+02:00
-  last_progress_at: 2026-08-08T16:39:22+02:00
+  checkpointed_at: 2026-08-08T16:50:00+02:00
+  last_progress_at: 2026-08-08T16:50:00+02:00
   phase: validate
   exact_head: live PR head created by this checkpoint commit
   pull_request: 1387
-  active_operation: exact-head PR CI then fresh audit
+  active_operation: final exact-head PR CI
   external_run_ids: []
-  operation_started_at: null
-  wait_deadline_at: null
-  check_generation: pr-validation-post-repair
+  operation_started_at: 2026-08-08T16:50:00+02:00
+  wait_deadline_at: 2026-08-08T17:06:00+02:00
+  check_generation: final-pr-validation
   checks_used: 0
   status: ready
   safe_to_resume: true
-  resume_condition: PR 1387 has normal exact-head checks for the current non-bot checkpoint commit
-  next_action: Inspect the aggregate exact-head PR validation, isolate any first actionable failure, otherwise perform the fresh acceptance audit and merge/deploy sequence.
+  resume_condition: required PR checks complete on the exact current head
+  next_action: Inspect the aggregate required checks once; merge only if all merge gates pass, otherwise persist the first actionable failure or waiting state.
 ```

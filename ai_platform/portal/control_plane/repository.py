@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
@@ -8,7 +9,6 @@ from sqlalchemy.orm import Session
 from ai_platform.portal.contracts.audit import AuditEvent
 from ai_platform.portal.contracts.bots import (
     BotConfigRevision,
-    BotConfigRevisionState,
     BotDesiredState,
     BotInstance,
     BotObservedState,
@@ -163,6 +163,16 @@ class BotRepository:
             )
         )
 
+    def replace_revision(self, session: Session, revision: BotConfigRevision) -> None:
+        row = session.get(
+            BotConfigRevisionRow,
+            (revision.tenant_id, revision.bot_id, revision.revision),
+        )
+        if row is None or row.revision_id != revision.revision_id:
+            raise LookupError("bot revision not found")
+        row.revision_json = revision.canonical_json()
+        session.flush()
+
     def get_revision(
         self,
         session: Session,
@@ -188,30 +198,6 @@ class BotRepository:
             )
         )
         return BotConfigRevision.model_validate_json(row.revision_json) if row is not None else None
-
-    def set_revision_state(
-        self,
-        session: Session,
-        *,
-        tenant_id: str,
-        bot_id: str,
-        revision_id: str,
-        state: BotConfigRevisionState,
-    ) -> BotConfigRevision | None:
-        row = session.scalar(
-            select(BotConfigRevisionRow).where(
-                BotConfigRevisionRow.tenant_id == tenant_id,
-                BotConfigRevisionRow.bot_id == bot_id,
-                BotConfigRevisionRow.revision_id == revision_id,
-            )
-        )
-        if row is None:
-            return None
-        current = BotConfigRevision.model_validate_json(row.revision_json)
-        updated_revision = current.model_copy(update={"state": state})
-        row.revision_json = updated_revision.canonical_json()
-        session.flush()
-        return updated_revision
 
     def list_revisions(
         self,
@@ -274,7 +260,10 @@ class BotRepository:
         )
 
     def get_runtime_generation(
-        self, session: Session, tenant_id: str, generation_id: str
+        self,
+        session: Session,
+        tenant_id: str,
+        generation_id: str,
     ) -> RuntimeGeneration | None:
         row = session.get(RuntimeGenerationRow, generation_id)
         if row is None or row.tenant_id != tenant_id:
@@ -361,7 +350,7 @@ class BotRepository:
         semantic_request_digest: str,
         generation_id: str,
         rollout_id: str,
-        created_at: object,
+        created_at: datetime,
     ) -> None:
         session.add(
             CommandIdempotencyRow(
@@ -377,7 +366,11 @@ class BotRepository:
         )
 
     def get_idempotency_record(
-        self, session: Session, tenant_id: str, bot_id: str, idempotency_key: str
+        self,
+        session: Session,
+        tenant_id: str,
+        bot_id: str,
+        idempotency_key: str,
     ) -> CommandIdempotencyRecord | None:
         row = session.get(CommandIdempotencyRow, (tenant_id, bot_id, idempotency_key))
         if row is None:

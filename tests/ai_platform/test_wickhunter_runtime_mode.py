@@ -171,6 +171,28 @@ def test_reconstructed_shadow_resolution_rejects_paper_authorization_identity() 
         )
 
 
+@pytest.mark.parametrize("raw_mode", ["paper", "shadow"])
+def test_reconstructed_resolution_rejects_raw_string_modes(raw_mode: str) -> None:
+    with pytest.raises(ValueError, match="resolved managed runtime mode must be a BotMode"):
+        RuntimeModeResolution(
+            schema_version=RUNTIME_MODE_RESOLUTION_SCHEMA_VERSION,
+            mode=raw_mode,  # type: ignore[arg-type]
+            request_digest=REQUEST_DIGEST,
+            paper_authorization_digest=None,
+            market_observation_enabled=True,
+            simulated_paper_state_enabled=False,
+        )
+
+
+def test_request_rejects_raw_string_mode_fail_closed() -> None:
+    mode_request = ManagedRuntimeModeRequest(mode="paper")  # type: ignore[arg-type]
+
+    with pytest.raises(RuntimeModeResolutionError) as exc_info:
+        resolve_managed_runtime_mode(mode_request)
+
+    assert exc_info.value.reason is RuntimeModeRejectionReason.UNSUPPORTED_MODE
+
+
 def test_request_and_resolution_digests_are_deterministic_and_mode_bound() -> None:
     shadow_a = ManagedRuntimeModeRequest(mode=BotMode.SHADOW)
     shadow_b = ManagedRuntimeModeRequest(mode=BotMode.SHADOW)

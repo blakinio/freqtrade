@@ -4,9 +4,9 @@ repository: blakinio/freqtrade
 default_branch: develop
 
 review:
-  last_reviewed_at: "2026-08-08"
-  audited_base_sha: 62dc76164bd771e47365d7076af10cbd878061dd
-  synchronized_base_sha: 62dc76164bd771e47365d7076af10cbd878061dd
+  last_reviewed_at: "2026-08-06"
+  audited_base_sha: cbf9f57ea8d5783f85d19fe0f8557dfe3178705a
+  synchronized_base_sha: 8bc117ff4e9774c3400fcfb53e7f3f72659a1f7a
   review_issue: 1251
   review_task: FTAI-ARCH-001
   review_pr: 1255
@@ -22,6 +22,7 @@ review:
 
 latest_architecture_change:
   accepted_at: "2026-08-08"
+  base_sha: 62dc76164bd771e47365d7076af10cbd878061dd
   issue: 1358
   task: FTAI-20260808-portal-runtime-architecture-1358
   decision: ADR-020

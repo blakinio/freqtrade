@@ -176,3 +176,30 @@ recovery:
   resume_condition: required PR checks and fresh independent review complete on the exact current head
   next_action: Inspect one aggregate exact-head CI snapshot and the fresh review; remediate any material finding, otherwise merge PR 1390 and verify its protected develop-push deployment E2E.
 ```
+
+## Deployment retry checkpoint
+
+```yaml
+recovery:
+  policy_version: 1
+  generation: 4
+  session_id: owner-20260808-2022-cest
+  session_started_at: 2026-08-08T20:22:00+02:00
+  checkpointed_at: 2026-08-08T20:24:00+02:00
+  last_progress_at: 2026-08-08T20:24:00+02:00
+  phase: validate
+  exact_head: 3af40aaa3820c91fdf8382e2a8cd61577babb90d
+  pull_request: 1390
+  active_operation: rerun protected Synology SHADOW deployment after first attempt hit the 20-minute job timeout during Docker image export
+  external_run_ids:
+    - 31268955706
+    - 93139010419
+  operation_started_at: 2026-08-08T20:23:00+02:00
+  wait_deadline_at: 2026-08-08T20:43:00+02:00
+  check_generation: deployment-e2e-rerun-attempt-2
+  checks_used: 1
+  status: active
+  safe_to_resume: true
+  resume_condition: workflow job 93139010419 reaches a terminal state
+  next_action: Reconcile job 93139010419; on success verify the deployment artifact and close the task, otherwise inspect the first actionable failure and perform only a bounded owned repair.
+```

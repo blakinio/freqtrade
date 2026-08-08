@@ -110,15 +110,18 @@ class RuntimeModeResolution:
 
 
 def _paper_material_present(request: ManagedRuntimeModeRequest) -> bool:
-    return any(
-        value is not None
-        for value in (
-            request.paper_authorization_id,
-            request.paper_authorization_digest,
-            request.paper_candidate_package_id,
-            request.paper_candidate_manifest_sha256,
+    return (
+        any(
+            value is not None
+            for value in (
+                request.paper_authorization_id,
+                request.paper_authorization_digest,
+                request.paper_candidate_package_id,
+                request.paper_candidate_manifest_sha256,
+            )
         )
-    ) or request.paper_activation_authorized
+        or request.paper_activation_authorized
+    )
 
 
 def _validate_positive_paper_evidence(request: ManagedRuntimeModeRequest) -> None:

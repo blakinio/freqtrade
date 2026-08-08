@@ -19,9 +19,6 @@ review:
     - issue: 1252
       id: FTAI-CI-001
       status: completed
-    - issue: 1356
-      id: FTAI-ARCH-REGISTRY-LIFECYCLE-GUARD
-      status: completed
 
 latest_architecture_change:
   accepted_at: "2026-08-08"
@@ -139,7 +136,10 @@ system_domains:
     evidence_roots:
       - tests/ci/
     implementation_status: partially_implemented
-    open_findings: []
+    open_findings:
+      - issue: 1356
+        id: FTAI-ARCH-REGISTRY-LIFECYCLE-GUARD
+        summary: Add a bounded validator that prevents closed/completed architecture findings from remaining in the registry open-finding set.
 
 documents:
   - path: ARCHITECTURE_REGISTRY.yaml
@@ -259,3 +259,8 @@ open_architecture_findings:
     severity: high
     status: open
     summary: Separate authored/draft, desired and observed active bot revision/runtime-generation state.
+  - issue: 1356
+    id: FTAI-ARCH-REGISTRY-LIFECYCLE-GUARD
+    severity: medium
+    status: open
+    summary: Add a bounded validator that prevents closed/completed architecture findings from remaining in the registry open-finding set.

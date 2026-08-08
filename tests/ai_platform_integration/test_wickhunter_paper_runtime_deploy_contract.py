@@ -19,9 +19,7 @@ def test_wickhunter_runtime_requires_exact_liquid20_reader_group() -> None:
 
     assert 'user: "65532:65532"' in compose
     assert "group_add:" in compose
-    assert (
-        '"${LIQUID20_READER_GID:?set exact GID of LIQUID20_LIVE_HOST}"' in compose
-    )
+    assert '"${LIQUID20_READER_GID:?set exact GID of LIQUID20_LIVE_HOST}"' in compose
     assert "LIQUID20_LIVE_HOST:?set read-only Liquid20 live root" in compose
     assert "read_only: true" in compose
     assert "privileged: false" in compose

@@ -9,6 +9,7 @@ import os
 import re
 import secrets
 import shutil
+import sqlite3
 import stat
 import subprocess
 import sys
@@ -18,7 +19,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import quote, unquote, urlparse
 
 
 REQUEST_RELATIVE_PATH = "deploy/synology/portal-oidc/run-requests/public-oidc-20260801-v1.json"
@@ -27,12 +28,26 @@ AUTHENTIK_PROJECT = "portal-authentik-local-test"
 AUTHENTIK_STATE_DIR = Path("/var/lib/freqtrade-staging-state/portal-authentik-local-test")
 PORTAL_STATE_DIR = Path("/var/lib/freqtrade-staging-state/portal-oidc-public")
 PORTAL_RUNTIME_ENV = PORTAL_STATE_DIR / "runtime.env"
+PORTAL_RUNTIME_CANDIDATE_ENV = PORTAL_STATE_DIR / "runtime.candidate.env"
+PORTAL_POSTGRES_ENV = PORTAL_STATE_DIR / "postgres.env"
 PORTAL_DATA_DIR = Path("/volume1/docker/freqtrade-portal-oidc/data")
+PORTAL_LEGACY_DB = PORTAL_DATA_DIR / "portal.db"
+PORTAL_LEGACY_BACKUP_DIR = PORTAL_DATA_DIR / "legacy-backups"
+PORTAL_POSTGRES_BACKUP_DIR = PORTAL_DATA_DIR / "postgres-backups"
 PORTAL_UID = 10001
 PORTAL_GID = 10001
 PORTAL_NETWORK = "portal_oidc_public"
 PORTAL_CONTAINER = "freqtrade-portal-staging"
 CONTROL_CONTAINER = "freqtrade-portal-control-plane"
+PORTAL_POSTGRES_CONTAINER = "freqtrade-portal-postgresql"
+PORTAL_POSTGRES_ALIAS = "portal-postgresql"
+PORTAL_POSTGRES_VOLUME = "portal_oidc_postgresql_data"
+PORTAL_POSTGRES_IMAGE = (
+    "docker.io/library/postgres:16.13-alpine3.23@sha256:"
+    "57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777"
+)
+PORTAL_POSTGRES_USER = "portal"
+PORTAL_POSTGRES_ADMIN_DB = "portal_admin"
 PORTAL_BIND_ADDRESS = "192.168.1.2"
 PORTAL_PORT = 3031
 PORTAL_ORIGIN = "https://quant.molehill.cloud"
@@ -43,10 +58,12 @@ REDIRECT_URI = f"{PORTAL_ORIGIN}/api/identity/callback"
 CLIENT_ID = "freqtrade-portal"
 BLUEPRINT_NAME = "freqtrade-portal-public.yaml"
 AUTHENTIK_PROVIDER_NAME = "Freqtrade Portal Public OIDC"
+LEGACY_SQLITE_DATABASE_URL = "sqlite+pysqlite:////state/portal.db"
 LIQUIDATIONS_HOST_ROOT = Path("/volume1/docker/freqtrade-liquidations/data")
 LIQUIDATIONS_CONTAINER_ROOT = "/liquid20-data"
 RUNTIME_TMPFS = "/tmp:rw,noexec,nosuid,nodev,size=64m"  # noqa: S108
 WEB_CACHE_TMPFS = "/app/.next/cache:rw,noexec,nosuid,nodev,size=96m,uid=1000,gid=1000"
+POSTGRES_RUNTIME_TMPFS = "/tmp:rw,noexec,nosuid,nodev,size=64m"  # noqa: S108
 
 
 class DeploymentError(RuntimeError):
@@ -192,7 +209,7 @@ def _copy_and_apply_blueprint(repo: Path) -> tuple[str, str]:
     worker = _run([*compose, "ps", "-q", "worker"]).stdout.strip()
     server = _run([*compose, "ps", "-q", "server"]).stdout.strip()
     if not worker or not server:
-        raise DeploymentError("Authen­tik server or worker container is unavailable")
+        raise DeploymentError("Authentik server or worker container is unavailable")
     _run(["docker", "exec", "-u", "0", worker, "mkdir", "-p", "/blueprints/custom"])
     _run(["docker", "cp", str(durable), f"{worker}:/blueprints/custom/{BLUEPRINT_NAME}"])
     _run(
@@ -237,7 +254,7 @@ print('__PORTAL_JSON__' + json.dumps({{
         None,
     )
     if marker is None:
-        raise DeploymentError("Authen­tik metadata query did not return the marker")
+        raise DeploymentError("Authentik metadata query did not return the marker")
     payload = json.loads(marker)
     required = {
         "application_pk",
@@ -249,11 +266,11 @@ print('__PORTAL_JSON__' + json.dumps({{
     if set(payload) != required or not all(
         isinstance(payload[key], str) and payload[key] for key in required
     ):
-        raise DeploymentError("Authen­tik metadata query returned an invalid shape")
+        raise DeploymentError("Authentik metadata query returned an invalid shape")
     if payload["application_slug"] != APPLICATION_SLUG:
-        raise DeploymentError("deployed Authen­tik application slug differs from contract")
+        raise DeploymentError("deployed Authentik application slug differs from contract")
     if payload["client_id"] != CLIENT_ID:
-        raise DeploymentError("deployed Authen­tik client ID differs from contract")
+        raise DeploymentError("deployed Authentik client ID differs from contract")
     payload["issuer"] = f"{AUTHENTIK_ORIGIN}/application/o/{payload['application_slug']}/"
     if payload["issuer"] != ISSUER:
         raise DeploymentError("derived deployed issuer differs from frozen issuer")
@@ -264,18 +281,267 @@ def _secret_b64() -> str:
     return base64.urlsafe_b64encode(secrets.token_bytes(32)).decode("ascii").rstrip("=")
 
 
-def _prepare_portal_runtime(metadata: dict[str, str]) -> None:
+def _prepare_host_state() -> None:
+    PORTAL_STATE_DIR.mkdir(parents=True, exist_ok=True)
+    PORTAL_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    PORTAL_LEGACY_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    PORTAL_POSTGRES_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    for path in (PORTAL_DATA_DIR, PORTAL_LEGACY_BACKUP_DIR, PORTAL_POSTGRES_BACKUP_DIR):
+        os.chown(path, PORTAL_UID, PORTAL_GID)
+        path.chmod(0o700)
+
+
+def _prepare_postgres_env() -> dict[str, str]:
+    if PORTAL_POSTGRES_ENV.exists():
+        _assert_secret_file(PORTAL_POSTGRES_ENV)
+        values = _read_env(PORTAL_POSTGRES_ENV)
+        required = {"POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD"}
+        if not required.issubset(values) or not all(values[name] for name in required):
+            raise DeploymentError("Portal PostgreSQL runtime env is incomplete")
+        if values["POSTGRES_DB"] != PORTAL_POSTGRES_ADMIN_DB:
+            raise DeploymentError("Portal PostgreSQL admin database differs from contract")
+        if values["POSTGRES_USER"] != PORTAL_POSTGRES_USER:
+            raise DeploymentError("Portal PostgreSQL user differs from contract")
+        return values
+
+    values = {
+        "POSTGRES_DB": PORTAL_POSTGRES_ADMIN_DB,
+        "POSTGRES_USER": PORTAL_POSTGRES_USER,
+        "POSTGRES_PASSWORD": _secret_b64(),
+    }
+    _write_env_atomic(PORTAL_POSTGRES_ENV, values)
+    return values
+
+
+def _ensure_network() -> None:
+    result = _run(["docker", "network", "inspect", PORTAL_NETWORK], check=False)
+    if result.returncode != 0:
+        _run(["docker", "network", "create", "--driver", "bridge", PORTAL_NETWORK])
+
+
+def _container_exists(name: str) -> bool:
+    return _run(["docker", "container", "inspect", name], check=False).returncode == 0
+
+
+def _container_running(name: str) -> bool:
+    if not _container_exists(name):
+        return False
+    return (
+        _run(["docker", "inspect", "--format", "{{.State.Running}}", name]).stdout.strip()
+        == "true"
+    )
+
+
+def _remove_container(name: str) -> None:
+    if _container_exists(name):
+        _run(["docker", "rm", "-f", name])
+
+
+def _wait_healthy(name: str, timeout_seconds: int = 150) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        state = _run(
+            [
+                "docker",
+                "inspect",
+                "--format",
+                "{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}",
+                name,
+            ],
+            check=False,
+        ).stdout.strip()
+        if state == "healthy":
+            return
+        if state in {"exited", "dead", "unhealthy"}:
+            raise DeploymentError(f"container {name} entered state {state}")
+        time.sleep(2)
+    raise DeploymentError(f"container {name} did not become healthy")
+
+
+def _ensure_postgres() -> None:
+    _run(["docker", "volume", "create", PORTAL_POSTGRES_VOLUME])
+    if _container_exists(PORTAL_POSTGRES_CONTAINER):
+        image = _run(
+            ["docker", "inspect", "--format", "{{.Config.Image}}", PORTAL_POSTGRES_CONTAINER]
+        ).stdout.strip()
+        if image != PORTAL_POSTGRES_IMAGE:
+            raise DeploymentError("existing Portal PostgreSQL image differs from pinned contract")
+        if not _container_running(PORTAL_POSTGRES_CONTAINER):
+            _run(["docker", "start", PORTAL_POSTGRES_CONTAINER])
+        _wait_healthy(PORTAL_POSTGRES_CONTAINER)
+        _assert_postgres_hardening()
+        return
+
+    _run(
+        [
+            "docker",
+            "run",
+            "--detach",
+            "--name",
+            PORTAL_POSTGRES_CONTAINER,
+            "--restart",
+            "unless-stopped",
+            "--network",
+            PORTAL_NETWORK,
+            "--network-alias",
+            PORTAL_POSTGRES_ALIAS,
+            "--security-opt",
+            "no-new-privileges:true",
+            "--pids-limit",
+            "256",
+            "--memory",
+            "1g",
+            "--tmpfs",
+            POSTGRES_RUNTIME_TMPFS,
+            "--env-file",
+            str(PORTAL_POSTGRES_ENV),
+            "--mount",
+            f"type=volume,src={PORTAL_POSTGRES_VOLUME},dst=/var/lib/postgresql/data",
+            "--health-cmd",
+            f"pg_isready -U {PORTAL_POSTGRES_USER} -d {PORTAL_POSTGRES_ADMIN_DB}",
+            "--health-interval",
+            "5s",
+            "--health-timeout",
+            "5s",
+            "--health-retries",
+            "30",
+            PORTAL_POSTGRES_IMAGE,
+        ]
+    )
+    _wait_healthy(PORTAL_POSTGRES_CONTAINER)
+    _assert_postgres_hardening()
+
+
+def _assert_database_name(database_name: str) -> None:
+    if re.fullmatch(r"[a-z][a-z0-9_]{0,62}", database_name) is None:
+        raise DeploymentError("Portal PostgreSQL database name is invalid")
+
+
+def _postgres_database_exists(database_name: str) -> bool:
+    _assert_database_name(database_name)
+    result = _run(
+        [
+            "docker",
+            "exec",
+            PORTAL_POSTGRES_CONTAINER,
+            "psql",
+            "-U",
+            PORTAL_POSTGRES_USER,
+            "-d",
+            PORTAL_POSTGRES_ADMIN_DB,
+            "-tAc",
+            f"SELECT 1 FROM pg_database WHERE datname = '{database_name}'",
+        ],
+        sensitive=True,
+    )
+    return result.stdout.strip() == "1"
+
+
+def _create_postgres_database(database_name: str) -> None:
+    _assert_database_name(database_name)
+    if _postgres_database_exists(database_name):
+        raise DeploymentError("non-authoritative candidate PostgreSQL database already exists")
+    _run(
+        [
+            "docker",
+            "exec",
+            PORTAL_POSTGRES_CONTAINER,
+            "createdb",
+            "-U",
+            PORTAL_POSTGRES_USER,
+            "-T",
+            "template0",
+            database_name,
+        ],
+        sensitive=True,
+    )
+
+
+def _drop_candidate_database(database_name: str) -> None:
+    _assert_database_name(database_name)
+    _run(
+        [
+            "docker",
+            "exec",
+            PORTAL_POSTGRES_CONTAINER,
+            "psql",
+            "-U",
+            PORTAL_POSTGRES_USER,
+            "-d",
+            PORTAL_POSTGRES_ADMIN_DB,
+            "-c",
+            (
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                f"WHERE datname = '{database_name}' AND pid <> pg_backend_pid();"
+            ),
+        ],
+        sensitive=True,
+        check=False,
+    )
+    _run(
+        [
+            "docker",
+            "exec",
+            PORTAL_POSTGRES_CONTAINER,
+            "dropdb",
+            "-U",
+            PORTAL_POSTGRES_USER,
+            "--if-exists",
+            database_name,
+        ],
+        sensitive=True,
+        check=False,
+    )
+
+
+def _postgres_database_url(database_name: str, postgres_env: dict[str, str]) -> str:
+    _assert_database_name(database_name)
+    password = quote(postgres_env["POSTGRES_PASSWORD"], safe="")
+    return (
+        f"postgresql+psycopg://{PORTAL_POSTGRES_USER}:{password}"
+        f"@{PORTAL_POSTGRES_ALIAS}:5432/{database_name}"
+    )
+
+
+def _current_database_mode(
+    runtime_env: dict[str, str],
+    postgres_env: dict[str, str],
+) -> tuple[str, str | None]:
+    if not runtime_env:
+        return "fresh", None
+    database_url = runtime_env.get("PORTAL_DATABASE_URL", "")
+    if database_url == LEGACY_SQLITE_DATABASE_URL:
+        return "legacy_sqlite", None
+
+    parsed = urlparse(database_url)
+    if parsed.scheme != "postgresql+psycopg":
+        raise DeploymentError("existing Portal database topology is unsupported")
+    database_name = parsed.path.removeprefix("/")
+    _assert_database_name(database_name)
+    if parsed.hostname != PORTAL_POSTGRES_ALIAS or parsed.port != 5432:
+        raise DeploymentError("existing Portal PostgreSQL endpoint differs from private topology")
+    if parsed.username != PORTAL_POSTGRES_USER:
+        raise DeploymentError("existing Portal PostgreSQL user differs from contract")
+    if unquote(parsed.password or "") != postgres_env["POSTGRES_PASSWORD"]:
+        raise DeploymentError("existing Portal PostgreSQL credential differs from protected state")
+    if database_url != _postgres_database_url(database_name, postgres_env):
+        raise DeploymentError("existing Portal PostgreSQL URL differs from canonical form")
+    return "postgresql", database_name
+
+
+def _prepare_candidate_runtime(metadata: dict[str, str], database_url: str) -> None:
     existing = _read_env(PORTAL_RUNTIME_ENV)
     stored_secret = existing.get("PORTAL_IDENTITY_CLIENT_SECRET")
     if stored_secret and stored_secret != metadata["client_secret"]:
         raise DeploymentError(
-            "stored Portal client secret differs from Authen­tik; refusing rotation"
+            "stored Portal client secret differs from Authentik; refusing rotation"
         )
     values = {
-        "PORTAL_DATABASE_URL": "sqlite+pysqlite:////state/portal.db",
+        "PORTAL_DATABASE_URL": database_url,
         "PORTAL_ENVIRONMENT": "production",
         "PORTAL_IDENTITY_CLIENT_ID": CLIENT_ID,
         "PORTAL_IDENTITY_CLIENT_SECRET": metadata["client_secret"],
+        "PORTAL_IDENTITY_FIXTURE_MODE": "disabled",
         "PORTAL_IDENTITY_FLOW_ENCRYPTION_KEY_B64": existing.get(
             "PORTAL_IDENTITY_FLOW_ENCRYPTION_KEY_B64",
             _secret_b64(),
@@ -288,10 +554,13 @@ def _prepare_portal_runtime(metadata: dict[str, str]) -> None:
         ),
         "PORTAL_IDENTITY_TRANSPORT_MODE": "https",
     }
-    _write_env_atomic(PORTAL_RUNTIME_ENV, values)
-    PORTAL_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    os.chown(PORTAL_DATA_DIR, PORTAL_UID, PORTAL_GID)
-    PORTAL_DATA_DIR.chmod(0o700)
+    _write_env_atomic(PORTAL_RUNTIME_CANDIDATE_ENV, values)
+
+
+def _activate_candidate_runtime() -> None:
+    _assert_secret_file(PORTAL_RUNTIME_CANDIDATE_ENV)
+    PORTAL_RUNTIME_CANDIDATE_ENV.replace(PORTAL_RUNTIME_ENV)
+    _assert_secret_file(PORTAL_RUNTIME_ENV)
 
 
 def _docker_image_id(image: str) -> str:
@@ -341,40 +610,140 @@ def _build_images(repo: Path, implementation_sha: str) -> tuple[str, str, str, s
     )
 
 
-def _ensure_network() -> None:
-    result = _run(["docker", "network", "inspect", PORTAL_NETWORK], check=False)
-    if result.returncode != 0:
-        _run(["docker", "network", "create", "--driver", "bridge", PORTAL_NETWORK])
+def _run_schema_command(image: str, command: str) -> dict[str, Any]:
+    result = _run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--network",
+            PORTAL_NETWORK,
+            "--read-only",
+            "--tmpfs",
+            RUNTIME_TMPFS,
+            "--cap-drop",
+            "ALL",
+            "--security-opt",
+            "no-new-privileges:true",
+            "--pids-limit",
+            "128",
+            "--memory",
+            "512m",
+            "--user",
+            f"{PORTAL_UID}:{PORTAL_GID}",
+            "--env-file",
+            str(PORTAL_RUNTIME_CANDIDATE_ENV),
+            "--entrypoint",
+            "python",
+            image,
+            "-m",
+            "ai_platform.portal.database.cli",
+            command,
+        ],
+        sensitive=True,
+    )
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise DeploymentError("Portal schema command returned invalid JSON") from exc
+    if payload.get("status") != "ready":
+        raise DeploymentError("Portal schema command did not establish readiness")
+    return payload
 
 
-def _container_exists(name: str) -> bool:
-    return _run(["docker", "container", "inspect", name], check=False).returncode == 0
+def _snapshot_legacy_sqlite(implementation_sha: str) -> tuple[Path, str]:
+    if not PORTAL_LEGACY_DB.is_file():
+        raise DeploymentError("legacy Portal SQLite database is missing")
+    destination = PORTAL_LEGACY_BACKUP_DIR / (
+        f"portal-pre-postgresql-{implementation_sha[:12]}-{int(time.time())}.db"
+    )
+    source_uri = f"file:{PORTAL_LEGACY_DB}?mode=ro"
+    with sqlite3.connect(source_uri, uri=True) as source, sqlite3.connect(destination) as target:
+        source.backup(target)
+        check = target.execute("PRAGMA integrity_check").fetchone()
+        if check is None or check[0] != "ok":
+            raise DeploymentError("legacy Portal SQLite snapshot failed integrity_check")
+    os.chown(destination, PORTAL_UID, PORTAL_GID)
+    destination.chmod(0o600)
+    digest = hashlib.sha256(destination.read_bytes()).hexdigest()
+    return destination, digest
 
 
-def _remove_container(name: str) -> None:
-    if _container_exists(name):
-        _run(["docker", "rm", "-f", name])
+def _transfer_legacy_state(image: str, snapshot: Path) -> dict[str, Any]:
+    result = _run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--network",
+            PORTAL_NETWORK,
+            "--read-only",
+            "--tmpfs",
+            RUNTIME_TMPFS,
+            "--cap-drop",
+            "ALL",
+            "--security-opt",
+            "no-new-privileges:true",
+            "--pids-limit",
+            "128",
+            "--memory",
+            "512m",
+            "--user",
+            f"{PORTAL_UID}:{PORTAL_GID}",
+            "--env-file",
+            str(PORTAL_RUNTIME_CANDIDATE_ENV),
+            "--mount",
+            f"type=bind,src={snapshot},dst=/legacy/portal.db,readonly",
+            "--entrypoint",
+            "python",
+            image,
+            "-m",
+            "ai_platform.portal.database.transfer",
+            "--source-sqlite",
+            "/legacy/portal.db",
+        ],
+        sensitive=True,
+    )
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise DeploymentError("Portal state transfer returned invalid JSON") from exc
+    if payload.get("status") != "transferred" or payload.get("integrity") != "clean":
+        raise DeploymentError("Portal state transfer did not establish clean PostgreSQL state")
+    return payload
 
 
-def _wait_healthy(name: str, timeout_seconds: int = 150) -> None:
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        state = _run(
-            [
-                "docker",
-                "inspect",
-                "--format",
-                "{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}",
-                name,
-            ],
+def _backup_postgres(database_name: str, implementation_sha: str) -> str:
+    _assert_database_name(database_name)
+    container_path = f"/tmp/portal-{implementation_sha[:12]}.backup"
+    destination = PORTAL_POSTGRES_BACKUP_DIR / f"portal-{implementation_sha[:12]}.backup"
+    _run(
+        [
+            "docker",
+            "exec",
+            PORTAL_POSTGRES_CONTAINER,
+            "pg_dump",
+            "-U",
+            PORTAL_POSTGRES_USER,
+            "-d",
+            database_name,
+            "--format",
+            "custom",
+            "--file",
+            container_path,
+        ],
+        sensitive=True,
+    )
+    try:
+        _run(["docker", "cp", f"{PORTAL_POSTGRES_CONTAINER}:{container_path}", str(destination)])
+    finally:
+        _run(
+            ["docker", "exec", PORTAL_POSTGRES_CONTAINER, "rm", "-f", container_path],
             check=False,
-        ).stdout.strip()
-        if state == "healthy":
-            return
-        if state in {"exited", "dead", "unhealthy"}:
-            raise DeploymentError(f"container {name} entered state {state}")
-        time.sleep(2)
-    raise DeploymentError(f"container {name} did not become healthy")
+        )
+    os.chown(destination, PORTAL_UID, PORTAL_GID)
+    destination.chmod(0o600)
+    return hashlib.sha256(destination.read_bytes()).hexdigest()
 
 
 def _control_run_args(image: str, name: str) -> list[str]:
@@ -402,13 +771,13 @@ def _control_run_args(image: str, name: str) -> list[str]:
         "--user",
         f"{PORTAL_UID}:{PORTAL_GID}",
         "--env-file",
-        str(PORTAL_RUNTIME_ENV),
-        "--mount",
-        f"type=bind,src={PORTAL_DATA_DIR},dst=/state",
+        str(PORTAL_RUNTIME_CANDIDATE_ENV),
         "--label",
         "ai.freqtrade.identity-fixture=disabled",
         "--label",
         "ai.freqtrade.membership-bootstrap=explicit-only",
+        "--label",
+        "ai.freqtrade.database-dialect=postgresql",
         "--label",
         "ai.freqtrade.live-capital-authorized=false",
         image,
@@ -427,7 +796,8 @@ def _promote_control(candidate: str) -> str | None:
     backup = None
     if _container_exists(CONTROL_CONTAINER):
         backup = f"{CONTROL_CONTAINER}-backup-{int(time.time())}"
-        _run(["docker", "stop", CONTROL_CONTAINER])
+        if _container_running(CONTROL_CONTAINER):
+            _run(["docker", "stop", CONTROL_CONTAINER])
         _run(["docker", "rename", CONTROL_CONTAINER, backup])
     try:
         _run(["docker", "rename", candidate, CONTROL_CONTAINER])
@@ -443,7 +813,8 @@ def _promote_control(candidate: str) -> str | None:
                 CONTROL_CONTAINER,
             ]
         )
-        _run(["docker", "start", CONTROL_CONTAINER])
+        if not _container_running(CONTROL_CONTAINER):
+            _run(["docker", "start", CONTROL_CONTAINER])
         _wait_healthy(CONTROL_CONTAINER)
     except Exception:
         _remove_container(CONTROL_CONTAINER)
@@ -487,9 +858,9 @@ def _web_run_args(image: str, name: str, *, publish: bool) -> list[str]:
         "--group-add",
         _liquidations_group_id(),
         "--mount",
-        (f"type=bind,src={LIQUIDATIONS_HOST_ROOT},dst={LIQUIDATIONS_CONTAINER_ROOT},readonly"),
+        f"type=bind,src={LIQUIDATIONS_HOST_ROOT},dst={LIQUIDATIONS_CONTAINER_ROOT},readonly",
         "--env",
-        "PORTAL_WEB_DATA_MODE=fixture",
+        "PORTAL_WEB_DATA_MODE=api",
         "--env",
         "PORTAL_ENVIRONMENT=production",
         "--env",
@@ -529,7 +900,7 @@ def _probe_web_login(container: str) -> str:
         raise DeploymentError("Portal login redirect is missing")
     parsed = urlparse(location)
     if parsed.scheme != "https" or parsed.netloc != "auth.molehill.cloud":
-        raise DeploymentError("Portal login did not redirect to public Authen­tik")
+        raise DeploymentError("Portal login did not redirect to public Authentik")
     if not parsed.path.startswith("/application/o/authorize"):
         raise DeploymentError("Portal login redirect path is not the OIDC authorize endpoint")
     return location
@@ -546,7 +917,8 @@ def _deploy_web(image: str, suffix: str) -> tuple[str | None, str]:
     backup = None
     if _container_exists(PORTAL_CONTAINER):
         backup = f"{PORTAL_CONTAINER}-backup-{int(time.time())}"
-        _run(["docker", "stop", PORTAL_CONTAINER])
+        if _container_running(PORTAL_CONTAINER):
+            _run(["docker", "stop", PORTAL_CONTAINER])
         _run(["docker", "rename", PORTAL_CONTAINER, backup])
     try:
         _run(_web_run_args(image, PORTAL_CONTAINER, publish=True))
@@ -610,6 +982,39 @@ print('__PORTAL_DISCOVERY__' + json.dumps({{
     }
 
 
+def _probe_control_readiness() -> dict[str, Any]:
+    script = """
+import json
+import urllib.request
+with urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=10) as response:
+    payload = json.loads(response.read().decode('utf-8'))
+print('__PORTAL_READY__' + json.dumps(payload, sort_keys=True))
+""".strip()
+    result = _run(
+        ["docker", "exec", CONTROL_CONTAINER, "python", "-c", script],
+        sensitive=True,
+    )
+    marker = next(
+        (
+            line.removeprefix("__PORTAL_READY__")
+            for line in result.stdout.splitlines()
+            if line.startswith("__PORTAL_READY__")
+        ),
+        None,
+    )
+    if marker is None:
+        raise DeploymentError("Portal control-plane readiness returned no marker")
+    payload = json.loads(marker)
+    if (
+        payload.get("status") != "ready"
+        or payload.get("database_dialect") != "postgresql"
+        or payload.get("required_router_inventory_complete") is not True
+        or payload.get("live_capital_authorized") is not False
+    ):
+        raise DeploymentError("Portal control-plane readiness contract is incomplete")
+    return payload
+
+
 def _no_redirect_opener() -> urllib.request.OpenerDirector:
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, request, file_pointer, code, message, headers, url):
@@ -633,7 +1038,7 @@ def _probe_public_portal() -> tuple[int, str]:
         raise DeploymentError(f"public Portal login returned status {status_code}")
     parsed = urlparse(location)
     if parsed.scheme != "https" or parsed.netloc != "auth.molehill.cloud":
-        raise DeploymentError("public Portal login did not redirect to public Authen­tik")
+        raise DeploymentError("public Portal login did not redirect to public Authentik")
     return status_code, location
 
 
@@ -668,7 +1073,21 @@ def _assert_container_hardening(name: str, *, published: bool) -> None:
     if published and "3000/tcp" not in port_bindings:
         raise DeploymentError("Portal web container is not bound to the LAN origin")
     if not published and port_bindings:
-        raise DeploymentError("identity control plane unexpectedly publishes a port")
+        raise DeploymentError("Portal control plane unexpectedly publishes a port")
+
+
+def _assert_postgres_hardening() -> None:
+    payload = json.loads(_run(["docker", "inspect", PORTAL_POSTGRES_CONTAINER]).stdout)[0]
+    host_config = payload["HostConfig"]
+    if host_config.get("Privileged"):
+        raise DeploymentError("Portal PostgreSQL container is privileged")
+    if host_config.get("NetworkMode") == "host":
+        raise DeploymentError("Portal PostgreSQL uses host networking")
+    if host_config.get("PortBindings"):
+        raise DeploymentError("Portal PostgreSQL unexpectedly publishes a port")
+    binds = host_config.get("Binds") or []
+    if any("/var/run/docker.sock" in value for value in binds):
+        raise DeploymentError("Portal PostgreSQL mounts the Docker socket")
 
 
 def _authentik_statuses(repo: Path) -> list[dict[str, str]]:
@@ -677,13 +1096,48 @@ def _authentik_statuses(repo: Path) -> list[dict[str, str]]:
     for service in ("postgresql", "server", "worker"):
         container = _run([*compose, "ps", "-q", service]).stdout.strip()
         if not container:
-            raise DeploymentError(f"Authen­tik service is missing: {service}")
+            raise DeploymentError(f"Authentik service is missing: {service}")
         status = _container_status(container)
         status["service"] = service
         if status["health"] != "healthy":
-            raise DeploymentError(f"Authen­tik service is not healthy: {service}")
+            raise DeploymentError(f"Authentik service is not healthy: {service}")
         statuses.append(status)
     return statuses
+
+
+def _quiesce_existing_portal() -> dict[str, bool]:
+    previous = {
+        "web_exists": _container_exists(PORTAL_CONTAINER),
+        "web_running": _container_running(PORTAL_CONTAINER),
+        "control_exists": _container_exists(CONTROL_CONTAINER),
+        "control_running": _container_running(CONTROL_CONTAINER),
+    }
+    if previous["web_running"]:
+        _run(["docker", "stop", PORTAL_CONTAINER])
+    if previous["control_running"]:
+        _run(["docker", "stop", CONTROL_CONTAINER])
+    return previous
+
+
+def _restore_previous_portal(
+    previous: dict[str, bool],
+    control_backup: str | None,
+    web_backup: str | None,
+) -> None:
+    _remove_container(PORTAL_CONTAINER)
+    _remove_container(CONTROL_CONTAINER)
+
+    if control_backup and _container_exists(control_backup):
+        _run(["docker", "rename", control_backup, CONTROL_CONTAINER])
+    if web_backup and _container_exists(web_backup):
+        _run(["docker", "rename", web_backup, PORTAL_CONTAINER])
+
+    if previous.get("control_exists") and _container_exists(CONTROL_CONTAINER):
+        if previous.get("control_running") and not _container_running(CONTROL_CONTAINER):
+            _run(["docker", "start", CONTROL_CONTAINER])
+    if previous.get("web_exists") and _container_exists(PORTAL_CONTAINER):
+        if previous.get("web_running") and not _container_running(PORTAL_CONTAINER):
+            _run(["docker", "start", PORTAL_CONTAINER])
 
 
 def _write_report(path: Path, report: dict[str, Any]) -> str:
@@ -698,7 +1152,7 @@ def deploy(args: argparse.Namespace) -> int:
     request_path = Path(args.request).resolve()
     report_path = Path(args.report).resolve()
     report: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "request_id": REQUEST_ID,
         "implementation_sha": args.expected_repository_sha,
         "status": "failed",
@@ -712,30 +1166,81 @@ def deploy(args: argparse.Namespace) -> int:
     }
     control_backup: str | None = None
     web_backup: str | None = None
+    previous: dict[str, bool] = {}
+    candidate_database: str | None = None
+    candidate_database_created = False
+    runtime_activated = False
     try:
         _load_request(request_path, args.expected_repository_sha)
         _assert_secret_file(AUTHENTIK_STATE_DIR / "runtime.env")
+        _prepare_host_state()
         _ensure_network()
+        postgres_env = _prepare_postgres_env()
+        _ensure_postgres()
+
         server, _worker = _copy_and_apply_blueprint(repo)
         metadata = _authentik_metadata(server)
-        _prepare_portal_runtime(metadata)
         control_image, control_id, web_image, web_id = _build_images(
             repo,
             args.expected_repository_sha,
         )
+
+        existing_runtime = _read_env(PORTAL_RUNTIME_ENV)
+        database_mode, existing_database = _current_database_mode(existing_runtime, postgres_env)
         suffix = args.expected_repository_sha[:12]
+        if database_mode == "postgresql":
+            if existing_database is None or not _postgres_database_exists(existing_database):
+                raise DeploymentError("authoritative Portal PostgreSQL database is missing")
+            candidate_database = existing_database
+        else:
+            candidate_database = f"portal_candidate_{suffix}"
+            if _postgres_database_exists(candidate_database):
+                _drop_candidate_database(candidate_database)
+            _create_postgres_database(candidate_database)
+            candidate_database_created = True
+
+        database_url = _postgres_database_url(candidate_database, postgres_env)
+        _prepare_candidate_runtime(metadata, database_url)
+        previous = _quiesce_existing_portal()
+
+        legacy_snapshot_digest: str | None = None
+        state_transfer: dict[str, Any] | None = None
+        postgres_backup_digest: str | None = None
+        if database_mode == "legacy_sqlite":
+            snapshot, legacy_snapshot_digest = _snapshot_legacy_sqlite(
+                args.expected_repository_sha
+            )
+        elif database_mode == "postgresql":
+            postgres_backup_digest = _backup_postgres(
+                candidate_database,
+                args.expected_repository_sha,
+            )
+
+        migration = _run_schema_command(control_image, "migrate")
+        if database_mode == "legacy_sqlite":
+            state_transfer = _transfer_legacy_state(control_image, snapshot)
+        readiness_check = _run_schema_command(control_image, "check")
+
         control_candidate = _start_control_candidate(control_image, suffix)
         control_backup = _promote_control(control_candidate)
+        control_readiness = _probe_control_readiness()
         discovery, endpoint_statuses = _discovery_from_identity_container()
         web_backup, authorization_url = _deploy_web(web_image, suffix)
         public_status, public_authorization_url = _probe_public_portal()
         authentik_statuses = _authentik_statuses(repo)
         portal_status = _container_status(PORTAL_CONTAINER)
         control_status = _container_status(CONTROL_CONTAINER)
-        if portal_status["health"] != "healthy" or control_status["health"] != "healthy":
-            raise DeploymentError("Portal containers are not healthy after promotion")
+        postgres_status = _container_status(PORTAL_POSTGRES_CONTAINER)
+        if (
+            portal_status["health"] != "healthy"
+            or control_status["health"] != "healthy"
+            or postgres_status["health"] != "healthy"
+        ):
+            raise DeploymentError("Portal deployment is not healthy after promotion")
         _assert_container_hardening(PORTAL_CONTAINER, published=True)
         _assert_container_hardening(CONTROL_CONTAINER, published=False)
+        _assert_postgres_hardening()
+
         report.update(
             {
                 "status": "success",
@@ -748,6 +1253,30 @@ def deploy(args: argparse.Namespace) -> int:
                     "scopes": ["openid", "profile", "email"],
                     "services": authentik_statuses,
                 },
+                "database": {
+                    "topology": "private_postgresql",
+                    "dialect": "postgresql",
+                    "container": postgres_status,
+                    "migration_status": migration["status"],
+                    "schema_revision": readiness_check["expected_revision"]["revision_id"],
+                    "runtime_readiness_revision": control_readiness["canonical_schema_revision"],
+                    "state_transition": (
+                        "sqlite_to_postgresql"
+                        if database_mode == "legacy_sqlite"
+                        else "postgresql_restart"
+                        if database_mode == "postgresql"
+                        else "fresh_postgresql"
+                    ),
+                    "state_transfer_status": (
+                        state_transfer["status"] if state_transfer is not None else "not_required"
+                    ),
+                    "state_transfer_rows": (
+                        state_transfer["rows_copied"] if state_transfer is not None else 0
+                    ),
+                    "legacy_snapshot_sha256": legacy_snapshot_digest,
+                    "pre_migration_backup_sha256": postgres_backup_digest,
+                    "public_port_exposed": False,
+                },
                 "endpoint_statuses": endpoint_statuses,
                 "portal": {
                     "origin": PORTAL_ORIGIN,
@@ -758,7 +1287,11 @@ def deploy(args: argparse.Namespace) -> int:
                     "control_plane": control_status,
                     "web_image_id": web_id,
                     "control_plane_image_id": control_id,
+                    "web_data_mode": "api",
                     "identity_transport": "https",
+                    "required_router_inventory_complete": control_readiness[
+                        "required_router_inventory_complete"
+                    ],
                 },
                 "identity_fixture_disabled": True,
                 "membership_bootstrap": "explicit_owner_action_required",
@@ -766,12 +1299,27 @@ def deploy(args: argparse.Namespace) -> int:
                 "next_owner_url": PORTAL_ORIGIN,
             }
         )
+        _activate_candidate_runtime()
+        runtime_activated = True
         for backup in (web_backup, control_backup):
             if backup:
                 _remove_container(backup)
         return_code = 0
     except Exception as exc:
         report["failure"] = {"type": type(exc).__name__, "message": str(exc)}
+        if not runtime_activated:
+            try:
+                if previous:
+                    _restore_previous_portal(previous, control_backup, web_backup)
+            except Exception as rollback_exc:
+                report["rollback_failure"] = {
+                    "type": type(rollback_exc).__name__,
+                    "message": str(rollback_exc),
+                }
+            if candidate_database_created and candidate_database:
+                _drop_candidate_database(candidate_database)
+            if PORTAL_RUNTIME_CANDIDATE_ENV.exists():
+                PORTAL_RUNTIME_CANDIDATE_ENV.unlink()
         return_code = 1
     digest = _write_report(report_path, report)
     print(

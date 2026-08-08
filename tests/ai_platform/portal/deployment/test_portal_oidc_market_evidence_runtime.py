@@ -78,6 +78,16 @@ def test_docker_host_preflight_requires_valid_immutable_run_marker() -> None:
         runtime._docker_host_group(deploy, IMAGE)
 
 
+def test_docker_host_preflight_requires_active_run_metadata_without_package() -> None:
+    rendered = runtime._probe_script()
+
+    assert '"incremental-state.json"' in rendered
+    assert '"run-request.json"' in rendered
+    assert '"manifest.json"' in rendered
+    assert '"run-state.json"' in rendered
+    assert '"verification-report.json"' in rendered
+
+
 def test_tenant_authorization_probe_is_fail_closed() -> None:
     calls: list[list[str]] = []
 
@@ -97,6 +107,9 @@ def test_tenant_authorization_probe_is_fail_closed() -> None:
     rendered = calls[0][-1]
     assert runtime.MARKET_EVIDENCE_TENANT_ID in rendered
     assert "MembershipStatus.ACTIVE.value" in rendered
+    assert "IdentityPrincipalRow" in rendered
+    assert "PrincipalStatus.ACTIVE.value" in rendered
+    assert "IdentityPrincipalRow.principal_id == TenantMembershipRow.principal_id" in rendered
     for role in runtime.AUTHORIZED_ROLES:
         assert role in rendered
 

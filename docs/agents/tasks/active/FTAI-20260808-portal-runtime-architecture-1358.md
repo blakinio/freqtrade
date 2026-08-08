@@ -73,7 +73,7 @@ Audit input was reconstructed from the exact PR diff, the owner-accepted #1358 p
 Material findings found and remediated before final CI:
 
 1. **Historical review provenance was initially overwritten by current synchronization metadata.** The FTAI-ARCH-001 `audited_base_sha`/`synchronized_base_sha` and review date now remain bound to the original #1251/#1255 review evidence; ADR-020 has a separate `latest_architecture_change.base_sha`.
-2. **The initial PR incorrectly proposed closing #1356 without its preventive lifecycle guard.** A focused CI regression test now enforces resolved/open finding disjointness and accepted-ADR linkage, so #1356 can close with the merged change.
+2. **The initial PR incorrectly proposed closing #1356 without its preventive lifecycle guard.** A focused CI regression test now enforces resolved/open finding separation and accepted-ADR linkage, so #1356 can close with the merged change.
 
 Validation hardening performed after the material findings were fixed:
 

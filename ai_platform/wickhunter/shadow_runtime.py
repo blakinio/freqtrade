@@ -22,6 +22,7 @@ from ai_platform.wickhunter.shadow_runtime_snapshot import (
     ReplayShadowParityEvidence,
     ShadowRuntimeStepResult,
     verify_replay_shadow_parity,
+    verify_runtime_replay_parity,
 )
 from ai_platform.wickhunter.shadow_runtime_state import (
     ShadowRuntimeState,
@@ -53,4 +54,5 @@ __all__ = [
     "SimulatedPosition",
     "initial_runtime_state",
     "verify_replay_shadow_parity",
+    "verify_runtime_replay_parity",
 ]

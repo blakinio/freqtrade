@@ -24,6 +24,7 @@ from ai_platform.wickhunter.lightgbm_scorer import (
     LightGBMAdvisoryScorer,
     LightGBMScorerError,
     LightGBMTrainingPolicy,
+    _fit_calibration,
     evaluate_lightgbm_against_baseline,
     train_lightgbm_scorer,
 )
@@ -350,3 +351,16 @@ def test_protected_holdout_and_parameter_mismatch_fail_closed() -> None:
             parameters=mismatched,
             parameter_bounds=DEFAULT_RESEARCH_BOUNDS,
         )
+
+
+def test_empty_calibration_bins_do_not_invent_confidence() -> None:
+    curve = _fit_calibration((0.01, 0.02), (0, 0), bins=10)
+
+    assert curve.probabilities == (Decimal("0.250000000000"),) * 10
+
+
+def test_leading_empty_calibration_bins_remain_unsupported() -> None:
+    curve = _fit_calibration((0.75,), (1,), bins=10)
+
+    assert curve.probabilities[:7] == (Decimal("0"),) * 7
+    assert curve.probabilities[7:] == (Decimal("0.666666666667"),) * 3

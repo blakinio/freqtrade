@@ -81,97 +81,82 @@ runtime_commit: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
 - Exact deployed identity from that run: container `6724290d3078f09fc82c434e239d2d8afd3686ddedd27ff7d400834538cfbfe0`; image `sha256:c5a67281912e262a183dd7a5804609a2f69ca356d5eb98e4a5a8da169e07a749`; source revision `ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5`.
 - Final E2E verification timed out after 720 seconds with `WH09 deployment E2E did not reach two advances: health is not a regular file`; no PASS report was emitted.
 - Synology also discarded the requested PIDs limit because the kernel/cgroup lacks that capability; this remains a separate hardening caveat before final acceptance.
-- PR `#1394` keeps diagnostics inside the existing registered WH09 deployment workflow. Diagnostic v4 now classifies mode across the whole push exclusively through each commit's `added`, `modified`, and `removed` filename arrays, so commit message or author metadata cannot switch deployment mode.
-- Diagnostic v4 binds the exact failed run/job, original 64-character container ID and exact image ID. Container discovery uses `docker ps -aq --no-trunc` before exact comparison. The diagnostic job contains no start/stop/restart/recreate/remove/kill path and uploads evidence with `if: always()`.
-- All diagnostic workflow/test P1/P2 findings are repaired and resolved as of diagnostic code head `6f02ed7c70b04fd0964fde462abc6cb860de34d3`; focused static regression coverage requires changed-file-array-only routing and forbids whole-commit serialization.
-- Recovery does not treat that functional parent as merge authority: any replacement worker must resolve the current live PR #1394 head and require exact-final-head CI before merge.
+- PR `#1394` keeps diagnostics inside the existing registered WH09 deployment workflow. Diagnostic-v4 selection is now produced by `tools/ci/classify_wickhunter_wh09_deploy_request.py`, which performs exact membership over each commit's `added`, `modified`, and `removed` arrays. `.bak`, prefix/suffix and commit-message lookalikes do not select diagnostic mode.
+- Diagnostic v4 binds the exact failed run/job, original 64-character container ID and exact image ID. Container discovery uses `docker ps -aq --no-trunc` before exact comparison. The diagnostic path contains no container mutation command.
+- Secret-free `identity-discovery.txt` is created before container cardinality/container-id/image-id fail-fast, so a missing, duplicated, recreated or wrong-image container still produces actionable artifact evidence via `if: always()` upload.
+- The focused routing test proves exact-path classification, a `.bak` negative case, whole-push matching, early identity evidence ordering, exact container/image binding and no diagnostic mutation commands.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-08T23:05:00+02:00
+updated_at: 2026-08-09T00:30:00+02:00
+head: UNKNOWN
 branch: diagnose/wickhunter-wh09-runtime-health-20260808
 pr: 1394
 status: validating
-phase: diagnose
-execution_mode: chat_github_actions
-context_pressure: medium
-context_growth: stable
-session_rotation_count: 3
-invocation_started_at: 2026-08-08T22:51:00+02:00
-last_progress_at: 2026-08-08T23:05:00+02:00
-ci_checks_for_current_head: 0
-unchanged_state_checks: 0
-identical_failure_retries: 0
-repair_cycles_for_current_gate: 1
-repair_cycle_generation: recovery_live_head_semantics
-context_reconstruction_attempts: 1
-stall_warnings: 0
-latest_deployment:
-  run_id: 31275253098
-  job_id: 93147659559
-  authorization_commit: c64df386a4fa3ba739b6eaa1a223ca798a7bcae2
-  runtime_commit: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
-  container_id: 6724290d3078f09fc82c434e239d2d8afd3686ddedd27ff7d400834538cfbfe0
-  image_id: sha256:c5a67281912e262a183dd7a5804609a2f69ca356d5eb98e4a5a8da169e07a749
-  container_started: true
-  first_actionable_failure: runtime_health_file_absent_after_container_start
-  additional_platform_warning: pids_limit_discarded_by_synology_kernel
-diagnostic:
-  pr: 1394
-  exact_code_head: 6f02ed7c70b04fd0964fde462abc6cb860de34d3
-  request: diagnose-wh09-production-research-20260808-v4.json
-  whole_push_classification: true
-  changed_file_arrays_only: true
-  deploy_job_skipped_for_v4: true
-  container_recreate_authorized: false
-  expected_container_id: 6724290d3078f09fc82c434e239d2d8afd3686ddedd27ff7d400834538cfbfe0
-  expected_image_id: sha256:c5a67281912e262a183dd7a5804609a2f69ca356d5eb98e4a5a8da169e07a749
+context_routes:
+  - docs/agents/PROMPTING_STANDARD.md
+  - docs/agents/PROMPTING_HANDOVER.md
+  - docs/agents/AUTONOMOUS_PROGRAM_CONTINUATION.md
+  - .github/workflows/ai-platform-wickhunter-wh09-production-research-runtime-deploy.yml
+  - tools/ci/classify_wickhunter_wh09_deploy_request.py
+  - tests/ai_platform_integration/test_wickhunter_production_research_runtime_deploy.py
+owned_paths:
+  - .github/workflows/ai-platform-wickhunter-wh09-production-research-runtime-deploy.yml
+  - deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json
+  - tools/ci/classify_wickhunter_wh09_deploy_request.py
+  - tests/ai_platform_integration/test_wickhunter_production_research_runtime_deploy.py
+  - docs/agents/tasks/active/FTAI-20260808-wickhunter-wh09-production-research-runtime.md
 proven:
-  - H900 model/runtime identities remain frozen
+  - H900 model and runtime identities remain frozen
   - no_trade_confidence remains 0.60
-  - PAPER and all real trading authority remain disabled
-  - exact WH09 container can be created and started on internal Synology
-  - diagnostic path cannot recreate the container
-  - diagnostic/deploy mode selection ignores commit metadata and uses changed-file arrays only
+  - PAPER and all real trading authority remain disabled for the deployed WH09 generation
+  - exact WH09 container was created and started on internal Synology by run 31275253098
+  - the first actionable deployment failure is absence of runtime operator health.json after container start
+  - diagnostic-v4 routing uses exact changed-file membership across the whole push and ignores commit metadata/lookalikes
+  - diagnostic-v4 is bound to the exact recorded container and image and cannot recreate or restart it
+  - identity-discovery evidence is persisted before container cardinality or identity fail-fast
+  - classifier compile typing lint routing tests and workflow syntax/security passed on code head c198c3725ade5d1f0e62408344d4b5f700fb4eff
+derived:
+  - merging the diagnostic-only PR can safely inspect the existing failed deployment without changing runtime authority or recreating the container
 unknown:
   - why the started container never produced health.json
   - whether telemetry.json exists independently
-  - whether the exact container is currently running, restarting or exited
+  - whether the exact container is currently running restarting or exited
   - whether an enforceable alternative to PIDs limiting exists on this Synology kernel
 conflicts: []
+first_failure:
+  marker: RUNTIME_HEALTH_FILE_ABSENT_AFTER_CONTAINER_START
+  evidence: deployment run 31275253098 job 93147659559 timed out after 720 seconds because health.json was not a regular file
+rejected_hypotheses:
+  - Synology CPU-CFS incompatibility is the remaining health failure; the container starts after the CPU-CFS repair
+  - diagnostic mode may be selected by commit-message text or filename substrings
+  - an identity mismatch may fail before any diagnostic artifact exists
+changed_paths:
+  - .github/workflows/ai-platform-wickhunter-wh09-production-research-runtime-deploy.yml
+  - deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json
+  - tools/ci/classify_wickhunter_wh09_deploy_request.py
+  - tests/ai_platform_integration/test_wickhunter_production_research_runtime_deploy.py
+  - docs/agents/tasks/active/FTAI-20260808-wickhunter-wh09-production-research-runtime.md
+validation:
+  - command: lightweight required PR gate on c198c3725ade5d1f0e62408344d4b5f700fb4eff
+    result: PASS
+    evidence: classifier compile and type-check lint routing tests and workflow syntax/security all succeeded in run 31281751495
+  - command: CodeQL on c198c3725ade5d1f0e62408344d4b5f700fb4eff
+    result: PASS
+    evidence: run 31281751463
+  - command: zizmor on c198c3725ade5d1f0e62408344d4b5f700fb4eff
+    result: PASS
+    evidence: run 31281751459
+  - command: AI Platform component on c198c3725ade5d1f0e62408344d4b5f700fb4eff
+    result: PASS
+    evidence: run 31281751601 job 93164193132 passed tests lint format codespell and sensitive-data scan
+  - command: exact final head CI and independent review after this checkpoint normalization
+    result: NOT_RUN
+    evidence: resolve PR #1394 live head and require all applicable exact-head gates before merge
 blockers: []
-next_action: Resolve live PR #1394 head, require exact-final-head CI plus fresh independent review, then merge only if green and consume diagnostic v4 evidence before any redeploy.
-```
-
-## Recovery checkpoint
-
-```yaml
-recovery:
-  policy_version: 1
-  generation: 8
-  session_id: owner-20260808-2251-cest
-  session_started_at: 2026-08-08T22:51:00+02:00
-  checkpointed_at: 2026-08-08T23:05:00+02:00
-  last_progress_at: 2026-08-08T23:05:00+02:00
-  phase: diagnose
-  diagnostic_code_head: 6f02ed7c70b04fd0964fde462abc6cb860de34d3
-  live_head_source: pr_1394
-  exact_final_head_required: true
-  parent_checkpoint_head: d52e1a93d49ee29d0b883b783f1de062b3b67153
-  parent_checkpoint_role: documentation_predecessor_only
-  pull_request: 1394
-  active_operation: resolve live PR head, validate that exact final head, then perform diagnostic-only merge
-  external_run_ids:
-    - 31275253098
-    - 93147659559
-  operation_started_at: 2026-08-08T23:05:00+02:00
-  wait_deadline_at: 2026-08-08T23:50:00+02:00
-  check_generation: runtime-health-diagnostic-v4-final-live-head
-  checks_used: 0
-  status: active
-  safe_to_resume: true
-  resume_condition: resolve PR 1394 live head, then require required CI and fresh review on that exact head with zero material findings
-  next_action: Query PR 1394 live head; never use diagnostic_code_head as merge authority. Merge only after exact-final-head checks are green and no material review finding remains, then consume diagnostic evidence before any redeploy.
+next_action: Resolve PR #1394 live head after this checkpoint commit, require exact-final-head CI and a fresh independent review with zero material P1/P2, squash-merge only if green, then consume the diagnostic-v4 Synology artifact before any redeploy or runtime mutation.
+context_reconstruction_attempts: 1
+stall_warnings: 0
 ```

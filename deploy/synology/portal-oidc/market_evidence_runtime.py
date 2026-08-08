@@ -280,10 +280,7 @@ def _verify_running_container(deploy: Any, group_id: str) -> None:
     if not isinstance(mounts, list):
         raise deploy.DeploymentError("Market Evidence runtime mount inventory is invalid")
     expected_mounts = [
-        mount
-        for mount in mounts
-        if isinstance(mount, dict)
-        and mount.get("Destination") == MARKET_EVIDENCE_CONTAINER_ROOT
+        mount for mount in mounts if isinstance(mount, dict) and mount.get("Destination") == MARKET_EVIDENCE_CONTAINER_ROOT
     ]
     if len(expected_mounts) != 1:
         raise deploy.DeploymentError("Market Evidence runtime mount is missing or ambiguous")

@@ -92,14 +92,17 @@ model_root_host: /var/lib/freqtrade-staging-state/wickhunter-candidate-materiali
 - Deployment run `31268955706` attempt 1 reached exact authorization/runner/path validation but was cancelled by the former 20-minute job budget during Docker image export.
 - Bounded rerun job `93139010419` completed exact image export, proving the exact `ec0f53cc4df7` image was written, then failed at `docker compose up --build` with `DeadlineExceeded`; it did not reach health/two-cycle E2E.
 - Repair PR `#1391` preserves the exact H900 runtime/model/authority contract, changes only the deployment retry path, reuses an exact OCI-revision-matching image, rebuilds a missing/mismatched tag from the exact checked-out implementation, and performs Compose startup with `--no-build`.
-- The deployment-control resolver binds Liquid20 to the canonical persistent collector host root `/volume1/docker/freqtrade-liquidations/data/live`, verifies the running `liquid20-live` container maps `/data` from `/volume1/docker/freqtrade-liquidations/data`, validates the active `liquidation-live-state-v1` pointer/run, and discovers the current numeric reader GID without relying on a stale alias.
+- The deployment-control resolver binds Liquid20 to the canonical persistent collector host root `/volume1/docker/freqtrade-liquidations/data/live`, verifies the running `liquid20-live` container maps `/data` from `/volume1/docker/freqtrade-liquidations/data`, validates the active `liquidation-live-state-v1` pointer/run including non-symlink `runs/` and active-run parents, and discovers the current numeric reader GID without relying on a stale alias.
+- Final deployment-workflow/test head before this documentation-only checkpoint reconciliation is `d1bcd5a576e4ecaca5491309f70d7d49c1c174a4`.
+- Exact-head security checks on `d1bcd5a576e4ecaca5491309f70d7d49c1c174a4`: CodeQL `31272779043` PASS and zizmor `31272779011` PASS. Freqtrade CI `31272779000` and Risk-aware component CI `31272779123` are the head-specific validation generations to consume before merge.
+- Fresh Codex review submission on exact deployment head `d1bcd5a576e4ecaca5491309f70d7d49c1c174a4` found no runtime/deployment P1/P2 after prior fixes; its only new P2 concerned durable checkpoint metadata and is addressed by this documentation-only successor.
 - Temporary audit/repair workflows are absent from the final intended changed-file set.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-08T20:45:00+02:00
+updated_at: 2026-08-08T20:52:00+02:00
 branch: ops/wickhunter-wh09-production-research-deploy-closeout-20260808
 pr: 1391
 status: validating
@@ -110,11 +113,11 @@ context_growth: stable
 decomposition_decision: phased
 session_rotation_count: 2
 invocation_started_at: 2026-08-08T20:22:00+02:00
-last_progress_at: 2026-08-08T20:45:00+02:00
-ci_checks_for_current_head: 1
+last_progress_at: 2026-08-08T20:52:00+02:00
+ci_checks_for_current_head: 2
 unchanged_state_checks: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 2
+repair_cycles_for_current_gate: 3
 context_reconstruction_attempts: 1
 stall_warnings: 0
 fresh_implementation_audit:
@@ -131,6 +134,16 @@ deployment_retry_history:
   second_result: compose_build_deadline_exceeded_after_exact_image_export
   repair_pr: 1391
   current_strategy: exact_image_revision_reuse_or_rebuild_then_compose_no_build
+deployment_validation_head:
+  sha: d1bcd5a576e4ecaca5491309f70d7d49c1c174a4
+  scope: final_workflow_and_test_head
+  freqtrade_ci_run: 31272779000
+  component_ci_run: 31272779123
+  codeql_run: 31272779043
+  zizmor_run: 31272779011
+  codeql_result: PASS
+  zizmor_result: PASS
+  checkpoint_successor_scope: documentation_only
 owned_paths:
   - docs/agents/tasks/active/FTAI-20260808-wickhunter-wh09-production-research-runtime.md
   - ai_platform/wickhunter/production_research_runtime.py
@@ -148,11 +161,12 @@ proven:
   - implementation PR 1387 is merged at ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
   - canonical Liquid20 live source is the liquid20-live /data/live root backed by /volume1/docker/freqtrade-liquidations/data/live
   - failed deployment rerun 93139010419 nevertheless proved the exact runtime image export completed before Compose failed
+  - final deployment workflow and focused deployment test head is d1bcd5a576e4ecaca5491309f70d7d49c1c174a4
 unknown:
   - exact internal Synology deployment acceptance remains pending merge and protected execution of repair PR 1391
 conflicts: []
 blockers: []
-next_action: Complete exact-head CI and fresh review on PR 1391; if terminal green with no material findings, merge PR 1391 and verify the triggered protected Synology SHADOW deployment reaches health plus two post-start advances with zero trading authority.
+next_action: Consume terminal Freqtrade CI 31272779000 and Risk-aware component CI 31272779123 for deployment head d1bcd5a576e4ecaca5491309f70d7d49c1c174a4; if green, merge PR 1391 and verify the protected Synology SHADOW deployment reaches health plus two post-start advances with zero trading authority.
 ```
 
 ## Recovery checkpoint
@@ -163,19 +177,25 @@ recovery:
   generation: 4
   session_id: owner-20260808-2022-cest
   session_started_at: 2026-08-08T20:22:00+02:00
-  checkpointed_at: 2026-08-08T20:45:00+02:00
-  last_progress_at: 2026-08-08T20:45:00+02:00
+  checkpointed_at: 2026-08-08T20:52:00+02:00
+  last_progress_at: 2026-08-08T20:52:00+02:00
   phase: validate
-  exact_head: live PR 1391 head created by this checkpoint commit
+  exact_head: d1bcd5a576e4ecaca5491309f70d7d49c1c174a4
+  exact_head_role: final_deployment_workflow_and_test_head
+  checkpoint_successor_scope: documentation_only
   pull_request: 1391
-  active_operation: final exact-head CI and independent review for the bounded Synology deployment repair
-  external_run_ids: []
-  operation_started_at: 2026-08-08T20:45:00+02:00
+  active_operation: consume terminal exact-head CI for d1bcd5a576e4ecaca5491309f70d7d49c1c174a4, then merge and verify protected Synology deployment
+  external_run_ids:
+    - 31272779000
+    - 31272779123
+    - 31272779043
+    - 31272779011
+  operation_started_at: 2026-08-08T20:47:19+02:00
   wait_deadline_at: 2026-08-08T21:30:00+02:00
-  check_generation: deployment-repair-final-pr-validation
-  checks_used: 1
-  status: ready
+  check_generation: deployment-repair-d1bcd5a-final-validation
+  checks_used: 2
+  status: active
   safe_to_resume: true
-  resume_condition: required PR 1391 checks and fresh independent review complete on the exact live head
-  next_action: Consume one aggregate exact-head CI/review snapshot; remediate any material finding, otherwise merge PR 1391 and verify its protected develop-push Synology deployment E2E.
+  resume_condition: Freqtrade CI 31272779000 and Risk-aware component CI 31272779123 terminal; live PR head may be a documentation-only checkpoint successor and must be reconciled from GitHub before mutation
+  next_action: If both head-specific runs are green, merge PR 1391 and verify its protected develop-push Synology deployment E2E; otherwise inspect the first actionable failing gate without repeating an identical failed operation.
 ```

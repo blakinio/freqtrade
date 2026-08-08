@@ -37,13 +37,30 @@ env:
   COMPOSE_FILE: deploy/synology/wickhunter-production-research-runtime/compose.yaml
 
 jobs:
+  classify:
+    name: Classify exact WH09 run request
+    runs-on: ubuntu-latest
+    outputs:
+      diagnostic_v4: ${{ steps.classify.outputs.diagnostic_v4 }}
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Classify exact diagnostic v4 path
+        id: classify
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/ci/classify_wickhunter_wh09_deploy_request.py \
+            --event "$GITHUB_EVENT_PATH" \
+            --target-path "$DIAGNOSTIC_V4_PATH" \
+            --github-output "$GITHUB_OUTPUT"
+
   deploy:
-    if: >-
-      ${{
-        !contains(toJSON(github.event.commits.*.added), 'deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json') &&
-        !contains(toJSON(github.event.commits.*.modified), 'deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json') &&
-        !contains(toJSON(github.event.commits.*.removed), 'deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json')
-      }}
+    needs: classify
+    if: ${{ needs.classify.outputs.diagnostic_v4 != 'true' }}
     name: Deploy exact merged WH09 SHADOW runtime
     runs-on:
       - freqtrade-staging
@@ -545,12 +562,8 @@ jobs:
           retention-days: 30
 
   diagnose:
-    if: >-
-      ${{
-        contains(toJSON(github.event.commits.*.added), 'deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json') ||
-        contains(toJSON(github.event.commits.*.modified), 'deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json') ||
-        contains(toJSON(github.event.commits.*.removed), 'deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json')
-      }}
+    needs: classify
+    if: ${{ needs.classify.outputs.diagnostic_v4 == 'true' }}
     name: Inspect existing WH09 SHADOW runtime without recreation
     runs-on:
       - freqtrade-staging
@@ -627,24 +640,47 @@ jobs:
             [[ -z "${!name:-}" ]] || { echo "Forbidden credential environment: $name" >&2; exit 1; }
           done
 
+          evidence_dir="$RUNNER_TEMP/wickhunter-wh09-runtime-diagnostic"
+          mkdir -p "$evidence_dir"
+          identity="$evidence_dir/identity-discovery.txt"
+          report="$evidence_dir/report.json"
+          logs="$evidence_dir/container.log"
+          fs="$evidence_dir/filesystem.txt"
+
           mapfile -t containers < <(
             docker ps -aq --no-trunc \
               --filter 'label=com.docker.compose.project=wickhunter-production-research-runtime' \
               --filter 'label=com.docker.compose.service=wickhunter-production-research-runtime'
           )
+          {
+            printf 'expected_container_id=%s\n' "$EXPECTED_DIAGNOSTIC_CONTAINER_ID"
+            printf 'expected_image_id=%s\n' "$EXPECTED_DIAGNOSTIC_IMAGE_ID"
+            printf 'discovered_container_count=%s\n' "${#containers[@]}"
+            for candidate in "${containers[@]}"; do
+              candidate_image="$(docker inspect --format '{{.Image}}' "$candidate" 2>/dev/null || true)"
+              printf 'candidate_container_id=%s candidate_image_id=%s\n' "$candidate" "$candidate_image"
+            done
+          } > "$identity"
+
           if [[ "${#containers[@]}" -ne 1 ]]; then
             printf 'Expected exactly one WH09 container; found %s\n' "${#containers[@]}" >&2
             exit 1
           fi
           container_id="${containers[0]}"
-          [[ "$container_id" == "$EXPECTED_DIAGNOSTIC_CONTAINER_ID" ]]
-          [[ "$(docker inspect --format '{{.Image}}' "$container_id")" == "$EXPECTED_DIAGNOSTIC_IMAGE_ID" ]]
+          observed_image_id="$(docker inspect --format '{{.Image}}' "$container_id" 2>/dev/null || true)"
+          {
+            printf 'selected_container_id=%s\n' "$container_id"
+            printf 'selected_image_id=%s\n' "$observed_image_id"
+          } >> "$identity"
+          if [[ "$container_id" != "$EXPECTED_DIAGNOSTIC_CONTAINER_ID" ]]; then
+            echo "runtime container identity mismatch" >&2
+            exit 1
+          fi
+          if [[ "$observed_image_id" != "$EXPECTED_DIAGNOSTIC_IMAGE_ID" ]]; then
+            echo "runtime image id mismatch" >&2
+            exit 1
+          fi
           printf 'RUNTIME_CONTAINER_ID=%s\n' "$container_id" >> "$GITHUB_ENV"
-
-          mkdir -p "$RUNNER_TEMP/wickhunter-wh09-runtime-diagnostic"
-          report="$RUNNER_TEMP/wickhunter-wh09-runtime-diagnostic/report.json"
-          logs="$RUNNER_TEMP/wickhunter-wh09-runtime-diagnostic/container.log"
-          fs="$RUNNER_TEMP/wickhunter-wh09-runtime-diagnostic/filesystem.txt"
 
           python3 - "$container_id" "$report" "$EXPECTED_DIAGNOSTIC_IMAGE_ID" <<'PY'
           import json

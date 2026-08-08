@@ -14,6 +14,7 @@ WORKFLOW = (
 )
 RETRY_V2 = DEPLOY / "run-requests" / "retry-wh09-production-research-20260808-v2.json"
 RETRY_V3 = DEPLOY / "run-requests" / "retry-wh09-production-research-20260808-v3.json"
+DIAGNOSTIC_V4 = DEPLOY / "run-requests" / "diagnose-wh09-production-research-20260808-v4.json"
 
 
 def test_compose_keeps_zero_authority_and_hardened_mounts() -> None:
@@ -153,6 +154,56 @@ def test_bounded_deploy_retries_preserve_exact_image_and_authorized_compose() ->
         "reuse_exact_image_if_present": True,
         "synology_cpu_cfs_limit_disabled": True,
         "persistent_internal_demo_production_authorized": True,
+        "mode": "shadow",
+        "no_trade_confidence": "0.60",
+        "paper_activation_authorized": False,
+        "automatic_promotion_enabled": False,
+        "trading_credentials_present": False,
+        "order_adapter_present": False,
+        "execution_enabled": False,
+        "orders_submitted": 0,
+        "live_capital_authorized": False,
+    }
+
+
+def test_diagnostic_v4_is_read_only_and_bound_to_failed_deployment() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    diagnostic = json.loads(DIAGNOSTIC_V4.read_text(encoding="utf-8"))
+    path = "deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json"
+
+    assert path in workflow
+    assert "Inspect existing WH09 SHADOW runtime without recreation" in workflow
+    assert "EXPECTED_DIAGNOSTIC_CONTAINER_ID" in workflow
+    assert "EXPECTED_DIAGNOSTIC_IMAGE_ID" in workflow
+    assert "6724290d3078f09fc82c434e239d2d8afd3686ddedd27ff7d400834538cfbfe0" in workflow
+    assert "sha256:c5a67281912e262a183dd7a5804609a2f69ca356d5eb98e4a5a8da169e07a749" in workflow
+    assert "docker logs --tail 300" in workflow
+    assert "docker compose up" in workflow
+    assert "if: always()" in workflow
+    assert "contains(github.event.head_commit.added" in workflow
+    assert "!contains(github.event.head_commit.added" in workflow
+
+    diagnose_index = workflow.index("  diagnose:")
+    diagnostic_section = workflow[diagnose_index:]
+    assert "docker compose up" not in diagnostic_section
+    assert "docker restart" not in diagnostic_section
+    assert "docker start" not in diagnostic_section
+    assert "docker stop" not in diagnostic_section
+    assert "docker rm" not in diagnostic_section
+    assert "docker kill" not in diagnostic_section
+
+    assert diagnostic == {
+        "schema_version": 1,
+        "request_id": "wickhunter-wh09-production-research-diagnostic-20260808-v4",
+        "deploy_commit": "ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5",
+        "deployment_authorization_commit": "c64df386a4fa3ba739b6eaa1a223ca798a7bcae2",
+        "previous_run_id": 31275253098,
+        "previous_job_id": 93147659559,
+        "expected_container_id": "6724290d3078f09fc82c434e239d2d8afd3686ddedd27ff7d400834538cfbfe0",
+        "expected_image_id": "sha256:c5a67281912e262a183dd7a5804609a2f69ca356d5eb98e4a5a8da169e07a749",
+        "failure_class": "runtime_health_file_absent_after_container_start",
+        "diagnostic_only": True,
+        "container_recreate_authorized": False,
         "mode": "shadow",
         "no_trade_confidence": "0.60",
         "paper_activation_authorized": False,

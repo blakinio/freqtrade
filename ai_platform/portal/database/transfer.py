@@ -113,12 +113,15 @@ def transfer_portal_state(source: Engine, target: Engine) -> dict[str, Any]:
     authority, source_status, source_tables = _source_authority(source)
     target_status = assert_schema_ready(target)
     existing_target_counts = _target_row_counts(target)
-    nonempty_target = sorted(
-        table_name for table_name, row_count in existing_target_counts.items() if row_count
-    )
+    nonempty_target = {
+        table_name: row_count
+        for table_name, row_count in sorted(existing_target_counts.items())
+        if row_count
+    }
     if nonempty_target:
         raise PortalStateTransferError(
-            "target PostgreSQL contains Portal rows; refusing non-idempotent state transfer"
+            "target PostgreSQL contains Portal rows; refusing non-idempotent state transfer; "
+            f"nonempty_table_counts={json.dumps(nonempty_target, sort_keys=True)}"
         )
 
     copied_counts: dict[str, int] = {}

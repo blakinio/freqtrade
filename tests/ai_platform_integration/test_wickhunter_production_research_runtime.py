@@ -87,7 +87,7 @@ def _journal_evidence() -> ShadowDecisionEvidence:
             status=ShadowStatus.SIMULATED_REJECTED,
             candidate=SimpleNamespace(
                 candidate_id="1" * 64,
-                action=CandidateAction.ENTER,
+                action=CandidateAction.ENTER_LONG,
                 side=TradeDirection.LONG,
                 reason_codes=("candidate_ready",),
             ),

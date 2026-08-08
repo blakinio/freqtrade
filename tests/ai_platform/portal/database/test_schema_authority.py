@@ -153,19 +153,23 @@ def test_revision_two_backfills_only_latest_authored_and_state_version(tmp_path:
 
         assert upgraded["status"] == "ready"
         with engine.connect() as connection:
-            row = connection.execute(
-                text(
-                    """
-                    SELECT latest_authored_revision_id,
-                           desired_revision_id,
-                           desired_runtime_generation_id,
-                           observed_runtime_generation_id,
-                           state_version
-                      FROM portal_bots
-                     WHERE tenant_id = 'tenant-a' AND bot_id = 'bot-legacy'
-                    """
+            row = (
+                connection.execute(
+                    text(
+                        """
+                        SELECT latest_authored_revision_id,
+                               desired_revision_id,
+                               desired_runtime_generation_id,
+                               observed_runtime_generation_id,
+                               state_version
+                          FROM portal_bots
+                         WHERE tenant_id = 'tenant-a' AND bot_id = 'bot-legacy'
+                        """
+                    )
                 )
-            ).mappings().one()
+                .mappings()
+                .one()
+            )
         assert row["latest_authored_revision_id"] == "revision-legacy-2"
         assert row["desired_revision_id"] is None
         assert row["desired_runtime_generation_id"] is None

@@ -92,6 +92,9 @@ def test_bounded_deploy_retry_reuses_exact_image_and_keeps_zero_authority() -> N
     assert "retry-wh09-production-research-20260808-v2.json" in workflow
     assert "docker image inspect" in workflow
     assert "org.opencontainers.image.revision" in workflow
+    assert 'revision=""' in workflow
+    assert 'if [[ "$revision" != "$DEPLOY_COMMIT" ]]; then' in workflow
+    assert '[[ "$revision" == "$DEPLOY_COMMIT" ]]' not in workflow
     assert "--no-build" in workflow
     assert "two advancing cycles" in workflow
     assert "docker exec" in workflow

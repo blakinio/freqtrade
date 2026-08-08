@@ -1,0 +1,383 @@
+name: Portal API Mode PostgreSQL Exact Image
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/portal-api-mode-postgresql.yml"
+      - "ai_platform/portal/**"
+      - "deploy/synology/portal/**"
+      - "deploy/synology/portal-oidc/**"
+      - "tests/ai_platform/portal/**"
+  push:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/portal-api-mode-postgresql.yml"
+      - "ai_platform/portal/**"
+      - "deploy/synology/portal/**"
+      - "deploy/synology/portal-oidc/**"
+      - "tests/ai_platform/portal/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "portal-api-mode-postgresql-${{ github.event.pull_request.number || github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  exact-image-postgresql:
+    name: Exact images, PostgreSQL state transfer and restart
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Build exact Portal images
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          control="local/portal-api-mode-control:${SOURCE_SHA:0:12}"
+          web="local/portal-api-mode-web:${SOURCE_SHA:0:12}"
+          docker build \
+            --pull=false \
+            --label "org.opencontainers.image.revision=${SOURCE_SHA}" \
+            --file deploy/synology/portal-oidc/Dockerfile.control-plane \
+            --tag "$control" \
+            .
+          docker build \
+            --pull=false \
+            --label "org.opencontainers.image.revision=${SOURCE_SHA}" \
+            --file deploy/synology/portal/Dockerfile \
+            --tag "$web" \
+            ai_platform/portal/web
+          echo "CONTROL_IMAGE=$control" >> "$GITHUB_ENV"
+          echo "WEB_IMAGE=$web" >> "$GITHUB_ENV"
+
+      - name: Prove migration, state transfer, API mode and restart persistence
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          network="portal-api-mode-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          postgres="portal-postgres-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          control="portal-control-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          web="portal-web-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          legacy="$RUNNER_TEMP/portal-legacy"
+          evidence="$RUNNER_TEMP/portal-api-mode-evidence"
+          postgres_image="docker.io/library/postgres:16.13-alpine3.23@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777"
+          pg_url="postgresql+psycopg://portal:ci-only-synthetic-portal-password@portal-postgresql:5432/portal"
+          key="$(python3 - <<'PY'
+          import base64
+          print(base64.urlsafe_b64encode(b"x" * 32).decode("ascii").rstrip("="))
+          PY
+          )"
+
+          cleanup() {
+            docker rm -f "$web" "$control" "$postgres" >/dev/null 2>&1 || true
+            docker network rm "$network" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          mkdir -p "$legacy" "$evidence"
+          sudo chown 10001:10001 "$legacy" "$evidence"
+          docker network create "$network" >/dev/null
+          docker run --detach --name "$postgres" \
+            --network "$network" --network-alias portal-postgresql \
+            --env POSTGRES_DB=portal \
+            --env POSTGRES_USER=portal \
+            --env POSTGRES_PASSWORD=ci-only-synthetic-portal-password \
+            --health-cmd "pg_isready -U portal -d portal" \
+            --health-interval 2s \
+            --health-timeout 5s \
+            --health-retries 30 \
+            "$postgres_image" >/dev/null
+
+          for _ in $(seq 1 45); do
+            status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$postgres")"
+            [[ "$status" == "healthy" ]] && break
+            [[ "$status" =~ ^(unhealthy|exited|dead)$ ]] && {
+              docker logs "$postgres" >&2 || true
+              exit 1
+            }
+            sleep 2
+          done
+          [[ "$(docker inspect --format '{{.State.Health.Status}}' "$postgres")" == "healthy" ]]
+
+          docker run --rm \
+            --user 10001:10001 \
+            --mount "type=bind,src=$legacy,dst=/legacy" \
+            --env PORTAL_DATABASE_URL=sqlite+pysqlite:////legacy/portal.db \
+            --entrypoint python \
+            "$CONTROL_IMAGE" \
+            -m ai_platform.portal.database.cli migrate >/dev/null
+
+          docker run --rm -i \
+            --user 10001:10001 \
+            --mount "type=bind,src=$legacy,dst=/legacy" \
+            --env PORTAL_DATABASE_URL=sqlite+pysqlite:////legacy/portal.db \
+            --entrypoint python \
+            "$CONTROL_IMAGE" - <<'PY'
+          import os
+          from sqlalchemy import text
+          from ai_platform.portal.control_plane.database import build_engine
+
+          engine = build_engine(os.environ["PORTAL_DATABASE_URL"])
+          try:
+              with engine.begin() as connection:
+                  connection.execute(
+                      text(
+                          "INSERT INTO portal_bots "
+                          "(tenant_id, bot_id, name, spec_json, desired_state, observed_state, current_revision) "
+                          "VALUES (:tenant_id, :bot_id, :name, :spec_json, :desired_state, :observed_state, :current_revision)"
+                      ),
+                      {
+                          "tenant_id": "ci-tenant",
+                          "bot_id": "ci-preserved-bot",
+                          "name": "Preserved dry-run bot",
+                          "spec_json": "{}",
+                          "desired_state": "STOPPED",
+                          "observed_state": "STOPPED",
+                          "current_revision": 1,
+                      },
+                  )
+          finally:
+              engine.dispose()
+          PY
+
+          docker run --rm \
+            --network "$network" \
+            --env PORTAL_DATABASE_URL="$pg_url" \
+            --entrypoint python \
+            "$CONTROL_IMAGE" \
+            -m ai_platform.portal.database.cli migrate >/dev/null
+
+          docker run --rm \
+            --network "$network" \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=32m \
+            --user 10001:10001 \
+            --mount "type=bind,src=$legacy,dst=/legacy,readonly" \
+            --mount "type=bind,src=$evidence,dst=/evidence" \
+            --env PORTAL_DATABASE_URL="$pg_url" \
+            --entrypoint python \
+            "$CONTROL_IMAGE" \
+            -m ai_platform.portal.database.transfer \
+            --source-sqlite /legacy/portal.db \
+            --output /evidence/state-transfer.json >/dev/null
+
+          start_control() {
+            docker run --detach --name "$control" \
+              --network "$network" --network-alias portal-control-plane \
+              --read-only \
+              --tmpfs /tmp:rw,noexec,nosuid,nodev,size=32m \
+              --cap-drop ALL \
+              --security-opt no-new-privileges:true \
+              --user 10001:10001 \
+              --env PORTAL_DATABASE_URL="$pg_url" \
+              --env PORTAL_ENVIRONMENT=production \
+              --env PORTAL_IDENTITY_ISSUER=https://identity.example.invalid/application/o/portal/ \
+              --env PORTAL_IDENTITY_CLIENT_ID=portal \
+              --env PORTAL_IDENTITY_CLIENT_SECRET=synthetic-not-a-production-secret \
+              --env PORTAL_IDENTITY_REDIRECT_URI=https://portal.example.invalid/api/identity/callback \
+              --env PORTAL_IDENTITY_SESSION_HMAC_KEY_B64="$key" \
+              --env PORTAL_IDENTITY_FLOW_ENCRYPTION_KEY_B64="$key" \
+              --env PORTAL_IDENTITY_TRANSPORT_MODE=https \
+              "$CONTROL_IMAGE" >/dev/null
+          }
+
+          wait_healthy() {
+            container="$1"
+            for _ in $(seq 1 60); do
+              status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container")"
+              [[ "$status" == "healthy" ]] && return 0
+              [[ "$status" =~ ^(unhealthy|exited|dead)$ ]] && {
+                docker logs "$container" >&2 || true
+                return 1
+              }
+              sleep 2
+            done
+            docker logs "$container" >&2 || true
+            return 1
+          }
+
+          start_control
+          wait_healthy "$control"
+
+          docker run --detach --name "$web" \
+            --network "$network" \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=32m \
+            --tmpfs /app/.next/cache:rw,noexec,nosuid,nodev,size=64m,uid=1000,gid=1000 \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --env PORTAL_WEB_DATA_MODE=api \
+            --env PORTAL_ENVIRONMENT=production \
+            --env PORTAL_IDENTITY_FIXTURE_MODE=disabled \
+            --env PORTAL_IDENTITY_TRANSPORT_MODE=https \
+            --env PORTAL_IDENTITY_ISSUER=https://identity.example.invalid/application/o/portal/ \
+            --env PORTAL_CONTROL_PLANE_URL=http://portal-control-plane:8000 \
+            --env PORTAL_LIQUIDATIONS_DATA_ROOT=/tmp/no-liquidations \
+            "$WEB_IMAGE" >/dev/null
+          wait_healthy "$web"
+
+          docker exec -i "$control" python - <<'PY' > "$evidence/runtime.json"
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+          from sqlalchemy import text
+          from ai_platform.portal.control_plane.database import build_engine
+          from ai_platform.portal.database.schema import EXPECTED_SCHEMA_REVISION
+
+          with urllib.request.urlopen("http://127.0.0.1:8000/healthz", timeout=5) as response:
+              health = json.load(response)
+          with urllib.request.urlopen("http://127.0.0.1:8000/readyz", timeout=5) as response:
+              ready = json.load(response)
+          try:
+              urllib.request.urlopen("http://127.0.0.1:8000/v1/bots", timeout=5)
+          except urllib.error.HTTPError as exc:
+              unauthorized_status = exc.code
+          else:
+              raise SystemExit("unauthenticated product route unexpectedly succeeded")
+
+          engine = build_engine(os.environ["PORTAL_DATABASE_URL"])
+          try:
+              with engine.connect() as connection:
+                  preserved = int(
+                      connection.execute(
+                          text(
+                              "SELECT COUNT(*) FROM portal_bots "
+                              "WHERE tenant_id='ci-tenant' AND bot_id='ci-preserved-bot'"
+                          )
+                      ).scalar_one()
+                  )
+          finally:
+              engine.dispose()
+
+          assert health["status"] == "ok"
+          assert health["identity_fixture"] is False
+          assert health["live_capital_authorized"] is False
+          assert ready["status"] == "ready"
+          assert ready["database_dialect"] == "postgresql"
+          assert ready["canonical_schema_revision"] == EXPECTED_SCHEMA_REVISION
+          assert ready["required_router_inventory_complete"] is True
+          assert ready["runtime_authority"] == "unprivileged"
+          assert ready["live_capital_authorized"] is False
+          assert unauthorized_status == 401
+          assert preserved == 1
+          print(
+              json.dumps(
+                  {
+                      "status": "pass",
+                      "database_dialect": ready["database_dialect"],
+                      "schema_revision": ready["canonical_schema_revision"],
+                      "required_router_inventory_complete": True,
+                      "unauthenticated_product_route_status": unauthorized_status,
+                      "preserved_bot_rows": preserved,
+                      "live_capital_authorized": False,
+                  },
+                  sort_keys=True,
+              )
+          )
+          PY
+
+          docker exec -i "$web" node - <<'JS'
+          Promise.all([
+            fetch("http://127.0.0.1:3000/login"),
+            fetch("http://portal-control-plane:8000/readyz"),
+          ])
+            .then(async ([login, ready]) => {
+              if (!login.ok || !ready.ok) process.exit(2);
+              const body = await login.text();
+              const payload = await ready.json();
+              if (!body.includes("<html") || payload.status !== "ready") process.exit(3);
+            })
+            .catch(() => process.exit(4));
+          JS
+
+          docker rm -f "$control" >/dev/null
+          start_control
+          wait_healthy "$control"
+          docker exec -i "$control" python - <<'PY'
+          import os
+          from sqlalchemy import text
+          from ai_platform.portal.control_plane.database import build_engine
+
+          engine = build_engine(os.environ["PORTAL_DATABASE_URL"])
+          try:
+              with engine.connect() as connection:
+                  count = int(
+                      connection.execute(
+                          text(
+                              "SELECT COUNT(*) FROM portal_bots "
+                              "WHERE tenant_id='ci-tenant' AND bot_id='ci-preserved-bot'"
+                          )
+                      ).scalar_one()
+                  )
+              assert count == 1
+          finally:
+              engine.dispose()
+          PY
+
+          if docker run --rm \
+            --env PORTAL_WEB_DATA_MODE=fixture \
+            --env PORTAL_ENVIRONMENT=production \
+            --env PORTAL_IDENTITY_FIXTURE_MODE=disabled \
+            --env PORTAL_CONTROL_PLANE_URL=http://example.invalid:8000 \
+            "$WEB_IMAGE" >/dev/null 2>&1; then
+            echo "production fixture mode unexpectedly started" >&2
+            exit 1
+          fi
+
+          CONTROL_IMAGE="$CONTROL_IMAGE" WEB_IMAGE="$WEB_IMAGE" SOURCE_SHA="$SOURCE_SHA" \
+            python3 - "$evidence" <<'PY'
+          import json
+          import os
+          import pathlib
+          import subprocess
+          import sys
+
+          evidence = pathlib.Path(sys.argv[1])
+          transfer = json.loads((evidence / "state-transfer.json").read_text(encoding="utf-8"))
+          runtime = json.loads((evidence / "runtime.json").read_text(encoding="utf-8"))
+          image_id = lambda image: subprocess.check_output(
+              ["docker", "image", "inspect", "--format", "{{.Id}}", image], text=True
+          ).strip()
+          summary = {
+              "source_sha": os.environ["SOURCE_SHA"],
+              "control_image_id": image_id(os.environ["CONTROL_IMAGE"]),
+              "web_image_id": image_id(os.environ["WEB_IMAGE"]),
+              "database_dialect": runtime["database_dialect"],
+              "schema_revision": runtime["schema_revision"],
+              "state_transfer_status": transfer["status"],
+              "rows_transferred": transfer["rows_copied"],
+              "restart_persistence": "pass",
+              "fixture_mode_rejected": True,
+              "identity_fixture": False,
+              "live_capital_authorized": False,
+              "secret_values_recorded": False,
+          }
+          (evidence / "summary.json").write_text(
+              json.dumps(summary, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload secret-free API-mode evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: portal-api-mode-postgresql-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/portal-api-mode-evidence
+          if-no-files-found: error
+          retention-days: 14

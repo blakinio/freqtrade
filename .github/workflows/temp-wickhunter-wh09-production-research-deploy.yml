@@ -1,0 +1,294 @@
+name: Temporary WickHunter WH09 Production Research Deploy
+
+"on":
+  push:
+    branches:
+      - ops/wickhunter-wh09-production-research-deploy-20260808
+    paths:
+      - .github/workflows/temp-wickhunter-wh09-production-research-deploy.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh09-production-research-deploy
+  cancel-in-progress: false
+
+env:
+  DEPLOY_COMMIT: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
+  STATE_DIR: /var/lib/freqtrade-staging-state
+  MODEL_PACKAGE_REL: wickhunter-candidate-materialization/packages/wickhunter-wh09-candidate-materialization-20260808-r1-h900s-7b23a958fd4d
+  LIQUID20_POINTER_REL: production-market-evidence-v2/latest
+  JOURNAL_REL: wickhunter-production-research-runtime/journal
+  OPERATOR_REL: wickhunter-production-research-runtime/operator
+  COMPOSE_FILE: deploy/synology/wickhunter-production-research-runtime/compose.yaml
+  RUNTIME_USER: "65532"
+  RUNTIME_GROUP: "65532"
+
+jobs:
+  deploy:
+    name: Deploy exact merged WH09 SHADOW research runtime
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout exact merged implementation
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
+
+      - name: Validate exact commit, runner and zero-authority environment
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$DEPLOY_COMMIT" ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" || "$RUNNER_ARCH_VALUE" == "ARM64" ]]
+          [[ -d "$STATE_DIR" && -w "$STATE_DIR" ]]
+          docker version >/dev/null
+          docker compose version >/dev/null
+
+          for name in \
+            BINANCE_API_KEY BINANCE_API_SECRET BINANCE_SECRET_KEY \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            EXCHANGE_API_KEY EXCHANGE_API_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "Forbidden trading credential environment is present: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Resolve hardened host mounts and reader identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          host_state_dir="$(docker inspect \
+            --format '{{range .Mounts}}{{if eq .Destination "/var/lib/freqtrade-staging-state"}}{{.Source}}{{end}}{{end}}' \
+            freqtrade-synology-staging-runner)"
+          [[ "$host_state_dir" =~ ^/volume1/docker/[A-Za-z0-9._/-]+$ ]]
+          [[ "$host_state_dir" != *$'\n'* ]]
+
+          model_container="$STATE_DIR/$MODEL_PACKAGE_REL"
+          [[ -d "$model_container" && ! -L "$model_container" ]]
+          [[ -f "$model_container/manifest.json" && ! -L "$model_container/manifest.json" ]]
+
+          liquid_pointer="$STATE_DIR/$LIQUID20_POINTER_REL"
+          liquid_container="$(readlink -f -- "$liquid_pointer")"
+          [[ -d "$liquid_container" ]]
+          [[ "$liquid_container" == "$STATE_DIR"/* ]]
+          liquid_rel="${liquid_container#"$STATE_DIR"/}"
+          reader_gid="$(stat -c '%g' -- "$liquid_container")"
+          [[ "$reader_gid" =~ ^[0-9]+$ ]]
+
+          journal_container="$STATE_DIR/$JOURNAL_REL"
+          operator_container="$STATE_DIR/$OPERATOR_REL"
+          mkdir -p -- "$journal_container" "$operator_container"
+          [[ ! -L "$journal_container" && ! -L "$operator_container" ]]
+          if find "$journal_container" "$operator_container" -xdev -type l -print -quit | grep -q .; then
+            echo "Runtime state contains a forbidden symlink" >&2
+            exit 1
+          fi
+          chown -R -- "$RUNTIME_USER:$RUNTIME_GROUP" "$journal_container" "$operator_container"
+
+          {
+            printf 'MODEL_ROOT_HOST=%s/%s\n' "$host_state_dir" "$MODEL_PACKAGE_REL"
+            printf 'LIQUID20_LIVE_HOST=%s/%s\n' "$host_state_dir" "$liquid_rel"
+            printf 'LIQUID20_READER_GID=%s\n' "$reader_gid"
+            printf 'JOURNAL_ROOT_HOST=%s/%s\n' "$host_state_dir" "$JOURNAL_REL"
+            printf 'OPERATOR_STATE_HOST=%s/%s\n' "$host_state_dir" "$OPERATOR_REL"
+            printf 'JOURNAL_CONTAINER=%s\n' "$journal_container"
+            printf 'OPERATOR_CONTAINER=%s\n' "$operator_container"
+          } >> "$GITHUB_ENV"
+
+      - name: Deploy persistent demo-production SHADOW runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          export OPERATOR_COMMIT="$DEPLOY_COMMIT"
+          export WICKHUNTER_RESEARCH_RUNTIME_IMAGE="wickhunter-production-research-runtime:${DEPLOY_COMMIT:0:12}"
+          export MODEL_ROOT_HOST LIQUID20_LIVE_HOST LIQUID20_READER_GID JOURNAL_ROOT_HOST OPERATOR_STATE_HOST
+          export POLL_SECONDS=60
+          export MAXIMUM_SOURCE_AGE_MS=300000
+          export MODEL_DRIFT=healthy
+          export DATA_DRIFT=healthy
+          export CIRCUIT_BREAKER_ACTIVE=false
+          export SUPERVISOR_CYCLES=0
+          export HEALTH_MAX_AGE_SECONDS=600
+          docker compose -f "$COMPOSE_FILE" config --quiet
+          docker compose -f "$COMPOSE_FILE" up -d --build --remove-orphans wickhunter-production-research-runtime
+          container_id="$(docker compose -f "$COMPOSE_FILE" ps -q wickhunter-production-research-runtime)"
+          [[ -n "$container_id" ]]
+          printf 'RUNTIME_CONTAINER_ID=%s\n' "$container_id" >> "$GITHUB_ENV"
+
+      - name: Prove health, runtime advancement and zero real-trading authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/wickhunter-wh09-production-research-deploy"
+          mkdir -p "$evidence"
+
+          ready=false
+          for _ in $(seq 1 60); do
+            if docker exec "$RUNTIME_CONTAINER_ID" \
+              python /app/deploy/synology/wickhunter-production-research-runtime/research_runtime_healthcheck.py \
+              >/dev/null 2>&1; then
+              if [[ -f "$OPERATOR_CONTAINER/health.json" && -f "$JOURNAL_CONTAINER/telemetry.json" ]]; then
+                ready=true
+                break
+              fi
+            fi
+            sleep 5
+          done
+          if [[ "$ready" != "true" ]]; then
+            docker inspect "$RUNTIME_CONTAINER_ID" || true
+            docker logs --tail 200 "$RUNTIME_CONTAINER_ID" || true
+            echo "WH09 research runtime did not become directly healthy" >&2
+            exit 1
+          fi
+
+          python3 - "$OPERATOR_CONTAINER/health.json" "$JOURNAL_CONTAINER/telemetry.json" "$DEPLOY_COMMIT" "$evidence/first.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          health = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          telemetry = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          commit = sys.argv[3]
+          output = Path(sys.argv[4])
+          zero_false = (
+              "protected_holdout_accessed",
+              "automatic_promotion_enabled",
+              "trading_credentials_present",
+              "order_adapter_present",
+              "execution_enabled",
+              "live_capital_authorized",
+          )
+          for payload, label in ((health, "health"), (telemetry, "telemetry")):
+              if payload.get("operator_commit") != commit:
+                  raise SystemExit(f"{label} is not bound to exact merged commit")
+              if payload.get("mode") != "shadow":
+                  raise SystemExit(f"{label} is not SHADOW")
+              if payload.get("no_trade_confidence") != "0.60":
+                  raise SystemExit(f"{label} threshold changed")
+              for key in zero_false:
+                  if payload.get(key) is not False:
+                      raise SystemExit(f"{label} authority flag {key} is not false")
+              if payload.get("orders_submitted") != 0:
+                  raise SystemExit(f"{label} submitted an order")
+          if health.get("status") != "healthy":
+              raise SystemExit("operator health is not healthy")
+          if health.get("runtime_health") not in {"healthy", "degraded"}:
+              raise SystemExit("nested runtime is fail-closed")
+          if health.get("circuit_breaker_active") is not False:
+              raise SystemExit("circuit breaker is active")
+          if int(telemetry.get("decision_count", 0)) <= 0:
+              raise SystemExit("runtime has not journaled any decision")
+          output.write_text(
+              json.dumps(
+                  {
+                      "health_checked_at_ms": int(health["checked_at_ms"]),
+                      "telemetry_checked_at_ms": int(telemetry["checked_at_ms"]),
+                      "runtime_generation": int(telemetry["runtime_generation"]),
+                      "decision_count": int(telemetry["decision_count"]),
+                      "outcome_count": int(telemetry["outcome_count"]),
+                  },
+                  indent=2,
+                  sort_keys=True,
+              ) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+          first_checked="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["telemetry_checked_at_ms"])' "$evidence/first.json")"
+          first_generation="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["runtime_generation"])' "$evidence/first.json")"
+          first_decisions="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["decision_count"])' "$evidence/first.json")"
+
+          advanced=false
+          for _ in $(seq 1 18); do
+            sleep 5
+            if python3 - "$JOURNAL_CONTAINER/telemetry.json" "$first_checked" "$first_generation" "$first_decisions" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if int(payload["checked_at_ms"]) <= int(sys.argv[2]):
+              raise SystemExit(1)
+          if int(payload["runtime_generation"]) <= int(sys.argv[3]):
+              raise SystemExit(1)
+          if int(payload["decision_count"]) <= int(sys.argv[4]):
+              raise SystemExit(1)
+          PY
+            then
+              advanced=true
+              break
+            fi
+          done
+          if [[ "$advanced" != "true" ]]; then
+            docker logs --tail 200 "$RUNTIME_CONTAINER_ID" || true
+            echo "WH09 research runtime did not prove a second advancing cycle" >&2
+            exit 1
+          fi
+
+          python3 - "$OPERATOR_CONTAINER/health.json" "$JOURNAL_CONTAINER/telemetry.json" "$DEPLOY_COMMIT" "$evidence/deployment-report.json" <<'PY'
+          import json
+          import sys
+          import time
+          from pathlib import Path
+          health = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          telemetry = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          commit = sys.argv[3]
+          output = Path(sys.argv[4])
+          report = {
+              "schema_version": 1,
+              "verified_at_ns": time.time_ns(),
+              "deployed_commit": commit,
+              "container_id": None,
+              "mode": telemetry["mode"],
+              "operator_status": health["status"],
+              "runtime_health": health["runtime_health"],
+              "no_trade_confidence": telemetry["no_trade_confidence"],
+              "runtime_generation": telemetry["runtime_generation"],
+              "decision_count": telemetry["decision_count"],
+              "no_trade_count": telemetry["no_trade_count"],
+              "simulated_signal_count": telemetry["simulated_signal_count"],
+              "outcome_count": telemetry["outcome_count"],
+              "pending_outcome_count": telemetry["pending_outcome_count"],
+              "automatic_promotion_enabled": telemetry["automatic_promotion_enabled"],
+              "trading_credentials_present": telemetry["trading_credentials_present"],
+              "order_adapter_present": telemetry["order_adapter_present"],
+              "execution_enabled": telemetry["execution_enabled"],
+              "orders_submitted": telemetry["orders_submitted"],
+              "live_capital_authorized": telemetry["live_capital_authorized"],
+          }
+          output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
+
+          user_value="$(docker inspect --format '{{.Config.User}}' "$RUNTIME_CONTAINER_ID")"
+          [[ "$user_value" == "65532:65532" ]]
+          privileged="$(docker inspect --format '{{.HostConfig.Privileged}}' "$RUNTIME_CONTAINER_ID")"
+          [[ "$privileged" == "false" ]]
+          port_bindings="$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$RUNTIME_CONTAINER_ID")"
+          [[ "$port_bindings" == "{}" || "$port_bindings" == "null" ]]
+          docker exec "$RUNTIME_CONTAINER_ID" \
+            python /app/deploy/synology/wickhunter-production-research-runtime/research_runtime_healthcheck.py
+          docker inspect --format '{{json .State.Health}}' "$RUNTIME_CONTAINER_ID" || true
+
+      - name: Upload secret-free deployment evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wickhunter-wh09-production-research-deployment-${{ github.run_id }}
+          path: ${{ runner.temp }}/wickhunter-wh09-production-research-deploy/deployment-report.json
+          if-no-files-found: error
+          retention-days: 30

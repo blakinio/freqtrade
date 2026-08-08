@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated
+from collections.abc import Callable
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, PositiveInt
@@ -74,7 +74,7 @@ def _rollout_from_row(row: BotRolloutRow | None) -> BotRollout | None:
 def build_router(
     service: ControlPlaneService,
     session_factory: SessionFactory,
-    context_dependency: object,
+    context_dependency: Callable[..., RequestContext],
 ) -> APIRouter:
     router = APIRouter(tags=["runtime-generation"])
     repository = BotRepository()
@@ -150,7 +150,12 @@ def build_router(
             request.expected_state_version,
         )
 
-    def _activation_response(operation: str, request: ActivateRevisionRequest, context: RequestContext, bot_id: str) -> RuntimeGenerationActivation:
+    def _activation_response(
+        operation: str,
+        request: ActivateRevisionRequest,
+        context: RequestContext,
+        bot_id: str,
+    ) -> RuntimeGenerationActivation:
         try:
             if operation == "APPLY":
                 result = service.apply_revision(

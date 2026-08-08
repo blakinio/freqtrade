@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from ai_platform.wickhunter.contracts import BotMode
@@ -37,6 +39,7 @@ def _assert_zero_authority(resolution: RuntimeModeResolution) -> None:
     assert resolution.real_exchange_execution_enabled is False
     assert resolution.execution_enabled is False
     assert resolution.orders_submitted == 0
+    assert type(resolution.orders_submitted) is int
     assert resolution.live_capital_authorized is False
     assert resolution.automatic_promotion_enabled is False
 
@@ -191,6 +194,31 @@ def test_request_rejects_raw_string_mode_fail_closed() -> None:
         resolve_managed_runtime_mode(mode_request)
 
     assert exc_info.value.reason is RuntimeModeRejectionReason.UNSUPPORTED_MODE
+
+
+@pytest.mark.parametrize(
+    ("field", "bad_value"),
+    [
+        ("market_observation_enabled", 1),
+        ("simulated_paper_state_enabled", 0),
+        ("trading_credentials_present", None),
+        ("order_adapter_present", ""),
+        ("real_exchange_execution_enabled", 0),
+        ("execution_enabled", None),
+        ("live_capital_authorized", 0),
+        ("automatic_promotion_enabled", ""),
+        ("orders_submitted", False),
+        ("orders_submitted", 0.0),
+    ],
+)
+def test_reconstructed_resolution_rejects_noncanonical_zero_authority_types(
+    field: str,
+    bad_value: object,
+) -> None:
+    resolution = resolve_managed_runtime_mode(ManagedRuntimeModeRequest(mode=BotMode.SHADOW))
+
+    with pytest.raises(ValueError):
+        replace(resolution, **{field: bad_value})
 
 
 def test_request_and_resolution_digests_are_deterministic_and_mode_bound() -> None:

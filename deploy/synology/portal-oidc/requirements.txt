@@ -2,6 +2,8 @@ cryptography==50.0.0
 fastapi==0.139.2
 httpx==0.28.1
 jsonschema==4.26.0
+numpy==2.4.6
+pandas==3.0.3
 psycopg[binary]==3.2.9
 PyJWT==2.13.0
 PyYAML==6.0.3

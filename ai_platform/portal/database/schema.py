@@ -715,9 +715,7 @@ def _create_runtime_generation_revision(
             """
         )
     )
-    connection.execute(
-        text("UPDATE portal_bots SET state_version = 1 WHERE state_version IS NULL")
-    )
+    connection.execute(text("UPDATE portal_bots SET state_version = 1 WHERE state_version IS NULL"))
     for table in manifest_tables:
         if table.name in RUNTIME_GENERATION_TABLE_NAMES:
             table.create(connection, checkfirst=False)

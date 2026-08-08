@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import Engine, func, inspect, select, text
+from sqlalchemy import Engine, Table, func, inspect, select, text
 
 from ai_platform.portal.control_plane.database import Base, build_engine
 from ai_platform.portal.database.model_registry import load_portal_models
@@ -23,7 +23,7 @@ class PortalStateTransferError(RuntimeError):
     pass
 
 
-def _manifest_tables():
+def _manifest_tables() -> tuple[Table, ...]:
     manifest = load_portal_models()
     return tuple(table for table in Base.metadata.sorted_tables if table.name in manifest)
 
@@ -144,15 +144,14 @@ def transfer_portal_state(source: Engine, target: Engine) -> dict[str, Any]:
                 copied += len(batch)
             copied_counts[table.name] = copied
         _reset_postgresql_sequences(target_connection)
-
-    target_counts = _target_row_counts(target)
-    mismatches = {
-        table_name: {"copied": copied_counts[table_name], "target": target_counts[table_name]}
-        for table_name in copied_counts
-        if copied_counts[table_name] != target_counts[table_name]
-    }
-    if mismatches:
-        raise PortalStateTransferError("PostgreSQL row-count verification failed after state transfer")
+        for table in _manifest_tables():
+            target_count = int(
+                target_connection.execute(select(func.count()).select_from(table)).scalar_one()
+            )
+            if target_count != copied_counts[table.name]:
+                raise PortalStateTransferError(
+                    "PostgreSQL row-count verification failed during state transfer"
+                )
 
     target_integrity = scan_database_integrity(target)
     if target_integrity["status"] != "clean":

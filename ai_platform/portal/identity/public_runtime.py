@@ -35,7 +35,8 @@ def _required(name: str) -> str:
 
 
 def _assert_full_router_inventory(app: FastAPI) -> int:
-    paths = {route.path for route in app.routes}
+    schema = app.openapi()
+    paths = frozenset(schema.get("paths", {}))
     missing = sorted(_REQUIRED_COMPOSED_ROUTES - paths)
     if missing:
         raise RuntimeError(

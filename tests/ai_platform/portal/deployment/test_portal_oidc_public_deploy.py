@@ -10,7 +10,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[4]
 DEPLOYMENT = ROOT / "deploy" / "synology" / "portal-oidc"
 WORKFLOW = ROOT / ".github" / "workflows" / "portal-oidc-public-deploy.yml"
-POSTGRES_EXACT_IMAGE_WORKFLOW = ROOT / ".github" / "workflows" / "portal-api-mode-postgresql.yml"
+POSTGRES_EXACT_IMAGE_WORKFLOW = ROOT / ".github" / "workflows" / "portal-schema-exact-image.yml"
 SPEC = importlib.util.spec_from_file_location("portal_oidc_deploy", DEPLOYMENT / "deploy.py")
 assert SPEC and SPEC.loader
 module = importlib.util.module_from_spec(SPEC)
@@ -277,17 +277,17 @@ def test_nonprotected_exact_image_workflow_proves_postgresql_api_mode() -> None:
     workflow = POSTGRES_EXACT_IMAGE_WORKFLOW.read_text(encoding="utf-8")
 
     for required in (
-        "Portal API Mode PostgreSQL Exact Image",
+        "Portal Schema Exact Image",
         "postgres:16.13-alpine3.23@sha256:",
         "ai_platform.portal.database.cli migrate",
         "ai_platform.portal.database.transfer",
         "PORTAL_WEB_DATA_MODE=api",
         "production fixture mode unexpectedly started",
         'ready["database_dialect"] == "postgresql"',
-        '"representative_product_read": product["representative_read"]',
-        '"representative_product_mutation": product["representative_mutation"]',
-        "assert preserved == 1",
-        "assert created == 1",
+        'product["representative_read"] == "pass"',
+        'product["representative_mutation"] == "pass"',
+        'rows == {"ci-api-bot": 1, "ci-preserved-bot": 1}',
+        'transfer["schema_metadata_transfer"] == "excluded_dialect_specific_authority"',
     ):
         assert required in workflow
     assert "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0" in workflow

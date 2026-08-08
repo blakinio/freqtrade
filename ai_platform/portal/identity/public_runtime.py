@@ -1,245 +1,111 @@
 from __future__ import annotations
 
 import os
-from urllib.parse import parse_qs
 
-from fastapi import FastAPI, Request, Response, status
-from fastapi.responses import JSONResponse, RedirectResponse
-from pydantic import BaseModel, ConfigDict
+from fastapi import FastAPI, status
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 from ai_platform.portal.control_plane.database import build_engine, build_session_factory
-from ai_platform.portal.database.schema import (
-    EXPECTED_SCHEMA_REVISION,
-    assert_schema_ready,
-)
-from ai_platform.portal.identity.oidc import OidcProtocolError, OidcProviderUnavailable
-from ai_platform.portal.identity.repository import (
-    IdentityReplayConflictError,
-    IdentityReplayStateError,
-)
+from ai_platform.portal.database.schema import EXPECTED_SCHEMA_REVISION, assert_schema_ready
+from ai_platform.portal.identity.http import create_identity_enabled_app
 from ai_platform.portal.identity.runtime import IdentityRuntimeConfig, build_identity_service
-from ai_platform.portal.identity.schema import BackchannelLogoutResult, PortalSessionView
-from ai_platform.portal.identity.service import (
-    CSRF_COOKIE_NAME,
-    SESSION_COOKIE_NAME,
-    IdentityAuthenticationError,
-    IdentityAuthorizationError,
-    IdentityService,
+
+
+_REQUIRED_COMPOSED_ROUTES = frozenset(
+    {
+        "/v1/identity/login",
+        "/v1/identity/session",
+        "/v1/bots",
+        "/v1/positions",
+        "/v1/terminal/intents",
+        "/v1/models",
+        "/v1/strategies",
+        "/v1/valuations",
+        "/v1/runtime-observability/availability",
+    }
 )
-
-
-class LogoutAllResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    revoked_sessions: int
-
-
-class LogoutResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    revoked: bool
 
 
 def _required(name: str) -> str:
     value = os.environ.get(name, "").strip()
     if not value:
-        raise RuntimeError(f"required public identity setting is missing: {name}")
+        raise RuntimeError(f"required public Portal setting is missing: {name}")
     return value
 
 
-def _expire_identity_cookies(response: Response) -> None:
-    response.delete_cookie(
-        SESSION_COOKIE_NAME,
-        path="/",
-        secure=True,
-        httponly=True,
-        samesite="lax",
-    )
-    response.delete_cookie(
-        CSRF_COOKIE_NAME,
-        path="/",
-        secure=True,
-        httponly=False,
-        samesite="lax",
-    )
-
-
-def _register_identity_routes(app: FastAPI, service: IdentityService) -> None:  # noqa: C901
-    @app.exception_handler(IdentityAuthenticationError)
-    async def authentication_error_handler(
-        _request: Request,
-        exc: IdentityAuthenticationError,
-    ) -> JSONResponse:
-        return JSONResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            content={"detail": str(exc)},
+def _assert_full_router_inventory(app: FastAPI) -> int:
+    paths = {route.path for route in app.routes}
+    missing = sorted(_REQUIRED_COMPOSED_ROUTES - paths)
+    if missing:
+        raise RuntimeError(
+            "public Portal composition is missing canonical routes: " + ", ".join(missing)
         )
-
-    @app.exception_handler(IdentityAuthorizationError)
-    async def authorization_error_handler(
-        _request: Request,
-        exc: IdentityAuthorizationError,
-    ) -> JSONResponse:
-        return JSONResponse(
-            status_code=status.HTTP_403_FORBIDDEN,
-            content={"detail": str(exc)},
-        )
-
-    @app.exception_handler(OidcProtocolError)
-    async def protocol_error_handler(
-        _request: Request,
-        _exc: OidcProtocolError,
-    ) -> JSONResponse:
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={"detail": "OIDC protocol input is invalid"},
-            headers={"cache-control": "no-store"},
-        )
-
-    @app.exception_handler(OidcProviderUnavailable)
-    async def provider_error_handler(
-        _request: Request,
-        _exc: OidcProviderUnavailable,
-    ) -> JSONResponse:
-        return JSONResponse(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            content={"detail": "OIDC provider is unavailable"},
-            headers={"cache-control": "no-store"},
-        )
-
-    @app.exception_handler(IdentityReplayConflictError)
-    @app.exception_handler(IdentityReplayStateError)
-    async def replay_error_handler(
-        _request: Request,
-        _exc: IdentityReplayConflictError | IdentityReplayStateError,
-    ) -> JSONResponse:
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={"detail": "OIDC logout request is invalid"},
-            headers={"cache-control": "no-store"},
-        )
-
-    @app.middleware("http")
-    async def csrf_middleware(request: Request, call_next):
-        if request.method.upper() in {"POST", "PUT", "PATCH", "DELETE"} and (
-            request.url.path != "/v1/identity/backchannel-logout"
-        ):
-            try:
-                service.enforce_csrf(request)
-            except IdentityAuthenticationError as exc:
-                return JSONResponse(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    content={"detail": str(exc)},
-                )
-            except IdentityAuthorizationError as exc:
-                return JSONResponse(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    content={"detail": str(exc)},
-                )
-        return await call_next(request)
-
-    @app.get("/v1/identity/login")
-    def login(tenant_id: str | None = None, return_to: str = "/") -> RedirectResponse:
-        result = service.begin_login(
-            requested_tenant_id=tenant_id,
-            return_to=return_to,
-        )
-        response = RedirectResponse(result.authorization_url, status_code=307)
-        response.headers["cache-control"] = "no-store"
-        return response
-
-    @app.get("/v1/identity/callback")
-    def callback(code: str, state: str) -> RedirectResponse:
-        completed = service.complete_login(code=code, state=state)
-        response = RedirectResponse(completed.return_to, status_code=303)
-        response.set_cookie(
-            SESSION_COOKIE_NAME,
-            completed.session_token,
-            secure=True,
-            httponly=True,
-            samesite="lax",
-            path="/",
-        )
-        response.set_cookie(
-            CSRF_COOKIE_NAME,
-            completed.csrf_token,
-            secure=True,
-            httponly=False,
-            samesite="lax",
-            path="/",
-        )
-        response.headers["cache-control"] = "no-store"
-        return response
-
-    @app.get("/v1/identity/session", response_model=PortalSessionView)
-    def current_session(request: Request) -> PortalSessionView:
-        return service.current_session(request)
-
-    @app.post("/v1/identity/logout", response_model=LogoutResponse)
-    def logout(request: Request, response: Response) -> LogoutResponse:
-        revoked = service.logout_current(request)
-        _expire_identity_cookies(response)
-        response.headers["cache-control"] = "no-store"
-        return LogoutResponse(revoked=revoked)
-
-    @app.post("/v1/identity/logout-all", response_model=LogoutAllResponse)
-    def logout_all(request: Request, response: Response) -> LogoutAllResponse:
-        revoked_sessions = service.logout_all(request)
-        _expire_identity_cookies(response)
-        response.headers["cache-control"] = "no-store"
-        return LogoutAllResponse(revoked_sessions=revoked_sessions)
-
-    @app.post("/v1/identity/backchannel-logout", response_model=BackchannelLogoutResult)
-    async def backchannel_logout(
-        request: Request,
-        response: Response,
-    ) -> BackchannelLogoutResult:
-        content_type = request.headers.get("content-type", "")
-        if "application/x-www-form-urlencoded" not in content_type:
-            raise OidcProtocolError("back-channel logout requires form encoding")
-        try:
-            values = parse_qs(
-                (await request.body()).decode("utf-8"),
-                strict_parsing=True,
-            )
-        except (UnicodeDecodeError, ValueError) as exc:
-            raise OidcProtocolError("back-channel logout form is invalid") from exc
-        tokens = values.get("logout_token", [])
-        if len(tokens) != 1 or not tokens[0]:
-            raise OidcProtocolError("logout_token is required")
-        result = service.handle_backchannel_logout(tokens[0])
-        response.headers["cache-control"] = "no-store"
-        return result
+    return len(paths)
 
 
 def build_public_app() -> FastAPI:
     environment = _required("PORTAL_ENVIRONMENT")
     if environment not in {"production", "staging"}:
-        raise RuntimeError("public identity runtime requires production or staging")
+        raise RuntimeError("public Portal runtime requires production or staging")
+
     database_url = _required("PORTAL_DATABASE_URL")
     engine = build_engine(database_url)
     if environment == "production" and engine.dialect.name != "postgresql":
         engine.dispose()
         raise RuntimeError("public production runtime requires PostgreSQL")
+
     schema_report = assert_schema_ready(engine)
     session_factory = build_session_factory(engine)
-    config = IdentityRuntimeConfig.from_environment()
-    if config.transport_mode != "secure_https":
-        raise RuntimeError("public identity runtime requires HTTPS transport")
-    identity_service = build_identity_service(session_factory, config)
-    app = FastAPI(title="Freqtrade Portal Public Identity Session API")
+    identity_config = IdentityRuntimeConfig.from_environment()
+    if identity_config.transport_mode != "secure_https":
+        engine.dispose()
+        raise RuntimeError("public Portal runtime requires HTTPS identity transport")
+
+    identity_service = build_identity_service(session_factory, identity_config)
+    app = create_identity_enabled_app(session_factory, identity_service)
+    app.title = "Freqtrade Portal Authenticated Control Plane"
     app.state.schema_report = schema_report
-    _register_identity_routes(app, identity_service)
+    app.state.database_engine = engine
+    app.state.identity_config = identity_config
+    app.state.public_runtime_unprivileged = True
+    route_count = _assert_full_router_inventory(app)
 
     @app.get("/healthz", include_in_schema=False)
     def healthz() -> dict[str, object]:
         return {
-            "status": "ok",
-            "identity_transport": config.transport_mode,
+            "status": "alive",
+            "role": "portal-api",
+            "live_capital_authorized": False,
+        }
+
+    @app.get("/readyz", include_in_schema=False)
+    def readyz() -> dict[str, object] | JSONResponse:
+        try:
+            current_schema = assert_schema_ready(engine)
+            with engine.connect() as connection:
+                connection.execute(text("SELECT 1"))
+        except Exception:
+            return JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content={
+                    "status": "not_ready",
+                    "role": "portal-api",
+                    "live_capital_authorized": False,
+                },
+            )
+        return {
+            "status": "ready",
+            "role": "portal-api",
+            "identity_transport": identity_config.transport_mode,
             "identity_fixture": False,
             "membership_bootstrap": "explicit_only",
-            "schema_revision": EXPECTED_SCHEMA_REVISION,
             "database_dialect": engine.dialect.name,
+            "schema_revision": current_schema.get("revision", EXPECTED_SCHEMA_REVISION),
+            "canonical_schema_revision": EXPECTED_SCHEMA_REVISION,
+            "route_count": route_count,
+            "required_router_inventory_complete": True,
+            "runtime_authority": "unprivileged",
             "live_capital_authorized": False,
         }
 

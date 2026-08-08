@@ -223,8 +223,10 @@ Portal worker ----Supervisor UDS----> Runtime Supervisor ----> container engine
 - no published host/public Freqtrade control port;
 - exact generation-local Gateway relationship only;
 - generation-local Freqtrade API credential;
+- private generation networking;
 - deny-by-default network policy;
 - request/generation correlation and audit at the Gateway boundary;
+- rate/command limiting for high-impact Gateway operations;
 - no general reverse-proxy exposure;
 - no Docker/container-engine socket;
 - no Portal DB, Vault, Redis, NATS or unrelated-runtime reachability.
@@ -553,7 +555,24 @@ Activation is immediate, auditable and visible in the portal.
 
 ## 18. Security validation
 
-Required automated scenarios include the existing identity/tenant/model/risk tests plus runtime-isolation negative and positive acceptance.
+Required automated scenarios retain the existing identity/tenant/model/risk acceptance and add the ADR-020 runtime-isolation suite.
+
+Baseline security scenarios include:
+
+- unauthenticated access denied;
+- expired/revoked session denied;
+- invalid MFA denied;
+- CSRF attempt denied;
+- tenant cross-access denied;
+- role escalation denied;
+- browser cannot reach Freqtrade, Runtime Gateway or Runtime Supervisor;
+- public Internet cannot reach Freqtrade, Runtime Gateway or Runtime Supervisor;
+- research worker cannot obtain production exchange secret;
+- webhook replay rejected;
+- invalid model artifact hash rejected;
+- unauthorized model promotion rejected;
+- kill switch blocks new entries;
+- audit event emitted for every privileged action.
 
 Minimum negative runtime scenarios include:
 

@@ -1,0 +1,328 @@
+name: WickHunter WH09 signal separability diagnostic r2
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-signal-separability-diagnostic-r2-20260808.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh09-signal-separability-r2-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  EXPECTED_BASE_SHA: 75a69fa78798066adc0bd42b3716776a64332035
+  DATASET_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-datasets/wickhunter-wh01-production-dataset-20260731-v3-e02199bfac82-eaccc5ec-8f5be573
+  PRICE_PATH_ROOT: /var/lib/freqtrade-staging-state/wickhunter-replay-price-path/packages/wickhunter-wh02-replay-price-path-20260731-v6-h180s-626087ca45d6
+  REPLAY_ROOT: /var/lib/freqtrade-staging-state/wickhunter-deterministic-replay/packages/wickhunter-wh02-deterministic-replay-20260802-v5-626087ca45d6
+
+jobs:
+  diagnose:
+    name: Diagnose validation-only signal separability
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 120
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    steps:
+      - name: Check out exact request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Prove one-file request and closed authority
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$EXPECTED_BASE_SHA" ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-wh09-signal-separability-diagnostic-r2-20260808.yml'
+          [[ "$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")" == "$expected" ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          for name in OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET FT_EXCHANGE_KEY FT_EXCHANGE_SECRET FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+            [[ -z "${!name:-}" ]] || { echo "forbidden credential/proxy environment: $name" >&2; exit 1; }
+          done
+          for path in "$DATASET_ROOT" "$PRICE_PATH_ROOT" "$REPLAY_ROOT"; do
+            [[ -d "$path" && ! -L "$path" ]]
+          done
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v7.2.1
+        with:
+          activate-environment: true
+          python-version: "3.13"
+          enable-cache: false
+
+      - name: Install locked dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -r requirements-dev.txt
+          uv pip install -e ft_client/
+          uv pip install -e .
+
+      - name: Diagnose corrected-data candidate signal
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$GITHUB_WORKSPACE" python3 - <<'PY' | tee "$RUNNER_TEMP/wickhunter-wh09-signal-separability-r2.json"
+          import os
+          from dataclasses import replace
+          from decimal import Decimal
+          from itertools import product
+          from pathlib import Path
+
+          import lightgbm as lgb
+          import numpy as np
+
+          from ai_platform.wickhunter.canonical import canonical_json
+          from ai_platform.wickhunter.lightgbm_scorer import (
+              LightGBMScorerError,
+              LightGBMTrainingPolicy,
+              _candidate_examples,
+              train_lightgbm_scorer,
+          )
+          from ai_platform.wickhunter.parameters import (
+              DEFAULT_RESEARCH_BOUNDS,
+              INITIAL_COMPATIBILITY_PRIOR,
+              validate_parameters,
+          )
+          from ai_platform.wickhunter.production_evaluation import load_verified_evaluation_dataset
+
+          evaluation = load_verified_evaluation_dataset(
+              materialization_root=Path(os.environ["DATASET_ROOT"]),
+              price_path_root=Path(os.environ["PRICE_PATH_ROOT"]),
+              replay_root=Path(os.environ["REPLAY_ROOT"]),
+          )
+          if len(evaluation.cases) != 919:
+              raise SystemExit("evaluation case count mismatch")
+          unsafe = (
+              evaluation.protected_holdout_accessed
+              or evaluation.immutable_inputs_mutated
+              or evaluation.model_execution_authorized
+              or evaluation.performance_research_authorized
+              or evaluation.execution_enabled
+              or evaluation.live_capital_authorized
+              or evaluation.trading_credentials_present
+              or evaluation.orders_submitted != 0
+          )
+          if unsafe:
+              raise SystemExit("unsafe evaluation authority")
+          train_cases = tuple(case for case in evaluation.cases if case.split_name == "train")
+          validation_cases = tuple(case for case in evaluation.cases if case.split_name == "validation")
+          if (len(train_cases), len(validation_cases)) != (617, 199):
+              raise SystemExit("split count mismatch")
+
+          policy = LightGBMTrainingPolicy(
+              training_splits=("train",),
+              calibration_splits=("validation",),
+              validation_splits=("test",),
+              forbidden_splits=("holdout", "protected_holdout"),
+              seed=20260801,
+              num_boost_round=40,
+              num_leaves=7,
+              min_data_in_leaf=2,
+              learning_rate=Decimal("0.05"),
+              calibration_bins=10,
+              no_trade_confidence=Decimal("0.60"),
+          )
+
+          rows = []
+          index = 0
+          for band, percentile, zscore, wick, min_vol in product(
+              (Decimal("0.001"), Decimal("0.003"), Decimal("0.006"), Decimal("0.012")),
+              (Decimal("0.50"), Decimal("0.70"), Decimal("0.90")),
+              (Decimal("0"), Decimal("1"), Decimal("2")),
+              (Decimal("0"), Decimal("0.003"), Decimal("0.01")),
+              (Decimal("0"), Decimal("0.001"), Decimal("0.002")),
+          ):
+              index += 1
+              candidate = replace(
+                  INITIAL_COMPATIBILITY_PRIOR,
+                  parameter_version=f"wickhunter-signal-r2-{index:03d}",
+                  liquidation_percentile=percentile,
+                  liquidation_zscore=zscore,
+                  minimum_quote_volume_usd=Decimal("1000000"),
+                  long_vwap_distance_ratio=band,
+                  short_vwap_distance_ratio=band,
+                  minimum_wick_ratio=wick,
+                  minimum_volatility=min_vol,
+                  maximum_volatility=Decimal("0.50"),
+                  cooldown_ms=0,
+                  maximum_event_age_ms=300_000,
+                  base_risk_ratio=Decimal("0.001"),
+                  leverage=Decimal("1"),
+                  dca_enabled=False,
+                  dca_levels=0,
+                  dca_total_risk_ratio=Decimal("0.001"),
+                  maximum_holding_ms=180_000,
+                  minimum_confidence=Decimal("0.50"),
+              )
+              validate_parameters(candidate, DEFAULT_RESEARCH_BOUNDS)
+              try:
+                  train = _candidate_examples(train_cases, parameters=candidate, policy=policy)
+                  validation = _candidate_examples(validation_cases, parameters=candidate, policy=policy)
+              except LightGBMScorerError:
+                  continue
+              tp = sum(item.target for item in train)
+              vp = sum(item.target for item in validation)
+              if not tp or tp == len(train) or not validation:
+                  continue
+              rows.append({
+                  "candidate": candidate,
+                  "train_count": len(train),
+                  "train_pos": tp,
+                  "validation_count": len(validation),
+                  "validation_pos": vp,
+                  "validation_rate": vp / len(validation),
+              })
+
+          def rate_key(row):
+              return (row["validation_count"] >= 5, row["validation_rate"], row["validation_pos"], row["train_pos"])
+          def count_key(row):
+              return (row["validation_pos"], row["validation_rate"], row["train_pos"])
+          def train_key(row):
+              return (row["train_pos"], row["validation_pos"], row["validation_rate"])
+
+          probes = []
+          seen = set()
+          for ranked in (
+              sorted(rows, key=rate_key, reverse=True)[:10],
+              sorted(rows, key=count_key, reverse=True)[:10],
+              sorted(rows, key=train_key, reverse=True)[:10],
+          ):
+              for row in ranked:
+                  digest = row["candidate"].parameter_hash
+                  if digest not in seen:
+                      seen.add(digest)
+                      probes.append(row)
+
+          def auc(values, targets):
+              pos = [v for v, y in zip(values, targets, strict=True) if y]
+              neg = [v for v, y in zip(values, targets, strict=True) if not y]
+              if not pos or not neg:
+                  return None
+              wins = sum(1 if p > n else 0.5 if p == n else 0 for p in pos for n in neg)
+              return wins / (len(pos) * len(neg))
+
+          def average_precision(values, targets):
+              positives = sum(targets)
+              if not positives:
+                  return None
+              ranked = sorted(zip(values, targets, strict=True), reverse=True)
+              hits = 0
+              total = 0.0
+              for rank, (_value, target) in enumerate(ranked, 1):
+                  if target:
+                      hits += 1
+                      total += hits / rank
+              return total / positives
+
+          model_rows = []
+          for row in probes:
+              candidate = row["candidate"]
+              artifact = train_lightgbm_scorer(
+                  cases=evaluation.cases,
+                  parameters=candidate,
+                  parameter_bounds=DEFAULT_RESEARCH_BOUNDS,
+                  policy=policy,
+              )
+              examples = _candidate_examples(validation_cases, parameters=candidate, policy=policy)
+              matrix = np.asarray([[float(v) for v in item.feature_values] for item in examples], dtype=np.float64)
+              targets = [item.target for item in examples]
+              booster = lgb.Booster(model_str=artifact.model_text)
+              raw = [float(v) for v in booster.predict(matrix, num_iteration=booster.current_iteration())]
+              ranked = sorted(zip(raw, targets, strict=True), reverse=True)
+              top_precision = {}
+              for k in (1, 3, 5, 10, 20):
+                  used = ranked[: min(k, len(ranked))]
+                  top_precision[str(k)] = None if not used else sum(y for _v, y in used) / len(used)
+              bin_counts = [0] * 10
+              bin_pos = [0] * 10
+              for value, target in zip(raw, targets, strict=True):
+                  slot = min(9, int(max(0.0, min(1.0, value)) * 10))
+                  bin_counts[slot] += 1
+                  bin_pos[slot] += target
+              model_rows.append({
+                  "parameter_version": candidate.parameter_version,
+                  "parameter_hash": candidate.parameter_hash,
+                  "band": str(candidate.long_vwap_distance_ratio),
+                  "liquidation_percentile": str(candidate.liquidation_percentile),
+                  "liquidation_zscore": str(candidate.liquidation_zscore),
+                  "minimum_wick_ratio": str(candidate.minimum_wick_ratio),
+                  "minimum_volatility": str(candidate.minimum_volatility),
+                  "training_count": artifact.training_example_count,
+                  "training_positive_count": artifact.positive_example_count,
+                  "validation_count": len(examples),
+                  "validation_positive_count": sum(targets),
+                  "raw_min": min(raw),
+                  "raw_max": max(raw),
+                  "raw_auc": auc(raw, targets),
+                  "raw_average_precision": average_precision(raw, targets),
+                  "top_precision": top_precision,
+                  "bin_counts": bin_counts,
+                  "bin_positive_counts": bin_pos,
+                  "calibration_probabilities": [str(v) for v in artifact.calibration.probabilities],
+                  "maximum_calibrated_confidence": str(max(artifact.calibration.probabilities)),
+                  "positive_runtime_risk_multiplier_possible": max(artifact.calibration.probabilities) > policy.no_trade_confidence,
+              })
+
+          gate_rows = []
+          for row in sorted(rows, key=rate_key, reverse=True)[:50]:
+              p = row["candidate"]
+              gate_rows.append({
+                  "parameter_version": p.parameter_version,
+                  "parameter_hash": p.parameter_hash,
+                  "band": str(p.long_vwap_distance_ratio),
+                  "liquidation_percentile": str(p.liquidation_percentile),
+                  "liquidation_zscore": str(p.liquidation_zscore),
+                  "minimum_wick_ratio": str(p.minimum_wick_ratio),
+                  "minimum_volatility": str(p.minimum_volatility),
+                  "train_count": row["train_count"],
+                  "train_positive_count": row["train_pos"],
+                  "validation_count": row["validation_count"],
+                  "validation_positive_count": row["validation_pos"],
+                  "validation_positive_rate": row["validation_rate"],
+              })
+
+          print(canonical_json({
+              "schema_version": "wickhunter-wh09-signal-separability-diagnostic-v2",
+              "evaluation_sha256": evaluation.evaluation_sha256,
+              "dataset_manifest_sha256": evaluation.dataset_manifest_sha256,
+              "grid_candidate_count": index,
+              "eligible_grid_count": len(rows),
+              "model_probe_count": len(model_rows),
+              "top_gate_rows": gate_rows,
+              "model_rows": model_rows,
+              "selection_performed": False,
+              "candidate_materialized": False,
+              "test_cases_inspected": False,
+              "test_used_for_selection": False,
+              "protected_holdout_accessed": False,
+              "automatic_promotion_enabled": False,
+              "trading_credentials_present": False,
+              "order_adapter_present": False,
+              "execution_enabled": False,
+              "orders_submitted": 0,
+              "live_capital_authorized": False,
+          }))
+          PY
+
+      - name: Upload bounded diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wickhunter-wh09-signal-separability-r2-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/wickhunter-wh09-signal-separability-r2.json
+          if-no-files-found: error
+          retention-days: 30

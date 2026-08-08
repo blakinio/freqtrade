@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { csrfFetch } from "@/lib/client-fetch";
 import type { BotMutationPermissions } from "@/lib/bot-operations";
@@ -9,6 +9,7 @@ import type {
   LifecycleIntentResult,
 } from "@/lib/bot-command-contracts";
 import type { BotDesiredState, BotObservedState } from "@/lib/contracts";
+import type { BotRuntimeTruth } from "@/lib/runtime-generation";
 
 export function BotLifecycleControls({
   botId,
@@ -26,6 +27,35 @@ export function BotLifecycleControls({
   const [pending, setPending] = useState<LifecycleAction | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [runtimeTruth, setRuntimeTruth] = useState<BotRuntimeTruth | null>(null);
+  const [runtimeTruthUnavailable, setRuntimeTruthUnavailable] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    async function loadRuntimeTruth() {
+      try {
+        const response = await fetch(
+          `/api/bots/${encodeURIComponent(botId)}/runtime-truth`,
+          { cache: "no-store" },
+        );
+        if (!response.ok) {
+          if (active) setRuntimeTruthUnavailable(true);
+          return;
+        }
+        const payload = (await response.json()) as BotRuntimeTruth;
+        if (active) {
+          setRuntimeTruth(payload);
+          setRuntimeTruthUnavailable(false);
+        }
+      } catch {
+        if (active) setRuntimeTruthUnavailable(true);
+      }
+    }
+    void loadRuntimeTruth();
+    return () => {
+      active = false;
+    };
+  }, [botId]);
 
   const startAction: LifecycleAction = desiredState === "PAUSED" ? "RESUME" : "START";
   const actions: Array<{
@@ -53,6 +83,24 @@ export function BotLifecycleControls({
       inactive: desiredState === "STOPPED",
     },
   ];
+
+  const revisions = runtimeTruth?.revisions ?? [];
+  const latestSaved = revisions.reduce(
+    (latest, revision) =>
+      latest === null || revision.revision > latest.revision ? revision : latest,
+    null as (typeof revisions)[number] | null,
+  );
+  const latestEligible = revisions.reduce(
+    (latest, revision) =>
+      revision.state === "PROMOTED" &&
+      (latest === null || revision.revision > latest.revision)
+        ? revision
+        : latest,
+    null as (typeof revisions)[number] | null,
+  );
+  const desiredGeneration = runtimeTruth?.desired_generation ?? null;
+  const activeGenerationId = runtimeTruth?.bot.observed_runtime_generation_id ?? null;
+  const rollout = runtimeTruth?.latest_rollout ?? null;
 
   async function requestAction(action: LifecycleAction) {
     const confirmed = window.confirm(
@@ -108,10 +156,45 @@ export function BotLifecycleControls({
         </div>
       </div>
       <p className="freshness">
-        Desired: <strong>{desiredState}</strong> · Observed: <strong>{observedState}</strong> · Config
-        revision: <strong>{configRevision}</strong>. Commands are capability-gated and audited; this
-        surface never calls a runtime or exchange endpoint.
+        Desired lifecycle: <strong>{desiredState}</strong> · Observed lifecycle: <strong>{observedState}</strong>.
+        Commands are capability-gated and audited; this surface never calls a runtime or exchange endpoint.
       </p>
+      <dl className="definition-list">
+        <div>
+          <dt>Latest saved</dt>
+          <dd>{latestSaved ? `R${latestSaved.revision} · ${latestSaved.state}` : `R${configRevision} · truth unavailable`}</dd>
+        </div>
+        <div>
+          <dt>Eligible</dt>
+          <dd>{latestEligible ? `R${latestEligible.revision} · PROMOTED` : "None"}</dd>
+        </div>
+        <div>
+          <dt>Desired</dt>
+          <dd>
+            {desiredGeneration
+              ? `R${desiredGeneration.config_revision_number} · G${desiredGeneration.generation_ordinal}`
+              : "No desired RuntimeGeneration"}
+          </dd>
+        </div>
+        <div>
+          <dt>Active</dt>
+          <dd>{activeGenerationId ?? "No active runtime"}</dd>
+        </div>
+        <div>
+          <dt>Pending rollout</dt>
+          <dd>
+            {runtimeTruthUnavailable
+              ? "Unavailable"
+              : runtimeTruth?.pending_rollout
+                ? "Yes"
+                : "No"}
+          </dd>
+        </div>
+        <div>
+          <dt>Rollout</dt>
+          <dd>{rollout ? `${rollout.status}${rollout.reason_code ? ` · ${rollout.reason_code}` : ""}` : "None"}</dd>
+        </div>
+      </dl>
       <div className="status-cluster" aria-label="Bot lifecycle actions">
         {actions.map((action) => (
           <button

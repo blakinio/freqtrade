@@ -310,11 +310,16 @@ def main() -> int:
         "portal_oidc_postgresql_copy_on_write",
         DEPLOYMENT_DIR / "postgresql_copy_on_write.py",
     )
+    market_evidence = _load_module(
+        "portal_oidc_market_evidence_runtime",
+        DEPLOYMENT_DIR / "market_evidence_runtime.py",
+    )
     deploy._discovery_from_identity_container = lambda: discovery.deployment_probe(  # type: ignore[attr-defined]
         deploy.DeploymentError
     )
     _install_verified_build_timeout(deploy)
     _install_docker_host_liquidations_preflight(deploy)
+    market_evidence.install(deploy)
     copy_on_write.install(deploy)
     return int(deploy.main())
 

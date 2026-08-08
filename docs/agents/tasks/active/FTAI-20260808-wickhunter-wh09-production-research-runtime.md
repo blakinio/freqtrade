@@ -23,6 +23,7 @@ implementation_authorized: true
 internal_demo_production_deployment_authorized: true
 status: validating
 base_branch: develop
+trusted_base_sha: 46cd873ccb0c60ec88657d9e7eccb18a93737fd5
 branch: diagnose/wickhunter-wh09-runtime-health-20260808
 related_issue: 1386
 related_pr: 1394

@@ -36,6 +36,7 @@ from ai_platform.wickhunter.shadow_runtime_snapshot import ShadowRuntimeStepResu
 from ai_platform.wickhunter.shadow_runtime_state import ShadowRuntimeTick
 from ai_platform.wickhunter.shadow_runtime_storage import ShadowRuntimeStore
 
+
 GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 RESEARCH_IDENTITY_SCHEMA = "wickhunter-production-research-runtime-identity-v1"
@@ -150,7 +151,7 @@ def _atomic_json(path: Path, payload: dict[str, object]) -> None:
             handle.write(canonical_json(payload) + "\n")
             handle.flush()
             os.fsync(handle.fileno())
-        os.chmod(temporary, 0o640)
+        temporary.chmod(0o640)
         temporary.replace(path)
     except Exception:
         temporary.unlink(missing_ok=True)
@@ -197,7 +198,9 @@ class ProductionResearchRunIdentity:
         if self.no_trade_confidence != FROZEN_NO_TRADE_CONFIDENCE:
             raise ProductionResearchRuntimeError("no-trade confidence must remain frozen at 0.60")
         if self.outcome_horizon_ms != FROZEN_OUTCOME_HORIZON_MS:
-            raise ProductionResearchRuntimeError("outcome horizon must remain frozen at 900 seconds")
+            raise ProductionResearchRuntimeError(
+                "outcome horizon must remain frozen at 900 seconds"
+            )
         if (
             self.protected_holdout_accessed
             or self.automatic_promotion_enabled
@@ -434,9 +437,7 @@ class ProductionResearchJournal:
         threshold = self.identity.no_trade_confidence
         above_threshold = None if score is None else score.confidence >= threshold
         final_decision = (
-            "SIMULATED_SIGNAL"
-            if evidence.status is ShadowStatus.SIMULATED_ALLOWED
-            else "NO_TRADE"
+            "SIMULATED_SIGNAL" if evidence.status is ShadowStatus.SIMULATED_ALLOWED else "NO_TRADE"
         )
         reason_codes = set()
         if candidate is not None:
@@ -472,11 +473,7 @@ class ProductionResearchJournal:
             "reason_codes": tuple(sorted(reason_codes)),
             "candidate_id": None if candidate is None else candidate.candidate_id,
             "candidate_action": None if candidate is None else candidate.action.value,
-            "side": (
-                None
-                if candidate is None or candidate.side is None
-                else candidate.side.value
-            ),
+            "side": (None if candidate is None or candidate.side is None else candidate.side.value),
             "feature_hash": evidence.feature_hash,
             "score_id": None if score is None else score.score_id,
             "raw_probability": None if trace is None else str(trace.raw_probability),
@@ -529,6 +526,28 @@ class ProductionResearchJournal:
         finally:
             self._active_traces = {}
         return len(decisions)
+
+    def pending_outcome_symbols(self, *, observed_at_ms: int) -> tuple[str, ...]:
+        symbols: set[str] = set()
+        outcome_root = self.root / "outcomes"
+        for decision_path in sorted((self.root / "decisions").glob("*.json")):
+            decision = _verify_self_hash(
+                _load_object(decision_path, field_name="research decision"),
+                hash_field="record_sha256",
+                field_name="research decision",
+            )
+            decision_id = str(decision.get("decision_id", ""))
+            if SHA256_RE.fullmatch(decision_id) is None:
+                raise ProductionResearchRuntimeError("research decision identity is invalid")
+            if (outcome_root / f"{decision_id}.json").exists():
+                continue
+            if decision.get("side") not in {"long", "short"}:
+                continue
+            decision_timestamp_ms = int(decision["decision_timestamp_ms"])
+            target_at_ms = decision_timestamp_ms + self.identity.outcome_horizon_ms
+            if observed_at_ms >= target_at_ms:
+                symbols.add(str(decision["symbol"]).upper())
+        return tuple(sorted(symbols))
 
     def materialize_due_outcomes(
         self,
@@ -588,9 +607,7 @@ class ProductionResearchJournal:
                 "entry_price": str(entry_price),
                 "outcome_price": str(outcome_price),
                 "gross_return_ratio": str(gross_return.quantize(Decimal("0.00000001"))),
-                "directional_return_ratio": str(
-                    directional_return.quantize(Decimal("0.00000001"))
-                ),
+                "directional_return_ratio": str(directional_return.quantize(Decimal("0.00000001"))),
                 "positive_outcome": directional_return > 0,
                 "semantics": "first_observed_mark_at_or_after_target_horizon_no_costs",
                 "deterministic_replay_equivalent": False,

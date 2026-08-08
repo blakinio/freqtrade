@@ -59,6 +59,5 @@ def test_image_runs_nonroot_exact_commit_operator() -> None:
     assert "lightgbm==4.6.0" in dockerfile
     assert "USER 65532:65532" in dockerfile
     assert (
-        'ENTRYPOINT ["python", "-m", '
-        '"ai_platform.wickhunter.production_research_runtime_operator"]'
+        'ENTRYPOINT ["python", "-m", "ai_platform.wickhunter.production_research_runtime_operator"]'
     ) in dockerfile

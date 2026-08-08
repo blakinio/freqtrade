@@ -65,9 +65,7 @@ def _positive_int(value: object, *, field: str) -> int:
 def main() -> int:  # noqa: C901
     try:
         health_path = Path(os.environ.get("HEALTH_PATH", "/runtime/operator/health.json"))
-        telemetry_path = Path(
-            os.environ.get("TELEMETRY_PATH", "/runtime/journal/telemetry.json")
-        )
+        telemetry_path = Path(os.environ.get("TELEMETRY_PATH", "/runtime/journal/telemetry.json"))
         health = _load(health_path, field="health")
         _verify_hash(health, field="health", hash_field="health_sha256")
         if health.get("schema_version") != HEALTH_SCHEMA_VERSION:

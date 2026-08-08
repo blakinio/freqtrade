@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
 
@@ -20,8 +20,8 @@ from ai_platform.wickhunter.candidate_paper_runtime_operator import (
 from ai_platform.wickhunter.contracts import BotMode, DriftState
 from ai_platform.wickhunter.production_research_runtime import (
     FROZEN_OUTCOME_HORIZON_MS,
-    ProductionResearchRuntimeService,
     ZERO_AUTHORITY,
+    ProductionResearchRuntimeService,
     build_production_research_runtime_binding,
 )
 from ai_platform.wickhunter.shadow_runtime_common import ShadowRuntimePolicy
@@ -47,6 +47,7 @@ def _runtime_policy() -> ShadowRuntimePolicy:
 @dataclass(slots=True)
 class ProductionResearchRuntimeOperator(CandidatePaperRuntimeOperator):
     service: ProductionResearchRuntimeService
+    last_success_at_ms: int | None = field(default=None, init=False)
 
     def __post_init__(self) -> None:
         if self.service.binding.request.mode is not BotMode.SHADOW:
@@ -131,9 +132,13 @@ class ProductionResearchRuntimeOperator(CandidatePaperRuntimeOperator):
         open_position_symbols = tuple(
             sorted({position.symbol.upper() for position in self.service.runtime.state.positions})
         )
-        market_symbols = tuple(
+        pending_outcome_symbols = self.service.journal.pending_outcome_symbols(
+            observed_at_ms=now_ms
+        )
+        decision_market_symbols = tuple(
             sorted({*liquid20.universe.selected_symbols, *open_position_symbols})
         )
+        market_symbols = tuple(sorted({*decision_market_symbols, *pending_outcome_symbols}))
         markets, unavailable_symbols = self._fetch_public_market_snapshots(
             symbols=market_symbols,
             observed_at_ms=now_ms,
@@ -146,13 +151,29 @@ class ProductionResearchRuntimeOperator(CandidatePaperRuntimeOperator):
                 "simulated SHADOW position lacks Binance USD-M public market context: "
                 + ",".join(unavailable_open_positions)
             )
+        market_by_symbol = {market.symbol: market for market in markets}
+        decision_markets = tuple(
+            market_by_symbol[symbol]
+            for symbol in decision_market_symbols
+            if symbol in market_by_symbol
+        )
         tick = self._compose_tick(
             liquid20=liquid20,
-            markets=markets,
+            markets=decision_markets,
             observed_at_ms=now_ms,
             unavailable_symbols=unavailable_symbols,
         )
         result = self.service.step(tick)
+        self.service.journal.materialize_due_outcomes(
+            observed_at_ms=now_ms,
+            mark_prices={market.symbol: market.decision_price for market in markets},
+            operator_commit=self.operator_commit,
+        )
+        self.service.journal.publish_telemetry(
+            checked_at_ms=now_ms,
+            operator_commit=self.operator_commit,
+            runtime_state=result.state,
+        )
         breaker_reasons = set(result.snapshot.circuit_breaker_reasons)
         if self.circuit_breaker_active:
             breaker_reasons.add("operator_circuit_breaker_active")

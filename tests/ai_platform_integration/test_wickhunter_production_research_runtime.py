@@ -32,6 +32,7 @@ from ai_platform.wickhunter.shadow_runtime_common import ShadowRuntimePolicy
 from ai_platform.wickhunter.strategy import SignalMemory
 from ai_platform.wickhunter.universe import DynamicUniverseSnapshot
 
+
 CREATED_AT_MS = 1_800_000_000_000
 CODE_SHA = "a" * 40
 DATASET_HASH = "b" * 64
@@ -107,12 +108,15 @@ def test_journal_records_no_trade_and_delays_h900_outcome(tmp_path: Path) -> Non
         raw_probability=Decimal("0.331543"),
         calibrated_confidence=Decimal("0.333333"),
     )
-    assert journal.record_decisions(
-        requests=(request,),
-        decisions=(evidence,),
-        traces={trace.score_id: trace},
-        operator_commit=CODE_SHA,
-    ) == 1
+    assert (
+        journal.record_decisions(
+            requests=(request,),
+            decisions=(evidence,),
+            traces={trace.score_id: trace},
+            operator_commit=CODE_SHA,
+        )
+        == 1
+    )
     decision_path = journal.root / "decisions" / f"{evidence.shadow_decision_id}.json"
     decision = json.loads(decision_path.read_text(encoding="utf-8"))
     assert decision["final_decision"] == "NO_TRADE"
@@ -122,16 +126,22 @@ def test_journal_records_no_trade_and_delays_h900_outcome(tmp_path: Path) -> Non
     assert decision["execution_enabled"] is False
     assert decision["orders_submitted"] == 0
 
-    assert journal.materialize_due_outcomes(
-        observed_at_ms=CREATED_AT_MS + 899_999,
-        mark_prices={"BTCUSDT": Decimal("110")},
-        operator_commit=CODE_SHA,
-    ) == 0
-    assert journal.materialize_due_outcomes(
-        observed_at_ms=CREATED_AT_MS + 900_000,
-        mark_prices={"BTCUSDT": Decimal("110")},
-        operator_commit=CODE_SHA,
-    ) == 1
+    assert (
+        journal.materialize_due_outcomes(
+            observed_at_ms=CREATED_AT_MS + 899_999,
+            mark_prices={"BTCUSDT": Decimal("110")},
+            operator_commit=CODE_SHA,
+        )
+        == 0
+    )
+    assert (
+        journal.materialize_due_outcomes(
+            observed_at_ms=CREATED_AT_MS + 900_000,
+            mark_prices={"BTCUSDT": Decimal("110")},
+            operator_commit=CODE_SHA,
+        )
+        == 1
+    )
     outcome = json.loads(
         (journal.root / "outcomes" / f"{evidence.shadow_decision_id}.json").read_text(
             encoding="utf-8"
@@ -143,11 +153,14 @@ def test_journal_records_no_trade_and_delays_h900_outcome(tmp_path: Path) -> Non
     assert outcome["deterministic_replay_equivalent"] is False
     assert outcome["execution_enabled"] is False
     assert outcome["orders_submitted"] == 0
-    assert journal.materialize_due_outcomes(
-        observed_at_ms=CREATED_AT_MS + 960_000,
-        mark_prices={"BTCUSDT": Decimal("120")},
-        operator_commit=CODE_SHA,
-    ) == 0
+    assert (
+        journal.materialize_due_outcomes(
+            observed_at_ms=CREATED_AT_MS + 960_000,
+            mark_prices={"BTCUSDT": Decimal("120")},
+            operator_commit=CODE_SHA,
+        )
+        == 0
+    )
 
 
 def test_journal_rejects_tampered_immutable_decision(tmp_path: Path) -> None:
@@ -201,7 +214,9 @@ def _risk_context(*, authorized: bool = False) -> WickHunterRiskContext:
     )
 
 
-def _shadow_request(*, authorized: bool = False, mode: BotMode = BotMode.SHADOW) -> ShadowDecisionRequest:
+def _shadow_request(
+    *, authorized: bool = False, mode: BotMode = BotMode.SHADOW
+) -> ShadowDecisionRequest:
     return ShadowDecisionRequest(
         bot_instance="wickhunter-wh09-production-research",
         mode=mode,
@@ -250,7 +265,9 @@ def _fake_package(*, threshold: Decimal = Decimal("0.60")) -> SimpleNamespace:
     )
 
 
-def _binding(monkeypatch: pytest.MonkeyPatch, *, threshold: Decimal = Decimal("0.60")) -> research.ProductionResearchRuntimeBinding:
+def _binding(
+    monkeypatch: pytest.MonkeyPatch, *, threshold: Decimal = Decimal("0.60")
+) -> research.ProductionResearchRuntimeBinding:
     package = _fake_package(threshold=threshold)
     monkeypatch.setattr(research, "load_verified_candidate_package", lambda _root: package)
     monkeypatch.setattr(
@@ -259,7 +276,7 @@ def _binding(monkeypatch: pytest.MonkeyPatch, *, threshold: Decimal = Decimal("0
         lambda artifact: cast(research.LightGBMAdvisoryScorer, SimpleNamespace(artifact=artifact)),
     )
     return research.build_production_research_runtime_binding(
-        model_root=Path("/tmp/model"),
+        model_root=Path.cwd() / "model-fixture",
         expected_package_id=PACKAGE_ID,
         expected_manifest_sha256=MANIFEST_SHA256,
         expected_model_artifact_sha256=MODEL_ARTIFACT_SHA256,
@@ -268,7 +285,9 @@ def _binding(monkeypatch: pytest.MonkeyPatch, *, threshold: Decimal = Decimal("0
     )
 
 
-def test_binding_stays_shadow_and_never_enables_paper_authority(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_binding_stays_shadow_and_never_enables_paper_authority(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     binding = _binding(monkeypatch)
     bound = binding.bind_request(_shadow_request())
     assert bound.mode is BotMode.SHADOW
@@ -286,11 +305,13 @@ def test_binding_stays_shadow_and_never_enables_paper_authority(monkeypatch: pyt
 
 
 def test_binding_rejects_threshold_drift(monkeypatch: pytest.MonkeyPatch) -> None:
-    with pytest.raises(research.ProductionResearchRuntimeError, match="frozen 0.60"):
+    with pytest.raises(research.ProductionResearchRuntimeError, match=r"frozen 0\.60"):
         _binding(monkeypatch, threshold=Decimal("0.59"))
 
 
-def test_service_restores_persisted_shadow_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_service_restores_persisted_shadow_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     binding = _binding(monkeypatch)
     policy = ShadowRuntimePolicy(
         policy_version="test-research-runtime-v1",

@@ -9,7 +9,10 @@ import type {
   LifecycleIntentResult,
 } from "@/lib/bot-command-contracts";
 import type { BotDesiredState, BotObservedState } from "@/lib/contracts";
-import type { BotRuntimeTruth } from "@/lib/runtime-generation-contracts";
+import type {
+  BotRuntimeTruth,
+  RuntimeGenerationTruth,
+} from "@/lib/runtime-generation-contracts";
 
 export function BotLifecycleControls({
   botId,
@@ -72,9 +75,14 @@ export function BotLifecycleControls({
     null as (typeof revisions)[number] | null,
   );
   const desiredGeneration = runtimeTruth?.desired_generation ?? null;
-  const activeGenerationId = runtimeTruth?.bot.observed_runtime_generation_id ?? null;
+  const observedGeneration = runtimeTruth?.observed_generation ?? null;
   const rollout = runtimeTruth?.latest_rollout ?? null;
-  const desiredConfigRevision = desiredGeneration?.config_revision_number ?? null;
+
+  function commandTarget(action: LifecycleAction): RuntimeGenerationTruth | null {
+    return action === "START" || action === "RESUME"
+      ? desiredGeneration
+      : observedGeneration;
+  }
 
   const startAction: LifecycleAction = desiredState === "PAUSED" ? "RESUME" : "START";
   const actions: Array<{
@@ -92,24 +100,29 @@ export function BotLifecycleControls({
     {
       action: "PAUSE_NEW_ENTRIES",
       label: "Pause",
-      allowed: permissions.pause,
+      allowed: permissions.pause && observedGeneration !== null,
       inactive: desiredState === "PAUSED",
     },
     {
       action: "STOP_KEEP_POSITIONS",
       label: "Stop",
-      allowed: permissions.stop,
+      allowed: permissions.stop && observedGeneration !== null,
       inactive: desiredState === "STOPPED",
     },
   ];
 
   async function requestAction(action: LifecycleAction) {
-    if ((action === "START" || action === "RESUME") && desiredConfigRevision === null) {
-      setError("No desired RuntimeGeneration is available. Promote and apply a revision first.");
+    const target = commandTarget(action);
+    if (target === null) {
+      setError(
+        action === "START" || action === "RESUME"
+          ? "No desired RuntimeGeneration is available. Promote and apply a revision first."
+          : "No observed RuntimeGeneration is available for this lifecycle command.",
+      );
       return;
     }
     const confirmed = window.confirm(
-      `Record lifecycle command intent ${action} for ${botId}? This does not execute a runtime action or submit trades.`,
+      `Record lifecycle command intent ${action} for ${botId} generation ${target.generation_id}? This does not execute a runtime action or submit trades.`,
     );
     if (!confirmed) return;
 
@@ -125,7 +138,8 @@ export function BotLifecycleControls({
           body: JSON.stringify({
             bot_id: botId,
             action,
-            expected_config_revision: desiredConfigRevision ?? configRevision,
+            expected_config_revision: target.config_revision_number,
+            expected_runtime_generation_id: target.generation_id,
             idempotency_key: crypto.randomUUID(),
           }),
         },
@@ -139,7 +153,7 @@ export function BotLifecycleControls({
       }
       if (payload.status === "ACCEPTED" && payload.command_id) {
         setMessage(
-          `Command intent ${payload.command_id} accepted and persisted. Desired and observed runtime state remain unchanged pending separate execution and reconciliation.`,
+          `Command intent ${payload.command_id} accepted for generation ${target.generation_id}. Desired and observed runtime state remain unchanged pending separate execution and reconciliation.`,
         );
       } else {
         const reasons = payload.reason_codes.join(", ") || "UNKNOWN";
@@ -162,7 +176,7 @@ export function BotLifecycleControls({
       </div>
       <p className="freshness">
         Desired lifecycle: <strong>{desiredState}</strong> · Observed lifecycle: <strong>{observedState}</strong>.
-        Commands are capability-gated and audited; this surface never calls a runtime or exchange endpoint.
+        Commands are capability-gated, generation-bound and audited; this surface never calls a runtime or exchange endpoint.
       </p>
       <dl className="definition-list">
         <div>
@@ -177,13 +191,17 @@ export function BotLifecycleControls({
           <dt>Desired</dt>
           <dd>
             {desiredGeneration
-              ? `R${desiredGeneration.config_revision_number} · G${desiredGeneration.generation_ordinal}`
+              ? `R${desiredGeneration.config_revision_number} · G${desiredGeneration.generation_ordinal} · ${desiredGeneration.generation_id}`
               : "No desired RuntimeGeneration"}
           </dd>
         </div>
         <div>
           <dt>Active</dt>
-          <dd>{activeGenerationId ?? "No active runtime"}</dd>
+          <dd>
+            {observedGeneration
+              ? `R${observedGeneration.config_revision_number} · G${observedGeneration.generation_ordinal} · ${observedGeneration.generation_id}`
+              : "No active runtime"}
+          </dd>
         </div>
         <div>
           <dt>Pending rollout</dt>
@@ -212,7 +230,7 @@ export function BotLifecycleControls({
                 ? undefined
                 : action.action === "START" || action.action === "RESUME"
                   ? "A PROMOTED revision must be explicitly applied before start or resume"
-                  : `Missing bot.${action.label.toLowerCase()} permission`
+                  : "An observed RuntimeGeneration is required for pause or stop"
             }
             type="button"
           >

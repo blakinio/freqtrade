@@ -158,7 +158,9 @@ def test_reconstructed_paper_resolution_requires_authorization_identity() -> Non
 
 
 def test_reconstructed_shadow_resolution_rejects_paper_authorization_identity() -> None:
-    with pytest.raises(ValueError, match="SHADOW resolution cannot contain paper authorization identity"):
+    with pytest.raises(
+        ValueError, match="SHADOW resolution cannot contain paper authorization identity"
+    ):
         RuntimeModeResolution(
             schema_version=RUNTIME_MODE_RESOLUTION_SCHEMA_VERSION,
             mode=BotMode.SHADOW,

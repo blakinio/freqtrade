@@ -10,6 +10,9 @@ import pytest
 ROOT = Path(__file__).resolve().parents[4]
 DEPLOYMENT = ROOT / "deploy" / "synology" / "portal-oidc"
 WORKFLOW = ROOT / ".github" / "workflows" / "portal-oidc-public-deploy.yml"
+POSTGRES_EXACT_IMAGE_WORKFLOW = (
+    ROOT / ".github" / "workflows" / "portal-api-mode-postgresql.yml"
+)
 SPEC = importlib.util.spec_from_file_location("portal_oidc_deploy", DEPLOYMENT / "deploy.py")
 assert SPEC and SPEC.loader
 module = importlib.util.module_from_spec(SPEC)
@@ -135,6 +138,7 @@ def test_public_runtime_composes_full_control_plane_without_automatic_membership
 def test_images_are_pinned_and_control_plane_runs_authenticated_public_runtime() -> None:
     web = (ROOT / "deploy" / "synology" / "portal" / "Dockerfile").read_text(encoding="utf-8")
     control = (DEPLOYMENT / "Dockerfile.control-plane").read_text(encoding="utf-8")
+    requirements = (DEPLOYMENT / "requirements.txt").read_text(encoding="utf-8")
     web_base = (
         "node:22.23.1-bookworm-slim@sha256:"
         "6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3"
@@ -155,13 +159,14 @@ def test_images_are_pinned_and_control_plane_runs_authenticated_public_runtime()
     assert f"FROM {control_base}" in control
     assert "ai_platform.portal.identity.public_runtime:app" in control
     assert "127.0.0.1:8000/readyz" in control
+    assert "jsonschema==4.26.0" in requirements
     assert ":latest" not in web
     assert ":latest" not in control
     assert "USER portal" in control
     assert "--no-access-log" in control
 
 
-def test_deployer_is_public_secret_free_and_hardened() -> None:
+def test_deployer_is_postgresql_api_mode_secret_free_and_hardened() -> None:
     source = (DEPLOYMENT / "deploy.py").read_text(encoding="utf-8")
 
     assert module.PORTAL_ORIGIN == "https://quant.molehill.cloud"
@@ -170,7 +175,18 @@ def test_deployer_is_public_secret_free_and_hardened() -> None:
     assert module.PORTAL_DATA_DIR == Path("/volume1/docker/freqtrade-portal-oidc/data")
     assert module.PORTAL_UID == 10001
     assert module.PORTAL_GID == 10001
-    assert "os.chown(PORTAL_DATA_DIR, PORTAL_UID, PORTAL_GID)" in source
+    assert module.PORTAL_POSTGRES_ALIAS == "portal-postgresql"
+    assert module.PORTAL_POSTGRES_IMAGE.startswith("docker.io/library/postgres:16.13-alpine3.23@sha256:")
+    assert "sqlite3.connect" in source
+    assert "source.backup(target)" in source
+    assert "ai_platform.portal.database.transfer" in source
+    assert "ai_platform.portal.database.cli" in source
+    assert '"PORTAL_WEB_DATA_MODE=api"' in source
+    assert '"PORTAL_IDENTITY_FIXTURE_MODE": "disabled"' in source
+    assert '"database-dialect=postgresql"' in source
+    assert "PORTAL_RUNTIME_CANDIDATE_ENV" in source
+    assert "_activate_candidate_runtime" in source
+    assert "_restore_previous_portal" in source
     assert 'f"{PORTAL_UID}:{PORTAL_GID}"' in source
     assert "os.getuid()" not in source
     assert "os.getgid()" not in source
@@ -179,8 +195,6 @@ def test_deployer_is_public_secret_free_and_hardened() -> None:
     assert "refusing rotation" in source
     assert '"secret_values_recorded": False' in source
     assert '"live_capital_authorized": False' in source
-    assert "PORTAL_IDENTITY_FIXTURE_MODE=disabled" in source
-    assert "PORTAL_IDENTITY_TRANSPORT_MODE=https" in source
     assert "_discovery_from_identity_container" in source
     assert "--cap-drop" in source
     assert "no-new-privileges:true" in source
@@ -190,15 +204,18 @@ def test_deployer_is_public_secret_free_and_hardened() -> None:
     assert "auth.quant.molehill.cloud" not in source
 
 
-def test_control_bind_mount_uses_valid_default_read_write_syntax() -> None:
+def test_control_plane_uses_candidate_postgresql_env_without_legacy_state_mount() -> None:
     args = module._control_run_args("image", "candidate")
-    mount_index = args.index("--mount")
-    assert args[mount_index + 1] == f"type=bind,src={module.PORTAL_DATA_DIR},dst=/state"
-    assert not args[mount_index + 1].endswith(",rw")
+
+    env_index = args.index("--env-file")
+    assert args[env_index + 1] == str(module.PORTAL_RUNTIME_CANDIDATE_ENV)
+    assert "--mount" not in args
+    assert "ai.freqtrade.database-dialect=postgresql" in args
 
 
-def test_control_plane_is_internal_and_only_web_is_published() -> None:
+def test_web_runtime_is_api_mode_and_control_plane_is_internal() -> None:
     source = (DEPLOYMENT / "deploy.py").read_text(encoding="utf-8")
+    args = module._web_run_args("image", "candidate", publish=False)
 
     control_section = source[
         source.index("def _control_run_args") : source.index("def _start_control_candidate")
@@ -206,8 +223,49 @@ def test_control_plane_is_internal_and_only_web_is_published() -> None:
     web_section = source[source.index("def _web_run_args") : source.index("def _probe_web_login")]
     assert "--publish" not in control_section
     assert "--publish" in web_section
+    assert "PORTAL_WEB_DATA_MODE=api" in args
+    assert "PORTAL_WEB_DATA_MODE=fixture" not in args
+    assert f"PORTAL_CONTROL_PLANE_URL=http://{module.CONTROL_CONTAINER}:8000" in args
     assert f"{module.PORTAL_BIND_ADDRESS}" in source
     assert str(module.PORTAL_PORT) in source
+
+
+def test_private_postgresql_topology_has_no_published_database_port() -> None:
+    source = (DEPLOYMENT / "deploy.py").read_text(encoding="utf-8")
+    postgres_section = source[source.index("def _ensure_postgres") : source.index("def _assert_database_name")]
+
+    assert "--network-alias" in postgres_section
+    assert "PORTAL_POSTGRES_ALIAS" in postgres_section
+    assert "PORTAL_POSTGRES_VOLUME" in postgres_section
+    assert "--publish" not in postgres_section
+    assert "-p" not in postgres_section
+
+
+def test_current_database_mode_accepts_only_canonical_private_postgresql() -> None:
+    postgres_env = {
+        "POSTGRES_DB": module.PORTAL_POSTGRES_ADMIN_DB,
+        "POSTGRES_USER": module.PORTAL_POSTGRES_USER,
+        "POSTGRES_PASSWORD": "synthetic-password",
+    }
+    canonical_url = module._postgres_database_url("portal_candidate_aaaaaaaaaaaa", postgres_env)
+
+    assert module._current_database_mode({}, postgres_env) == ("fresh", None)
+    assert module._current_database_mode(
+        {"PORTAL_DATABASE_URL": module.LEGACY_SQLITE_DATABASE_URL}, postgres_env
+    ) == ("legacy_sqlite", None)
+    assert module._current_database_mode(
+        {"PORTAL_DATABASE_URL": canonical_url}, postgres_env
+    ) == ("postgresql", "portal_candidate_aaaaaaaaaaaa")
+
+    with pytest.raises(module.DeploymentError, match="private topology"):
+        module._current_database_mode(
+            {
+                "PORTAL_DATABASE_URL": (
+                    "postgresql+psycopg://portal:synthetic-password@127.0.0.1:5432/portal"
+                )
+            },
+            postgres_env,
+        )
 
 
 def test_discovery_probe_uses_explicit_machine_user_agent() -> None:
@@ -231,7 +289,7 @@ def test_deployment_entrypoint_installs_repaired_discovery_probe() -> None:
     assert "discovery.deployment_probe" in entrypoint
 
 
-def test_workflow_is_exact_one_request_secret_free_and_sha_pinned() -> None:
+def test_protected_workflow_is_exact_one_request_secret_free_and_sha_pinned() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
     assert "runs-on: [freqtrade-staging]" in workflow
@@ -248,6 +306,23 @@ def test_workflow_is_exact_one_request_secret_free_and_sha_pinned() -> None:
     assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" in workflow
     assert "actions/checkout@v" not in workflow
     assert "actions/upload-artifact@v" not in workflow
+
+
+def test_nonprotected_exact_image_workflow_proves_postgresql_api_mode() -> None:
+    workflow = POSTGRES_EXACT_IMAGE_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "Portal API Mode PostgreSQL Exact Image" in workflow
+    assert "postgres:16.13-alpine3.23@sha256:" in workflow
+    assert "ai_platform.portal.database.cli migrate" in workflow
+    assert "ai_platform.portal.database.transfer" in workflow
+    assert "PORTAL_WEB_DATA_MODE=api" in workflow
+    assert "PORTAL_WEB_DATA_MODE=fixture" in workflow
+    assert 'payload.status !== "ready"' in workflow
+    assert 'ready["database_dialect"] == "postgresql"' in workflow
+    assert 'assert count == 1' in workflow
+    assert "production fixture mode unexpectedly started" in workflow
+    assert "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0" in workflow
+    assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" in workflow
 
 
 def test_report_contract_contains_no_secret_values() -> None:

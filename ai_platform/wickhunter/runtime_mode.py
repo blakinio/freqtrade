@@ -89,6 +89,10 @@ class RuntimeModeResolution:
             self.paper_authorization_digest
         ):
             raise ValueError("paper_authorization_digest must be a lowercase SHA-256 digest")
+        if self.mode is BotMode.PAPER and self.paper_authorization_digest is None:
+            raise ValueError("PAPER resolution requires paper authorization identity")
+        if self.mode is BotMode.SHADOW and self.paper_authorization_digest is not None:
+            raise ValueError("SHADOW resolution cannot contain paper authorization identity")
         if not self.market_observation_enabled:
             raise ValueError("managed WickHunter runtime must observe market data")
         if self.simulated_paper_state_enabled is not (self.mode is BotMode.PAPER):
@@ -110,24 +114,23 @@ class RuntimeModeResolution:
 
 
 def _paper_material_present(request: ManagedRuntimeModeRequest) -> bool:
-    return (
-        any(
-            value is not None
-            for value in (
-                request.paper_authorization_id,
-                request.paper_authorization_digest,
-                request.paper_candidate_package_id,
-                request.paper_candidate_manifest_sha256,
-            )
+    return any(
+        value is not None
+        for value in (
+            request.paper_authorization_id,
+            request.paper_authorization_digest,
+            request.paper_candidate_package_id,
+            request.paper_candidate_manifest_sha256,
         )
-        or request.paper_activation_authorized
-    )
+    ) or request.paper_activation_authorized is not False
 
 
 def _validate_positive_paper_evidence(request: ManagedRuntimeModeRequest) -> None:
+    if not isinstance(request.paper_activation_authorized, bool):
+        raise RuntimeModeResolutionError(RuntimeModeRejectionReason.PAPER_ELIGIBILITY_INVALID)
     if not _paper_material_present(request):
         raise RuntimeModeResolutionError(RuntimeModeRejectionReason.PAPER_ELIGIBILITY_REQUIRED)
-    if not request.paper_activation_authorized:
+    if request.paper_activation_authorized is not True:
         raise RuntimeModeResolutionError(RuntimeModeRejectionReason.PAPER_NOT_AUTHORIZED)
     if not (
         _is_non_empty_text(request.paper_authorization_id)

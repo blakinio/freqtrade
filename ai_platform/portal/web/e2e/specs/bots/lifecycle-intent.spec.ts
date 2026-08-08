@@ -27,6 +27,7 @@ test.describe("BMW-02 lifecycle command intents", { tag: [tags.critical, tags.se
         bot_id: "bot-btc-dryrun-01",
         action: "PAUSE_NEW_ENTRIES",
         expected_config_revision: 1,
+        expected_runtime_generation_id: "fixture-generation:bot-btc-dryrun-01:1",
         idempotency_key: "browser-authority-rejected",
         runtime_id: "browser-runtime",
         runtime_revision: 99,

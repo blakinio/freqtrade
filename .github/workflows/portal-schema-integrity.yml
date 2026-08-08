@@ -58,8 +58,8 @@ jobs:
               )
           )
           assert payload["format_version"] == 1
-          assert payload["orm"]["table_count"] == 42
-          assert payload["migrations"]["table_count"] == 42
+          assert payload["orm"]["table_count"] == 46
+          assert payload["migrations"]["table_count"] == 46
           assert payload["drift"] == {
               "duplicate_migration_owners": {},
               "migration_without_orm": [],

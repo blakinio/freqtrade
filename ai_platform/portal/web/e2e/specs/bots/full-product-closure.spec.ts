@@ -65,6 +65,7 @@ test.describe(
         bot_id: "bot-btc-dryrun-01",
         action: "PAUSE_NEW_ENTRIES",
         expected_config_revision: 1,
+        expected_runtime_generation_id: "fixture-generation:bot-btc-dryrun-01:1",
         idempotency_key: "bm09-lifecycle-replay",
       };
 

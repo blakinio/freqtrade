@@ -1,0 +1,1039 @@
+name: WickHunter WH09 900s replay rematerialization r1
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-replay-h900-heavy-20260808-r1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh09-replay-h900-r1-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  WORKFLOW_PATH: .github/workflows/wickhunter-wh09-replay-h900-heavy-20260808-r1.yml
+  TRUSTED_BASE_SHA: 7b23a958fd4d2bb43569c7f693d2247ef43d1ae9
+  DATASET_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-datasets/wickhunter-wh01-production-dataset-20260731-v3-e02199bfac82-eaccc5ec-8f5be573
+  DATASET_ID: wickhunter-wh01-production-dataset-20260731-v3-e02199bfac82-eaccc5ec-8f5be573
+  DATASET_MANIFEST_SHA256: fbf6c4fc35ad012db010eda29a6110c114669d972a1cc14533d9cda733cd23a1
+  DATASET_MANIFEST_FILE_SHA256: 314ca4cc6d891fb369cce9a3fbbe16fad019a53bd74f9bc5bee0b12539b48b13
+  MARKET_MANIFEST_SHA256: eaccc5ecaf7a9514086e99d719d0cb4c5ef8a9c87e3f0c30c501e1860c05fb52
+  SPLIT_GEOMETRY_SHA256: cb861e99fc7d2d9b9fd22aa86d4e890595d2765445c5a46b0d0911104ef7cc8b
+  SOURCE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-replay-price-path/sources/binance-usdm-aggtrades-20260731-v2
+  ACQUISITION_MANIFEST_SHA256: 58f155da7381a0ec53559319520f04a45ab011c3ecc6a258a146230a2931148b
+  ACQUISITION_MANIFEST_FILE_SHA256: b0f4c9fd2cafb3a16487d2a464aa1899c5d574a8e1c98ff5794b4269351eaafc
+  PRICE_STATE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-replay-price-path/packages
+  REPLAY_STATE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-deterministic-replay/packages
+  CANDIDATE_STATE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-candidate-materialization/packages
+  REQUESTED_DATE: "2026-07-31"
+  REQUESTED_START_MS: "1785484861174"
+  REQUESTED_END_MS: "1785521462877"
+  LABEL_HORIZON_MS: "900000"
+  PROTECTED_HOLDOUT_START_MS: "1785542400000"
+  EXPECTED_SOURCE_DECISIONS: "919"
+  EXPECTED_ELIGIBLE_DECISIONS: "824"
+  EXPECTED_EXCLUDED_DECISIONS: "95"
+  EXPECTED_LABELS: "1648"
+  FROZEN_NO_TRADE_CONFIDENCE: "0.60"
+
+jobs:
+  materialize:
+    name: Materialize 900s price, replay, evaluation and candidate
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 180
+    outputs:
+      source_commit_sha: ${{ steps.identity.outputs.source_commit_sha }}
+      price_root: ${{ steps.materialize.outputs.price_root }}
+      price_package_id: ${{ steps.materialize.outputs.price_package_id }}
+      price_manifest_sha256: ${{ steps.materialize.outputs.price_manifest_sha256 }}
+      replay_root: ${{ steps.materialize.outputs.replay_root }}
+      replay_package_id: ${{ steps.materialize.outputs.replay_package_id }}
+      replay_request_sha256: ${{ steps.materialize.outputs.replay_request_sha256 }}
+      replay_policy_sha256: ${{ steps.materialize.outputs.replay_policy_sha256 }}
+      replay_manifest_sha256: ${{ steps.materialize.outputs.replay_manifest_sha256 }}
+      evaluation_sha256: ${{ steps.materialize.outputs.evaluation_sha256 }}
+      candidate_root: ${{ steps.materialize.outputs.candidate_root }}
+      candidate_package_id: ${{ steps.materialize.outputs.candidate_package_id }}
+      candidate_manifest_sha256: ${{ steps.materialize.outputs.candidate_manifest_sha256 }}
+      parameter_hash: ${{ steps.materialize.outputs.parameter_hash }}
+      model_artifact_sha256: ${{ steps.materialize.outputs.model_artifact_sha256 }}
+      optimizer_result_id: ${{ steps.materialize.outputs.optimizer_result_id }}
+      comparison_report_id: ${{ steps.materialize.outputs.comparison_report_id }}
+    steps:
+      - name: Check out exact request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact request, runner and closed authority
+        id: identity
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$TRUSTED_BASE_SHA" ]]
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-wh09-replay-h900-heavy-20260808-r1.yml'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected exact one-file request:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          [[ "$(git rev-parse HEAD)" == "$HEAD_SHA" ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" ]]
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]] || { echo "recognized trading credential present: $name" >&2; exit 1; }
+          done
+          for name in HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+            [[ -z "${!name:-}" ]] || { echo "proxy environment present: $name" >&2; exit 1; }
+          done
+          for path in "$DATASET_ROOT" "$SOURCE_ROOT"; do
+            [[ -d "$path" && ! -L "$path" ]]
+          done
+          mkdir -p "$PRICE_STATE_ROOT" "$REPLAY_STATE_ROOT" "$CANDIDATE_STATE_ROOT"
+          for path in "$PRICE_STATE_ROOT" "$REPLAY_STATE_ROOT" "$CANDIDATE_STATE_ROOT"; do
+            [[ -d "$path" && ! -L "$path" && -w "$path" ]]
+          done
+          printf 'source_commit_sha=%s\n' "$BASE_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Install uv and locked dependencies
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v7.2.1
+        with:
+          activate-environment: true
+          python-version: "3.13"
+          enable-cache: false
+
+      - name: Install project dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -r requirements-dev.txt
+          uv pip install -e ft_client/
+          uv pip install -e .
+
+      - name: Materialize fresh immutable 900s chain
+        id: materialize
+        shell: bash
+        env:
+          SOURCE_COMMIT_SHA: ${{ steps.identity.outputs.source_commit_sha }}
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import shutil
+          import tempfile
+          from dataclasses import replace
+          from decimal import Decimal
+          from pathlib import Path
+
+          from ai_platform.research.liquidations.historical.manifests import sha256_file
+          from ai_platform.wickhunter.bounded_optimizer import (
+              BoundedOptimizerPolicy,
+              optimize_bounded_parameters,
+          )
+          from ai_platform.wickhunter.canonical import canonical_json, canonical_sha256
+          from ai_platform.wickhunter.contracts import TradeDirection
+          from ai_platform.wickhunter.deterministic_replay import (
+              POLICY_SCHEMA_VERSION,
+              REQUEST_SCHEMA_VERSION,
+              ReplayPolicy,
+              ReplayRequest,
+              ReplaySplitWindow,
+              build_deterministic_replay_package,
+              verify_deterministic_replay_package,
+          )
+          from ai_platform.wickhunter.lightgbm_scorer import (
+              LightGBMScorerError,
+              LightGBMTrainingPolicy,
+              evaluate_lightgbm_against_baseline,
+              train_lightgbm_scorer,
+          )
+          from ai_platform.wickhunter.parameters import (
+              DEFAULT_RESEARCH_BOUNDS,
+              INITIAL_COMPATIBILITY_PRIOR,
+              WickHunterParameters,
+              validate_parameters,
+          )
+          from ai_platform.wickhunter.production_dataset_materialization import (
+              verify_production_materialization,
+          )
+          from ai_platform.wickhunter.production_evaluation import (
+              load_verified_evaluation_dataset,
+          )
+          from ai_platform.wickhunter.replay_price_path import (
+              REQUEST_SCHEMA_VERSION as PRICE_REQUEST_SCHEMA_VERSION,
+              ReplayArchiveInput,
+              ReplayPricePathRequest,
+              build_replay_price_path_package,
+              verify_replay_price_path_package,
+          )
+
+          def require(condition: bool, message: str) -> None:
+              if not condition:
+                  raise RuntimeError(message)
+
+          def read_json(path: Path) -> dict:
+              require(path.is_file() and not path.is_symlink(), f"missing regular file: {path}")
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              require(isinstance(payload, dict), f"expected object: {path}")
+              return payload
+
+          source_sha = os.environ["SOURCE_COMMIT_SHA"]
+          dataset_root = Path(os.environ["DATASET_ROOT"])
+          source_root = Path(os.environ["SOURCE_ROOT"])
+          price_parent = Path(os.environ["PRICE_STATE_ROOT"])
+          replay_parent = Path(os.environ["REPLAY_STATE_ROOT"])
+          candidate_parent = Path(os.environ["CANDIDATE_STATE_ROOT"])
+          horizon = int(os.environ["LABEL_HORIZON_MS"])
+          holdout_start = int(os.environ["PROTECTED_HOLDOUT_START_MS"])
+          expected_source = int(os.environ["EXPECTED_SOURCE_DECISIONS"])
+          expected_eligible = int(os.environ["EXPECTED_ELIGIBLE_DECISIONS"])
+          expected_excluded = int(os.environ["EXPECTED_EXCLUDED_DECISIONS"])
+          expected_labels = int(os.environ["EXPECTED_LABELS"])
+          require(horizon == 900_000, "900-second horizon is not exact")
+
+          dataset_verification = verify_production_materialization(dataset_root)
+          require(dataset_verification.get("outcome") == "accepted", "dataset verification rejected")
+          require(
+              dataset_verification.get("dataset_manifest_sha256") == os.environ["DATASET_MANIFEST_SHA256"],
+              "dataset manifest identity mismatch",
+          )
+          dataset_manifest_path = dataset_root / "dataset" / "manifest.json"
+          require(
+              sha256_file(dataset_manifest_path) == os.environ["DATASET_MANIFEST_FILE_SHA256"],
+              "dataset manifest file hash mismatch",
+          )
+          dataset_manifest = read_json(dataset_manifest_path)
+          require(dataset_manifest.get("total_rows") == expected_source, "dataset row count mismatch")
+          require(
+              dataset_manifest.get("latest_decision_timestamp_ms") + horizon
+              <= int(os.environ["REQUESTED_END_MS"]),
+              "source interval does not cover 900-second horizon",
+          )
+          require(int(os.environ["REQUESTED_END_MS"]) < holdout_start, "source interval overlaps holdout")
+
+          acquisition_path = source_root / "acquisition-manifest.json"
+          require(
+              sha256_file(acquisition_path) == os.environ["ACQUISITION_MANIFEST_FILE_SHA256"],
+              "acquisition manifest file hash mismatch",
+          )
+          acquisition = read_json(acquisition_path)
+          require(
+              acquisition.get("manifest_sha256") == os.environ["ACQUISITION_MANIFEST_SHA256"],
+              "acquisition identity mismatch",
+          )
+          require(acquisition.get("public_only") is True, "acquisition is not public-only")
+          require(acquisition.get("archive_count") == 20, "acquisition archive count mismatch")
+          symbols = (
+              "ADAUSDT", "APTUSDT", "ATOMUSDT", "AVAXUSDT", "BCHUSDT",
+              "BNBUSDT", "BTCUSDT", "DOGEUSDT", "DOTUSDT", "ETCUSDT",
+              "ETHUSDT", "FILUSDT", "LINKUSDT", "LTCUSDT", "NEARUSDT",
+              "SOLUSDT", "SUIUSDT", "TRXUSDT", "UNIUSDT", "XRPUSDT",
+          )
+          require(tuple(acquisition.get("symbols", ())) == symbols, "acquisition symbol set mismatch")
+          raw_archives = acquisition.get("archives")
+          require(isinstance(raw_archives, list) and len(raw_archives) == len(symbols), "archive evidence missing")
+          by_symbol = {record["symbol"]: record for record in raw_archives if isinstance(record, dict)}
+          require(tuple(sorted(by_symbol)) == symbols, "archive evidence symbol mismatch")
+          archives = tuple(
+              ReplayArchiveInput(
+                  symbol=symbol,
+                  archive_relative_path=str(by_symbol[symbol]["archive_relative_path"]),
+                  checksum_relative_path=str(by_symbol[symbol]["checksum_relative_path"]),
+              )
+              for symbol in symbols
+          )
+          for field in (
+              "protected_holdout_accessed",
+              "immutable_inputs_mutated",
+              "replay_authorized",
+              "model_execution_authorized",
+              "performance_research_authorized",
+              "execution_enabled",
+              "live_capital_authorized",
+              "trading_credentials_present",
+          ):
+              require(acquisition.get(field) is False, f"unsafe acquisition field: {field}")
+          require(acquisition.get("orders_submitted") == 0, "acquisition submitted orders")
+
+          price_package_id = f"wickhunter-wh09-replay-price-path-20260808-r1-h900s-{source_sha[:12]}"
+          price_root = price_parent / price_package_id
+          price_request = ReplayPricePathRequest(
+              schema_version=PRICE_REQUEST_SCHEMA_VERSION,
+              package_id=price_package_id,
+              dataset_id=os.environ["DATASET_ID"],
+              dataset_manifest_sha256=os.environ["DATASET_MANIFEST_SHA256"],
+              market_manifest_sha256=os.environ["MARKET_MANIFEST_SHA256"],
+              source_commit_sha=source_sha,
+              requested_date=os.environ["REQUESTED_DATE"],
+              requested_start_ms=int(os.environ["REQUESTED_START_MS"]),
+              requested_end_ms=int(os.environ["REQUESTED_END_MS"]),
+              label_horizon_ms=horizon,
+              protected_holdout_start_ms=holdout_start,
+              symbols=symbols,
+              archives=archives,
+              public_only=True,
+              protected_holdout_excluded=True,
+              replay_authorized=False,
+              model_execution_authorized=False,
+              performance_research_authorized=False,
+              execution_enabled=False,
+              live_capital_authorized=False,
+              trading_credentials_present=False,
+              orders_submitted=0,
+          )
+          if not price_root.exists():
+              built_price = build_replay_price_path_package(
+                  input_root=source_root,
+                  materialization_root=dataset_root,
+                  output_root=price_root,
+                  request=price_request,
+              )
+              require(built_price.get("outcome") == "accepted", "price-path materialization rejected")
+          price_verified = verify_replay_price_path_package(
+              output_root=price_root,
+              materialization_root=dataset_root,
+              input_root=source_root,
+          )
+          price_manifest = read_json(price_root / "manifest.json")
+          require(price_verified.get("outcome") == "accepted", "price-path verification rejected")
+          require(price_manifest.get("package_id") == price_package_id, "price package ID mismatch")
+          require(price_manifest.get("request_sha256") == price_request.request_sha256, "price request identity mismatch")
+          require(price_manifest.get("label_horizon_ms") == horizon, "price horizon mismatch")
+          require(price_manifest.get("decision_count") == expected_source, "price decision count mismatch")
+          require(price_verified.get("decision_count") == expected_source, "price verifier decision count mismatch")
+          require(price_verified.get("symbol_count") == 20, "price symbol count mismatch")
+          require(price_verified.get("maximum_entry_delay_ms", 20_001) <= 20_000, "entry delay exceeds replay policy")
+          price_manifest_sha = str(price_manifest["manifest_sha256"])
+
+          replay_package_id = f"wickhunter-wh09-deterministic-replay-20260808-r1-h900s-{source_sha[:12]}"
+          replay_root = replay_parent / replay_package_id
+          replay_policy = ReplayPolicy(
+              schema_version=POLICY_SCHEMA_VERSION,
+              policy_version="wickhunter-production-replay-policy-v5-h900s-boundary-safe",
+              entry_delay_ms=0,
+              maximum_entry_delay_ms=20_000,
+              fee_ratio=Decimal("0.001"),
+              slippage_ratio=Decimal("0.001"),
+              take_profit_ratio=Decimal("0.085"),
+              stop_loss_ratio=Decimal("0.05"),
+              label_horizon_ms=horizon,
+              protected_holdout_start_ms=holdout_start,
+          )
+          split_windows = (
+              ReplaySplitWindow("train", 1_785_484_800_000, 1_785_506_400_000),
+              ReplaySplitWindow("validation", 1_785_508_200_000, 1_785_515_400_000),
+              ReplaySplitWindow("test", 1_785_517_200_000, 1_785_520_800_000),
+          )
+          for previous, current in zip(split_windows, split_windows[1:], strict=False):
+              require(current.start_ms - previous.end_ms >= horizon, "split embargo is shorter than horizon")
+          replay_request = ReplayRequest(
+              schema_version=REQUEST_SCHEMA_VERSION,
+              package_id=replay_package_id,
+              dataset_id=os.environ["DATASET_ID"],
+              dataset_manifest_sha256=os.environ["DATASET_MANIFEST_SHA256"],
+              market_manifest_sha256=os.environ["MARKET_MANIFEST_SHA256"],
+              price_path_package_id=price_package_id,
+              price_path_manifest_sha256=price_manifest_sha,
+              source_commit_sha=source_sha,
+              split_geometry_sha256=os.environ["SPLIT_GEOMETRY_SHA256"],
+              split_windows=split_windows,
+              sides=(TradeDirection.LONG, TradeDirection.SHORT),
+              policy=replay_policy,
+              protected_holdout_excluded=True,
+              immutable_inputs_mutated=False,
+              model_execution_authorized=False,
+              performance_research_authorized=False,
+              execution_enabled=False,
+              live_capital_authorized=False,
+              trading_credentials_present=False,
+              orders_submitted=0,
+          )
+          if not replay_root.exists():
+              built_replay = build_deterministic_replay_package(
+                  materialization_root=dataset_root,
+                  price_path_root=price_root,
+                  output_root=replay_root,
+                  request=replay_request,
+              )
+              require(built_replay.get("outcome") == "accepted", "replay materialization rejected")
+          replay_verified = verify_deterministic_replay_package(
+              materialization_root=dataset_root,
+              price_path_root=price_root,
+              output_root=replay_root,
+          )
+          replay_manifest = read_json(replay_root / "manifest.json")
+          require(replay_verified.get("outcome") == "accepted", "replay verification rejected")
+          require(replay_manifest.get("source_decision_count") == expected_source, "replay source decision count mismatch")
+          require(replay_manifest.get("decision_count") == expected_eligible, "replay eligible decision count mismatch")
+          require(
+              replay_manifest.get("excluded_split_boundary_decision_count") == expected_excluded,
+              "replay excluded decision count mismatch",
+          )
+          require(replay_manifest.get("label_count") == expected_labels, "replay label count mismatch")
+          require(replay_manifest.get("request_sha256") == replay_request.request_sha256, "replay request identity mismatch")
+          require(replay_manifest.get("policy_sha256") == replay_policy.policy_sha256, "replay policy identity mismatch")
+          for field in (
+              "protected_holdout_accessed",
+              "immutable_inputs_mutated",
+              "model_execution_authorized",
+              "performance_research_authorized",
+              "execution_enabled",
+              "live_capital_authorized",
+              "trading_credentials_present",
+          ):
+              require(replay_verified.get(field) is False, f"unsafe replay field: {field}")
+          require(replay_verified.get("orders_submitted") == 0, "replay submitted orders")
+
+          evaluation = load_verified_evaluation_dataset(
+              materialization_root=dataset_root,
+              price_path_root=price_root,
+              replay_root=replay_root,
+          )
+          require(len(evaluation.cases) == expected_eligible, "evaluation case count mismatch")
+          split_counts = {
+              split: sum(case.split_name == split for case in evaluation.cases)
+              for split in ("train", "validation", "test")
+          }
+          require(all(count > 0 for count in split_counts.values()), "evaluation contains an empty split")
+          require(
+              not evaluation.protected_holdout_accessed
+              and not evaluation.immutable_inputs_mutated
+              and not evaluation.model_execution_authorized
+              and not evaluation.performance_research_authorized
+              and not evaluation.execution_enabled
+              and not evaluation.live_capital_authorized
+              and not evaluation.trading_credentials_present
+              and evaluation.orders_submitted == 0,
+              "evaluation contains unsafe authority",
+          )
+
+          candidates: list[WickHunterParameters] = []
+          index = 0
+          for band in (Decimal("0.001"), Decimal("0.0015"), Decimal("0.002")):
+              for percentile in (Decimal("0.50"), Decimal("0.65")):
+                  for zscore in (Decimal("0"), Decimal("1")):
+                      index += 1
+                      candidate = replace(
+                          INITIAL_COMPATIBILITY_PRIOR,
+                          parameter_version=f"wickhunter-production-h900s-{index:02d}",
+                          liquidation_percentile=percentile,
+                          liquidation_zscore=zscore,
+                          minimum_quote_volume_usd=Decimal("1000000"),
+                          long_vwap_distance_ratio=band,
+                          short_vwap_distance_ratio=band,
+                          minimum_wick_ratio=Decimal("0"),
+                          minimum_volatility=Decimal("0"),
+                          maximum_volatility=Decimal("0.50"),
+                          cooldown_ms=0,
+                          maximum_event_age_ms=300_000,
+                          base_risk_ratio=Decimal("0.001"),
+                          leverage=Decimal("1"),
+                          dca_enabled=False,
+                          dca_levels=0,
+                          dca_total_risk_ratio=Decimal("0.001"),
+                          maximum_holding_ms=horizon,
+                          minimum_confidence=Decimal("0.50"),
+                      )
+                      validate_parameters(candidate, DEFAULT_RESEARCH_BOUNDS)
+                      candidates.append(candidate)
+          require(len(candidates) == 12, "finite parameter search size changed")
+          require(len({item.parameter_hash for item in candidates}) == len(candidates), "finite parameter search contains duplicates")
+
+          model_policy = LightGBMTrainingPolicy(
+              training_splits=("train",),
+              calibration_splits=("validation",),
+              validation_splits=("test",),
+              forbidden_splits=("holdout", "protected_holdout"),
+              seed=20260801,
+              num_boost_round=40,
+              num_leaves=7,
+              min_data_in_leaf=2,
+              learning_rate=Decimal("0.05"),
+              calibration_bins=10,
+              no_trade_confidence=Decimal(os.environ["FROZEN_NO_TRADE_CONFIDENCE"]),
+          )
+          require(model_policy.no_trade_confidence == Decimal("0.60"), "frozen confidence changed")
+          trainable: list[WickHunterParameters] = []
+          artifacts = {}
+          rejected = {}
+          for candidate in candidates:
+              try:
+                  artifact = train_lightgbm_scorer(
+                      cases=evaluation.cases,
+                      parameters=candidate,
+                      parameter_bounds=DEFAULT_RESEARCH_BOUNDS,
+                      policy=model_policy,
+                  )
+              except LightGBMScorerError as exc:
+                  rejected[candidate.parameter_hash] = str(exc)
+                  continue
+              trainable.append(candidate)
+              artifacts[candidate.parameter_hash] = artifact
+          require(bool(trainable), "no finite parameter candidate produced trainable 900s model evidence")
+
+          optimizer_policy = BoundedOptimizerPolicy(
+              training_splits=("train",),
+              validation_splits=("validation",),
+              test_splits=("test",),
+              forbidden_splits=("holdout", "protected_holdout"),
+              seed=20260801,
+              initial_trials=min(3, len(trainable)),
+              maximum_trials=len(trainable),
+              top_k=min(3, len(trainable)),
+          )
+          optimization = optimize_bounded_parameters(
+              cases=evaluation.cases,
+              candidates=trainable,
+              parameter_bounds=DEFAULT_RESEARCH_BOUNDS,
+              policy=optimizer_policy,
+          )
+          optimization_repeat = optimize_bounded_parameters(
+              cases=evaluation.cases,
+              candidates=trainable,
+              parameter_bounds=DEFAULT_RESEARCH_BOUNDS,
+              policy=optimizer_policy,
+          )
+          require(optimization.result_id == optimization_repeat.result_id, "validation-only optimization is not deterministic")
+          selected_hash = optimization.top_parameter_sha256s[0]
+          selected = next(item for item in trainable if item.parameter_hash == selected_hash)
+          artifact = artifacts[selected_hash]
+          artifact_repeat = train_lightgbm_scorer(
+              cases=evaluation.cases,
+              parameters=selected,
+              parameter_bounds=DEFAULT_RESEARCH_BOUNDS,
+              policy=model_policy,
+          )
+          require(artifact.artifact_sha256 == artifact_repeat.artifact_sha256, "model artifact is not deterministic")
+          comparison = evaluate_lightgbm_against_baseline(
+              artifact=artifact,
+              cases=evaluation.cases,
+              parameters=selected,
+              parameter_bounds=DEFAULT_RESEARCH_BOUNDS,
+          )
+          require(comparison.validation_splits == ("test",), "comparison did not remain test-descriptive")
+          require(
+              not comparison.model_promoted
+              and not comparison.profitability_claimed
+              and not comparison.execution_enabled
+              and not comparison.live_capital_authorized
+              and comparison.orders_submitted == 0,
+              "comparison contains unsafe authority",
+          )
+
+          rollback_model_version = "wickhunter-deterministic-baseline-v1"
+          rollback_model_hash = canonical_sha256(
+              {
+                  "strategy_version": rollback_model_version,
+                  "parameter_sha256": selected.parameter_hash,
+                  "dataset_sha256": evaluation.evaluation_sha256,
+              }
+          )
+          rollback = {
+              "schema_version": "wickhunter-rollback-candidate-v1",
+              "model_version": rollback_model_version,
+              "model_hash": rollback_model_hash,
+              "parameter_version": selected.parameter_version,
+              "parameter_hash": selected.parameter_hash,
+              "automatic_activation": False,
+              "owner_decision_required": True,
+              "execution_enabled": False,
+              "live_capital_authorized": False,
+              "orders_submitted": 0,
+          }
+          evaluation_identity = {
+              "schema_version": evaluation.schema_version,
+              "evaluation_sha256": evaluation.evaluation_sha256,
+              "dataset_id": evaluation.dataset_id,
+              "dataset_manifest_sha256": evaluation.dataset_manifest_sha256,
+              "replay_package_id": evaluation.replay_package_id,
+              "replay_manifest_sha256": evaluation.replay_manifest_sha256,
+              "replay_policy_sha256": evaluation.replay_policy_sha256,
+              "source_commit_sha": evaluation.source_commit_sha,
+              "case_count": len(evaluation.cases),
+              "split_counts": split_counts,
+              "protected_holdout_accessed": False,
+              "execution_enabled": False,
+              "live_capital_authorized": False,
+              "orders_submitted": 0,
+          }
+          parameter_payload = json.loads(canonical_json(selected))
+          parameter_payload["parameter_sha256"] = selected.parameter_hash
+          model_payload = artifact.as_registry_record()
+          optimization_payload = json.loads(canonical_json(optimization))
+          comparison_payload = comparison.as_json_dict()
+          search_audit = {
+              "schema_version": "wickhunter-finite-search-audit-v1",
+              "candidate_count": len(candidates),
+              "trainable_candidate_count": len(trainable),
+              "candidate_parameter_sha256s": tuple(sorted(item.parameter_hash for item in candidates)),
+              "trainable_parameter_sha256s": tuple(sorted(item.parameter_hash for item in trainable)),
+              "rejected_candidates": dict(sorted(rejected.items())),
+              "selection_source": "validation_only",
+              "test_used_for_selection": False,
+              "protected_holdout_accessed": False,
+              "execution_enabled": False,
+              "live_capital_authorized": False,
+              "orders_submitted": 0,
+          }
+
+          candidate_package_id = f"wickhunter-wh09-candidate-materialization-20260808-r1-h900s-{source_sha[:12]}"
+          candidate_root = candidate_parent / candidate_package_id
+          require(not candidate_root.exists(), "candidate output already exists")
+          temporary = Path(tempfile.mkdtemp(prefix=f".{candidate_package_id}.", dir=candidate_parent))
+          try:
+              payloads = {
+                  "evaluation-identity.json": evaluation_identity,
+                  "finite-search-audit.json": search_audit,
+                  "selected-parameters.json": parameter_payload,
+                  "optimizer-result.json": optimization_payload,
+                  "model-artifact.json": model_payload,
+                  "comparison-report.json": comparison_payload,
+                  "rollback.json": rollback,
+              }
+              file_records = []
+              for name, payload in payloads.items():
+                  path = temporary / name
+                  path.write_text(canonical_json(payload) + "\n", encoding="utf-8")
+                  file_records.append(
+                      {
+                          "logical_name": name,
+                          "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                          "size_bytes": path.stat().st_size,
+                      }
+                  )
+              file_records.sort(key=lambda item: item["logical_name"])
+              manifest_seed = {
+                  "schema_version": "wickhunter-candidate-materialization-manifest-v1",
+                  "package_id": candidate_package_id,
+                  "source_commit_sha": source_sha,
+                  "evaluation_sha256": evaluation.evaluation_sha256,
+                  "parameter_version": selected.parameter_version,
+                  "parameter_sha256": selected.parameter_hash,
+                  "model_version": artifact.model_version,
+                  "model_hash": artifact.model_hash,
+                  "model_artifact_sha256": artifact.artifact_sha256,
+                  "optimizer_result_id": optimization.result_id,
+                  "comparison_report_id": comparison.report_id,
+                  "rollback_model_version": rollback_model_version,
+                  "rollback_model_hash": rollback_model_hash,
+                  "rollback_parameter_version": selected.parameter_version,
+                  "rollback_parameter_hash": selected.parameter_hash,
+                  "selection_source": "validation_only",
+                  "test_used_for_selection": False,
+                  "candidate_only": True,
+                  "owner_decision_required": True,
+                  "automatic_promotion_enabled": False,
+                  "protected_holdout_accessed": False,
+                  "trading_credentials_present": False,
+                  "order_adapter_present": False,
+                  "execution_enabled": False,
+                  "live_capital_authorized": False,
+                  "orders_submitted": 0,
+                  "files": file_records,
+              }
+              manifest = {**manifest_seed, "manifest_sha256": canonical_sha256(manifest_seed)}
+              manifest_path = temporary / "manifest.json"
+              manifest_path.write_text(canonical_json(manifest) + "\n", encoding="utf-8")
+              checksum_lines = [f"{item['sha256']}  {item['logical_name']}" for item in file_records]
+              checksum_lines.append(f"{hashlib.sha256(manifest_path.read_bytes()).hexdigest()}  manifest.json")
+              (temporary / "artifact-sha256.txt").write_text(
+                  "\n".join(sorted(checksum_lines)) + "\n", encoding="utf-8"
+              )
+              observed = json.loads(manifest_path.read_text(encoding="utf-8"))
+              claimed = observed.pop("manifest_sha256")
+              require(canonical_sha256(observed) == claimed, "candidate manifest self-hash mismatch")
+              for record in observed["files"]:
+                  path = temporary / record["logical_name"]
+                  require(hashlib.sha256(path.read_bytes()).hexdigest() == record["sha256"], "candidate file hash mismatch")
+                  require(path.stat().st_size == record["size_bytes"], "candidate file size mismatch")
+              temporary.replace(candidate_root)
+          except BaseException:
+              shutil.rmtree(temporary, ignore_errors=True)
+              raise
+
+          terminal = {
+              "source_commit_sha": source_sha,
+              "label_horizon_ms": horizon,
+              "price_package_id": price_package_id,
+              "price_root": str(price_root),
+              "price_request_sha256": price_request.request_sha256,
+              "price_manifest_sha256": price_manifest_sha,
+              "replay_package_id": replay_package_id,
+              "replay_root": str(replay_root),
+              "replay_request_sha256": replay_request.request_sha256,
+              "replay_policy_sha256": replay_policy.policy_sha256,
+              "replay_manifest_sha256": replay_manifest["manifest_sha256"],
+              "source_decision_count": expected_source,
+              "decision_count": expected_eligible,
+              "excluded_split_boundary_decision_count": expected_excluded,
+              "label_count": expected_labels,
+              "evaluation_sha256": evaluation.evaluation_sha256,
+              "split_counts": split_counts,
+              "candidate_package_id": candidate_package_id,
+              "candidate_root": str(candidate_root),
+              "candidate_manifest_sha256": manifest["manifest_sha256"],
+              "parameter_version": selected.parameter_version,
+              "parameter_hash": selected.parameter_hash,
+              "maximum_holding_ms": selected.maximum_holding_ms,
+              "model_version": artifact.model_version,
+              "model_hash": artifact.model_hash,
+              "model_artifact_sha256": artifact.artifact_sha256,
+              "optimizer_result_id": optimization.result_id,
+              "comparison_report_id": comparison.report_id,
+              "trainable_candidate_count": len(trainable),
+              "no_trade_confidence": str(model_policy.no_trade_confidence),
+              "selection_source": "validation_only",
+              "test_used_for_selection": False,
+              "protected_holdout_accessed": False,
+              "automatic_promotion_enabled": False,
+              "trading_credentials_present": False,
+              "order_adapter_present": False,
+              "execution_enabled": False,
+              "live_capital_authorized": False,
+              "orders_submitted": 0,
+          }
+          evidence = Path(os.environ["RUNNER_TEMP"]) / "wickhunter-wh09-h900-r1-terminal.json"
+          evidence.write_text(canonical_json(terminal) + "\n", encoding="utf-8")
+          print(json.dumps(terminal, indent=2, sort_keys=True))
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
+              for key in (
+                  "price_root", "price_package_id", "price_manifest_sha256",
+                  "replay_root", "replay_package_id", "replay_request_sha256",
+                  "replay_policy_sha256", "replay_manifest_sha256", "evaluation_sha256",
+                  "candidate_root", "candidate_package_id", "candidate_manifest_sha256",
+                  "parameter_hash", "model_artifact_sha256", "optimizer_result_id",
+                  "comparison_report_id",
+              ):
+                  handle.write(f"{key}={terminal[key]}\n")
+          PY
+
+      - name: Run focused source tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run pytest -q \
+            tests/ai_platform_integration/test_wickhunter_replay_price_path.py \
+            tests/ai_platform_integration/test_wickhunter_deterministic_replay.py \
+            tests/ai_platform_integration/test_wickhunter_production_evaluation.py
+
+      - name: Upload bounded terminal metadata
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wickhunter-wh09-h900-r1-${{ github.event.pull_request.number }}
+          path: |
+            ${{ runner.temp }}/wickhunter-wh09-h900-r1-terminal.json
+            ${{ steps.materialize.outputs.price_root }}/request.json
+            ${{ steps.materialize.outputs.price_root }}/manifest.json
+            ${{ steps.materialize.outputs.price_root }}/verification-report.json
+            ${{ steps.materialize.outputs.replay_root }}/request.json
+            ${{ steps.materialize.outputs.replay_root }}/policy.json
+            ${{ steps.materialize.outputs.replay_root }}/manifest.json
+            ${{ steps.materialize.outputs.replay_root }}/verification-report.json
+            ${{ steps.materialize.outputs.candidate_root }}/evaluation-identity.json
+            ${{ steps.materialize.outputs.candidate_root }}/finite-search-audit.json
+            ${{ steps.materialize.outputs.candidate_root }}/selected-parameters.json
+            ${{ steps.materialize.outputs.candidate_root }}/optimizer-result.json
+            ${{ steps.materialize.outputs.candidate_root }}/model-artifact.json
+            ${{ steps.materialize.outputs.candidate_root }}/comparison-report.json
+            ${{ steps.materialize.outputs.candidate_root }}/rollback.json
+            ${{ steps.materialize.outputs.candidate_root }}/manifest.json
+            ${{ steps.materialize.outputs.candidate_root }}/artifact-sha256.txt
+          if-no-files-found: error
+          retention-days: 30
+
+  audit:
+    name: Fresh independent audit of 900s chain
+    needs: materialize
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 90
+    steps:
+      - name: Check out exact request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact audit boundary
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          SOURCE_COMMIT_SHA: ${{ needs.materialize.outputs.source_commit_sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$TRUSTED_BASE_SHA" ]]
+          [[ "$SOURCE_COMMIT_SHA" == "$BASE_SHA" ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$(git rev-parse HEAD)" == "$HEAD_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-wh09-replay-h900-heavy-20260808-r1.yml'
+          [[ "$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")" == "$expected" ]]
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]] || { echo "recognized trading credential present: $name" >&2; exit 1; }
+          done
+          for name in HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+            [[ -z "${!name:-}" ]] || { echo "proxy environment present: $name" >&2; exit 1; }
+          done
+
+      - name: Install uv and dependencies
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v7.2.1
+        with:
+          activate-environment: true
+          python-version: "3.13"
+          enable-cache: false
+
+      - name: Install project dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -r requirements-dev.txt
+          uv pip install -e ft_client/
+          uv pip install -e .
+
+      - name: Independently verify immutable identity chain and safety
+        shell: bash
+        env:
+          SOURCE_COMMIT_SHA: ${{ needs.materialize.outputs.source_commit_sha }}
+          PRICE_ROOT: ${{ needs.materialize.outputs.price_root }}
+          PRICE_PACKAGE_ID: ${{ needs.materialize.outputs.price_package_id }}
+          PRICE_MANIFEST_SHA256: ${{ needs.materialize.outputs.price_manifest_sha256 }}
+          REPLAY_ROOT: ${{ needs.materialize.outputs.replay_root }}
+          REPLAY_PACKAGE_ID: ${{ needs.materialize.outputs.replay_package_id }}
+          REPLAY_REQUEST_SHA256: ${{ needs.materialize.outputs.replay_request_sha256 }}
+          REPLAY_POLICY_SHA256: ${{ needs.materialize.outputs.replay_policy_sha256 }}
+          REPLAY_MANIFEST_SHA256: ${{ needs.materialize.outputs.replay_manifest_sha256 }}
+          EVALUATION_SHA256: ${{ needs.materialize.outputs.evaluation_sha256 }}
+          CANDIDATE_ROOT: ${{ needs.materialize.outputs.candidate_root }}
+          CANDIDATE_PACKAGE_ID: ${{ needs.materialize.outputs.candidate_package_id }}
+          CANDIDATE_MANIFEST_SHA256: ${{ needs.materialize.outputs.candidate_manifest_sha256 }}
+          PARAMETER_HASH: ${{ needs.materialize.outputs.parameter_hash }}
+          MODEL_ARTIFACT_SHA256: ${{ needs.materialize.outputs.model_artifact_sha256 }}
+          OPTIMIZER_RESULT_ID: ${{ needs.materialize.outputs.optimizer_result_id }}
+          COMPARISON_REPORT_ID: ${{ needs.materialize.outputs.comparison_report_id }}
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          from ai_platform.wickhunter.canonical import canonical_sha256
+          from ai_platform.wickhunter.deterministic_replay import verify_deterministic_replay_package
+          from ai_platform.wickhunter.production_evaluation import load_verified_evaluation_dataset
+          from ai_platform.wickhunter.replay_price_path import verify_replay_price_path_package
+
+          def require(condition: bool, message: str) -> None:
+              if not condition:
+                  raise RuntimeError(message)
+
+          def read_json(path: Path) -> dict:
+              require(path.is_file() and not path.is_symlink(), f"missing regular file: {path}")
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              require(isinstance(payload, dict), f"expected object: {path}")
+              return payload
+
+          dataset_root = Path(os.environ["DATASET_ROOT"])
+          source_root = Path(os.environ["SOURCE_ROOT"])
+          price_root = Path(os.environ["PRICE_ROOT"])
+          replay_root = Path(os.environ["REPLAY_ROOT"])
+          candidate_root = Path(os.environ["CANDIDATE_ROOT"])
+          source_sha = os.environ["SOURCE_COMMIT_SHA"]
+          horizon = int(os.environ["LABEL_HORIZON_MS"])
+          expected_source = int(os.environ["EXPECTED_SOURCE_DECISIONS"])
+          expected_eligible = int(os.environ["EXPECTED_ELIGIBLE_DECISIONS"])
+          expected_excluded = int(os.environ["EXPECTED_EXCLUDED_DECISIONS"])
+          expected_labels = int(os.environ["EXPECTED_LABELS"])
+
+          price_verified = verify_replay_price_path_package(
+              output_root=price_root,
+              materialization_root=dataset_root,
+              input_root=source_root,
+          )
+          price_manifest = read_json(price_root / "manifest.json")
+          price_request = read_json(price_root / "request.json")
+          require(price_verified.get("outcome") == "accepted", "independent price verification rejected")
+          require(price_manifest.get("package_id") == os.environ["PRICE_PACKAGE_ID"], "price package mismatch")
+          require(price_manifest.get("manifest_sha256") == os.environ["PRICE_MANIFEST_SHA256"], "price manifest mismatch")
+          require(price_manifest.get("source_commit_sha") == source_sha, "price source commit mismatch")
+          require(price_manifest.get("label_horizon_ms") == horizon, "price horizon mismatch")
+          require(price_manifest.get("decision_count") == expected_source, "price decision count mismatch")
+          require(price_request.get("requested_end_ms", 0) < int(os.environ["PROTECTED_HOLDOUT_START_MS"]), "price request overlaps holdout")
+
+          replay_verified = verify_deterministic_replay_package(
+              materialization_root=dataset_root,
+              price_path_root=price_root,
+              output_root=replay_root,
+          )
+          replay_manifest = read_json(replay_root / "manifest.json")
+          replay_request = read_json(replay_root / "request.json")
+          replay_policy = read_json(replay_root / "policy.json")
+          require(replay_verified.get("outcome") == "accepted", "independent replay verification rejected")
+          require(replay_manifest.get("package_id") == os.environ["REPLAY_PACKAGE_ID"], "replay package mismatch")
+          require(replay_manifest.get("manifest_sha256") == os.environ["REPLAY_MANIFEST_SHA256"], "replay manifest mismatch")
+          require(replay_manifest.get("request_sha256") == os.environ["REPLAY_REQUEST_SHA256"], "replay request hash mismatch")
+          require(replay_manifest.get("policy_sha256") == os.environ["REPLAY_POLICY_SHA256"], "replay policy hash mismatch")
+          require(replay_manifest.get("source_commit_sha") == source_sha, "replay source commit mismatch")
+          require(replay_policy.get("label_horizon_ms") == horizon, "replay policy horizon mismatch")
+          require(replay_manifest.get("source_decision_count") == expected_source, "source decision count mismatch")
+          require(replay_manifest.get("decision_count") == expected_eligible, "eligible decision count mismatch")
+          require(replay_manifest.get("excluded_split_boundary_decision_count") == expected_excluded, "excluded decision count mismatch")
+          require(replay_manifest.get("label_count") == expected_labels, "label count mismatch")
+          windows = replay_request.get("split_windows")
+          require(isinstance(windows, list) and len(windows) == 3, "split window contract mismatch")
+          for previous, current in zip(windows, windows[1:], strict=False):
+              require(current["start_ms"] - previous["end_ms"] >= horizon, "split embargo shorter than horizon")
+
+          evaluation = load_verified_evaluation_dataset(
+              materialization_root=dataset_root,
+              price_path_root=price_root,
+              replay_root=replay_root,
+          )
+          require(evaluation.evaluation_sha256 == os.environ["EVALUATION_SHA256"], "evaluation identity mismatch")
+          require(len(evaluation.cases) == expected_eligible, "evaluation case count mismatch")
+          require(not evaluation.protected_holdout_accessed, "evaluation accessed protected holdout")
+
+          candidate_manifest = read_json(candidate_root / "manifest.json")
+          require(candidate_manifest.get("package_id") == os.environ["CANDIDATE_PACKAGE_ID"], "candidate package mismatch")
+          claimed_manifest = candidate_manifest.pop("manifest_sha256")
+          require(claimed_manifest == os.environ["CANDIDATE_MANIFEST_SHA256"], "candidate manifest identity mismatch")
+          require(canonical_sha256(candidate_manifest) == claimed_manifest, "candidate manifest self-hash mismatch")
+          require(candidate_manifest.get("source_commit_sha") == source_sha, "candidate source commit mismatch")
+          require(candidate_manifest.get("evaluation_sha256") == evaluation.evaluation_sha256, "candidate evaluation binding mismatch")
+          require(candidate_manifest.get("parameter_sha256") == os.environ["PARAMETER_HASH"], "candidate parameter mismatch")
+          require(candidate_manifest.get("model_artifact_sha256") == os.environ["MODEL_ARTIFACT_SHA256"], "candidate model artifact mismatch")
+          require(candidate_manifest.get("optimizer_result_id") == os.environ["OPTIMIZER_RESULT_ID"], "candidate optimizer mismatch")
+          require(candidate_manifest.get("comparison_report_id") == os.environ["COMPARISON_REPORT_ID"], "candidate comparison mismatch")
+          require(candidate_manifest.get("selection_source") == "validation_only", "candidate selection source changed")
+          require(candidate_manifest.get("test_used_for_selection") is False, "test used for selection")
+          for key in (
+              "automatic_promotion_enabled", "protected_holdout_accessed",
+              "trading_credentials_present", "order_adapter_present",
+              "execution_enabled", "live_capital_authorized",
+          ):
+              require(candidate_manifest.get(key) is False, f"unsafe candidate field: {key}")
+          require(candidate_manifest.get("orders_submitted") == 0, "candidate submitted orders")
+          for record in candidate_manifest["files"]:
+              path = candidate_root / record["logical_name"]
+              require(hashlib.sha256(path.read_bytes()).hexdigest() == record["sha256"], "candidate file hash mismatch")
+              require(path.stat().st_size == record["size_bytes"], "candidate file size mismatch")
+
+          search = read_json(candidate_root / "finite-search-audit.json")
+          params = read_json(candidate_root / "selected-parameters.json")
+          model = read_json(candidate_root / "model-artifact.json")
+          comparison = read_json(candidate_root / "comparison-report.json")
+          evaluation_identity = read_json(candidate_root / "evaluation-identity.json")
+          require(search.get("candidate_count") == 12, "finite search size changed")
+          require(search.get("selection_source") == "validation_only", "search not validation-only")
+          require(search.get("test_used_for_selection") is False, "search used test for selection")
+          require(params.get("maximum_holding_ms") == horizon, "candidate holding horizon mismatch")
+          require(params.get("parameter_sha256") == os.environ["PARAMETER_HASH"], "selected parameter identity mismatch")
+          training_policy = model.get("training_policy")
+          require(isinstance(training_policy, dict), "model training policy missing")
+          require(str(training_policy.get("no_trade_confidence")) == os.environ["FROZEN_NO_TRADE_CONFIDENCE"], "no-trade confidence changed")
+          require(training_policy.get("training_splits") == ["train"], "model training split changed")
+          require(training_policy.get("calibration_splits") == ["validation"], "model calibration split changed")
+          require(training_policy.get("validation_splits") == ["test"], "model descriptive split changed")
+          require(model.get("artifact_sha256") == os.environ["MODEL_ARTIFACT_SHA256"], "model artifact identity mismatch")
+          require(model.get("promotion_state") == "candidate", "model promotion state changed")
+          require(model.get("advisory_only") is True, "model is not advisory-only")
+          require(comparison.get("validation_splits") == ["test"], "comparison split changed")
+          require(comparison.get("model_promoted") is False, "comparison promoted model")
+          require(comparison.get("profitability_claimed") is False, "comparison claimed profitability")
+          require(evaluation_identity.get("case_count") == expected_eligible, "evaluation identity count mismatch")
+          require(evaluation_identity.get("evaluation_sha256") == evaluation.evaluation_sha256, "evaluation identity SHA mismatch")
+
+          for payload, label in (
+              (price_manifest, "price"),
+              (replay_manifest, "replay"),
+              (search, "search"),
+              (model, "model"),
+              (comparison, "comparison"),
+          ):
+              if "protected_holdout_accessed" in payload:
+                  require(payload["protected_holdout_accessed"] is False, f"{label} accessed holdout")
+              if "execution_enabled" in payload:
+                  require(payload["execution_enabled"] is False, f"{label} enabled execution")
+              if "live_capital_authorized" in payload:
+                  require(payload["live_capital_authorized"] is False, f"{label} authorized live capital")
+              if "orders_submitted" in payload:
+                  require(payload["orders_submitted"] == 0, f"{label} submitted orders")
+
+          audit = {
+              "status": "PASS_ZERO_MATERIAL_FINDINGS",
+              "source_commit_sha": source_sha,
+              "label_horizon_ms": horizon,
+              "price_manifest_sha256": os.environ["PRICE_MANIFEST_SHA256"],
+              "replay_manifest_sha256": os.environ["REPLAY_MANIFEST_SHA256"],
+              "evaluation_sha256": evaluation.evaluation_sha256,
+              "candidate_manifest_sha256": os.environ["CANDIDATE_MANIFEST_SHA256"],
+              "source_decision_count": expected_source,
+              "decision_count": expected_eligible,
+              "excluded_split_boundary_decision_count": expected_excluded,
+              "label_count": expected_labels,
+              "no_trade_confidence": os.environ["FROZEN_NO_TRADE_CONFIDENCE"],
+              "selection_source": "validation_only",
+              "test_used_for_selection": False,
+              "protected_holdout_accessed": False,
+              "automatic_promotion_enabled": False,
+              "execution_enabled": False,
+              "orders_submitted": 0,
+              "live_capital_authorized": False,
+          }
+          evidence = Path(os.environ["RUNNER_TEMP"]) / "wickhunter-wh09-h900-r1-audit.json"
+          evidence.write_text(json.dumps(audit, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+          print(json.dumps(audit, indent=2, sort_keys=True))
+          PY
+
+      - name: Independently rerun focused verification tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run pytest -q \
+            tests/ai_platform_integration/test_wickhunter_replay_price_path.py \
+            tests/ai_platform_integration/test_wickhunter_deterministic_replay.py \
+            tests/ai_platform_integration/test_wickhunter_production_evaluation.py
+
+      - name: Upload independent audit evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wickhunter-wh09-h900-r1-audit-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/wickhunter-wh09-h900-r1-audit.json
+          if-no-files-found: error
+          retention-days: 30

@@ -81,6 +81,8 @@ class RuntimeModeResolution:
     def __post_init__(self) -> None:
         if self.schema_version != RUNTIME_MODE_RESOLUTION_SCHEMA_VERSION:
             raise ValueError("runtime mode resolution schema mismatch")
+        if not isinstance(self.mode, BotMode):
+            raise ValueError("resolved managed runtime mode must be a BotMode")
         if self.mode not in {BotMode.SHADOW, BotMode.PAPER}:
             raise ValueError("resolved managed runtime mode must be SHADOW or PAPER")
         if not _is_sha256(self.request_digest):
@@ -148,6 +150,8 @@ def resolve_managed_runtime_mode(request: ManagedRuntimeModeRequest) -> RuntimeM
     """Resolve immutable managed-runtime capabilities without granting real trading authority."""
 
     if request.schema_version != MANAGED_RUNTIME_MODE_SCHEMA_VERSION:
+        raise RuntimeModeResolutionError(RuntimeModeRejectionReason.UNSUPPORTED_MODE)
+    if not isinstance(request.mode, BotMode):
         raise RuntimeModeResolutionError(RuntimeModeRejectionReason.UNSUPPORTED_MODE)
 
     if request.mode is BotMode.LIVE_BLOCKED:

@@ -10,9 +10,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[4]
 DEPLOYMENT = ROOT / "deploy" / "synology" / "portal-oidc"
 WORKFLOW = ROOT / ".github" / "workflows" / "portal-oidc-public-deploy.yml"
-POSTGRES_EXACT_IMAGE_WORKFLOW = (
-    ROOT / ".github" / "workflows" / "portal-api-mode-postgresql.yml"
-)
+POSTGRES_EXACT_IMAGE_WORKFLOW = ROOT / ".github" / "workflows" / "portal-api-mode-postgresql.yml"
 SPEC = importlib.util.spec_from_file_location("portal_oidc_deploy", DEPLOYMENT / "deploy.py")
 assert SPEC and SPEC.loader
 module = importlib.util.module_from_spec(SPEC)
@@ -224,9 +222,10 @@ def test_current_database_mode_accepts_only_canonical_private_postgresql() -> No
     assert module._current_database_mode(
         {"PORTAL_DATABASE_URL": module.LEGACY_SQLITE_DATABASE_URL}, postgres_env
     ) == ("legacy_sqlite", None)
-    assert module._current_database_mode(
-        {"PORTAL_DATABASE_URL": canonical_url}, postgres_env
-    ) == ("postgresql", "portal_candidate_aaaaaaaaaaaa")
+    assert module._current_database_mode({"PORTAL_DATABASE_URL": canonical_url}, postgres_env) == (
+        "postgresql",
+        "portal_candidate_aaaaaaaaaaaa",
+    )
 
     with pytest.raises(module.DeploymentError, match="private topology"):
         module._current_database_mode(
@@ -256,6 +255,8 @@ def test_deployment_entrypoint_installs_repaired_discovery_probe() -> None:
     assert 'DEPLOYMENT_DIR / "diagnose_discovery.py"' in entrypoint
     assert "deploy._discovery_from_identity_container = lambda:" in entrypoint
     assert "discovery.deployment_probe" in entrypoint
+    assert 'DEPLOYMENT_DIR / "postgresql_copy_on_write.py"' in entrypoint
+    assert "copy_on_write.install(deploy)" in entrypoint
 
 
 def test_protected_workflow_is_exact_one_request_secret_free_and_sha_pinned() -> None:
@@ -285,8 +286,8 @@ def test_nonprotected_exact_image_workflow_proves_postgresql_api_mode() -> None:
         'ready["database_dialect"] == "postgresql"',
         '"representative_product_read": product["representative_read"]',
         '"representative_product_mutation": product["representative_mutation"]',
-        'assert preserved == 1',
-        'assert created == 1',
+        "assert preserved == 1",
+        "assert created == 1",
     ):
         assert required in workflow
     assert "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0" in workflow

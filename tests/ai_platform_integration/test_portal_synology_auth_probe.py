@@ -24,7 +24,7 @@ def test_deploy_probe_requires_public_https_authorization_boundary() -> None:
     assert "class NoRedirect" in script
     assert 'parsed.scheme != "https"' in script
     assert 'parsed.netloc != "auth.molehill.cloud"' in script
-    assert "public Portal login did not redirect to public Authen­tik" in script
+    assert "public Portal login did not redirect to public Authentik" in script
 
 
 def test_deploy_disables_fixture_and_keeps_control_plane_internal() -> None:

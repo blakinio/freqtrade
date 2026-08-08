@@ -32,7 +32,8 @@ base_branch: develop
 base_head: c64df386a4fa3ba739b6eaa1a223ca798a7bcae2
 pr: 1393
 owned_paths:
-  - .github/workflows/portal-api-mode-postgresql.yml
+  - .github/workflows/portal-api-mode-browser.yml
+  - .github/workflows/portal-schema-exact-image.yml
   - ai_platform/portal/database/transfer.py
   - ai_platform/portal/identity/public_runtime.py
   - ai_platform/portal/web/lib/portal-api.ts
@@ -40,6 +41,7 @@ owned_paths:
   - deploy/synology/portal-oidc/Dockerfile.control-plane
   - deploy/synology/portal-oidc/control-plane-entrypoint.sh
   - deploy/synology/portal-oidc/deploy.py
+  - deploy/synology/portal-oidc/postgresql_copy_on_write.py
   - deploy/synology/portal-oidc/requirements.txt
   - tests/ai_platform/portal/database/test_state_transfer.py
   - tests/ai_platform/portal/deployment/test_portal_oidc_public_deploy.py
@@ -57,18 +59,20 @@ protected_production_deployment_authorized: false
 
 ## Objective
 
-Repair Issue #1089 without inventing a second Portal architecture. Reuse the existing identity-enabled canonical control-plane composition, make staging/production web strictly API-backed, move the public Portal deployment to a private PostgreSQL topology with explicit schema authority, preserve legacy SQLite state during cutover, and fail closed before traffic acceptance.
+Repair Issue #1089 without inventing a second Portal architecture. Reuse the existing identity-enabled canonical control-plane composition, make staging/production web strictly API-backed, move the public Portal deployment to a private PostgreSQL topology with explicit schema authority, preserve durable state during cutover, and fail closed before traffic acceptance.
 
 ## Implemented repair candidate
 
-- The public runtime composes identity with the canonical Portal control plane and rejects production SQLite.
+- Public runtime composes identity with the canonical Portal control plane and rejects production SQLite.
 - `/healthz` is liveness-only; `/readyz` verifies database connectivity, schema revision and required product-router composition.
-- The web image defaults to API mode and refuses fixture data mode, identity fixture mode or a missing control-plane URL in staging/production.
-- The control-plane image contains the full runtime dependency set, including `jsonschema==4.26.0`, after exact-image CI exposed the missing package.
-- `ai_platform.portal.database.transfer` provides an offline, value-preserving SQLite-to-PostgreSQL transfer path. It accepts only known current/pre-logout schema shapes, runs integrity checks, requires a fresh PostgreSQL target, copies authoritative model tables in dependency order, verifies row counts and records value-free evidence.
-- The Synology deployer now provisions only a private, digest-pinned PostgreSQL service with no published database port; writes candidate runtime state separately; quiesces the old Portal before state transition; snapshots legacy SQLite before transfer; runs the authoritative migration CLI before candidate promotion; validates readiness; selects web API mode; and activates the candidate runtime env only after control/web/public probes succeed.
-- Existing PostgreSQL deployments receive a protected pre-migration backup before migration/readiness validation.
-- A retained non-protected exact-image workflow builds the exact control/web images, migrates PostgreSQL, transfers a persisted synthetic dry-run bot from SQLite, boots API mode, proves unauthorized product access fails closed, restarts the control plane and proves the row survives, and proves production fixture mode is rejected.
+- Web defaults to API mode and refuses fixture data, identity fixture mode or a missing control-plane URL in staging/production.
+- The exact control-plane image contains the runtime dependency/resource set required by the full control plane, including `jsonschema`, Feature Registry and Strategy Lab assets discovered by exact-image validation.
+- `ai_platform.portal.database.transfer` provides bounded offline SQLite-to-PostgreSQL transfer with source integrity validation, fresh-target enforcement, dependency-ordered copy and post-copy row/integrity verification.
+- Synology deployment provisions a private digest-pinned PostgreSQL service with no published database port, writes candidate runtime state separately, snapshots/quiesces legacy state, runs authoritative migration/readiness before candidate promotion, selects web API mode and activates the candidate only after control/web/public probes succeed.
+- Existing PostgreSQL revisions use copy-on-write cutover: backup, quiesce, clone to a candidate database, migration/readiness on the candidate and retention of the old database for rollback.
+- Non-protected exact-image PostgreSQL evidence covers migration, SQLite state transfer, canonical authenticated backend read + dry-run mutation, unauthenticated fail-closed behavior, web API mode, restart persistence and fixture rejection.
+- A dedicated Chromium workflow now exercises a real production API-mode web image through HTTPS, a real persisted identity session and CSRF token, a backend-derived `/bots` read, a browser-originated dry-run bot mutation through the Next BFF, refresh persistence, and explicit zero request interception/fixture identity evidence.
+- The deployment test that previously depended on the Synology-only Liquid20 host path now isolates that host dependency with a deterministic group-id stub; host-mount behavior remains covered by dedicated deployment tests.
 - No protected Synology deployment, production secret, live trading, withdrawal, model promotion or live-capital mutation is authorized or performed by this task.
 
 ## Acceptance plan
@@ -77,58 +81,65 @@ Repair Issue #1089 without inventing a second Portal architecture. Reuse the exi
 - [x] Identity/session and representative product routes are present in one app and require identity-derived tenant context.
 - [x] `/healthz` is liveness-only and `/readyz` proves database/schema/router composition without exposing secrets.
 - [x] Production/staging web startup rejects fixture mode and requires a server-side control-plane URL.
-- [x] Synology deployment selects API mode and a private PostgreSQL topology, applies versioned migration explicitly, snapshots legacy SQLite before transfer and gates promotion on readiness.
+- [x] Synology deployment selects API mode and a private PostgreSQL topology, applies versioned migration explicitly, preserves previous state and gates promotion on readiness.
 - [x] Deployment image/process contract keeps public API unprivileged and private providers server-side.
-- [ ] New exact-image PostgreSQL workflow passes on the current implementation head.
-- [ ] Focused backend/deployment tests pass on the current implementation head.
+- [x] Real API-mode Chromium acceptance workflow exists with no request interception or fixture identity/data path.
+- [ ] Exact-image PostgreSQL workflow passes on the final implementation head.
+- [ ] Real authenticated Chromium API-mode journey passes on the final implementation head.
+- [ ] Focused backend/deployment tests pass on the final implementation head.
 - [ ] Required repository workflows pass on the exact final implementation head.
 - [ ] Fresh independent audit reports zero material findings or all findings are repaired.
-- [ ] API-mode E2E acceptance passes at the available non-protected boundary; protected-target acceptance remains separately identified.
 - [ ] PR review threads are resolved and no duplicate repair PR owns this Issue.
 - [ ] Protected-target acceptance is reported separately and never inferred from CI.
 
-## Validation evidence so far
+## Validation evidence and repaired failures
 
-- Old exact-image run `31275863765` failed after full control-plane composition because the exact image lacked `jsonschema`; the bounded runtime requirements now include the repository-pinned `jsonschema==4.26.0`.
-- Old Freqtrade CI `31275863804` failed only because `ruff-format` reformatted `test_public_runtime_composition.py`; that exact formatting change is now committed.
-- Those runs are stale evidence after the PostgreSQL implementation and are not final acceptance.
+Stale failures were used only as diagnostic evidence and were repaired rather than counted as acceptance:
+
+- exact image missing `jsonschema`;
+- exact image missing Feature Registry assets;
+- exact image missing Strategy Lab assets;
+- private-route introspection incompatibility;
+- FastAPI readiness response-model inference;
+- deployment test accidentally requiring the Synology Liquid20 host mount on GitHub-hosted CI;
+- initial Chromium script location would not resolve workspace `@playwright/test`; the script now executes from the web workspace.
+
+Final acceptance requires fresh exact-head results after these repairs.
 
 ## Recovery checkpoint
 
 ```yaml
 policy_version: 1
-generation: 1
-session_id: 20260808T200400Z-owner-continuation
-session_started_at: 2026-08-08T20:04:00Z
-checkpointed_at: 2026-08-08T20:21:18Z
-last_progress_at: 2026-08-08T20:21:18Z
+generation: 2
+session_id: 20260808T210000Z-owner-continuation
+session_started_at: 2026-08-08T21:00:00Z
+checkpointed_at: 2026-08-08T21:20:00Z
+last_progress_at: 2026-08-08T21:20:00Z
 phase: validation
-exact_head: 46f98d5666b00a231ac9b999167402fe30a637f0
+exact_head_before_checkpoint_commit: 1ede0194fb102ebd384a28d0e61786c475739b35
 pull_request: 1393
-active_operation: GitHub Actions validation of PostgreSQL API-mode repair
+active_operation: GitHub Actions exact-head validation including real Chromium API-mode journey
 external_run_ids: []
 operation_started_at: null
 wait_deadline_at: null
-check_generation: implementation-postgresql-v1
+check_generation: implementation-browser-e2e-v1
 checks_used: 0
 status: active
 safe_to_resume: true
-resume_condition: current-head GitHub Actions exist or a new actionable validation failure is available
-next_action: Inspect one aggregate CI snapshot for the exact current head, isolate the first actionable failure, and perform one focused repair; if the implementation is green, proceed to fresh independent audit and E2E evidence.
+resume_condition: current-head GitHub Actions exist or an actionable validation failure is available
+next_action: Observe one aggregate current-head CI snapshot, repair the first actionable failure if any, then perform fresh independent audit when exact-head implementation and E2E gates are green.
 ```
 
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 4
-updated_at: 2026-08-08T20:21:18Z
+checkpoint_version: 5
+updated_at: 2026-08-08T21:20:00Z
 status: validating
 branch: repair/1089-portal-api-mode-deployment
 base_head: c64df386a4fa3ba739b6eaa1a223ca798a7bcae2
-head: 46f98d5666b00a231ac9b999167402fe30a637f0
+head_before_checkpoint_commit: 1ede0194fb102ebd384a28d0e61786c475739b35
 pr: 1393
-invocation_started_at: 2026-08-08T20:04:00Z
-last_progress_at: 2026-08-08T20:21:18Z
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
@@ -139,16 +150,17 @@ proven:
   - public runtime composes authenticated canonical product routes and separates liveness/readiness
   - production/staging web fails closed outside API mode
   - public production runtime rejects SQLite
-  - Synology deployment candidate now uses a private digest-pinned PostgreSQL topology and explicit schema CLI
-  - legacy SQLite state is snapshotted and transferred only through bounded schema/integrity acceptance
-  - exact-image PostgreSQL validation workflow is retained on the repair branch
+  - Synology candidate uses private digest-pinned PostgreSQL plus authoritative migration/readiness
+  - legacy SQLite and existing PostgreSQL state have explicit preservation/rollback contracts
+  - non-protected exact-image PostgreSQL validation exists
+  - real Chromium API-mode E2E workflow now exists with persisted identity, CSRF, backend read, dry-run mutation, refresh persistence and no request interception
 unknown:
-  - exact current-head CI outcome for the PostgreSQL implementation
+  - final exact-head CI outcome
+  - final Chromium E2E outcome
   - independent audit result
-  - final non-protected API-mode E2E result
   - protected Synology target acceptance outcome
 conflicts:
   - PR 1388 owns control-plane API/schema/model paths; those paths remain untouched
 blockers: []
-next_action: Inspect one aggregate CI snapshot for head 46f98d5666b00a231ac9b999167402fe30a637f0 and repair the first actionable failure with a focused hypothesis.
+next_action: Inspect one aggregate CI snapshot for the post-checkpoint head and repair the first actionable failure; if green, proceed to fresh independent audit and closeout evidence.
 ```

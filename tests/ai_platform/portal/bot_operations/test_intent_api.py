@@ -52,6 +52,7 @@ def test_lifecycle_intent_api_fails_closed_without_runtime_provider() -> None:
             "bot_id": "bot-a",
             "action": "START",
             "expected_config_revision": 3,
+            "expected_runtime_generation_id": "generation-3",
             "idempotency_key": "intent-a",
         },
     )
@@ -71,6 +72,7 @@ def test_lifecycle_intent_api_fails_closed_without_runtime_provider() -> None:
 
 def test_lifecycle_intent_api_rejects_browser_supplied_authority_fields() -> None:
     for field, value in (
+        ("runtime_generation_id", "browser-generation"),
         ("runtime_id", "browser-runtime"),
         ("runtime_revision", 99),
         ("environment", "production"),
@@ -83,6 +85,7 @@ def test_lifecycle_intent_api_rejects_browser_supplied_authority_fields() -> Non
                 "bot_id": "bot-a",
                 "action": "START",
                 "expected_config_revision": 3,
+                "expected_runtime_generation_id": "generation-3",
                 "idempotency_key": f"intent-{field}",
                 field: value,
             },

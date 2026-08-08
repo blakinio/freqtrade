@@ -41,6 +41,11 @@ def _is_non_empty_text(value: object) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
+def _require_exact_bool(value: object, *, field: str, expected: bool) -> None:
+    if not isinstance(value, bool) or value is not expected:
+        raise ValueError(f"{field} must be exactly {str(expected).lower()}")
+
+
 @dataclass(frozen=True, slots=True)
 class ManagedRuntimeModeRequest:
     """Immutable mode material intended to be embedded in a RuntimeGeneration.
@@ -95,20 +100,28 @@ class RuntimeModeResolution:
             raise ValueError("PAPER resolution requires paper authorization identity")
         if self.mode is BotMode.SHADOW and self.paper_authorization_digest is not None:
             raise ValueError("SHADOW resolution cannot contain paper authorization identity")
-        if not self.market_observation_enabled:
-            raise ValueError("managed WickHunter runtime must observe market data")
+
+        _require_exact_bool(
+            self.market_observation_enabled,
+            field="market_observation_enabled",
+            expected=True,
+        )
+        if not isinstance(self.simulated_paper_state_enabled, bool):
+            raise ValueError("simulated_paper_state_enabled must be a boolean")
         if self.simulated_paper_state_enabled is not (self.mode is BotMode.PAPER):
             raise ValueError("simulated paper state must match PAPER mode")
-        if (
-            self.trading_credentials_present
-            or self.order_adapter_present
-            or self.real_exchange_execution_enabled
-            or self.execution_enabled
-            or self.orders_submitted != 0
-            or self.live_capital_authorized
-            or self.automatic_promotion_enabled
+
+        for field, value in (
+            ("trading_credentials_present", self.trading_credentials_present),
+            ("order_adapter_present", self.order_adapter_present),
+            ("real_exchange_execution_enabled", self.real_exchange_execution_enabled),
+            ("execution_enabled", self.execution_enabled),
+            ("live_capital_authorized", self.live_capital_authorized),
+            ("automatic_promotion_enabled", self.automatic_promotion_enabled),
         ):
-            raise ValueError("managed runtime mode resolution contains forbidden authority")
+            _require_exact_bool(value, field=field, expected=False)
+        if type(self.orders_submitted) is not int or self.orders_submitted != 0:
+            raise ValueError("orders_submitted must be exactly integer zero")
 
     @property
     def resolution_digest(self) -> str:

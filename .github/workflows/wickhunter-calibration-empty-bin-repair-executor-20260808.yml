@@ -143,7 +143,7 @@ jobs:
             --confcutdir=tests/ai_platform_integration \
             tests/ai_platform_integration/test_wickhunter_lightgbm_scorer.py
           git diff --check
-          mapfile -t changed < <(git diff --name-only "$EXPECTED_TARGET_HEAD" HEAD | sort)
+          mapfile -t changed < <(git diff --name-only "$EXPECTED_TARGET_HEAD" -- | sort)
           expected=(
             "ai_platform/wickhunter/lightgbm_scorer.py"
             "tests/ai_platform_integration/test_wickhunter_lightgbm_scorer.py"

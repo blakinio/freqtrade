@@ -25,9 +25,9 @@ internal_demo_production_deployment_authorized: true
 status: validating
 base_branch: develop
 trusted_base_sha: 46cd873ccb0c60ec88657d9e7eccb18a93737fd5
-branch: ops/wickhunter-wh09-production-research-deploy-control-20260808
+branch: ops/wickhunter-wh09-production-research-deploy-closeout-20260808
 related_issue: 1386
-related_pr: 1390
+related_pr: 1391
 implementation_pr: 1387
 implementation_merge_commit: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
 upstream_discovery_issue: 1384
@@ -88,31 +88,36 @@ model_root_host: /var/lib/freqtrade-staging-state/wickhunter-candidate-materiali
 - Fresh independent implementation audit workflow run `31262860311`, job `93116251497`, completed `success` after running the two dedicated `tests/ai_platform_integration/test_wickhunter_production_research_runtime*.py` files: `8 passed`.
 - The implementation audit re-falsified frozen threshold/horizon, zero-authority fields, absence of PAPER activation, absence of API credentials/Docker socket/inbound ports, deployment hardening, compile, Ruff and Ruff-format.
 - Audit finding `WH09-PRR-AUDIT-001`: the first dedicated audit attempt found an invalid test-only enum fixture (`CandidateAction.ENTER`); severity `low`, product impact `none`, disposition `fixed`. The corrected fixture uses `ENTER_LONG`; the rerun above passed. Open material implementation findings: `0`.
-- Protected deployment-control PR `#1390` targets `develop` and deploys only the already-merged implementation commit `ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5` in SHADOW mode after the immutable request is merged.
-- Review findings on the earlier deployment-control head are being repaired in place: canonicalize writable state before `chown`, fetch full history before pinned ancestry validation, and require two advances after telemetry produced by the newly started container.
-- The deployment-control resolver now binds Liquid20 to the canonical persistent collector host root `/volume1/docker/freqtrade-liquidations/data/live`, verifies the running `liquid20-live` container maps `/data` from `/volume1/docker/freqtrade-liquidations/data`, validates the active `liquidation-live-state-v1` pointer/run, and discovers the current numeric reader GID without relying on a stale alias.
+- Protected deployment-control PR `#1390` merged to `develop` as `3af40aaa3820c91fdf8382e2a8cd61577babb90d` and triggered protected deployment run `31268955706`.
+- Deployment run `31268955706` attempt 1 reached exact authorization/runner/path validation but was cancelled by the former 20-minute job budget during Docker image export.
+- Bounded rerun job `93139010419` completed exact image export, proving the exact `ec0f53cc4df7` image was written, then failed at `docker compose up --build` with `DeadlineExceeded`; it did not reach health/two-cycle E2E.
+- Repair PR `#1391` preserves the exact H900 runtime/model/authority contract, changes only the deployment retry path, reuses an exact OCI-revision-matching image, rebuilds a missing/mismatched tag from the exact checked-out implementation, and performs Compose startup with `--no-build`.
+- The deployment-control resolver binds Liquid20 to the canonical persistent collector host root `/volume1/docker/freqtrade-liquidations/data/live`, verifies the running `liquid20-live` container maps `/data` from `/volume1/docker/freqtrade-liquidations/data`, validates the active `liquidation-live-state-v1` pointer/run including non-symlink `runs/` and active-run parents, and discovers the current numeric reader GID without relying on a stale alias.
+- Final deployment-workflow/test head before this documentation-only checkpoint reconciliation is `d1bcd5a576e4ecaca5491309f70d7d49c1c174a4`.
+- Exact-head security checks on `d1bcd5a576e4ecaca5491309f70d7d49c1c174a4`: CodeQL `31272779043` PASS and zizmor `31272779011` PASS. Freqtrade CI `31272779000` and Risk-aware component CI `31272779123` are the head-specific validation generations to consume before merge.
+- Fresh Codex review submission on exact deployment head `d1bcd5a576e4ecaca5491309f70d7d49c1c174a4` found no runtime/deployment P1/P2 after prior fixes; its only new P2 concerned durable checkpoint metadata and is addressed by this documentation-only successor.
 - Temporary audit/repair workflows are absent from the final intended changed-file set.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-08T18:58:00+02:00
-branch: ops/wickhunter-wh09-production-research-deploy-control-20260808
-pr: 1390
+updated_at: 2026-08-08T20:52:00+02:00
+branch: ops/wickhunter-wh09-production-research-deploy-closeout-20260808
+pr: 1391
 status: validating
 phase: validate
 execution_mode: chat_github_actions
 context_pressure: medium
 context_growth: stable
 decomposition_decision: phased
-session_rotation_count: 1
-invocation_started_at: 2026-08-08T18:48:00+02:00
-last_progress_at: 2026-08-08T18:58:00+02:00
-ci_checks_for_current_head: 0
+session_rotation_count: 2
+invocation_started_at: 2026-08-08T20:22:00+02:00
+last_progress_at: 2026-08-08T20:52:00+02:00
+ci_checks_for_current_head: 2
 unchanged_state_checks: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 1
+repair_cycles_for_current_gate: 3
 context_reconstruction_attempts: 1
 stall_warnings: 0
 fresh_implementation_audit:
@@ -121,14 +126,24 @@ fresh_implementation_audit:
   job_id: 93116251497
   focused_tests: 8
   material_findings_open: 0
-deployment_control_review:
-  reviewed_head: cfb79b9ab6
-  findings_repaired_on_current_branch:
-    - canonicalize writable runtime state before ownership mutation
-    - fetch complete ancestry before validating pinned implementation commit
-    - require two advances after a post-start baseline from the new container
-  additional_resolver_repair:
-    - replace stale Liquid20 state alias with canonical live collector host mapping
+deployment_retry_history:
+  first_run_id: 31268955706
+  first_job_id: 93131580725
+  first_result: cancelled_during_image_export_timeout
+  second_job_id: 93139010419
+  second_result: compose_build_deadline_exceeded_after_exact_image_export
+  repair_pr: 1391
+  current_strategy: exact_image_revision_reuse_or_rebuild_then_compose_no_build
+deployment_validation_head:
+  sha: d1bcd5a576e4ecaca5491309f70d7d49c1c174a4
+  scope: final_workflow_and_test_head
+  freqtrade_ci_run: 31272779000
+  component_ci_run: 31272779123
+  codeql_run: 31272779043
+  zizmor_run: 31272779011
+  codeql_result: PASS
+  zizmor_result: PASS
+  checkpoint_successor_scope: documentation_only
 owned_paths:
   - docs/agents/tasks/active/FTAI-20260808-wickhunter-wh09-production-research-runtime.md
   - ai_platform/wickhunter/production_research_runtime.py
@@ -145,11 +160,13 @@ proven:
   - fresh dedicated implementation audit passes with zero open material findings
   - implementation PR 1387 is merged at ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
   - canonical Liquid20 live source is the liquid20-live /data/live root backed by /volume1/docker/freqtrade-liquidations/data/live
+  - failed deployment rerun 93139010419 nevertheless proved the exact runtime image export completed before Compose failed
+  - final deployment workflow and focused deployment test head is d1bcd5a576e4ecaca5491309f70d7d49c1c174a4
 unknown:
-  - exact internal Synology deployment acceptance result remains pending merge/deploy of PR 1390
+  - exact internal Synology deployment acceptance remains pending merge and protected execution of repair PR 1391
 conflicts: []
 blockers: []
-next_action: Verify fresh review and required exact-head CI on PR 1390; if all gates pass, merge it to develop and verify the triggered Synology SHADOW deployment produces two post-start advances with zero trading authority.
+next_action: Consume terminal Freqtrade CI 31272779000 and Risk-aware component CI 31272779123 for deployment head d1bcd5a576e4ecaca5491309f70d7d49c1c174a4; if green, merge PR 1391 and verify the protected Synology SHADOW deployment reaches health plus two post-start advances with zero trading authority.
 ```
 
 ## Recovery checkpoint
@@ -157,22 +174,28 @@ next_action: Verify fresh review and required exact-head CI on PR 1390; if all g
 ```yaml
 recovery:
   policy_version: 1
-  generation: 3
-  session_id: owner-20260808-1848-cest
-  session_started_at: 2026-08-08T18:48:00+02:00
-  checkpointed_at: 2026-08-08T18:58:00+02:00
-  last_progress_at: 2026-08-08T18:58:00+02:00
+  generation: 4
+  session_id: owner-20260808-2022-cest
+  session_started_at: 2026-08-08T20:22:00+02:00
+  checkpointed_at: 2026-08-08T20:52:00+02:00
+  last_progress_at: 2026-08-08T20:52:00+02:00
   phase: validate
-  exact_head: live PR head created by this checkpoint commit
-  pull_request: 1390
-  active_operation: final exact-head PR CI and independent deployment-control review
-  external_run_ids: []
-  operation_started_at: 2026-08-08T18:58:00+02:00
-  wait_deadline_at: 2026-08-08T19:43:00+02:00
-  check_generation: deployment-control-final-pr-validation
-  checks_used: 0
-  status: ready
+  exact_head: d1bcd5a576e4ecaca5491309f70d7d49c1c174a4
+  exact_head_role: final_deployment_workflow_and_test_head
+  checkpoint_successor_scope: documentation_only
+  pull_request: 1391
+  active_operation: consume terminal exact-head CI for d1bcd5a576e4ecaca5491309f70d7d49c1c174a4, then merge and verify protected Synology deployment
+  external_run_ids:
+    - 31272779000
+    - 31272779123
+    - 31272779043
+    - 31272779011
+  operation_started_at: 2026-08-08T20:47:19+02:00
+  wait_deadline_at: 2026-08-08T21:30:00+02:00
+  check_generation: deployment-repair-d1bcd5a-final-validation
+  checks_used: 2
+  status: active
   safe_to_resume: true
-  resume_condition: required PR checks and fresh independent review complete on the exact current head
-  next_action: Inspect one aggregate exact-head CI snapshot and the fresh review; remediate any material finding, otherwise merge PR 1390 and verify its protected develop-push deployment E2E.
+  resume_condition: Freqtrade CI 31272779000 and Risk-aware component CI 31272779123 terminal; live PR head may be a documentation-only checkpoint successor and must be reconciled from GitHub before mutation
+  next_action: If both head-specific runs are green, merge PR 1391 and verify its protected develop-push Synology deployment E2E; otherwise inspect the first actionable failing gate without repeating an identical failed operation.
 ```

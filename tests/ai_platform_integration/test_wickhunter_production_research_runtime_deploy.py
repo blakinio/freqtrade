@@ -1,10 +1,18 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
 DEPLOY = ROOT / "deploy" / "synology" / "wickhunter-production-research-runtime"
+WORKFLOW = (
+    ROOT
+    / ".github"
+    / "workflows"
+    / "ai-platform-wickhunter-wh09-production-research-runtime-deploy.yml"
+)
+RETRY = DEPLOY / "run-requests" / "retry-wh09-production-research-20260808-v2.json"
 
 
 def test_compose_keeps_zero_authority_and_hardened_mounts() -> None:
@@ -72,3 +80,47 @@ def test_healthcheck_rejects_nested_fail_closed_runtime() -> None:
     ).read_text(encoding="utf-8")
     assert 'status = "fail_closed" if runtime_health == "fail_closed" else "healthy"' in operator
     assert 'error_code = None if status == "healthy" else "runtime_fail_closed"' in operator
+
+
+def test_bounded_deploy_retry_reuses_exact_image_and_keeps_zero_authority() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    retry = json.loads(RETRY.read_text(encoding="utf-8"))
+
+    assert "environment: synology-staging" in workflow
+    assert "timeout-minutes: 45" in workflow
+    assert "freqtrade-staging" in workflow
+    assert "retry-wh09-production-research-20260808-v2.json" in workflow
+    assert "docker image inspect" in workflow
+    assert "org.opencontainers.image.revision" in workflow
+    assert 'revision=""' in workflow
+    assert 'if [[ "$revision" != "$DEPLOY_COMMIT" ]]; then' in workflow
+    assert '[[ "$revision" == "$DEPLOY_COMMIT" ]]' not in workflow
+    assert "--no-build" in workflow
+    assert "two advancing cycles" in workflow
+    assert "docker exec" in workflow
+    assert "research_runtime_healthcheck.py" in workflow
+    assert '"mode": "shadow"' in workflow
+    assert '"no_trade_confidence": "0.60"' in workflow
+    assert '"execution_enabled": False' in workflow
+    assert '"orders_submitted": 0' in workflow
+    assert '"live_capital_authorized": False' in workflow
+
+    assert retry == {
+        "schema_version": 1,
+        "request_id": "wickhunter-wh09-production-research-deploy-retry-20260808-v2",
+        "deploy_commit": "ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5",
+        "previous_run_id": 31268955706,
+        "previous_job_id": 93139010419,
+        "failure_class": "docker_compose_build_deadline_exceeded_after_exact_image_export",
+        "reuse_exact_image_if_present": True,
+        "persistent_internal_demo_production_authorized": True,
+        "mode": "shadow",
+        "no_trade_confidence": "0.60",
+        "paper_activation_authorized": False,
+        "automatic_promotion_enabled": False,
+        "trading_credentials_present": False,
+        "order_adapter_present": False,
+        "execution_enabled": False,
+        "orders_submitted": 0,
+        "live_capital_authorized": False,
+    }

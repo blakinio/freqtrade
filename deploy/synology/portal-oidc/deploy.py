@@ -334,7 +334,9 @@ def _container_exists(name: str) -> bool:
 def _container_running(name: str) -> bool:
     if not _container_exists(name):
         return False
-    return _run(["docker", "inspect", "--format", "{{.State.Running}}", name]).stdout.strip() == "true"
+    return (
+        _run(["docker", "inspect", "--format", "{{.State.Running}}", name]).stdout.strip() == "true"
+    )
 
 
 def _remove_container(name: str) -> None:

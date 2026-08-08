@@ -12,7 +12,8 @@ WORKFLOW = (
     / "workflows"
     / "ai-platform-wickhunter-wh09-production-research-runtime-deploy.yml"
 )
-RETRY = DEPLOY / "run-requests" / "retry-wh09-production-research-20260808-v2.json"
+RETRY_V2 = DEPLOY / "run-requests" / "retry-wh09-production-research-20260808-v2.json"
+RETRY_V3 = DEPLOY / "run-requests" / "retry-wh09-production-research-20260808-v3.json"
 
 
 def test_compose_keeps_zero_authority_and_hardened_mounts() -> None:
@@ -34,6 +35,12 @@ def test_compose_keeps_zero_authority_and_hardened_mounts() -> None:
     assert "/runtime/liquid20" in compose
     assert "/runtime/journal" in compose
     assert "/runtime/operator" in compose
+    assert "pids_limit: 256" in compose
+    assert "mem_limit: 2g" in compose
+    assert "restart: unless-stopped" in compose
+    assert "cpus:" not in compose
+    assert "cpu_quota:" not in compose
+    assert "cpu_period:" not in compose
     assert "ports:" not in compose
     assert "/var/run/docker.sock" not in compose
     assert "BINANCE_API_KEY" not in compose
@@ -82,14 +89,16 @@ def test_healthcheck_rejects_nested_fail_closed_runtime() -> None:
     assert 'error_code = None if status == "healthy" else "runtime_fail_closed"' in operator
 
 
-def test_bounded_deploy_retry_reuses_exact_image_and_keeps_zero_authority() -> None:
+def test_bounded_deploy_retries_preserve_exact_image_and_authorized_compose() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
-    retry = json.loads(RETRY.read_text(encoding="utf-8"))
+    retry_v2 = json.loads(RETRY_V2.read_text(encoding="utf-8"))
+    retry_v3 = json.loads(RETRY_V3.read_text(encoding="utf-8"))
 
     assert "environment: synology-staging" in workflow
     assert "timeout-minutes: 45" in workflow
     assert "freqtrade-staging" in workflow
     assert "retry-wh09-production-research-20260808-v2.json" in workflow
+    assert "retry-wh09-production-research-20260808-v3.json" in workflow
     assert "docker image inspect" in workflow
     assert "org.opencontainers.image.revision" in workflow
     assert 'revision=""' in workflow
@@ -104,8 +113,18 @@ def test_bounded_deploy_retry_reuses_exact_image_and_keeps_zero_authority() -> N
     assert '"execution_enabled": False' in workflow
     assert '"orders_submitted": 0' in workflow
     assert '"live_capital_authorized": False' in workflow
+    assert "AUTHORIZED_COMPOSE_SNAPSHOT" in workflow
+    assert 'cp -- "$COMPOSE_FILE" "$AUTHORIZED_COMPOSE_SNAPSHOT"' in workflow
+    assert 'cp -- "$AUTHORIZED_COMPOSE_SNAPSHOT" "$COMPOSE_FILE"' in workflow
+    assert "CPU-CFS/NanoCPUs fields" in workflow
 
-    assert retry == {
+    snapshot_index = workflow.index('cp -- "$COMPOSE_FILE" "$AUTHORIZED_COMPOSE_SNAPSHOT"')
+    checkout_index = workflow.index("Checkout exact merged runtime implementation")
+    build_index = workflow.index("docker build")
+    restore_index = workflow.index('cp -- "$AUTHORIZED_COMPOSE_SNAPSHOT" "$COMPOSE_FILE"')
+    assert snapshot_index < checkout_index < build_index < restore_index
+
+    assert retry_v2 == {
         "schema_version": 1,
         "request_id": "wickhunter-wh09-production-research-deploy-retry-20260808-v2",
         "deploy_commit": "ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5",
@@ -113,6 +132,26 @@ def test_bounded_deploy_retry_reuses_exact_image_and_keeps_zero_authority() -> N
         "previous_job_id": 93139010419,
         "failure_class": "docker_compose_build_deadline_exceeded_after_exact_image_export",
         "reuse_exact_image_if_present": True,
+        "persistent_internal_demo_production_authorized": True,
+        "mode": "shadow",
+        "no_trade_confidence": "0.60",
+        "paper_activation_authorized": False,
+        "automatic_promotion_enabled": False,
+        "trading_credentials_present": False,
+        "order_adapter_present": False,
+        "execution_enabled": False,
+        "orders_submitted": 0,
+        "live_capital_authorized": False,
+    }
+    assert retry_v3 == {
+        "schema_version": 1,
+        "request_id": "wickhunter-wh09-production-research-deploy-retry-20260808-v3",
+        "deploy_commit": "ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5",
+        "previous_run_id": 31273808566,
+        "previous_job_id": 93144045334,
+        "failure_class": "synology_kernel_rejects_nanocpus_without_cpu_cfs",
+        "reuse_exact_image_if_present": True,
+        "synology_cpu_cfs_limit_disabled": True,
         "persistent_internal_demo_production_authorized": True,
         "mode": "shadow",
         "no_trade_confidence": "0.60",

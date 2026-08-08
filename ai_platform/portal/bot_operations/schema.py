@@ -61,6 +61,7 @@ class AuthoritativeBotRuntimeState(ContractModel):
     tenant_id: NonEmptyStr
     bot_id: NonEmptyStr
     config_revision: int
+    runtime_generation_id: NonEmptyStr
     runtime_id: NonEmptyStr
     runtime_revision: int
     environment: Environment

@@ -23,6 +23,7 @@ export type CommandReasonCode =
   | "RISK_REJECTED"
   | "RUNTIME_UNAVAILABLE"
   | "RUNTIME_RESPONSE_AMBIGUOUS"
+  | "STALE_GENERATION"
   | "STALE_REVISION"
   | "TENANT_MISMATCH";
 
@@ -30,6 +31,7 @@ export interface LifecycleIntentRequest {
   bot_id: string;
   action: LifecycleAction;
   expected_config_revision: number;
+  expected_runtime_generation_id: string;
   idempotency_key: string;
 }
 

@@ -178,6 +178,14 @@ def _write_env_atomic(path: Path, values: dict[str, str]) -> None:
     _assert_secret_file(path)
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _compose_command(repo: Path) -> list[str]:
     runtime_env = AUTHENTIK_STATE_DIR / "runtime.env"
     _assert_secret_file(runtime_env)
@@ -665,8 +673,7 @@ def _snapshot_legacy_sqlite(implementation_sha: str) -> tuple[Path, str]:
             raise DeploymentError("legacy Portal SQLite snapshot failed integrity_check")
     os.chown(destination, PORTAL_UID, PORTAL_GID)
     destination.chmod(0o600)
-    digest = hashlib.sha256(destination.read_bytes()).hexdigest()
-    return destination, digest
+    return destination, _sha256_file(destination)
 
 
 def _transfer_legacy_state(image: str, snapshot: Path) -> dict[str, Any]:
@@ -693,14 +700,14 @@ def _transfer_legacy_state(image: str, snapshot: Path) -> dict[str, Any]:
             "--env-file",
             str(PORTAL_RUNTIME_CANDIDATE_ENV),
             "--mount",
-            f"type=bind,src={snapshot},dst=/legacy/portal.db,readonly",
+            f"type=bind,src={snapshot.parent},dst=/legacy,readonly",
             "--entrypoint",
             "python",
             image,
             "-m",
             "ai_platform.portal.database.transfer",
             "--source-sqlite",
-            "/legacy/portal.db",
+            f"/legacy/{snapshot.name}",
         ],
         sensitive=True,
     )
@@ -715,8 +722,11 @@ def _transfer_legacy_state(image: str, snapshot: Path) -> dict[str, Any]:
 
 def _backup_postgres(database_name: str, implementation_sha: str) -> str:
     _assert_database_name(database_name)
-    container_path = f"/tmp/portal-{implementation_sha[:12]}.backup"
-    destination = PORTAL_POSTGRES_BACKUP_DIR / f"portal-{implementation_sha[:12]}.backup"
+    timestamp = int(time.time())
+    container_path = f"/tmp/portal-{implementation_sha[:12]}-{timestamp}.backup"
+    destination = PORTAL_POSTGRES_BACKUP_DIR / (
+        f"portal-{implementation_sha[:12]}-{timestamp}.backup"
+    )
     _run(
         [
             "docker",
@@ -743,7 +753,7 @@ def _backup_postgres(database_name: str, implementation_sha: str) -> str:
         )
     os.chown(destination, PORTAL_UID, PORTAL_GID)
     destination.chmod(0o600)
-    return hashlib.sha256(destination.read_bytes()).hexdigest()
+    return _sha256_file(destination)
 
 
 def _control_run_args(image: str, name: str) -> list[str]:
@@ -1124,13 +1134,19 @@ def _restore_previous_portal(
     control_backup: str | None,
     web_backup: str | None,
 ) -> None:
-    _remove_container(PORTAL_CONTAINER)
-    _remove_container(CONTROL_CONTAINER)
+    if control_backup:
+        _remove_container(CONTROL_CONTAINER)
+        if _container_exists(control_backup):
+            _run(["docker", "rename", control_backup, CONTROL_CONTAINER])
+    elif not previous.get("control_exists"):
+        _remove_container(CONTROL_CONTAINER)
 
-    if control_backup and _container_exists(control_backup):
-        _run(["docker", "rename", control_backup, CONTROL_CONTAINER])
-    if web_backup and _container_exists(web_backup):
-        _run(["docker", "rename", web_backup, PORTAL_CONTAINER])
+    if web_backup:
+        _remove_container(PORTAL_CONTAINER)
+        if _container_exists(web_backup):
+            _run(["docker", "rename", web_backup, PORTAL_CONTAINER])
+    elif not previous.get("web_exists"):
+        _remove_container(PORTAL_CONTAINER)
 
     if previous.get("control_exists") and _container_exists(CONTROL_CONTAINER):
         if previous.get("control_running") and not _container_running(CONTROL_CONTAINER):
@@ -1151,6 +1167,7 @@ def deploy(args: argparse.Namespace) -> int:
     repo = Path(args.repository).resolve()
     request_path = Path(args.request).resolve()
     report_path = Path(args.report).resolve()
+    suffix = args.expected_repository_sha[:12]
     report: dict[str, Any] = {
         "schema_version": 2,
         "request_id": REQUEST_ID,
@@ -1187,7 +1204,6 @@ def deploy(args: argparse.Namespace) -> int:
 
         existing_runtime = _read_env(PORTAL_RUNTIME_ENV)
         database_mode, existing_database = _current_database_mode(existing_runtime, postgres_env)
-        suffix = args.expected_repository_sha[:12]
         if database_mode == "postgresql":
             if existing_database is None or not _postgres_database_exists(existing_database):
                 raise DeploymentError("authoritative Portal PostgreSQL database is missing")
@@ -1206,18 +1222,29 @@ def deploy(args: argparse.Namespace) -> int:
         legacy_snapshot_digest: str | None = None
         state_transfer: dict[str, Any] | None = None
         postgres_backup_digest: str | None = None
+        snapshot: Path | None = None
         if database_mode == "legacy_sqlite":
             snapshot, legacy_snapshot_digest = _snapshot_legacy_sqlite(
                 args.expected_repository_sha
             )
+            report["database_recovery"] = {
+                "legacy_snapshot_sha256": legacy_snapshot_digest,
+                "restore_authorized": False,
+            }
         elif database_mode == "postgresql":
             postgres_backup_digest = _backup_postgres(
                 candidate_database,
                 args.expected_repository_sha,
             )
+            report["database_recovery"] = {
+                "pre_migration_backup_sha256": postgres_backup_digest,
+                "restore_authorized": False,
+            }
 
         migration = _run_schema_command(control_image, "migrate")
         if database_mode == "legacy_sqlite":
+            if snapshot is None:
+                raise DeploymentError("legacy SQLite snapshot was not created")
             state_transfer = _transfer_legacy_state(control_image, snapshot)
         readiness_check = _run_schema_command(control_image, "check")
 
@@ -1225,8 +1252,8 @@ def deploy(args: argparse.Namespace) -> int:
         control_backup = _promote_control(control_candidate)
         control_readiness = _probe_control_readiness()
         discovery, endpoint_statuses = _discovery_from_identity_container()
-        web_backup, authorization_url = _deploy_web(web_image, suffix)
-        public_status, public_authorization_url = _probe_public_portal()
+        web_backup, _authorization_url = _deploy_web(web_image, suffix)
+        public_status, _public_authorization_url = _probe_public_portal()
         authentik_statuses = _authentik_statuses(repo)
         portal_status = _container_status(PORTAL_CONTAINER)
         control_status = _container_status(CONTROL_CONTAINER)
@@ -1243,7 +1270,6 @@ def deploy(args: argparse.Namespace) -> int:
 
         report.update(
             {
-                "status": "success",
                 "authentik": {
                     "application_exists": bool(metadata["application_pk"]),
                     "application_slug": metadata["application_slug"],
@@ -1280,8 +1306,8 @@ def deploy(args: argparse.Namespace) -> int:
                 "endpoint_statuses": endpoint_statuses,
                 "portal": {
                     "origin": PORTAL_ORIGIN,
-                    "internal_authorization_url": authorization_url,
-                    "public_authorization_url": public_authorization_url,
+                    "internal_login_redirect_verified": True,
+                    "public_login_redirect_verified": True,
                     "public_login_status": public_status,
                     "container": portal_status,
                     "control_plane": control_status,
@@ -1301,13 +1327,16 @@ def deploy(args: argparse.Namespace) -> int:
         )
         _activate_candidate_runtime()
         runtime_activated = True
+        report["status"] = "success"
         for backup in (web_backup, control_backup):
             if backup:
-                _remove_container(backup)
+                _run(["docker", "rm", "-f", backup], check=False)
         return_code = 0
     except Exception as exc:
         report["failure"] = {"type": type(exc).__name__, "message": str(exc)}
         if not runtime_activated:
+            _remove_container(f"{PORTAL_CONTAINER}-candidate-{suffix}")
+            _remove_container(f"{CONTROL_CONTAINER}-candidate-{suffix}")
             try:
                 if previous:
                     _restore_previous_portal(previous, control_backup, web_backup)

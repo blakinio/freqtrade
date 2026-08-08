@@ -55,17 +55,16 @@ runtime_commit: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
 - Protected deployment run `31275253098`, job `93147659559`, passed immutable authorization, authorized Compose snapshot, exact runtime checkout, credential/zero-authority/host-path checks and successfully created/started the WH09 container.
 - Exact deployed identity from that run: container `6724290d3078f09fc82c434e239d2d8afd3686ddedd27ff7d400834538cfbfe0`; image `sha256:c5a67281912e262a183dd7a5804609a2f69ca356d5eb98e4a5a8da169e07a749`; source revision `ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5`.
 - Final E2E verification timed out after 720 seconds with `WH09 deployment E2E did not reach two advances: health is not a regular file`; no PASS report was emitted.
-- The same start reported that Synology discarded the requested PIDs limit because the kernel/cgroup lacks that capability. This remains a hardening caveat that must be resolved or explicitly dispositioned before final acceptance.
-- PR `#1394` keeps diagnostics inside the existing registered WH09 deployment workflow. A merge adding/modifying diagnostic request v4 skips deploy and runs only the read-only diagnostic job; removing v4 also fails closed and cannot start deploy.
-- Diagnostic request v4 is immutable and binds inspection to the exact failed run/job, exact original container ID and exact image ID. The diagnostic job contains no container start/stop/restart/recreate/remove/kill path and uploads evidence with `if: always()`.
-- Prior review P2 `Bind inspection to the deployed image and container` is resolved by exact container/image binding.
-- Final diagnostic workflow/request/test code head is `7c08031c12ad789f7d44d47105b27592cab27d70`. This checkpoint commit is documentation-only.
+- Synology also discarded the requested PIDs limit because the kernel/cgroup lacks that capability; this remains a separate hardening caveat before final acceptance.
+- PR `#1394` keeps diagnostics inside the existing registered WH09 deployment workflow. Adding/modifying diagnostic request v4 skips deploy and runs only the read-only diagnostic job; removing v4 also fails closed and cannot start deploy.
+- Diagnostic v4 binds the exact failed run/job, original 64-character container ID and exact image ID. Container discovery uses `docker ps -aq --no-trunc` before exact comparison. The diagnostic job contains no start/stop/restart/recreate/remove/kill path and uploads evidence with `if: always()`.
+- Review P2 for exact deployed identity and both later P1 findings (truncated Docker ID and invalid deploy-command test assertion) are repaired on the final diagnostic code head `be1c34bef4113d8be08a4a0a441a348a169aa4b3`. This checkpoint commit is documentation-only.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-08T22:27:00+02:00
+updated_at: 2026-08-08T22:33:00+02:00
 branch: diagnose/wickhunter-wh09-runtime-health-20260808
 pr: 1394
 status: validating
@@ -75,13 +74,12 @@ context_pressure: medium
 context_growth: stable
 session_rotation_count: 2
 invocation_started_at: 2026-08-08T21:04:00+02:00
-last_progress_at: 2026-08-08T22:27:00+02:00
+last_progress_at: 2026-08-08T22:33:00+02:00
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
 repair_cycles_for_current_gate: 2
 repair_cycle_generation: runtime_health_absent_diagnostic_v4
-repair_cycle_reset_reason: materially_new_failure_signature_after_successful_container_start
 latest_deployment:
   run_id: 31275253098
   job_id: 93147659559
@@ -91,14 +89,12 @@ latest_deployment:
   image_id: sha256:c5a67281912e262a183dd7a5804609a2f69ca356d5eb98e4a5a8da169e07a749
   container_started: true
   first_actionable_failure: runtime_health_file_absent_after_container_start
-  terminal_error: health_is_not_a_regular_file
   additional_platform_warning: pids_limit_discarded_by_synology_kernel
 diagnostic:
   pr: 1394
-  exact_code_head: 7c08031c12ad789f7d44d47105b27592cab27d70
+  exact_code_head: be1c34bef4113d8be08a4a0a441a348a169aa4b3
   checkpoint_successor_scope: documentation_only
   request: diagnose-wh09-production-research-20260808-v4.json
-  integrated_workflow: .github/workflows/ai-platform-wickhunter-wh09-production-research-runtime-deploy.yml
   deploy_job_skipped_for_v4: true
   removal_fail_closed: true
   container_recreate_authorized: false
@@ -128,10 +124,10 @@ recovery:
   generation: 6
   session_id: owner-20260808-2104-cest
   session_started_at: 2026-08-08T21:04:00+02:00
-  checkpointed_at: 2026-08-08T22:27:00+02:00
-  last_progress_at: 2026-08-08T22:27:00+02:00
+  checkpointed_at: 2026-08-08T22:33:00+02:00
+  last_progress_at: 2026-08-08T22:33:00+02:00
   phase: diagnose
-  exact_head: 7c08031c12ad789f7d44d47105b27592cab27d70
+  exact_head: be1c34bef4113d8be08a4a0a441a348a169aa4b3
   exact_head_role: final_diagnostic_workflow_request_and_test_head
   checkpoint_successor_scope: documentation_only
   pull_request: 1394
@@ -139,8 +135,8 @@ recovery:
   external_run_ids:
     - 31275253098
     - 93147659559
-  operation_started_at: 2026-08-08T22:25:00+02:00
-  wait_deadline_at: 2026-08-08T23:10:00+02:00
+  operation_started_at: 2026-08-08T22:31:00+02:00
+  wait_deadline_at: 2026-08-08T23:16:00+02:00
   check_generation: runtime-health-diagnostic-v4-final
   checks_used: 0
   status: active

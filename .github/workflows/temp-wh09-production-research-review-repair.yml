@@ -23,67 +23,62 @@ jobs:
           persist-credentials: true
           fetch-depth: 0
 
-      - name: Apply bounded journal and fail-closed repairs
+      - name: Apply structural repairs
         shell: bash
         run: |
           set -euo pipefail
           python3 <<'PY'
           from pathlib import Path
           import re
+          import textwrap
 
-          def replace_once(text: str, old: str, new: str, label: str) -> str:
-              if old not in text:
-                  raise SystemExit(f"missing repair anchor: {label}")
-              return text.replace(old, new, 1)
+          def body(source: str, indent: int = 0) -> str:
+              value = textwrap.dedent(source).lstrip("\n")
+              return textwrap.indent(value, " " * indent) if indent else value
 
-          def replace_method(text: str, start: str, end: str, replacement: str, label: str) -> str:
-              pattern = re.compile(re.escape(start) + r".*?(?=" + re.escape(end) + r")", re.S)
-              updated, count = pattern.subn(lambda _match: replacement, text, count=1)
+          def sub_once(text: str, pattern: str, replacement: str, label: str, flags: int = 0) -> str:
+              updated, count = re.subn(pattern, lambda _m: replacement, text, count=1, flags=flags)
               if count != 1:
-                  raise SystemExit(f"missing method range: {label}")
+                  raise SystemExit(f"missing structural repair target: {label}")
               return updated
 
           core_path = Path("ai_platform/wickhunter/production_research_runtime.py")
           core = core_path.read_text(encoding="utf-8")
 
-          fields_old = '''    _active_traces: dict[str, ResearchScoreTrace] = field(
-              default_factory=dict,
-              init=False,
-              repr=False,
-          )
-          '''
-          fields_new = fields_old + '''    _pending_outcomes: dict[str, dict[str, Any]] = field(
+          aggregate_fields = body('''
+          _pending_outcomes: dict[str, dict[str, object]] = field(
               default_factory=dict, init=False, repr=False
           )
-              _decision_count: int = field(default=0, init=False, repr=False)
-              _simulated_signal_count: int = field(default=0, init=False, repr=False)
-              _directional_decision_count: int = field(default=0, init=False, repr=False)
-              _above_threshold_count: int = field(default=0, init=False, repr=False)
-              _confidence_count: int = field(default=0, init=False, repr=False)
-              _confidence_sum: Decimal = field(default=Decimal("0"), init=False, repr=False)
-              _confidence_min: Decimal | None = field(default=None, init=False, repr=False)
-              _confidence_max: Decimal | None = field(default=None, init=False, repr=False)
-              _outcome_count: int = field(default=0, init=False, repr=False)
-              _positive_outcome_count: int = field(default=0, init=False, repr=False)
-          '''
-          # Triple-quoted literals above include workflow indentation; normalize exactly.
-          fields_old = fields_old.replace("          default_factory", "        default_factory").replace("          init", "        init").replace("          repr", "        repr").replace("          )", "    )")
-          fields_new = fields_new.replace("          default_factory", "        default_factory").replace("          init", "        init").replace("          repr", "        repr").replace("          )", "    )")
-          fields_new = fields_new.replace("              _decision_count", "    _decision_count").replace("              _simulated_signal_count", "    _simulated_signal_count").replace("              _directional_decision_count", "    _directional_decision_count").replace("              _above_threshold_count", "    _above_threshold_count").replace("              _confidence_count", "    _confidence_count").replace("              _confidence_sum", "    _confidence_sum").replace("              _confidence_min", "    _confidence_min").replace("              _confidence_max", "    _confidence_max").replace("              _outcome_count", "    _outcome_count").replace("              _positive_outcome_count", "    _positive_outcome_count")
-          core = replace_once(core, fields_old, fields_new, "journal aggregate fields")
-
-          init_anchor = '        _write_new_or_verify(self.root / "identity.json", identity_payload)\n\n'
-          core = replace_once(
-              core,
-              init_anchor,
-              init_anchor + '        self._rebuild_index()\n\n',
-              "journal startup index",
+          _decision_count: int = field(default=0, init=False, repr=False)
+          _simulated_signal_count: int = field(default=0, init=False, repr=False)
+          _directional_decision_count: int = field(default=0, init=False, repr=False)
+          _above_threshold_count: int = field(default=0, init=False, repr=False)
+          _confidence_count: int = field(default=0, init=False, repr=False)
+          _confidence_sum: Decimal = field(default=Decimal("0"), init=False, repr=False)
+          _confidence_min: Decimal | None = field(default=None, init=False, repr=False)
+          _confidence_max: Decimal | None = field(default=None, init=False, repr=False)
+          _outcome_count: int = field(default=0, init=False, repr=False)
+          _positive_outcome_count: int = field(default=0, init=False, repr=False)
+          ''', 4)
+          field_pattern = (
+              r"(    _active_traces: dict\[str, ResearchScoreTrace\] = field\(\n"
+              r"        default_factory=dict,\n"
+              r"        init=False,\n"
+              r"        repr=False,\n"
+              r"    \)\n)"
           )
+          match = re.search(field_pattern, core)
+          if match is None:
+              raise SystemExit("missing structural repair target: aggregate fields")
+          core = core[: match.end()] + aggregate_fields + core[match.end() :]
 
-          property_anchor = '''    @property
-              def runtime_store(self) -> ShadowRuntimeStore:
-          '''.replace("              def", "    def")
-          index_methods = '''    def _load_decision_file(self, path: Path) -> dict[str, Any]:
+          identity_line = '        _write_new_or_verify(self.root / "identity.json", identity_payload)\n'
+          if identity_line not in core:
+              raise SystemExit("missing structural repair target: startup index")
+          core = core.replace(identity_line, identity_line + "        self._rebuild_index()\n", 1)
+
+          helpers = body('''
+          def _load_decision_file(self, path: Path) -> dict[str, object]:
               payload = _verify_self_hash(
                   _load_object(path, field_name="research decision"),
                   hash_field="record_sha256",
@@ -94,7 +89,7 @@ jobs:
                   raise ProductionResearchRuntimeError("research decision identity is invalid")
               return payload
 
-              def _load_outcome_file(self, path: Path) -> dict[str, Any]:
+          def _load_outcome_file(self, path: Path) -> dict[str, object]:
               payload = _verify_self_hash(
                   _load_object(path, field_name="research outcome"),
                   hash_field="record_sha256",
@@ -107,7 +102,7 @@ jobs:
                   )
               return payload
 
-              def _register_decision(self, payload: dict[str, Any]) -> None:
+          def _register_decision(self, payload: dict[str, object]) -> None:
               decision_id = str(payload.get("decision_id", ""))
               if SHA256_RE.fullmatch(decision_id) is None:
                   raise ProductionResearchRuntimeError("research decision identity is invalid")
@@ -131,7 +126,7 @@ jobs:
                       value if self._confidence_max is None else max(self._confidence_max, value)
                   )
 
-              def _register_outcome(self, payload: dict[str, Any]) -> None:
+          def _register_outcome(self, payload: dict[str, object]) -> None:
               decision_id = str(payload.get("decision_id", ""))
               if SHA256_RE.fullmatch(decision_id) is None:
                   raise ProductionResearchRuntimeError(
@@ -146,37 +141,35 @@ jobs:
                   self._positive_outcome_count += 1
               self._pending_outcomes.pop(decision_id, None)
 
-              def _rebuild_index(self) -> None:
+          def _rebuild_index(self) -> None:
               for path in sorted((self.root / "decisions").glob("*.json")):
                   self._register_decision(self._load_decision_file(path))
               for path in sorted((self.root / "outcomes").glob("*.json")):
                   self._register_outcome(self._load_outcome_file(path))
 
-          '''
-          index_methods = index_methods.replace("              def ", "    def ")
-          index_methods = index_methods.replace("\n              payload", "\n        payload")
-          index_methods = index_methods.replace("\n              decision_id", "\n        decision_id")
-          index_methods = index_methods.replace("\n              if SHA", "\n        if SHA")
-          index_methods = index_methods.replace("\n              self._", "\n        self._")
-          index_methods = index_methods.replace("\n              confidence", "\n        confidence")
-          index_methods = index_methods.replace("\n              for path", "\n        for path")
-          core = replace_once(core, property_anchor, index_methods + property_anchor, "journal index methods")
+          ''', 4)
+          property_marker = "    @property\n    def runtime_store(self) -> ShadowRuntimeStore:\n"
+          if property_marker not in core:
+              raise SystemExit("missing structural repair target: journal helpers")
+          core = core.replace(property_marker, helpers + property_marker, 1)
 
-          record_old = '''                _write_new_or_verify(
-                    self.root / "decisions" / f"{evidence.shadow_decision_id}.json",
-                    payload,
-                )
-          '''
-          record_new = '''                decision_path = self.root / "decisions" / f"{evidence.shadow_decision_id}.json"
-              is_new = not decision_path.exists()
-              _write_new_or_verify(decision_path, payload)
-              if is_new:
-                  self._register_decision(payload)
-          '''
-          record_new = record_new.replace("\n              is_new", "\n                is_new").replace("\n              _write", "\n                _write").replace("\n              if is_new", "\n                if is_new")
-          core = replace_once(core, record_old, record_new, "decision aggregate update")
+          record_pattern = (
+              r"                _write_new_or_verify\(\n"
+              r"                    self\.root / \"decisions\" / f\"\{evidence\.shadow_decision_id\}\.json\",\n"
+              r"                    payload,\n"
+              r"                \)"
+          )
+          record_replacement = body('''
+          decision_path = self.root / "decisions" / f"{evidence.shadow_decision_id}.json"
+          is_new = not decision_path.exists()
+          _write_new_or_verify(decision_path, payload)
+          if is_new:
+              self._register_decision(payload)
+          ''', 16).rstrip()
+          core = sub_once(core, record_pattern, record_replacement, "decision registration")
 
-          pending_new = '''    def pending_outcome_symbols(self, *, observed_at_ms: int) -> tuple[str, ...]:
+          pending_replacement = body('''
+          def pending_outcome_symbols(self, *, observed_at_ms: int) -> tuple[str, ...]:
               symbols = {
                   str(decision["symbol"]).upper()
                   for decision in self._pending_outcomes.values()
@@ -185,17 +178,17 @@ jobs:
               }
               return tuple(sorted(symbols))
 
-          '''
-          pending_new = pending_new.replace("\n              symbols", "\n        symbols").replace("\n              return", "\n        return")
-          core = replace_method(
+          ''', 4)
+          core = sub_once(
               core,
-              "    def pending_outcome_symbols(self, *, observed_at_ms: int) -> tuple[str, ...]:\n",
-              "    def materialize_due_outcomes(\n",
-              pending_new,
-              "pending_outcome_symbols",
+              r"    def pending_outcome_symbols\(self, \*, observed_at_ms: int\) -> tuple\[str, \.\.\.\]:\n.*?(?=    def materialize_due_outcomes\()",
+              pending_replacement,
+              "pending outcome index",
+              re.S,
           )
 
-          materialize_new = '''    def materialize_due_outcomes(
+          materialize_replacement = body('''
+          def materialize_due_outcomes(
               self,
               *,
               observed_at_ms: int,
@@ -275,17 +268,17 @@ jobs:
                   created += 1
               return created
 
-          '''
-          materialize_new = materialize_new.replace("\n              created", "\n        created").replace("\n              outcome_root", "\n        outcome_root").replace("\n              for decision_id", "\n        for decision_id").replace("\n              return created", "\n        return created")
-          core = replace_method(
+          ''', 4)
+          core = sub_once(
               core,
-              "    def materialize_due_outcomes(\n",
-              "    def publish_telemetry(\n",
-              materialize_new,
-              "materialize_due_outcomes",
+              r"    def materialize_due_outcomes\(\n.*?(?=    def publish_telemetry\()",
+              materialize_replacement,
+              "bounded outcome materialization",
+              re.S,
           )
 
-          telemetry_new = '''    def publish_telemetry(
+          telemetry_replacement = body('''
+          def publish_telemetry(
               self,
               *,
               checked_at_ms: int,
@@ -350,85 +343,140 @@ jobs:
               _atomic_json(self.telemetry_path, payload)
               return payload
 
-
-          '''
-          telemetry_new = telemetry_new.replace("\n              confidence_summary", "\n        confidence_summary").replace("\n              payload:", "\n        payload:").replace("\n              payload[", "\n        payload[").replace("\n              _atomic_json", "\n        _atomic_json").replace("\n              return payload", "\n        return payload")
-          core = replace_method(
+          ''', 4)
+          core = sub_once(
               core,
-              "    def publish_telemetry(\n",
-              "@dataclass(slots=True)\nclass ProductionResearchRuntimeService:",
-              telemetry_new,
-              "publish_telemetry",
+              r"    def publish_telemetry\(\n.*?(?=@dataclass\(slots=True\)\nclass ProductionResearchRuntimeService:)",
+              telemetry_replacement + "\n",
+              "constant-time telemetry",
+              re.S,
           )
           core_path.write_text(core, encoding="utf-8")
 
           operator_path = Path("ai_platform/wickhunter/production_research_runtime_operator.py")
           operator = operator_path.read_text(encoding="utf-8")
-          operator_old = '''        self.last_success_at_ms = now_ms
-              _atomic_health(
+          operator_replacement = body('''
+          status = "fail_closed" if runtime_health == "fail_closed" else "healthy"
+          if status == "healthy":
+              self.last_success_at_ms = now_ms
+          error_code = None if status == "healthy" else "runtime_fail_closed"
+          error_message = (
+              None
+              if status == "healthy"
+              else ",".join(canonical_breaker_reasons) or "runtime reported fail_closed"
+          )
+          _atomic_health(
               self.health_path,
               self._health_payload(
-                  status="healthy",
+                  status=status,
                   checked_at_ms=now_ms,
                   liquid20_snapshot_id=liquid20.snapshot_id,
                   runtime_health=runtime_health,
                   circuit_breaker_reasons=canonical_breaker_reasons,
-                  error_code=None,
-                  error_message=None,
+                  error_code=error_code,
+                  error_message=error_message,
               ),
           )
-          '''
-          operator_old = operator_old.replace("\n              _atomic", "\n        _atomic").replace("\n              self.health", "\n            self.health").replace("\n              self._health", "\n            self._health")
-          operator_new = '''        status = "fail_closed" if runtime_health == "fail_closed" else "healthy"
-              if status == "healthy":
-                  self.last_success_at_ms = now_ms
-              error_code = None if status == "healthy" else "runtime_fail_closed"
-              error_message = (
-                  None
-                  if status == "healthy"
-                  else ",".join(canonical_breaker_reasons) or "runtime reported fail_closed"
-              )
-              _atomic_health(
-                  self.health_path,
-                  self._health_payload(
-                      status=status,
-                      checked_at_ms=now_ms,
-                      liquid20_snapshot_id=liquid20.snapshot_id,
-                      runtime_health=runtime_health,
-                      circuit_breaker_reasons=canonical_breaker_reasons,
-                      error_code=error_code,
-                      error_message=error_message,
-                  ),
-              )
-          '''
-          operator_new = operator_new.replace("\n              if status", "\n        if status").replace("\n              error_code", "\n        error_code").replace("\n              error_message", "\n        error_message").replace("\n              _atomic", "\n        _atomic")
-          operator = replace_once(operator, operator_old, operator_new, "truthful fail-closed health")
+          ''', 8)
+          operator = sub_once(
+              operator,
+              r"        self\.last_success_at_ms = now_ms\n        _atomic_health\(\n.*?\n        \)\n(?=        return result\.state\.generation)",
+              operator_replacement,
+              "truthful fail-closed health",
+              re.S,
+          )
           operator_path.write_text(operator, encoding="utf-8")
 
           health_path = Path("deploy/synology/wickhunter-production-research-runtime/research_runtime_healthcheck.py")
           health = health_path.read_text(encoding="utf-8")
-          health_anchor = '''        if health.get("status") != "healthy":
-              return _fail("research operator is fail-closed")
-          '''.replace("\n              return", "\n            return")
-          health_extra = '''        if health.get("runtime_health") not in {"healthy", "degraded"}:
+          health_marker = '        if health.get("mode") != "shadow":\n'
+          health_guard = body('''
+          if health.get("runtime_health") not in {"healthy", "degraded"}:
               return _fail("research runtime is fail-closed")
-              if health.get("circuit_breaker_active") is True:
+          if health.get("circuit_breaker_active") is True:
               return _fail("research runtime circuit breaker is active")
-          '''
-          health_extra = health_extra.replace("\n              return", "\n            return").replace("\n              if health", "\n        if health")
-          health = replace_once(health, health_anchor, health_anchor + health_extra, "nested runtime healthcheck")
+          ''', 8)
+          if health_marker not in health:
+              raise SystemExit("missing structural repair target: nested healthcheck")
+          health = health.replace(health_marker, health_guard + health_marker, 1)
           health_path.write_text(health, encoding="utf-8")
 
           tests_path = Path("tests/ai_platform_integration/test_wickhunter_production_research_runtime.py")
           tests = tests_path.read_text(encoding="utf-8")
           if "test_journal_steady_state_avoids_historical_directory_scans" not in tests:
-              tests += '''\n\ndef test_journal_steady_state_avoids_historical_directory_scans(\n    tmp_path: Path, monkeypatch: pytest.MonkeyPatch\n) -> None:\n    first = research.ProductionResearchJournal(tmp_path / "journal", _identity())\n    evidence = _journal_evidence()\n    trace = research.ResearchScoreTrace(\n        score_id="2" * 64,\n        raw_probability=Decimal("0.331543"),\n        calibrated_confidence=Decimal("0.333333"),\n    )\n    first.record_decisions(\n        requests=(_journal_request(),),\n        decisions=(evidence,),\n        traces={trace.score_id: trace},\n        operator_commit=CODE_SHA,\n    )\n    restarted = research.ProductionResearchJournal(first.root, _identity())\n\n    def forbid_glob(*_args: object, **_kwargs: object) -> object:\n        raise AssertionError("steady-state journal must not rescan historical directories")\n\n    monkeypatch.setattr(Path, "glob", forbid_glob)\n    assert restarted.pending_outcome_symbols(\n        observed_at_ms=CREATED_AT_MS + 900_000\n    ) == ("BTCUSDT",)\n    runtime_state = SimpleNamespace(\n        generation=1,\n        last_observed_at_ms=CREATED_AT_MS + 900_000,\n        positions=(),\n        closed_positions=(),\n        cumulative_realized_pnl_quote=Decimal("0"),\n        drawdown_ratio=Decimal("0"),\n    )\n    telemetry = restarted.publish_telemetry(\n        checked_at_ms=CREATED_AT_MS + 900_000,\n        operator_commit=CODE_SHA,\n        runtime_state=runtime_state,\n    )\n    assert telemetry["decision_count"] == 1\n    assert telemetry["pending_outcome_count"] == 1\n    assert restarted.materialize_due_outcomes(\n        observed_at_ms=CREATED_AT_MS + 900_000,\n        mark_prices={"BTCUSDT": Decimal("110")},\n        operator_commit=CODE_SHA,\n    ) == 1\n    telemetry = restarted.publish_telemetry(\n        checked_at_ms=CREATED_AT_MS + 900_001,\n        operator_commit=CODE_SHA,\n        runtime_state=runtime_state,\n    )\n    assert telemetry["outcome_count"] == 1\n    assert telemetry["pending_outcome_count"] == 0\n    assert telemetry["positive_outcome_count"] == 1\n'''
+              tests += body('''
+
+          def test_journal_steady_state_avoids_historical_directory_scans(
+              tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+          ) -> None:
+              first = research.ProductionResearchJournal(tmp_path / "journal", _identity())
+              evidence = _journal_evidence()
+              trace = research.ResearchScoreTrace(
+                  score_id="2" * 64,
+                  raw_probability=Decimal("0.331543"),
+                  calibrated_confidence=Decimal("0.333333"),
+              )
+              first.record_decisions(
+                  requests=(_journal_request(),),
+                  decisions=(evidence,),
+                  traces={trace.score_id: trace},
+                  operator_commit=CODE_SHA,
+              )
+              restarted = research.ProductionResearchJournal(first.root, _identity())
+
+              def forbid_glob(*_args: object, **_kwargs: object) -> object:
+                  raise AssertionError("steady-state journal must not rescan historical directories")
+
+              monkeypatch.setattr(Path, "glob", forbid_glob)
+              assert restarted.pending_outcome_symbols(
+                  observed_at_ms=CREATED_AT_MS + 900_000
+              ) == ("BTCUSDT",)
+              runtime_state = SimpleNamespace(
+                  generation=1,
+                  last_observed_at_ms=CREATED_AT_MS + 900_000,
+                  positions=(),
+                  closed_positions=(),
+                  cumulative_realized_pnl_quote=Decimal("0"),
+                  drawdown_ratio=Decimal("0"),
+              )
+              telemetry = restarted.publish_telemetry(
+                  checked_at_ms=CREATED_AT_MS + 900_000,
+                  operator_commit=CODE_SHA,
+                  runtime_state=runtime_state,
+              )
+              assert telemetry["decision_count"] == 1
+              assert telemetry["pending_outcome_count"] == 1
+              assert restarted.materialize_due_outcomes(
+                  observed_at_ms=CREATED_AT_MS + 900_000,
+                  mark_prices={"BTCUSDT": Decimal("110")},
+                  operator_commit=CODE_SHA,
+              ) == 1
+              telemetry = restarted.publish_telemetry(
+                  checked_at_ms=CREATED_AT_MS + 900_001,
+                  operator_commit=CODE_SHA,
+                  runtime_state=runtime_state,
+              )
+              assert telemetry["outcome_count"] == 1
+              assert telemetry["pending_outcome_count"] == 0
+              assert telemetry["positive_outcome_count"] == 1
+          ''')
           tests_path.write_text(tests, encoding="utf-8")
 
           deploy_tests_path = Path("tests/ai_platform_integration/test_wickhunter_production_research_runtime_deploy.py")
           deploy_tests = deploy_tests_path.read_text(encoding="utf-8")
           if "test_healthcheck_rejects_nested_fail_closed_runtime" not in deploy_tests:
-              deploy_tests += '''\n\ndef test_healthcheck_rejects_nested_fail_closed_runtime() -> None:\n    healthcheck = (DEPLOY / "research_runtime_healthcheck.py").read_text(encoding="utf-8")\n    assert 'health.get("runtime_health") not in {"healthy", "degraded"}' in healthcheck\n    assert 'health.get("circuit_breaker_active") is True' in healthcheck\n    operator = (\n        ROOT / "ai_platform" / "wickhunter" / "production_research_runtime_operator.py"\n    ).read_text(encoding="utf-8")\n    assert 'status = "fail_closed" if runtime_health == "fail_closed" else "healthy"' in operator\n    assert 'error_code = None if status == "healthy" else "runtime_fail_closed"' in operator\n'''
+              deploy_tests += body('''
+
+          def test_healthcheck_rejects_nested_fail_closed_runtime() -> None:
+              healthcheck = (DEPLOY / "research_runtime_healthcheck.py").read_text(encoding="utf-8")
+              assert 'health.get("runtime_health") not in {"healthy", "degraded"}' in healthcheck
+              assert 'health.get("circuit_breaker_active") is True' in healthcheck
+              operator = (
+                  ROOT / "ai_platform" / "wickhunter" / "production_research_runtime_operator.py"
+              ).read_text(encoding="utf-8")
+              assert 'status = "fail_closed" if runtime_health == "fail_closed" else "healthy"' in operator
+              assert 'error_code = None if status == "healthy" else "runtime_fail_closed"' in operator
+          ''')
           deploy_tests_path.write_text(deploy_tests, encoding="utf-8")
           PY
 

@@ -81,7 +81,26 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
         state["candidate_database"] = database_name
 
     def quiesce_existing_portal() -> dict[str, bool]:
-        previous = original_quiesce_existing_portal()
+        # Capture the pre-stop state outside deploy.py so a partial stop failure cannot erase
+        # the information needed to restore an already-stopped public container. The canonical
+        # deploy entrypoint always installs this shim before invoking deploy.main().
+        pre_quiesce = {
+            "web_exists": deploy._container_exists(deploy.PORTAL_CONTAINER),
+            "web_running": deploy._container_running(deploy.PORTAL_CONTAINER),
+            "control_exists": deploy._container_exists(deploy.CONTROL_CONTAINER),
+            "control_running": deploy._container_running(deploy.CONTROL_CONTAINER),
+        }
+        try:
+            previous = original_quiesce_existing_portal()
+        except Exception:
+            try:
+                original_restore_previous_portal(pre_quiesce, None, None)
+            except Exception as restore_exc:
+                raise deploy.DeploymentError(
+                    "Portal quiesce failed and the previous runtime could not be restored"
+                ) from restore_exc
+            raise
+
         source_database = state["source_database"]
         candidate_database = state["candidate_database"]
         implementation_sha = state["implementation_sha"]

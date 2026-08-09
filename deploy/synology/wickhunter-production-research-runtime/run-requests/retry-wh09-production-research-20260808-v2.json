@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "request_id": "wickhunter-wh09-production-research-deploy-retry-20260808-v2",
+  "deploy_commit": "ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5",
+  "previous_run_id": 31268955706,
+  "previous_job_id": 93139010419,
+  "failure_class": "docker_compose_build_deadline_exceeded_after_exact_image_export",
+  "reuse_exact_image_if_present": true,
+  "persistent_internal_demo_production_authorized": true,
+  "mode": "shadow",
+  "no_trade_confidence": "0.60",
+  "paper_activation_authorized": false,
+  "automatic_promotion_enabled": false,
+  "trading_credentials_present": false,
+  "order_adapter_present": false,
+  "execution_enabled": false,
+  "orders_submitted": 0,
+  "live_capital_authorized": false
+}

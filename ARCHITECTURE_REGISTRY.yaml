@@ -22,10 +22,12 @@ review:
 
 latest_architecture_change:
   accepted_at: "2026-08-08"
-  base_sha: 62dc76164bd771e47365d7076af10cbd878061dd
+  base_sha: c64df386a4fa3ba739b6eaa1a223ca798a7bcae2
   issue: 1358
-  task: FTAI-20260808-portal-runtime-architecture-1358
+  task: FTAI-20260808-adr020-runtime-isolation-supervisor-refinement
   decision: ADR-020
+  refinement: RuntimeIsolationProfile + Runtime Supervisor Contract
+  refinement_document: docs/ai_platform/portal/RUNTIME_ISOLATION_AND_SUPERVISOR_CONTRACT.md
   status: accepted
   affected_domains:
     - portal_and_ux
@@ -33,7 +35,7 @@ latest_architecture_change:
     - execution_and_risk
     - data_and_observability
     - deployment_and_operations
-  implementation_note: Acceptance defines target architecture only; implementation remains tracked by open Issues and exact code/test/deployment evidence.
+  implementation_note: Owner acceptance defines target architecture only and becomes trusted-base authority after merge; implementation remains tracked by open Issues and exact code/test/deployment evidence.
 
 classification_values:
   - canonical_registry
@@ -67,7 +69,7 @@ authority:
     - Target-only or mixed documents must never be reported as fully implemented without exact evidence.
     - Historical baselines preserve context but do not override accepted decisions or current-state evidence.
     - Material architecture changes update this registry and the accepted decision log in the same change set.
-    - ADR-020 supersedes older target-state wording that conflicts with RuntimeGeneration, Runtime Supervisor, per-runtime Gateway, dry-run public-data connectivity or generation-bound reconciliation/fencing.
+    - ADR-020 and its Runtime Isolation / Runtime Supervisor refinement supersede older target-state wording that conflicts with RuntimeGeneration, resolved isolation-plan identity, Runtime Supervisor, per-runtime Gateway, dry-run public-data connectivity, effective isolation attestation or generation-bound reconciliation/fencing.
 
 system_domains:
   research_and_strategy:
@@ -160,6 +162,18 @@ documents:
     owner_role: architecture-owner
     last_reviewed_at: "2026-08-08"
     latest_decision: ADR-020
+    latest_refinement: RuntimeIsolationProfile + Runtime Supervisor Contract
+
+  - path: docs/ai_platform/portal/RUNTIME_ISOLATION_AND_SUPERVISOR_CONTRACT.md
+    title: Runtime isolation profile and Runtime Supervisor contract
+    classification: domain_architecture
+    scope: Portal-managed Freqtrade dry-run runtime isolation, host capability resolution, provisioning attestation and privileged lifecycle boundary
+    authority: binding_refinement_of_ADR-020
+    implementation_status: target_only
+    owner_role: architecture-owner
+    last_reviewed_at: "2026-08-08"
+    evidence_rule: Acceptance is target architecture only; exact code, tests and deployed-host evidence are required for implementation claims.
+    safety_note: No production deployment, private exchange trading credentials or live-capital authority.
 
   - path: docs/ai_platform/portal/SYSTEM_ARCHITECTURE.md
     title: AI Trading Portal system architecture
@@ -170,7 +184,7 @@ documents:
     owner_role: architecture-owner
     last_reviewed_at: "2026-08-08"
     evidence_rule: Each implementation claim requires exact code, test, workflow or deployed-target evidence.
-    supersession_note: Interpret execution/runtime topology through ADR-020 where older generic worker, direct private Freqtrade, runtime credential or runtime-identity wording conflicts.
+    supersession_note: Interpret execution/runtime topology through ADR-020 and RUNTIME_ISOLATION_AND_SUPERVISOR_CONTRACT.md where older generic worker, direct private Freqtrade, runtime credential, runtime-identity or requested-isolation wording conflicts.
 
   - path: docs/ai_platform/portal/BOT_MANAGEMENT_PRODUCT_ARCHITECTURE.md
     title: Bot management product architecture
@@ -253,12 +267,12 @@ open_architecture_findings:
     id: FTAI-ARCH-RUNTIME-ISOLATION
     severity: high
     status: open
-    summary: Enforce the ADR-020 runtime isolation, resource and network profile for every generation.
+    summary: Enforce the ADR-020 runtime isolation profile, resolved-plan identity, effective resource/network/storage/log bounds and attestation for every generation.
   - issue: 1357
     id: FTAI-ARCH-BOT-REVISION-STATE
     severity: high
     status: open
-    summary: Separate authored/draft, desired and observed active bot revision/runtime-generation state.
+    summary: Separate authored/draft, desired and observed active bot revision/runtime-generation state; executable generation conformance also requires the ADR-020 isolation-plan digest binding.
   - issue: 1356
     id: FTAI-ARCH-REGISTRY-LIFECYCLE-GUARD
     severity: medium

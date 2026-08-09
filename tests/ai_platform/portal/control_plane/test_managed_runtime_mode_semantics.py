@@ -20,7 +20,11 @@ from ai_platform.portal.control_plane.database import (
     build_session_factory,
     create_schema,
 )
-from ai_platform.portal.control_plane.models import BotRolloutRow, BotRow, RuntimeGenerationRow
+from ai_platform.portal.control_plane.models import (
+    BotRolloutRow,
+    BotRow,
+    RuntimeGenerationRow,
+)
 from ai_platform.portal.control_plane.repository import BotRepository
 from ai_platform.portal.control_plane.service import ControlPlaneService
 from ai_platform.wickhunter.contracts import BotMode
@@ -108,7 +112,10 @@ def _material_with_paper(
     )
 
 
-def _service(session_factory: SessionFactory, resolver=_material_without_paper) -> ControlPlaneService:
+def _service(
+    session_factory: SessionFactory,
+    resolver=_material_without_paper,
+) -> ControlPlaneService:
     return ControlPlaneService(
         session_factory,
         clock=lambda: NOW,
@@ -116,7 +123,11 @@ def _service(session_factory: SessionFactory, resolver=_material_without_paper) 
     )
 
 
-def _create_promoted(service: ControlPlaneService, context: RequestContext, spec: BotSpec):
+def _create_promoted(
+    service: ControlPlaneService,
+    context: RequestContext,
+    spec: BotSpec,
+):
     created = service.create_bot(context, "bot-1", "Managed bot", spec)
     assert created.latest_authored_revision_id is not None
     promoted = service.promote_revision(
@@ -135,13 +146,19 @@ def _activation_counts(session_factory: SessionFactory) -> tuple[int, int]:
     return int(generations or 0), int(rollouts or 0)
 
 
-def test_shadow_generation_binds_mode_identity_and_persists(session_factory: SessionFactory) -> None:
+def test_shadow_generation_binds_mode_identity_and_persists(
+    session_factory: SessionFactory,
+) -> None:
     context = _context()
     service = _service(session_factory)
     _, revision = _create_promoted(service, context, _spec())
 
     bot, generation, _ = service.apply_revision(
-        context, "bot-1", revision.revision_id, 2, "apply-shadow"
+        context,
+        "bot-1",
+        revision.revision_id,
+        2,
+        "apply-shadow",
     )
 
     assert generation.managed_mode is BotMode.SHADOW
@@ -151,9 +168,12 @@ def test_shadow_generation_binds_mode_identity_and_persists(session_factory: Ses
     assert bot.desired_runtime_generation_id == generation.generation_id
     assert bot.observed_runtime_generation_id is None
     with session_factory() as session:
-        assert BotRepository().get_runtime_generation(
-            session, context.tenant_id, generation.generation_id
-        ) == generation
+        stored = BotRepository().get_runtime_generation(
+            session,
+            context.tenant_id,
+            generation.generation_id,
+        )
+    assert stored == generation
 
 
 def test_save_paper_does_not_roll_out_and_apply_preserves_observed_until_reconciliation(
@@ -162,7 +182,13 @@ def test_save_paper_does_not_roll_out_and_apply_preserves_observed_until_reconci
     context = _context()
     service = _service(session_factory, _material_with_paper)
     _, r1 = _create_promoted(service, context, _spec())
-    _, shadow, _ = service.apply_revision(context, "bot-1", r1.revision_id, 2, "apply-r1")
+    _, shadow, _ = service.apply_revision(
+        context,
+        "bot-1",
+        r1.revision_id,
+        2,
+        "apply-r1",
+    )
 
     # Simulate an earlier authoritative reconciliation of the SHADOW generation.
     with session_factory() as session, session.begin():
@@ -183,7 +209,11 @@ def test_save_paper_does_not_roll_out_and_apply_preserves_observed_until_reconci
         revised.state_version,
     )
     updated, paper, _ = service.apply_revision(
-        context, "bot-1", r2.revision_id, 5, "apply-r2"
+        context,
+        "bot-1",
+        r2.revision_id,
+        5,
+        "apply-r2",
     )
 
     assert paper.managed_mode is BotMode.PAPER
@@ -196,8 +226,16 @@ def test_save_paper_does_not_roll_out_and_apply_preserves_observed_until_reconci
 
     repository = BotRepository()
     with session_factory() as session:
-        desired = repository.get_runtime_generation(session, context.tenant_id, paper.generation_id)
-        observed = repository.get_runtime_generation(session, context.tenant_id, shadow.generation_id)
+        desired = repository.get_runtime_generation(
+            session,
+            context.tenant_id,
+            paper.generation_id,
+        )
+        observed = repository.get_runtime_generation(
+            session,
+            context.tenant_id,
+            shadow.generation_id,
+        )
     assert desired is not None and desired.managed_mode is BotMode.PAPER
     assert observed is not None and observed.managed_mode is BotMode.SHADOW
 
@@ -220,7 +258,13 @@ def test_unresolved_modes_fail_closed_without_durable_activation(
     _, revision = _create_promoted(service, context, _spec(mode=mode))
 
     with pytest.raises(RuntimeModeResolutionError) as caught:
-        service.apply_revision(context, "bot-1", revision.revision_id, 2, f"apply-{mode.value}")
+        service.apply_revision(
+            context,
+            "bot-1",
+            revision.revision_id,
+            2,
+            f"apply-{mode.value}",
+        )
 
     assert caught.value.reason is reason
     assert service.get_bot(context, "bot-1").desired_runtime_generation_id is None
@@ -232,7 +276,10 @@ def test_denied_and_malformed_paper_evidence_have_stable_fail_closed_reasons(
 ) -> None:
     context = _context()
 
-    def denied(_context: RequestContext, _revision: BotConfigRevision) -> RuntimeGenerationMaterial:
+    def denied(
+        _context: RequestContext,
+        _revision: BotConfigRevision,
+    ) -> RuntimeGenerationMaterial:
         return _base_material().model_copy(
             update={
                 "paper_activation_authorized": False,
@@ -244,9 +291,19 @@ def test_denied_and_malformed_paper_evidence_have_stable_fail_closed_reasons(
         )
 
     denied_service = _service(session_factory, denied)
-    _, revision = _create_promoted(denied_service, context, _spec(mode=BotMode.PAPER))
+    _, revision = _create_promoted(
+        denied_service,
+        context,
+        _spec(mode=BotMode.PAPER),
+    )
     with pytest.raises(RuntimeModeResolutionError) as denied_error:
-        denied_service.apply_revision(context, "bot-1", revision.revision_id, 2, "paper-denied")
+        denied_service.apply_revision(
+            context,
+            "bot-1",
+            revision.revision_id,
+            2,
+            "paper-denied",
+        )
     assert denied_error.value.reason is RuntimeModeRejectionReason.PAPER_NOT_AUTHORIZED
     assert _activation_counts(session_factory) == (0, 0)
 
@@ -267,13 +324,22 @@ def test_denied_and_malformed_paper_evidence_have_stable_fail_closed_reasons(
 
     malformed_service = _service(malformed_factory, malformed)
     _, malformed_revision = _create_promoted(
-        malformed_service, context, _spec(mode=BotMode.PAPER)
+        malformed_service,
+        context,
+        _spec(mode=BotMode.PAPER),
     )
     with pytest.raises(RuntimeModeResolutionError) as malformed_error:
         malformed_service.apply_revision(
-            context, "bot-1", malformed_revision.revision_id, 2, "paper-malformed"
+            context,
+            "bot-1",
+            malformed_revision.revision_id,
+            2,
+            "paper-malformed",
         )
-    assert malformed_error.value.reason is RuntimeModeRejectionReason.PAPER_ELIGIBILITY_INVALID
+    assert (
+        malformed_error.value.reason
+        is RuntimeModeRejectionReason.PAPER_ELIGIBILITY_INVALID
+    )
     assert _activation_counts(malformed_factory) == (0, 0)
 
 
@@ -283,19 +349,42 @@ def test_rollback_and_restart_resolve_mode_from_target_revision(
     context = _context()
     service = _service(session_factory, _material_with_paper)
     _, r1 = _create_promoted(service, context, _spec())
-    _, g1, _ = service.apply_revision(context, "bot-1", r1.revision_id, 2, "apply-r1")
+    _, g1, _ = service.apply_revision(
+        context,
+        "bot-1",
+        r1.revision_id,
+        2,
+        "apply-r1",
+    )
 
     revised = service.revise_bot(context, "bot-1", _spec(2, BotMode.PAPER))
     assert revised.latest_authored_revision_id is not None
     r2 = service.promote_revision(
-        context, "bot-1", revised.latest_authored_revision_id, revised.state_version
+        context,
+        "bot-1",
+        revised.latest_authored_revision_id,
+        revised.state_version,
     )
-    _, g2, _ = service.apply_revision(context, "bot-1", r2.revision_id, 5, "apply-r2")
+    _, g2, _ = service.apply_revision(
+        context,
+        "bot-1",
+        r2.revision_id,
+        5,
+        "apply-r2",
+    )
     rolled_back, g3, _ = service.rollback_to_revision(
-        context, "bot-1", r1.revision_id, 6, "rollback-r1"
+        context,
+        "bot-1",
+        r1.revision_id,
+        6,
+        "rollback-r1",
     )
     restarted, g4, _ = service.restart_with_revision(
-        context, "bot-1", r2.revision_id, rolled_back.state_version, "restart-r2"
+        context,
+        "bot-1",
+        r2.revision_id,
+        rolled_back.state_version,
+        "restart-r2",
     )
 
     assert [generation.managed_mode for generation in (g1, g2, g3, g4)] == [
@@ -304,7 +393,9 @@ def test_rollback_and_restart_resolve_mode_from_target_revision(
         BotMode.SHADOW,
         BotMode.PAPER,
     ]
-    assert [generation.generation_ordinal for generation in (g1, g2, g3, g4)] == [1, 2, 3, 4]
+    assert [
+        generation.generation_ordinal for generation in (g1, g2, g3, g4)
+    ] == [1, 2, 3, 4]
     assert restarted.desired_runtime_generation_id == g4.generation_id
 
 
@@ -329,10 +420,11 @@ def test_api_rejects_client_paper_authorization_and_reports_server_reason(
     )
     assert created.status_code == 201
     revision_id = created.json()["latest_authored_revision_id"]
-    assert client.post(
+    promoted = client.post(
         f"/v1/bots/bot-1/revisions/{revision_id}/promote",
         json={"expected_state_version": 1},
-    ).status_code == 200
+    )
+    assert promoted.status_code == 200
 
     client_claim = client.post(
         "/v1/bots/bot-1/apply",
@@ -355,5 +447,8 @@ def test_api_rejects_client_paper_authorization_and_reports_server_reason(
         },
     )
     assert server_check.status_code == 409
-    assert server_check.json()["detail"] == RuntimeModeRejectionReason.PAPER_ELIGIBILITY_REQUIRED.value
+    assert (
+        server_check.json()["detail"]
+        == RuntimeModeRejectionReason.PAPER_ELIGIBILITY_REQUIRED.value
+    )
     assert _activation_counts(session_factory) == (0, 0)

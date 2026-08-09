@@ -26,6 +26,7 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
         "authority_was_journaled": False,
         "authority_restore_failed": False,
         "candidate_quiesced_before_authority_restore": False,
+        "candidate_retained_for_recovery": False,
     }
 
     def guarded_deploy(args: Any) -> int:
@@ -40,6 +41,7 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
                 "authority_was_journaled": False,
                 "authority_restore_failed": False,
                 "candidate_quiesced_before_authority_restore": False,
+                "candidate_retained_for_recovery": False,
             }
         )
         return int(original_deploy(args))
@@ -57,6 +59,16 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
         candidate_database = f"portal_candidate_{implementation_sha[:12]}"
         if database_name == candidate_database:
             return mode, database_name
+
+        # A same-revision candidate while another database remains authoritative can be a
+        # retained post-exposure recovery database from an earlier failed cutover. Never
+        # delete or overwrite it automatically: explicit reconciliation must decide whether
+        # it contains writes that need to be recovered before another attempt.
+        if deploy._postgres_database_exists(candidate_database):
+            raise deploy.DeploymentError(
+                "PostgreSQL copy-on-write candidate already exists for this revision; "
+                "reconcile the retained candidate before retrying deployment"
+            )
 
         state["source_database"] = database_name
         return "fresh", None
@@ -182,10 +194,12 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
         original_restore_previous_portal(previous, control_backup, web_backup)
 
     def drop_candidate_database(database_name: str) -> None:
-        # If authority restoration failed, preserving the candidate database is safer than
-        # deleting the database still named by durable runtime.env. The recorded rollback
-        # failure then forces operator recovery instead of silent state loss.
-        if state["authority_switched"] and state["authority_restore_failed"]:
+        # Once candidate authority was journaled, the candidate may have accepted writes. Even
+        # after a clean rollback to the source database, deleting that candidate would make
+        # those writes unrecoverable. Retain it and make a same-revision retry fail closed in
+        # current_database_mode until an operator explicitly reconciles the two databases.
+        if state["authority_was_journaled"]:
+            state["candidate_retained_for_recovery"] = True
             return
         original_drop_candidate_database(database_name)
 
@@ -209,6 +223,9 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
                     "candidate_quiesced_before_authority_restore": state[
                         "candidate_quiesced_before_authority_restore"
                     ],
+                    "candidate_database_retained_for_recovery": state[
+                        "candidate_retained_for_recovery"
+                    ],
                     "restore_authorized": False,
                 }
             )
@@ -226,6 +243,9 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
                         ],
                         "candidate_quiesced_before_authority_restore": state[
                             "candidate_quiesced_before_authority_restore"
+                        ],
+                        "candidate_database_retained_for_recovery": state[
+                            "candidate_retained_for_recovery"
                         ],
                     }
                 )

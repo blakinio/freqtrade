@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, cast
 
 from sqlalchemy import func, select, update
@@ -27,6 +27,14 @@ from ai_platform.portal.control_plane.models import (
     OutboxEventRow,
     RuntimeGenerationRow,
 )
+
+
+def _restore_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 @dataclass(frozen=True)
@@ -311,7 +319,7 @@ class BotRepository:
             generation_spec_version=row.generation_spec_version,
             generation_spec_digest=row.generation_spec_digest,
             created_by_actor_id=row.created_by_actor_id,
-            created_at=row.created_at,
+            created_at=_restore_utc(row.created_at),
             request_id=row.request_id,
             correlation_id=row.correlation_id,
             causation_id=row.causation_id,
@@ -351,9 +359,9 @@ class BotRepository:
             requested_by_actor_id=row.requested_by_actor_id,
             idempotency_key=row.idempotency_key,
             attempt=row.attempt,
-            created_at=row.created_at,
-            updated_at=row.updated_at,
-            completed_at=row.completed_at,
+            created_at=_restore_utc(row.created_at),
+            updated_at=_restore_utc(row.updated_at),
+            completed_at=_restore_utc(row.completed_at),
         )
 
     def add_idempotency_record(

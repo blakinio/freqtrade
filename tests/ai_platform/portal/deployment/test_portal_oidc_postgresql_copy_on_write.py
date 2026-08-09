@@ -13,7 +13,17 @@ module = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(module)
 
 
-def test_existing_postgresql_is_cloned_after_quiesce_before_migration() -> None:
+def _cutover_stubs(deploy: SimpleNamespace, tmp_path: Path) -> None:
+    deploy.PORTAL_RUNTIME_ENV = tmp_path / "runtime.env"
+    deploy._activate_candidate_runtime = lambda: None
+    deploy._promote_control = lambda _candidate: None
+    deploy._write_env_atomic = lambda path, values: path.write_text(
+        "\n".join(f"{name}={value}" for name, value in sorted(values.items())) + "\n",
+        encoding="utf-8",
+    )
+
+
+def test_existing_postgresql_is_cloned_after_quiesce_before_migration(tmp_path: Path) -> None:
     events: list[object] = []
     captured_report: dict[str, object] = {}
     databases = {"portal_candidate_oldoldold"}
@@ -78,6 +88,7 @@ def test_existing_postgresql_is_cloned_after_quiesce_before_migration() -> None:
         return "report-sha256"
 
     deploy._write_report = write_report
+    _cutover_stubs(deploy, tmp_path)
 
     def original_deploy(_args):
         mode, database_name = deploy._current_database_mode(runtime_env, postgres_env)
@@ -124,17 +135,117 @@ def test_existing_postgresql_is_cloned_after_quiesce_before_migration() -> None:
         "source_database": "portal_candidate_oldoldold",
         "candidate_database": "portal_candidate_aaaaaaaaaaaa",
         "source_database_retained_for_rollback": True,
+        "authority_journaled_before_promotion": True,
     }
     assert captured_report["database_recovery"] == {
         "pre_migration_backup_sha256": "backup-sha256",
         "source_database": "portal_candidate_oldoldold",
         "candidate_database": "portal_candidate_aaaaaaaaaaaa",
         "source_database_retained_for_rollback": True,
+        "authority_journaled_before_promotion": True,
         "restore_authorized": False,
     }
 
 
-def test_same_revision_database_is_reused_without_copy_on_write() -> None:
+def test_authority_is_journaled_before_promotion_and_restored_before_rollback(
+    tmp_path: Path,
+) -> None:
+    args = SimpleNamespace(expected_repository_sha="c" * 40)
+    old_runtime = {"PORTAL_DATABASE_URL": "postgresql://old-authority"}
+    new_runtime = {"PORTAL_DATABASE_URL": "postgresql://candidate-authority"}
+    runtime_path = tmp_path / "runtime.env"
+    candidate_path = tmp_path / "runtime.candidate.env"
+    runtime_path.write_text("PORTAL_DATABASE_URL=postgresql://old-authority\n", encoding="utf-8")
+    candidate_path.write_text(
+        "PORTAL_DATABASE_URL=postgresql://candidate-authority\n",
+        encoding="utf-8",
+    )
+    events: list[str] = []
+
+    deploy = SimpleNamespace(
+        DeploymentError=RuntimeError,
+        PORTAL_POSTGRES_CONTAINER="portal-postgresql",
+        PORTAL_POSTGRES_USER="portal",
+        PORTAL_POSTGRES_ADMIN_DB="portal_admin",
+        PORTAL_RUNTIME_ENV=runtime_path,
+        _current_database_mode=lambda _runtime, _postgres: (
+            "postgresql",
+            "portal_candidate_oldoldold",
+        ),
+        _create_postgres_database=lambda _database_name: None,
+        _quiesce_existing_portal=lambda: {
+            "web_exists": True,
+            "web_running": True,
+            "control_exists": True,
+            "control_running": True,
+        },
+        _write_report=lambda _path, _report: "report-sha256",
+        _assert_database_name=lambda _database_name: None,
+        _backup_postgres=lambda _database_name, _sha: "backup-sha256",
+        _run=lambda *_args, **_kwargs: SimpleNamespace(returncode=0, stdout="", stderr=""),
+        _postgres_database_exists=lambda _database_name: True,
+        _drop_candidate_database=lambda _database_name: events.append("drop-candidate"),
+    )
+
+    def activate_candidate_runtime() -> None:
+        events.append("journal-candidate-authority")
+        candidate_path.replace(runtime_path)
+
+    deploy._activate_candidate_runtime = activate_candidate_runtime
+
+    def promote_control(_candidate: str) -> str:
+        assert runtime_path.read_text(encoding="utf-8") == (
+            "PORTAL_DATABASE_URL=postgresql://candidate-authority\n"
+        )
+        events.append("promote-control")
+        return "control-backup"
+
+    deploy._promote_control = promote_control
+
+    def write_env_atomic(path: Path, values: dict[str, str]) -> None:
+        events.append("restore-runtime-authority")
+        path.write_text(
+            "\n".join(f"{name}={value}" for name, value in sorted(values.items())) + "\n",
+            encoding="utf-8",
+        )
+
+    deploy._write_env_atomic = write_env_atomic
+
+    def restore_previous_portal(_previous, _control_backup, _web_backup) -> None:
+        assert runtime_path.read_text(encoding="utf-8") == (
+            "PORTAL_DATABASE_URL=postgresql://old-authority\n"
+        )
+        events.append("restore-old-containers")
+
+    deploy._restore_previous_portal = restore_previous_portal
+
+    def original_deploy(_args) -> int:
+        mode, database_name = deploy._current_database_mode(old_runtime, {})
+        assert mode == "fresh"
+        assert database_name is None
+        deploy._create_postgres_database("portal_candidate_cccccccccccc")
+        previous = deploy._quiesce_existing_portal()
+        deploy._promote_control("control-candidate")
+        deploy._activate_candidate_runtime()
+        assert events.count("journal-candidate-authority") == 1
+        deploy._restore_previous_portal(previous, "control-backup", "web-backup")
+        deploy._drop_candidate_database("portal_candidate_cccccccccccc")
+        return 1
+
+    deploy.deploy = original_deploy
+    module.install(deploy)
+
+    assert deploy.deploy(args) == 1
+    assert events.index("journal-candidate-authority") < events.index("promote-control")
+    assert events.index("restore-runtime-authority") < events.index("restore-old-containers")
+    assert events[-1] == "drop-candidate"
+    assert runtime_path.read_text(encoding="utf-8") == (
+        "PORTAL_DATABASE_URL=postgresql://old-authority\n"
+    )
+    assert new_runtime != old_runtime
+
+
+def test_same_revision_database_is_reused_without_copy_on_write(tmp_path: Path) -> None:
     args = SimpleNamespace(expected_repository_sha="b" * 40)
     active_database = "portal_candidate_bbbbbbbbbbbb"
     observed: dict[str, object] = {}
@@ -155,6 +266,7 @@ def test_same_revision_database_is_reused_without_copy_on_write() -> None:
         _drop_candidate_database=lambda _database_name: None,
         _restore_previous_portal=lambda *_args: None,
     )
+    _cutover_stubs(deploy, tmp_path)
 
     def original_deploy(_args):
         observed["mode"] = deploy._current_database_mode({}, {})

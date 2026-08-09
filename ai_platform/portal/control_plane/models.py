@@ -273,5 +273,6 @@ class OutboxEventRow(Base):
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
-        Index("ix_portal_outbox_tenant_aggregate", "tenant_id", "resource_type", "resource_id"),
+        Index("ix_portal_outbox_tenant_aggregate", "tenant_id", "aggregate_type", "aggregate_id"),
+        Index("ix_portal_outbox_unpublished", "published_at"),
     )

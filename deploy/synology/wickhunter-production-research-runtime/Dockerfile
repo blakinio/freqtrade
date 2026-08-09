@@ -25,8 +25,8 @@ PY
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends libgomp1 \
     && rm -rf /var/lib/apt/lists/* \
-    && groupadd --gid 65532 wickhunter \
-    && useradd --uid 65532 --gid 65532 --no-create-home --home-dir /nonexistent \
+    && groupadd --gid 65531 wickhunter \
+    && useradd --uid 65531 --gid 65531 --no-create-home --home-dir /nonexistent \
         --shell /usr/sbin/nologin wickhunter
 
 WORKDIR /app
@@ -43,6 +43,6 @@ RUN python -m pip install --no-cache-dir -r requirements.txt \
     && chown -R root:root /app \
     && chmod -R a-w /app
 
-USER 65532:65532
+USER 65531:65531
 
 ENTRYPOINT ["python", "-m", "ai_platform.wickhunter.production_research_runtime_operator"]

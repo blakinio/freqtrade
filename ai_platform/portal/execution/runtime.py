@@ -31,6 +31,8 @@ def _require_sha256(value: str, field_name: str) -> None:
 class ResolvedRuntimeArtifacts:
     """Trusted executable material resolved for one immutable RuntimeGeneration."""
 
+    tenant_id: str
+    bot_id: str
     generation_id: str
     config_revision_id: str
     config_revision: int
@@ -46,16 +48,18 @@ class ResolvedRuntimeArtifacts:
     runtime_config: Mapping[str, Any]
 
     def __post_init__(self) -> None:
-        if not self.generation_id.strip():
-            raise ValueError("generation_id must not be empty")
-        if not self.config_revision_id.strip():
-            raise ValueError("config_revision_id must not be empty")
+        for field_name, value in (
+            ("tenant_id", self.tenant_id),
+            ("bot_id", self.bot_id),
+            ("generation_id", self.generation_id),
+            ("config_revision_id", self.config_revision_id),
+            ("image", self.image),
+            ("strategy_name", self.strategy_name),
+        ):
+            if not value.strip():
+                raise ValueError(f"{field_name} must not be empty")
         if self.config_revision < 1:
             raise ValueError("config_revision must be positive")
-        if not self.image.strip():
-            raise ValueError("runtime image must not be empty")
-        if not self.strategy_name.strip():
-            raise ValueError("strategy name must not be empty")
         for field_name, digest in (
             ("config_revision_digest", self.config_revision_digest),
             ("generation_spec_digest", self.generation_spec_digest),

@@ -23,6 +23,10 @@ interface Page<T> {
   total: number;
 }
 
+const CSRF_COOKIE_NAME = "__Host-portal_csrf";
+const CSRF_HEADER_NAME = "x-csrf-token";
+const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
 function controlPlaneUrl(): string {
   const value = process.env.PORTAL_CONTROL_PLANE_URL;
   if (!value) throw new Error("PORTAL_CONTROL_PLANE_URL is required in API mode");
@@ -31,6 +35,27 @@ function controlPlaneUrl(): string {
     throw new Error("PORTAL_CONTROL_PLANE_URL must use http or https");
   }
   return url.toString().replace(/\/$/, "");
+}
+
+function csrfHeaders(cookieHeader: string | undefined, init: RequestInit | undefined): HeadersInit {
+  const method = (init?.method ?? "GET").toUpperCase();
+  if (!MUTATING_METHODS.has(method)) return {};
+  if (!cookieHeader) throw new Error("STRATEGY_LAB_CSRF_MISSING: browser session cookies are required");
+  const prefix = `${CSRF_COOKIE_NAME}=`;
+  const encoded = cookieHeader
+    .split(";")
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(prefix))
+    ?.slice(prefix.length);
+  if (!encoded) throw new Error("STRATEGY_LAB_CSRF_MISSING: CSRF cookie is required");
+  let token: string;
+  try {
+    token = decodeURIComponent(encoded);
+  } catch {
+    throw new Error("STRATEGY_LAB_CSRF_INVALID: CSRF cookie is malformed");
+  }
+  if (!token) throw new Error("STRATEGY_LAB_CSRF_MISSING: CSRF cookie is empty");
+  return { [CSRF_HEADER_NAME]: token };
 }
 
 async function apiFetch<T>(path: string, cookieHeader?: string, init?: RequestInit): Promise<T> {
@@ -42,6 +67,7 @@ async function apiFetch<T>(path: string, cookieHeader?: string, init?: RequestIn
       ...(init?.body ? { "content-type": "application/json" } : {}),
       ...(cookieHeader ? { cookie: cookieHeader } : {}),
       ...init?.headers,
+      ...csrfHeaders(cookieHeader, init),
     },
   });
   if (!response.ok) {

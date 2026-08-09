@@ -86,6 +86,9 @@ export interface BotDashboardPage {
   source_statuses: DashboardEvidenceStatus[];
 }
 
+const CSRF_COOKIE_NAME = "__Host-portal_csrf";
+const CSRF_HEADER_NAME = "x-csrf-token";
+
 function controlPlaneUrl(): string {
   const value = process.env.PORTAL_CONTROL_PLANE_URL;
   if (!value) {
@@ -96,6 +99,39 @@ function controlPlaneUrl(): string {
     throw new PortalApiConfigurationError("PORTAL_CONTROL_PLANE_URL must use http or https");
   }
   return url.toString().replace(/\/$/, "");
+}
+
+function csrfHeader(cookieHeader?: string | null): Record<string, string> {
+  if (!cookieHeader) {
+    throw new PortalApiConfigurationError(
+      "PORTAL_DASHBOARD_CSRF_MISSING: browser session cookies are required in API mode",
+    );
+  }
+  const prefix = `${CSRF_COOKIE_NAME}=`;
+  const encoded = cookieHeader
+    .split(";")
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(prefix))
+    ?.slice(prefix.length);
+  if (!encoded) {
+    throw new PortalApiConfigurationError(
+      "PORTAL_DASHBOARD_CSRF_MISSING: CSRF cookie is required in API mode",
+    );
+  }
+  let token: string;
+  try {
+    token = decodeURIComponent(encoded);
+  } catch {
+    throw new PortalApiConfigurationError(
+      "PORTAL_DASHBOARD_CSRF_INVALID: CSRF cookie is malformed",
+    );
+  }
+  if (!token) {
+    throw new PortalApiConfigurationError(
+      "PORTAL_DASHBOARD_CSRF_MISSING: CSRF cookie is empty",
+    );
+  }
+  return { [CSRF_HEADER_NAME]: token };
 }
 
 function fixtureEvidence(
@@ -186,6 +222,7 @@ export async function dashboardSnapshot(cookieHeader?: string | null): Promise<B
       accept: "application/json",
       "content-type": "application/json",
       ...(cookieHeader ? { cookie: cookieHeader } : {}),
+      ...csrfHeader(cookieHeader),
     },
     body: JSON.stringify({
       filters: {

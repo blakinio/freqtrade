@@ -1,0 +1,70 @@
+name: Temporary 1089 fresh bridge diagnostic
+
+on:
+  push:
+    branches:
+      - diag/1089-fresh-bridge-20260809
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 8
+    steps:
+      - name: Checkout trusted implementation
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          ref: 0f95b0dad5cd537a783301135605f2a10ad99f98
+      - name: Refuse trading credential environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            test -z "${!name:-}" || exit 1
+          done
+      - name: Probe fresh bridge DNS and peer connectivity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import subprocess
+
+          network = 'portal_1089_fresh_bridge_probe'
+          server = 'portal-1089-fresh-server'
+          image = 'sha256:0bd79c3bb178dba4073db9c1cb47cb22e7bc11eb32d133a28a97fd44658701fc'
+
+          def run(command, timeout=15):
+              return subprocess.run(command, check=False, text=True, capture_output=True, timeout=timeout)
+
+          run(['docker','rm','-f',server])
+          run(['docker','network','rm',network])
+          try:
+              created = run(['docker','network','create','--driver','bridge',network])
+              print(f"FRESH_NETWORK created={created.returncode == 0}")
+              if created.returncode != 0:
+                  raise SystemExit(2)
+              start = run(['docker','run','--detach','--rm','--name',server,'--network',network,'--entrypoint','python',image,
+                           '-c',"import socket,time; s=socket.socket(); s.bind(('0.0.0.0',18766)); s.listen(); time.sleep(45)"])
+              print(f"FRESH_SERVER started={start.returncode == 0}")
+              if start.returncode != 0:
+                  raise SystemExit(3)
+              dns = run(['docker','run','--rm','--network',network,'--entrypoint','python',image,'-c',
+                         "import socket; socket.getaddrinfo('portal-1089-fresh-server',18766); print('DNS_OK')"], timeout=12)
+              print(f"FRESH_DNS resolves={dns.returncode == 0 and 'DNS_OK' in dns.stdout}")
+              tcp = run(['docker','run','--rm','--network',network,'--entrypoint','python',image,'-c',
+                         "import socket; s=socket.create_connection(('portal-1089-fresh-server',18766),5); s.close(); print('TCP_OK')"], timeout=12)
+              print(f"FRESH_TCP connects={tcp.returncode == 0 and 'TCP_OK' in tcp.stdout}")
+              if dns.returncode != 0 or tcp.returncode != 0:
+                  raise SystemExit(4)
+          finally:
+              run(['docker','rm','-f',server])
+              run(['docker','network','rm',network])
+          PY

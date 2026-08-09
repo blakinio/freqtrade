@@ -4,9 +4,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEPLOY_SCRIPT = REPO_ROOT / "deploy" / "synology" / "portal-oidc" / "deploy.py"
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "portal-oidc-public-deploy.yml"
-STRATEGY_LAB_API = (
-    REPO_ROOT / "ai_platform" / "portal" / "web" / "lib" / "strategy-lab-api.ts"
-)
+STRATEGY_LAB_API = REPO_ROOT / "ai_platform" / "portal" / "web" / "lib" / "strategy-lab-api.ts"
 BLUEPRINT = (
     REPO_ROOT
     / "deploy"
@@ -27,7 +25,7 @@ def test_deploy_probe_requires_public_https_authorization_boundary() -> None:
     assert "class NoRedirect" in script
     assert 'parsed.scheme != "https"' in script
     assert 'parsed.netloc != "auth.molehill.cloud"' in script
-    assert "public Portal login did not redirect to public Authentik" in script
+    assert "public Portal login did not redirect to public Authen­tik" in script
 
 
 def test_deploy_disables_fixture_and_keeps_control_plane_internal() -> None:

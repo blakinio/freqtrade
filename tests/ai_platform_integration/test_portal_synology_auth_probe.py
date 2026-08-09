@@ -4,6 +4,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEPLOY_SCRIPT = REPO_ROOT / "deploy" / "synology" / "portal-oidc" / "deploy.py"
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "portal-oidc-public-deploy.yml"
+STRATEGY_LAB_API = REPO_ROOT / "ai_platform" / "portal" / "web" / "lib" / "strategy-lab-api.ts"
 BLUEPRINT = (
     REPO_ROOT
     / "deploy"
@@ -49,6 +50,16 @@ def test_deploy_disables_fixture_and_keeps_control_plane_internal() -> None:
     assert "no-new-privileges:true" in script
     assert "dst={LIQUIDATIONS_CONTAINER_ROOT},readonly" in script
     assert '"unless-stopped"' in script
+
+
+def test_strategy_lab_mutations_forward_identity_csrf() -> None:
+    script = STRATEGY_LAB_API.read_text(encoding="utf-8")
+
+    assert 'const CSRF_COOKIE_NAME = "__Host-portal_csrf"' in script
+    assert 'const CSRF_HEADER_NAME = "x-csrf-token"' in script
+    assert 'const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"])' in script
+    assert "...csrfHeaders(cookieHeader, init)" in script
+    assert "STRATEGY_LAB_CSRF_MISSING" in script
 
 
 def test_workflow_and_blueprint_enforce_public_secret_free_oidc() -> None:

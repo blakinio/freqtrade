@@ -13,9 +13,9 @@ concurrency:
 
 jobs:
   exact-image:
-    name: Exact image migration, readiness and boot
+    name: Exact image migration, state transfer, API mode and restart
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 35
     services:
       postgres:
         image: docker.io/library/postgres:16.13-alpine3.23@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
@@ -31,13 +31,16 @@ jobs:
           --health-timeout 5s
           --health-retries 20
 
+    env:
+      PORTAL_DATABASE_URL: postgresql+psycopg://portal_exact_image:ci-only-synthetic-exact-image-password@127.0.0.1:5432/portal_exact_image
+
     steps:
       - name: Checkout exact head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
-      - name: Build exact control-plane image
+      - name: Build exact control-plane and web images
         run: |
           set -euo pipefail
           docker build \
@@ -46,6 +49,12 @@ jobs:
             --file deploy/synology/portal-oidc/Dockerfile.control-plane \
             --tag "portal-control-plane:${GITHUB_SHA}" \
             .
+          docker build \
+            --pull=false \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --file deploy/synology/portal/Dockerfile \
+            --tag "portal-web:${GITHUB_SHA}" \
+            ai_platform/portal/web
 
       - name: Run clean and synthetic-negative sensitive-data probes in exact image
         env:
@@ -84,26 +93,215 @@ jobs:
           ! grep -q SYNTHETIC-IMAGE-CANARY artifacts/image-sensitive-scan/negative-report.json
           rm -f artifacts/image-sensitive-scan/clean.json artifacts/image-sensitive-scan/negative.json
 
-      - name: Migrate and verify with exact image
-        env:
-          PORTAL_DATABASE_URL: postgresql+psycopg://portal_exact_image:ci-only-synthetic-exact-image-password@127.0.0.1:5432/portal_exact_image
+      - name: Prepare migrated legacy SQLite state
         run: |
           set -euo pipefail
-          mkdir -p artifacts
+          mkdir -p artifacts legacy-state
+          sudo chown 10001:10001 legacy-state
+          docker run --rm \
+            --user 10001:10001 \
+            --mount "type=bind,src=$PWD/legacy-state,dst=/legacy" \
+            --env PORTAL_DATABASE_URL=sqlite+pysqlite:////legacy/portal.db \
+            --entrypoint python \
+            "portal-control-plane:${GITHUB_SHA}" \
+            -m ai_platform.portal.database.cli migrate \
+            > artifacts/legacy-sqlite-migrate.json
+          docker run --rm -i \
+            --user 10001:10001 \
+            --mount "type=bind,src=$PWD/legacy-state,dst=/legacy" \
+            --env PORTAL_DATABASE_URL=sqlite+pysqlite:////legacy/portal.db \
+            --entrypoint python \
+            "portal-control-plane:${GITHUB_SHA}" - <<'PY'
+          import os
+          from sqlalchemy import text
+          from ai_platform.portal.contracts.bots import BotSpec
+          from ai_platform.portal.contracts.environment import Environment, ExecutionMode
+          from ai_platform.portal.control_plane.database import build_engine
+
+          spec = BotSpec(
+              tenant_id="ci-tenant",
+              strategy_version="ci-strategy-v1",
+              model_version="ci-model-v1",
+              risk_policy_version="ci-risk-v1",
+              exchange_connection_ref="ci-exchange-reference",
+              pair_universe=("BTC/USDT",),
+              timeframe="5m",
+              capital_allocation="100",
+              capital_currency="USDT",
+              runtime_version="ci-runtime-v1",
+              config_revision=1,
+              environment=Environment.PRODUCTION,
+              execution_mode=ExecutionMode.DRY_RUN,
+          )
+          engine = build_engine(os.environ["PORTAL_DATABASE_URL"])
+          try:
+              with engine.begin() as connection:
+                  connection.execute(
+                      text(
+                          "INSERT INTO portal_bots "
+                          "(tenant_id, bot_id, name, spec_json, desired_state, observed_state, current_revision) "
+                          "VALUES (:tenant_id, :bot_id, :name, :spec_json, :desired_state, :observed_state, :current_revision)"
+                      ),
+                      {
+                          "tenant_id": "ci-tenant",
+                          "bot_id": "ci-preserved-bot",
+                          "name": "Preserved dry-run bot",
+                          "spec_json": spec.canonical_json(),
+                          "desired_state": "STOPPED",
+                          "observed_state": "STOPPED",
+                          "current_revision": 1,
+                      },
+                  )
+          finally:
+              engine.dispose()
+          PY
+
+      - name: Migrate PostgreSQL and transfer legacy state
+        run: |
+          set -euo pipefail
           docker run --rm --network host \
             --env PORTAL_DATABASE_URL \
+            --entrypoint python \
             "portal-control-plane:${GITHUB_SHA}" \
-            python -m ai_platform.portal.database.cli migrate \
+            -m ai_platform.portal.database.cli migrate \
             > artifacts/exact-image-migrate.json
           docker run --rm --network host \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=32m \
+            --user 10001:10001 \
+            --mount "type=bind,src=$PWD/legacy-state,dst=/legacy,readonly" \
             --env PORTAL_DATABASE_URL \
+            --entrypoint python \
             "portal-control-plane:${GITHUB_SHA}" \
-            python -m ai_platform.portal.database.cli check \
+            -m ai_platform.portal.database.transfer \
+            --source-sqlite /legacy/portal.db \
+            --output /tmp/state-transfer.json \
+            > artifacts/exact-image-transfer.json
+          docker run --rm --network host \
+            --env PORTAL_DATABASE_URL \
+            --entrypoint python \
+            "portal-control-plane:${GITHUB_SHA}" \
+            -m ai_platform.portal.database.cli check \
             > artifacts/exact-image-check.json
 
-      - name: Boot API only after exact-image readiness
+      - name: Prove representative authorized product read and dry-run mutation
+        run: |
+          set -euo pipefail
+          docker run --rm -i --network host \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=32m \
+            --env PORTAL_DATABASE_URL \
+            --entrypoint python \
+            "portal-control-plane:${GITHUB_SHA}" - <<'PY' \
+            > artifacts/exact-image-product-contract.json
+          import json
+          import os
+          from uuid import UUID
+          from fastapi.testclient import TestClient
+          from ai_platform.portal.contracts.identity import ActorType, Permission
+          from ai_platform.portal.control_plane.api import create_app
+          from ai_platform.portal.control_plane.context import RequestContext
+          from ai_platform.portal.control_plane.database import build_engine, build_session_factory
+
+          engine = build_engine(os.environ["PORTAL_DATABASE_URL"])
+          session_factory = build_session_factory(engine)
+          context = RequestContext(
+              tenant_id="ci-tenant",
+              actor_id="ci-exact-image-actor",
+              actor_type=ActorType.SYSTEM,
+              permissions=(
+                  Permission.BOT_CREATE,
+                  Permission.BOT_READ,
+                  Permission.MODEL_READ,
+                  Permission.MODEL_TRAIN,
+              ),
+              request_id=UUID("00000000-0000-0000-0000-000000000001"),
+              correlation_id=UUID("00000000-0000-0000-0000-000000000002"),
+          )
+          app = create_app(session_factory, identity_context_provider=lambda: context)
+          client = TestClient(app)
+          try:
+              before = client.get("/v1/bots")
+              assert before.status_code == 200, before.text
+              before_bots = before.json()
+              assert [bot["bot_id"] for bot in before_bots] == ["ci-preserved-bot"]
+              assert before_bots[0]["spec"]["execution_mode"] == "dry_run"
+              created = client.post(
+                  "/v1/bots",
+                  json={
+                      "bot_id": "ci-api-bot",
+                      "name": "Exact-image API dry-run bot",
+                      "spec": {
+                          "tenant_id": "ci-tenant",
+                          "strategy_version": "ci-strategy-v1",
+                          "model_version": "ci-model-v1",
+                          "risk_policy_version": "ci-risk-v1",
+                          "exchange_connection_ref": "ci-exchange-reference",
+                          "pair_universe": ["ETH/USDT"],
+                          "timeframe": "5m",
+                          "capital_allocation": "50",
+                          "capital_currency": "USDT",
+                          "runtime_version": "ci-runtime-v1",
+                          "config_revision": 1,
+                          "environment": "production",
+                          "execution_mode": "dry_run",
+                      },
+                  },
+              )
+              assert created.status_code == 201, created.text
+              after = client.get("/v1/bots")
+              assert after.status_code == 200, after.text
+              assert [bot["bot_id"] for bot in after.json()] == [
+                  "ci-api-bot",
+                  "ci-preserved-bot",
+              ]
+              experiment = client.post(
+                  "/v1/strategy-lab/experiments",
+                  headers={"Idempotency-Key": "ci-strategy-lab-exact-image"},
+                  json={
+                      "strategy_id": "tv_supertrend_v1",
+                      "strategy_version": "1.0.0",
+                      "pair": "BTC/USDT",
+                      "timeframe": "15m",
+                      "timerange": {
+                          "start_at": "2026-01-01T00:00:00Z",
+                          "end_at": "2026-01-01T08:00:00Z",
+                      },
+                      "starting_balance": "10000",
+                      "fee_rate": "0.001",
+                      "slippage_rate": "0",
+                      "parameter_overrides": {},
+                      "execution_mode": "backtest",
+                  },
+              )
+              assert experiment.status_code == 201, experiment.text
+              experiment_body = experiment.json()
+              assert experiment_body["strategy_id"] == "tv_supertrend_v1"
+              assert experiment_body["research_only"] is True
+              assert experiment_body["order_submission_performed"] is False
+              print(
+                  json.dumps(
+                      {
+                          "status": "pass",
+                          "representative_read": "pass",
+                          "representative_mutation": "pass",
+                          "strategy_lab_experiment": "pass",
+                          "strategy_lab_research_only": True,
+                          "order_submission_performed": False,
+                          "execution_mode": "dry_run",
+                          "live_capital_authorized": False,
+                          "secret_values_recorded": False,
+                      },
+                      sort_keys=True,
+                  )
+              )
+          finally:
+              client.close()
+              engine.dispose()
+          PY
+
+      - name: Boot exact control and web images in production API mode
         env:
-          PORTAL_DATABASE_URL: postgresql+psycopg://portal_exact_image:ci-only-synthetic-exact-image-password@127.0.0.1:5432/portal_exact_image
           PORTAL_ENVIRONMENT: production
           PORTAL_IDENTITY_CLIENT_ID: synthetic-client
           PORTAL_IDENTITY_CLIENT_SECRET: synthetic-client-secret
@@ -114,12 +312,13 @@ jobs:
           PORTAL_IDENTITY_TRANSPORT_MODE: secure_https
         run: |
           set -euo pipefail
-          name="portal-schema-exact-image-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          control="portal-schema-control-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          web="portal-schema-web-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           cleanup() {
-            docker rm -f "$name" >/dev/null 2>&1 || true
+            docker rm -f "$web" "$control" >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
-          docker run --detach --name "$name" --network host \
+          docker run --detach --name "$control" --network host \
             --read-only \
             --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
             --cap-drop ALL \
@@ -134,38 +333,151 @@ jobs:
             --env PORTAL_IDENTITY_SESSION_HMAC_KEY_B64 \
             --env PORTAL_IDENTITY_TRANSPORT_MODE \
             "portal-control-plane:${GITHUB_SHA}"
-          for attempt in $(seq 1 30); do
-            if curl --fail --silent --show-error \
-              http://127.0.0.1:8000/healthz \
-              > artifacts/exact-image-health.json; then
+          for attempt in $(seq 1 45); do
+            if curl --fail --silent --show-error http://127.0.0.1:8000/readyz \
+              > artifacts/exact-image-ready.json; then
               break
             fi
-            if ! docker inspect --format '{{.State.Running}}' "$name" | grep -qx true; then
-              docker logs "$name"
+            if ! docker inspect --format '{{.State.Running}}' "$control" | grep -qx true; then
+              docker logs "$control"
               exit 1
             fi
             sleep 2
           done
-          test -s artifacts/exact-image-health.json
+          test -s artifacts/exact-image-ready.json
+          curl --fail --silent --show-error http://127.0.0.1:8000/healthz \
+            > artifacts/exact-image-health.json
+          unauth_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            http://127.0.0.1:8000/v1/bots)"
+          test "$unauth_status" = "401"
+
+          docker run --detach --name "$web" --network host \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=32m \
+            --tmpfs /app/.next/cache:rw,noexec,nosuid,nodev,size=64m,uid=1000,gid=1000 \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --env PORTAL_WEB_DATA_MODE=api \
+            --env PORTAL_ENVIRONMENT=production \
+            --env PORTAL_IDENTITY_FIXTURE_MODE=disabled \
+            --env PORTAL_IDENTITY_TRANSPORT_MODE=https \
+            --env PORTAL_IDENTITY_ISSUER=https://issuer.example/application/o/portal/ \
+            --env PORTAL_CONTROL_PLANE_URL=http://127.0.0.1:8000 \
+            --env PORTAL_LIQUIDATIONS_DATA_ROOT=/tmp/no-liquidations \
+            "portal-web:${GITHUB_SHA}"
+          for attempt in $(seq 1 45); do
+            status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$web")"
+            [[ "$status" == "healthy" ]] && break
+            [[ "$status" =~ ^(unhealthy|exited|dead)$ ]] && {
+              docker logs "$web"
+              exit 1
+            }
+            sleep 2
+          done
+          test "$(docker inspect --format '{{.State.Health.Status}}' "$web")" = "healthy"
+          curl --fail --silent --show-error http://127.0.0.1:3000/login \
+            > artifacts/exact-image-web-login.html
+
+          docker rm -f "$control" >/dev/null
+          docker run --detach --name "$control" --network host \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --env PORTAL_DATABASE_URL \
+            --env PORTAL_ENVIRONMENT \
+            --env PORTAL_IDENTITY_CLIENT_ID \
+            --env PORTAL_IDENTITY_CLIENT_SECRET \
+            --env PORTAL_IDENTITY_FLOW_ENCRYPTION_KEY_B64 \
+            --env PORTAL_IDENTITY_ISSUER \
+            --env PORTAL_IDENTITY_REDIRECT_URI \
+            --env PORTAL_IDENTITY_SESSION_HMAC_KEY_B64 \
+            --env PORTAL_IDENTITY_TRANSPORT_MODE \
+            "portal-control-plane:${GITHUB_SHA}"
+          for attempt in $(seq 1 45); do
+            curl --fail --silent http://127.0.0.1:8000/readyz >/dev/null && break
+            sleep 2
+          done
+          docker exec -i "$control" python - <<'PY'
+          import os
+          from sqlalchemy import text
+          from ai_platform.portal.control_plane.database import build_engine
+
+          engine = build_engine(os.environ["PORTAL_DATABASE_URL"])
+          try:
+              with engine.connect() as connection:
+                  rows = dict(
+                      connection.execute(
+                          text(
+                              "SELECT bot_id, COUNT(*) FROM portal_bots "
+                              "WHERE tenant_id='ci-tenant' GROUP BY bot_id"
+                          )
+                      ).all()
+                  )
+              assert rows == {"ci-api-bot": 1, "ci-preserved-bot": 1}
+          finally:
+              engine.dispose()
+          PY
+
+          if docker run --rm \
+            --env PORTAL_WEB_DATA_MODE=fixture \
+            --env PORTAL_ENVIRONMENT=production \
+            --env PORTAL_IDENTITY_FIXTURE_MODE=disabled \
+            --env PORTAL_CONTROL_PLANE_URL=http://127.0.0.1:8000 \
+            "portal-web:${GITHUB_SHA}" >/dev/null 2>&1; then
+            echo "production fixture mode unexpectedly started" >&2
+            exit 1
+          fi
+
           python - <<'PY'
           import json
           from pathlib import Path
 
-          migrate = json.loads(
-              Path("artifacts/exact-image-migrate.json").read_text(encoding="utf-8")
-          )
-          check = json.loads(
-              Path("artifacts/exact-image-check.json").read_text(encoding="utf-8")
-          )
-          health = json.loads(
-              Path("artifacts/exact-image-health.json").read_text(encoding="utf-8")
-          )
+          migrate = json.loads(Path("artifacts/exact-image-migrate.json").read_text())
+          check = json.loads(Path("artifacts/exact-image-check.json").read_text())
+          transfer = json.loads(Path("artifacts/exact-image-transfer.json").read_text())
+          product = json.loads(Path("artifacts/exact-image-product-contract.json").read_text())
+          health = json.loads(Path("artifacts/exact-image-health.json").read_text())
+          ready = json.loads(Path("artifacts/exact-image-ready.json").read_text())
           assert migrate["status"] == "ready"
           assert check["status"] == "ready"
-          assert migrate["expected_revision"] == check["expected_revision"]
+          assert transfer["status"] == "transferred"
+          assert transfer["schema_metadata_transfer"] == "excluded_dialect_specific_authority"
+          assert product["representative_read"] == "pass"
+          assert product["representative_mutation"] == "pass"
+          assert product["strategy_lab_experiment"] == "pass"
+          assert product["strategy_lab_research_only"] is True
+          assert product["order_submission_performed"] is False
+          assert product["execution_mode"] == "dry_run"
           assert health["status"] == "ok"
-          assert health["database_dialect"] == "postgresql"
+          assert health["identity_fixture"] is False
           assert health["live_capital_authorized"] is False
+          assert ready["status"] == "ready"
+          assert ready["database_dialect"] == "postgresql"
+          assert ready["required_router_inventory_complete"] is True
+          assert ready["live_capital_authorized"] is False
+          Path("artifacts/exact-image-summary.json").write_text(
+              json.dumps(
+                  {
+                      "status": "pass",
+                      "database_dialect": "postgresql",
+                      "state_transfer": "pass",
+                      "representative_product_read": "pass",
+                      "representative_product_mutation": "pass",
+                      "strategy_lab_experiment": "pass",
+                      "restart_persistence": "pass",
+                      "fixture_mode_rejected": True,
+                      "identity_fixture": False,
+                      "execution_mode": "dry_run",
+                      "live_capital_authorized": False,
+                      "secret_values_recorded": False,
+                  },
+                  indent=2,
+                  sort_keys=True,
+              )
+              + "\n",
+              encoding="utf-8",
+          )
           PY
 
       - name: Upload secret-free exact-image evidence
@@ -176,7 +488,11 @@ jobs:
           path: |
             artifacts/exact-image-migrate.json
             artifacts/exact-image-check.json
+            artifacts/exact-image-transfer.json
+            artifacts/exact-image-product-contract.json
             artifacts/exact-image-health.json
+            artifacts/exact-image-ready.json
+            artifacts/exact-image-summary.json
             artifacts/image-sensitive-scan/clean-report.json
             artifacts/image-sensitive-scan/negative-report.json
           if-no-files-found: error

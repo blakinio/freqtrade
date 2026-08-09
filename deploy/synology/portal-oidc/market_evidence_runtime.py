@@ -188,9 +188,13 @@ def _preselect(deploy: Any, image: str) -> dict[str, Any]:
     try:
         payload = json.loads(payload_text)
     except json.JSONDecodeError as exc:
-        raise deploy.DeploymentError("Market Evidence Docker-host selection returned invalid JSON") from exc
+        raise deploy.DeploymentError(
+            "Market Evidence Docker-host selection returned invalid JSON"
+        ) from exc
     if not isinstance(payload, dict):
-        raise deploy.DeploymentError("Market Evidence Docker-host selection returned invalid metadata")
+        raise deploy.DeploymentError(
+            "Market Evidence Docker-host selection returned invalid metadata"
+        )
     run_id = payload.get("run_id")
     group_id = payload.get("group_id")
     layout = payload.get("layout")
@@ -203,7 +207,9 @@ def _preselect(deploy: Any, image: str) -> dict[str, Any]:
         or layout not in {"runs", "root"}
         or not isinstance(has_package, bool)
     ):
-        raise deploy.DeploymentError("Market Evidence Docker-host selection returned invalid metadata")
+        raise deploy.DeploymentError(
+            "Market Evidence Docker-host selection returned invalid metadata"
+        )
     base_run_id = payload.get("base_v1_run_id")
     base_group_id = payload.get("base_v1_group_id")
     base_layout = payload.get("base_v1_layout")
@@ -245,10 +251,7 @@ def _canonical_verifier_args(image: str, preselection: dict[str, Any]) -> list[s
     group_ids = [group_id]
     mounts = [
         "--mount",
-        (
-            f"type=bind,src={host_run_root},"
-            f"dst={MARKET_EVIDENCE_CONTAINER_ROOT}/{run_id},readonly"
-        ),
+        (f"type=bind,src={host_run_root},dst={MARKET_EVIDENCE_CONTAINER_ROOT}/{run_id},readonly"),
     ]
     base_run_id = preselection.get("base_v1_run_id")
     if isinstance(base_run_id, str):
@@ -302,7 +305,9 @@ def _verify_immutable_selection(
     try:
         payload = json.loads(payload_text)
     except json.JSONDecodeError as exc:
-        raise deploy.DeploymentError("canonical Market Evidence verifier returned invalid JSON") from exc
+        raise deploy.DeploymentError(
+            "canonical Market Evidence verifier returned invalid JSON"
+        ) from exc
     if not isinstance(payload, dict):
         raise deploy.DeploymentError("canonical Market Evidence verifier returned invalid metadata")
     run_id = cast(str, preselection["run_id"])
@@ -381,10 +386,7 @@ def _verify_active_selection(
         "--group-add",
         group_id,
         "--mount",
-        (
-            f"type=bind,src={host_run_root},"
-            f"dst={MARKET_EVIDENCE_CONTAINER_ROOT}/{run_id},readonly"
-        ),
+        (f"type=bind,src={host_run_root},dst={MARKET_EVIDENCE_CONTAINER_ROOT}/{run_id},readonly"),
         "--entrypoint",
         "node",
         image,
@@ -615,13 +617,20 @@ def _market_web_args(
 
 
 def _is_market_evidence_mount(value: Any) -> TypeGuard[dict[str, Any]]:
-    return isinstance(value, dict) and isinstance(value.get("Destination"), str) and (
-        value["Destination"] == MARKET_EVIDENCE_CONTAINER_ROOT
-        or value["Destination"].startswith(f"{MARKET_EVIDENCE_CONTAINER_ROOT}/")
+    return (
+        isinstance(value, dict)
+        and isinstance(value.get("Destination"), str)
+        and (
+            value["Destination"] == MARKET_EVIDENCE_CONTAINER_ROOT
+            or value["Destination"].startswith(f"{MARKET_EVIDENCE_CONTAINER_ROOT}/")
+        )
     )
 
 
-def _verify_running_container(deploy: Any, selection: MarketEvidenceSelection) -> None:
+def _verify_running_container(
+    deploy: Any,
+    selection: MarketEvidenceSelection,
+) -> None:  # noqa: C901 - validates one exact runtime inventory contract
     result = cast(
         subprocess.CompletedProcess[str],
         deploy._run(["docker", "inspect", deploy.PORTAL_CONTAINER], sensitive=True),
@@ -679,9 +688,7 @@ def _verify_running_container(deploy: Any, selection: MarketEvidenceSelection) -
         f"PORTAL_MARKET_EVIDENCE_RUN_ID={selection.run_id}",
     }
     if selection.base_v1_run_id:
-        required_env.add(
-            f"PORTAL_MARKET_EVIDENCE_BASE_V1_RUN_ID={selection.base_v1_run_id}"
-        )
+        required_env.add(f"PORTAL_MARKET_EVIDENCE_BASE_V1_RUN_ID={selection.base_v1_run_id}")
     if not required_env.issubset(env):
         raise deploy.DeploymentError("Market Evidence runtime environment is incomplete")
 

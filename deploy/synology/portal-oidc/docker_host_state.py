@@ -27,7 +27,9 @@ def _portal_relative_path(deploy: Any) -> Path:
             "Portal data directory is outside the canonical Synology Docker root"
         ) from exc
     if relative != Path("freqtrade-portal-oidc/data"):
-        raise deploy.DeploymentError("Portal data directory differs from the frozen host path")
+        raise deploy.DeploymentError(
+            "Portal data directory differs from the frozen host path"
+        )
     return relative
 
 
@@ -95,12 +97,17 @@ def _prepare_script(deploy: Any) -> str:
     ]
     for index, path in enumerate(backup_dirs, start=1):
         variable = f"path{index}"
+        unsafe_exit = 30 + index
+        invalid_exit = 40 + index
         lines.extend(
             [
                 f"{variable}={str(path)!r}",
-                f'if [ -L "${variable}" ]; then exit {30 + index}; fi',
+                f'if [ -L "${variable}" ]; then exit {unsafe_exit}; fi',
                 f'mkdir -p "${variable}"',
-                f'if [ ! -d "${variable}" ] || [ -L "${variable}" ]; then exit {40 + index}; fi',
+                (
+                    f'if [ ! -d "${variable}" ] || [ -L "${variable}" ]; '
+                    f"then exit {invalid_exit}; fi"
+                ),
                 f'chown {deploy.PORTAL_UID}:{deploy.PORTAL_GID} "${variable}"',
                 f'chmod 700 "${variable}"',
                 (
@@ -125,7 +132,9 @@ def _prepare_docker_host_state(deploy: Any) -> None:
     ]
     result = cast(subprocess.CompletedProcess[str], deploy._run(command))
     if PREPARE_MARKER not in result.stdout.splitlines():
-        raise deploy.DeploymentError("Docker-host Portal state preparation returned no marker")
+        raise deploy.DeploymentError(
+            "Docker-host Portal state preparation returned no marker"
+        )
 
 
 def _snapshot_script(filename: str) -> str:
@@ -186,7 +195,10 @@ def _snapshot_legacy_sqlite(
         "-c",
         _snapshot_script(filename),
     ]
-    result = cast(subprocess.CompletedProcess[str], deploy._run(command, sensitive=True))
+    result = cast(
+        subprocess.CompletedProcess[str],
+        deploy._run(command, sensitive=True),
+    )
     payload_text = next(
         (
             line.removeprefix(SQLITE_MARKER)
@@ -196,18 +208,24 @@ def _snapshot_legacy_sqlite(
         None,
     )
     if payload_text is None:
-        raise deploy.DeploymentError("Docker-host SQLite snapshot returned no marker")
+        raise deploy.DeploymentError(
+            "Docker-host SQLite snapshot returned no marker"
+        )
     try:
         payload = json.loads(payload_text)
     except json.JSONDecodeError as exc:
-        raise deploy.DeploymentError("Docker-host SQLite snapshot returned invalid JSON") from exc
+        raise deploy.DeploymentError(
+            "Docker-host SQLite snapshot returned invalid JSON"
+        ) from exc
     if (
         not isinstance(payload, dict)
         or payload.get("filename") != filename
         or not isinstance(payload.get("sha256"), str)
         or SHA256_PATTERN.fullmatch(payload["sha256"]) is None
     ):
-        raise deploy.DeploymentError("Docker-host SQLite snapshot returned invalid metadata")
+        raise deploy.DeploymentError(
+            "Docker-host SQLite snapshot returned invalid metadata"
+        )
     return Path(deploy.PORTAL_LEGACY_BACKUP_DIR) / filename, payload["sha256"]
 
 
@@ -232,12 +250,19 @@ def _postgres_backup_script() -> str:
             "unset PGPASSWORD",
             'chmod 600 "$destination"',
             'digest="$(sha256sum "$destination" | awk \'{print $1}\')"',
-            f"printf '%s%s|%s\\n' {POSTGRES_MARKER!r} \"$BACKUP_NAME\" \"$digest\"",
+            (
+                f"printf '%s%s|%s\\n' {POSTGRES_MARKER!r} "
+                '"$BACKUP_NAME" "$digest"'
+            ),
         ]
     )
 
 
-def _backup_postgres(deploy: Any, database_name: str, implementation_sha: str) -> str:
+def _backup_postgres(
+    deploy: Any,
+    database_name: str,
+    implementation_sha: str,
+) -> str:
     deploy._assert_database_name(database_name)
     filename = f"portal-{implementation_sha[:12]}-{int(time.time())}.backup"
     command = [
@@ -256,7 +281,10 @@ def _backup_postgres(deploy: Any, database_name: str, implementation_sha: str) -
         "-ec",
         _postgres_backup_script(),
     ]
-    result = cast(subprocess.CompletedProcess[str], deploy._run(command, sensitive=True))
+    result = cast(
+        subprocess.CompletedProcess[str],
+        deploy._run(command, sensitive=True),
+    )
     marker = next(
         (
             line.removeprefix(POSTGRES_MARKER)
@@ -266,10 +294,18 @@ def _backup_postgres(deploy: Any, database_name: str, implementation_sha: str) -
         None,
     )
     if marker is None:
-        raise deploy.DeploymentError("Docker-host PostgreSQL backup returned no marker")
+        raise deploy.DeploymentError(
+            "Docker-host PostgreSQL backup returned no marker"
+        )
     returned_name, separator, digest = marker.partition("|")
-    if separator != "|" or returned_name != filename or SHA256_PATTERN.fullmatch(digest) is None:
-        raise deploy.DeploymentError("Docker-host PostgreSQL backup returned invalid metadata")
+    if (
+        separator != "|"
+        or returned_name != filename
+        or SHA256_PATTERN.fullmatch(digest) is None
+    ):
+        raise deploy.DeploymentError(
+            "Docker-host PostgreSQL backup returned invalid metadata"
+        )
     return digest
 
 
@@ -284,9 +320,14 @@ def install(deploy: Any) -> None:
         )
         control_image = result[0]
         if not control_image:
-            raise deploy.DeploymentError("exact control-plane image build returned no tag")
+            raise deploy.DeploymentError(
+                "exact control-plane image build returned no tag"
+            )
         state["control_image"] = control_image
         return result
+
+    def prepare_host_state() -> None:
+        _prepare_docker_host_state(deploy)
 
     def snapshot_legacy_sqlite(implementation_sha: str) -> tuple[Path, str]:
         return _snapshot_legacy_sqlite(
@@ -295,11 +336,10 @@ def install(deploy: Any) -> None:
             implementation_sha,
         )
 
+    def backup_postgres(database_name: str, implementation_sha: str) -> str:
+        return _backup_postgres(deploy, database_name, implementation_sha)
+
     deploy._build_images = build_images
-    deploy._prepare_host_state = lambda: _prepare_docker_host_state(deploy)
+    deploy._prepare_host_state = prepare_host_state
     deploy._snapshot_legacy_sqlite = snapshot_legacy_sqlite
-    deploy._backup_postgres = lambda database_name, implementation_sha: _backup_postgres(
-        deploy,
-        database_name,
-        implementation_sha,
-    )
+    deploy._backup_postgres = backup_postgres

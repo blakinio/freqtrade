@@ -34,6 +34,7 @@ class ResolvedRuntimeArtifacts:
     tenant_id: str
     bot_id: str
     generation_id: str
+    generation_ordinal: int
     config_revision_id: str
     config_revision: int
     config_revision_digest: str
@@ -58,6 +59,8 @@ class ResolvedRuntimeArtifacts:
         ):
             if not value.strip():
                 raise ValueError(f"{field_name} must not be empty")
+        if self.generation_ordinal < 1:
+            raise ValueError("generation_ordinal must be positive")
         if self.config_revision < 1:
             raise ValueError("config_revision must be positive")
         for field_name, digest in (
@@ -97,6 +100,7 @@ class RuntimeRecord(BaseModel):
     tenant_id: NonEmptyStr
     bot_id: NonEmptyStr
     generation_id: NonEmptyStr
+    generation_ordinal: PositiveInt
     generation_spec_digest: Sha256Hex
     config_revision_id: NonEmptyStr
     config_revision: PositiveInt

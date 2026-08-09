@@ -29,6 +29,8 @@ env:
   JOURNAL_REL: wickhunter-production-research-runtime/journal
   OPERATOR_REL: wickhunter-production-research-runtime/operator
   COMPOSE_FILE: deploy/synology/wickhunter-production-research-runtime/compose.yaml
+  COMPOSE_PROJECT_NAME: wickhunter-production-research-runtime
+  COMPOSE_SERVICE: wickhunter-production-research-runtime
 
 jobs:
   deploy:
@@ -139,8 +141,25 @@ jobs:
             [[ -z "${!name:-}" ]] || { echo "Forbidden credential or proxy environment: $name" >&2; exit 1; }
           done
 
+          mapfile -t previous_runtime_ids < <(
+            docker ps -aq --no-trunc \
+              --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" \
+              --filter "label=com.docker.compose.service=$COMPOSE_SERVICE" \
+              | sed '/^$/d'
+          )
+          if (( ${#previous_runtime_ids[@]} > 1 )); then
+            echo "WH09 compose service identity is not unique" >&2
+            exit 1
+          fi
+          previous_runtime_id="${previous_runtime_ids[0]:-}"
+          if [[ -n "$previous_runtime_id" ]]; then
+            [[ "$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$previous_runtime_id")" == "$COMPOSE_PROJECT_NAME" ]]
+            [[ "$(docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "$previous_runtime_id")" == "$COMPOSE_SERVICE" ]]
+          fi
+
           while IFS= read -r existing; do
             [[ -n "$existing" ]] || continue
+            [[ "$existing" == "$previous_runtime_id" ]] && continue
             existing_user="$(docker inspect --format '{{.Config.User}}' "$existing" 2>/dev/null || true)"
             case "$existing_user" in
               "$RUNTIME_UID"|"$RUNTIME_UID:"*|*":"$RUNTIME_GID")
@@ -219,6 +238,7 @@ jobs:
           fi
           chown -R --no-dereference "$RUNTIME_UID:$RUNTIME_GID" "$journal_container" "$operator_container"
 
+          printf 'PREVIOUS_RUNTIME_CONTAINER_ID=%s\n' "$previous_runtime_id" >> "$GITHUB_ENV"
           printf 'MODEL_ROOT_HOST=%s/%s\n' "$host_state_dir" "$model_rel" >> "$GITHUB_ENV"
           printf 'LIQUID20_READER_GID=%s\n' "$reader_gid" >> "$GITHUB_ENV"
           printf 'LIQUID20_ACTIVE_RUN_ID=%s\n' "$liquid_run_id" >> "$GITHUB_ENV"
@@ -232,14 +252,35 @@ jobs:
         run: |
           set -euo pipefail
           export OPERATOR_COMMIT="$DEPLOY_COMMIT"
-          export WICKHUNTER_RESEARCH_RUNTIME_IMAGE="wickhunter-production-research-runtime:${DEPLOY_COMMIT:0:12}"
+          build_tag="wickhunter-production-research-runtime:${DEPLOY_COMMIT:0:12}"
+          export WICKHUNTER_RESEARCH_RUNTIME_IMAGE="$build_tag"
           export MODEL_ROOT_HOST LIQUID20_LIVE_HOST LIQUID20_READER_GID JOURNAL_ROOT_HOST OPERATOR_STATE_HOST
           export POLL_SECONDS=60 MAXIMUM_SOURCE_AGE_MS=300000 MODEL_DRIFT=healthy DATA_DRIFT=healthy CIRCUIT_BREAKER_ACTIVE=false SUPERVISOR_CYCLES=0 HEALTH_MAX_AGE_SECONDS=600
 
-          docker build --no-cache --progress=plain --build-arg "OPERATOR_COMMIT=$DEPLOY_COMMIT" --tag "$WICKHUNTER_RESEARCH_RUNTIME_IMAGE" --file deploy/synology/wickhunter-production-research-runtime/Dockerfile .
-          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$WICKHUNTER_RESEARCH_RUNTIME_IMAGE")" == "$DEPLOY_COMMIT" ]]
-          image_id="$(docker image inspect --format '{{.Id}}' "$WICKHUNTER_RESEARCH_RUNTIME_IMAGE")"
+          docker build --no-cache --progress=plain --build-arg "OPERATOR_COMMIT=$DEPLOY_COMMIT" --tag "$build_tag" --file deploy/synology/wickhunter-production-research-runtime/Dockerfile .
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$build_tag")" == "$DEPLOY_COMMIT" ]]
+          image_id="$(docker image inspect --format '{{.Id}}' "$build_tag")"
           [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]
+          export WICKHUNTER_RESEARCH_RUNTIME_IMAGE="$image_id"
+
+          if [[ -n "${PREVIOUS_RUNTIME_CONTAINER_ID:-}" ]]; then
+            [[ "$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$PREVIOUS_RUNTIME_CONTAINER_ID")" == "$COMPOSE_PROJECT_NAME" ]]
+            [[ "$(docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "$PREVIOUS_RUNTIME_CONTAINER_ID")" == "$COMPOSE_SERVICE" ]]
+            docker stop --time 30 "$PREVIOUS_RUNTIME_CONTAINER_ID" >/dev/null
+            [[ "$(docker inspect --format '{{.State.Running}}' "$PREVIOUS_RUNTIME_CONTAINER_ID")" == "false" ]]
+          fi
+
+          while IFS= read -r existing; do
+            [[ -n "$existing" ]] || continue
+            [[ "$existing" == "${PREVIOUS_RUNTIME_CONTAINER_ID:-}" ]] && continue
+            existing_user="$(docker inspect --format '{{.Config.User}}' "$existing" 2>/dev/null || true)"
+            case "$existing_user" in
+              "$RUNTIME_UID"|"$RUNTIME_UID:"*|*":"$RUNTIME_GID")
+                echo "Dedicated WH09 runtime UID/GID appeared in another container before host probe" >&2
+                exit 1
+                ;;
+            esac
+          done < <(docker ps -aq --no-trunc)
 
           docker run --rm \
             --pid=host \
@@ -249,31 +290,67 @@ jobs:
             --security-opt no-new-privileges:true \
             --user 0:0 \
             --entrypoint python \
-            "$WICKHUNTER_RESEARCH_RUNTIME_IMAGE" - "$RUNTIME_UID" <<'PY'
+            "$image_id" - "$RUNTIME_UID" <<'PY'
           import os
           import sys
           from pathlib import Path
 
           target_uid = int(sys.argv[1])
-          pid1 = Path('/proc/1/status')
-          if not pid1.is_file():
-              raise SystemExit('host PID namespace probe cannot see /proc/1/status')
+          proc = Path('/proc')
+          try:
+              mount_lines = (proc / 'mounts').read_text(encoding='utf-8', errors='strict').splitlines()
+          except OSError as exc:
+              raise SystemExit(f'cannot read proc mount options: {exc}') from exc
+          proc_mounts = []
+          for raw in mount_lines:
+              fields = raw.split()
+              if len(fields) >= 4 and fields[1] == '/proc' and fields[2] == 'proc':
+                  proc_mounts.append(fields)
+          if len(proc_mounts) != 1:
+              raise SystemExit(f'expected one proc mount, found {len(proc_mounts)}')
+          mount_options = set(proc_mounts[0][3].split(','))
+          restrictive = sorted(
+              option for option in mount_options
+              if option.startswith('hidepid=') and option != 'hidepid=0'
+          )
+          if restrictive:
+              raise SystemExit('restrictive proc visibility is not allowed: ' + ','.join(restrictive))
           if os.getuid() == target_uid:
               raise SystemExit('host PID namespace probe unexpectedly runs as target runtime UID')
 
+          try:
+              snapshot = {
+                  entry.name: entry
+                  for entry in proc.iterdir()
+                  if entry.name.isdigit()
+              }
+          except OSError as exc:
+              raise SystemExit(f'cannot enumerate host proc: {exc}') from exc
+          if '1' not in snapshot or str(os.getpid()) not in snapshot:
+              raise SystemExit('host PID namespace probe has incomplete PID visibility')
+
           collisions = []
-          for status in Path('/proc').glob('[0-9]*/status'):
+          for pid, pid_dir in sorted(snapshot.items(), key=lambda item: int(item[0])):
+              status = pid_dir / 'status'
               try:
-                  lines = status.read_text(encoding='utf-8', errors='replace').splitlines()
-              except OSError:
-                  continue
-              for line in lines:
-                  if not line.startswith('Uid:'):
+                  lines = status.read_text(encoding='utf-8', errors='strict').splitlines()
+              except OSError as exc:
+                  if not pid_dir.exists():
                       continue
-                  fields = line.split()
-                  if len(fields) >= 2 and int(fields[1]) == target_uid:
-                      collisions.append(status.parent.name)
-                  break
+                  raise SystemExit(f'cannot read stable host PID {pid} status: {exc}') from exc
+              uid_lines = [line for line in lines if line.startswith('Uid:')]
+              if len(uid_lines) != 1:
+                  raise SystemExit(f'host PID {pid} has invalid Uid record count: {len(uid_lines)}')
+              fields = uid_lines[0].split()
+              if len(fields) != 5:
+                  raise SystemExit(f'host PID {pid} has malformed Uid record')
+              try:
+                  real_uid = int(fields[1])
+                  tuple(int(value) for value in fields[1:])
+              except ValueError as exc:
+                  raise SystemExit(f'host PID {pid} has non-numeric Uid record') from exc
+              if real_uid == target_uid:
+                  collisions.append(pid)
           if collisions:
               raise SystemExit(
                   'dedicated WH09 runtime UID is already active in Synology host PID namespace: '
@@ -284,10 +361,12 @@ jobs:
 
           cp -- "$AUTHORIZED_COMPOSE_SNAPSHOT" "$COMPOSE_FILE"
           docker compose -f "$COMPOSE_FILE" config --quiet
-          docker compose -f "$COMPOSE_FILE" up -d --no-build --force-recreate --remove-orphans wickhunter-production-research-runtime
-          container_id="$(docker compose -f "$COMPOSE_FILE" ps -q wickhunter-production-research-runtime)"
+          docker compose -f "$COMPOSE_FILE" up -d --no-build --force-recreate --remove-orphans "$COMPOSE_SERVICE"
+          container_id="$(docker compose -f "$COMPOSE_FILE" ps -q "$COMPOSE_SERVICE")"
           [[ -n "$container_id" ]]
           [[ "$(docker inspect --format '{{.State.Running}}' "$container_id")" == "true" ]]
+          deployed_image_id="$(docker inspect --format '{{.Image}}' "$container_id")"
+          [[ "$deployed_image_id" == "$image_id" ]]
           started_at="$(docker inspect --format '{{.State.StartedAt}}' "$container_id")"
           started_at_ms="$(python3 - "$started_at" <<'PY'
           import re, sys
@@ -300,8 +379,8 @@ jobs:
           print(int(datetime.fromisoformat(f'{match.group(1)}.{fraction}+00:00').timestamp() * 1000))
           PY
           )"
-          printf 'WICKHUNTER_RESEARCH_RUNTIME_IMAGE=%s\n' "$WICKHUNTER_RESEARCH_RUNTIME_IMAGE" >> "$GITHUB_ENV"
-          printf 'RUNTIME_IMAGE_ID=%s\n' "$image_id" >> "$GITHUB_ENV"
+          printf 'WICKHUNTER_RESEARCH_RUNTIME_IMAGE=%s\n' "$image_id" >> "$GITHUB_ENV"
+          printf 'RUNTIME_IMAGE_ID=%s\n' "$deployed_image_id" >> "$GITHUB_ENV"
           printf 'RUNTIME_CONTAINER_ID=%s\n' "$container_id" >> "$GITHUB_ENV"
           printf 'RUNTIME_STARTED_AT_MS=%s\n' "$started_at_ms" >> "$GITHUB_ENV"
 
@@ -320,6 +399,7 @@ jobs:
           container_id = os.environ['RUNTIME_CONTAINER_ID']
           runtime_uid = os.environ['RUNTIME_UID']
           runtime_gid = os.environ['RUNTIME_GID']
+          runtime_image_id = os.environ['RUNTIME_IMAGE_ID']
           started_at_ms = int(os.environ['RUNTIME_STARTED_AT_MS'])
           health_path = Path(os.environ['OPERATOR_CONTAINER']) / 'health.json'
           telemetry_path = Path(os.environ['JOURNAL_CONTAINER']) / 'telemetry.json'
@@ -342,6 +422,8 @@ jobs:
           host = inspect['HostConfig']
           if inspect['State']['Running'] is not True or host['Privileged'] is not False or host['ReadonlyRootfs'] is not True:
               raise SystemExit('runtime base hardening mismatch')
+          if inspect.get('Image') != runtime_image_id:
+              raise SystemExit('runtime immutable image identity mismatch')
           if inspect['Config']['User'] != f'{runtime_uid}:{runtime_gid}':
               raise SystemExit('runtime dedicated user identity mismatch')
           if inspect['NetworkSettings'].get('Ports') not in ({}, None):
@@ -426,8 +508,8 @@ jobs:
               'deployment_commit': deploy_commit,
               'workflow_authorization_commit': os.environ['GITHUB_SHA'],
               'container_id': container_id,
-              'image': os.environ['WICKHUNTER_RESEARCH_RUNTIME_IMAGE'],
-              'image_id': os.environ['RUNTIME_IMAGE_ID'],
+              'image': runtime_image_id,
+              'image_id': runtime_image_id,
               'liquid20_active_run_id': os.environ['LIQUID20_ACTIVE_RUN_ID'],
               'process_limit': {'mechanism': 'RLIMIT_NPROC_DEDICATED_HOST_UID_FALLBACK', 'soft': 256, 'hard': 256, 'uid': int(runtime_uid)},
               'baseline': {'checked_at_ms': baseline[0], 'runtime_generation': baseline[1], 'decision_count': baseline[2]},

@@ -81,7 +81,7 @@ def _material(
         generation_ordinal=generation_ordinal,
         config_revision_id=f"revision-{revision}",
         config_revision=revision,
-        config_revision_digest=(str(revision % 10) * 64),
+        config_revision_digest=str(revision % 10) * 64,
         generation_spec_digest=hashlib.sha256(f"spec:{generation_id}".encode()).hexdigest(),
         normalized_runtime_config_digest=_config_digest(runtime_config),
         runtime_image_digest=image_digest,
@@ -212,7 +212,9 @@ def _adapter(
     return protocol_adapter, driver, resolver, store
 
 
-def test_provisioning_is_generation_scoped_isolated_and_correlation_labeled(tmp_path: Path) -> None:
+def test_provisioning_is_generation_scoped_isolated_and_correlation_labeled(
+    tmp_path: Path,
+) -> None:
     adapter, driver, resolver, store = _adapter(tmp_path)
     context = _context()
 
@@ -236,8 +238,7 @@ def test_provisioning_is_generation_scoped_isolated_and_correlation_labeled(tmp_
     assert "generation-1" not in spec.labels.values()
 
     config_path = store.config_path_for(first.runtime_id)
-    config = json.loads(config_path.read_text(encoding="utf-8"))
-    assert config == _safe_config()
+    assert json.loads(config_path.read_text(encoding="utf-8")) == _safe_config()
     assert config_path.stat().st_mode & 0o222 == 0
 
     current = store.read_current_record("tenant-a", "bot-1")
@@ -261,29 +262,34 @@ def test_resolver_cross_tenant_or_generation_identity_is_rejected(tmp_path: Path
         tenant_id="tenant-b"
     )
 
-    with pytest.raises(RuntimeRevisionConflictError, match="requested RuntimeGeneration identity"):
+    with pytest.raises(
+        RuntimeRevisionConflictError,
+        match="requested RuntimeGeneration identity",
+    ):
         adapter.provision_bot(_bot(), _context())
 
 
 def test_runtime_operations_are_tenant_scoped(tmp_path: Path) -> None:
     adapter, _driver, _resolver, _store = _adapter(tmp_path)
-    adapter.provision_bot(_bot(tenant_id="tenant-a", bot_id="bot-1"), _context())
+    adapter.provision_bot(_bot(), _context())
 
     with pytest.raises(RuntimeNotProvisionedError):
         adapter.pause_bot("tenant-b", "bot-1", _context())
 
 
-def test_non_dry_run_trusted_generation_is_rejected_even_if_bot_projection_is_dry_run(
+def test_non_dry_run_generation_is_rejected_even_if_projection_is_dry_run(
     tmp_path: Path,
 ) -> None:
     adapter, _driver, resolver, _store = _adapter(tmp_path)
     resolver.register(_material(execution_mode=ExecutionMode.SIMULATED))
 
     with pytest.raises(UnsupportedExecutionModeError, match="dry_run"):
-        adapter.provision_bot(_bot(execution_mode=ExecutionMode.DRY_RUN), _context())
+        adapter.provision_bot(_bot(), _context())
 
 
-def test_latest_authored_projection_cannot_redefine_existing_generation(tmp_path: Path) -> None:
+def test_latest_authored_projection_cannot_redefine_existing_generation(
+    tmp_path: Path,
+) -> None:
     adapter, _driver, _resolver, store = _adapter(tmp_path)
     first = adapter.provision_bot(_bot(revision=1), _context())
 
@@ -332,15 +338,22 @@ def test_replacement_requires_old_running_generation_to_stop_and_preserves_state
     tmp_path: Path,
 ) -> None:
     adapter, _driver, resolver, store = _adapter(tmp_path)
-    first_bot = _bot(revision=1, generation_id="generation-1")
+    first_bot = _bot()
     first = adapter.provision_bot(first_bot, _context())
     adapter.start_bot(first_bot, _context())
     first_state = store.state_path_for(first.runtime_id)
-    (first_state / "tradesv3.dryrun.sqlite").write_text("generation-one", encoding="utf-8")
+    (first_state / "tradesv3.dryrun.sqlite").write_text(
+        "generation-one",
+        encoding="utf-8",
+    )
 
     replacement = _bot(revision=2, generation_id="generation-2")
     resolver.register(
-        _material(generation_id="generation-2", generation_ordinal=2, revision=2)
+        _material(
+            generation_id="generation-2",
+            generation_ordinal=2,
+            revision=2,
+        )
     )
     with pytest.raises(RuntimeRevisionConflictError, match="must be stopped"):
         adapter.provision_bot(replacement, _context())
@@ -370,7 +383,7 @@ def test_replacement_requires_old_running_generation_to_stop_and_preserves_state
 
 def test_same_generation_recovery_reuses_durable_state(tmp_path: Path) -> None:
     adapter, _driver, _resolver, store = _adapter(tmp_path)
-    bot = _bot(generation_id="generation-1")
+    bot = _bot()
     first = adapter.provision_bot(bot, _context())
     state_file = store.state_path_for(first.runtime_id) / "checkpoint.txt"
     state_file.write_text("persisted", encoding="utf-8")
@@ -383,7 +396,7 @@ def test_same_generation_recovery_reuses_durable_state(tmp_path: Path) -> None:
 
 def test_material_change_cannot_mutate_existing_generation(tmp_path: Path) -> None:
     adapter, _driver, resolver, store = _adapter(tmp_path)
-    bot = _bot(revision=1, generation_id="generation-1")
+    bot = _bot()
     status = adapter.provision_bot(bot, _context())
     config_path = store.config_path_for(status.runtime_id)
     original = config_path.read_text(encoding="utf-8")
@@ -395,29 +408,43 @@ def test_material_change_cannot_mutate_existing_generation(tmp_path: Path) -> No
     assert config_path.read_text(encoding="utf-8") == original
 
 
-def test_lower_generation_ordinal_cannot_reclaim_current_authority(tmp_path: Path) -> None:
-    adapter, _driver, resolver, store = _adapter(tmp_path)
-    first_bot = _bot(generation_id="generation-1")
-    first = adapter.provision_bot(first_bot, _context())
+def test_lower_generation_ordinal_is_rejected_before_provision_side_effect(
+    tmp_path: Path,
+) -> None:
+    adapter, driver, resolver, store = _adapter(tmp_path)
+    first_bot = _bot()
+    adapter.provision_bot(first_bot, _context())
     adapter.stop_bot(first_bot.tenant_id, first_bot.bot_id, _context())
 
     resolver.register(
-        _material(generation_id="generation-2", generation_ordinal=2, revision=2)
+        _material(
+            generation_id="generation-2",
+            generation_ordinal=2,
+            revision=2,
+        )
     )
     second_bot = _bot(generation_id="generation-2", revision=2)
     second = adapter.provision_bot(second_bot, _context())
     adapter.stop_bot(second_bot.tenant_id, second_bot.bot_id, _context())
+    provision_count = len(driver.provision_specs)
 
     resolver.register(
-        _material(generation_id="generation-3", generation_ordinal=1, revision=3)
+        _material(
+            generation_id="generation-3",
+            generation_ordinal=1,
+            revision=3,
+        )
     )
-    with pytest.raises(RuntimeRevisionConflictError, match="cannot move backwards"):
+    with pytest.raises(RuntimeRevisionConflictError, match="ordinal"):
         adapter.provision_bot(_bot(generation_id="generation-3", revision=3), _context())
 
+    assert len(driver.provision_specs) == provision_count
+    rejected_runtime = store.runtime_id_for("tenant-a", "bot-1", "generation-3")
+    assert store.read_record(rejected_runtime) is None
+    assert not store.state_path_for(rejected_runtime).exists()
     current = store.read_current_record("tenant-a", "bot-1")
     assert current is not None
     assert current.runtime_id == second.runtime_id
-    assert current.runtime_id != first.runtime_id
 
 
 def test_lifecycle_operations_are_idempotent_and_truthful(tmp_path: Path) -> None:
@@ -437,7 +464,9 @@ def test_lifecycle_operations_are_idempotent_and_truthful(tmp_path: Path) -> Non
     assert second_stop.observed_state is BotObservedState.STOPPED
 
 
-def test_driver_failure_returns_error_and_persists_unhealthy_reason(tmp_path: Path) -> None:
+def test_driver_failure_returns_error_and_persists_unhealthy_reason(
+    tmp_path: Path,
+) -> None:
     adapter, driver, _resolver, store = _adapter(tmp_path)
     bot = _bot()
     provisioned = adapter.provision_bot(bot, _context())
@@ -459,7 +488,9 @@ def test_driver_failure_returns_error_and_persists_unhealthy_reason(tmp_path: Pa
     assert recovered_health.reason_code == "RUNTIME_NOT_READY"
 
 
-def test_submission_and_unprovisioned_private_reads_fail_closed(tmp_path: Path) -> None:
+def test_submission_and_unprovisioned_private_reads_fail_closed(
+    tmp_path: Path,
+) -> None:
     adapter, _driver, _resolver, _store = _adapter(tmp_path)
     context = _context()
     intent = cast(ApprovedExecutionIntent, object())

@@ -66,10 +66,31 @@ class FreqtradeExecutionAdapter:
 
     def provision_bot(self, bot: BotInstance, context: CorrelationContext) -> RuntimeStatus:
         self._require_dry_run(bot)
-        runtime_id = self._workspace_store.runtime_id_for(bot.tenant_id, bot.bot_id)
+        generation_id = self._desired_generation_id(bot)
+        runtime_id = self._workspace_store.runtime_id_for(
+            bot.tenant_id,
+            bot.bot_id,
+            generation_id,
+        )
+
+        current = self._workspace_store.read_current_record(bot.tenant_id, bot.bot_id)
+        if current is not None:
+            self._require_record_identity(current, bot.tenant_id, bot.bot_id)
+            if current.generation_id != generation_id:
+                previous_state = self._driver.inspect(current.runtime_id)
+                if previous_state not in {
+                    DriverRuntimeState.MISSING,
+                    DriverRuntimeState.CREATED,
+                    DriverRuntimeState.STOPPED,
+                }:
+                    raise RuntimeRevisionConflictError(
+                        "previous runtime generation must be stopped before replacement"
+                    )
+
         existing = self._workspace_store.read_record(runtime_id)
         if existing is not None:
             self._require_record_identity(existing, bot.tenant_id, bot.bot_id)
+            self._require_generation(existing, generation_id)
             self._require_revision(existing, bot)
 
         artifacts = self._artifact_resolver.resolve(bot)
@@ -81,13 +102,19 @@ class FreqtradeExecutionAdapter:
             or existing.strategy_name != artifacts.strategy_name
         ):
             raise RuntimeRevisionConflictError(
-                "runtime artifacts changed without a new immutable config revision"
+                "runtime artifacts changed without a new immutable RuntimeGeneration"
             )
-        self._workspace_store.write_config(runtime_id, config)
+
+        try:
+            self._workspace_store.write_config(runtime_id, config)
+        except ValueError as exc:
+            raise RuntimeRevisionConflictError(str(exc)) from exc
+        state_path = self._workspace_store.ensure_state(runtime_id)
 
         record = RuntimeRecord(
             tenant_id=bot.tenant_id,
             bot_id=bot.bot_id,
+            generation_id=generation_id,
             runtime_id=runtime_id,
             config_revision=bot.spec.config_revision,
             image=artifacts.image,
@@ -104,9 +131,10 @@ class FreqtradeExecutionAdapter:
         container_spec = RuntimeContainerSpec(
             runtime_id=runtime_id,
             image=artifacts.image,
-            workspace=self._workspace_store.workspace_for(runtime_id),
+            config_path=self._workspace_store.config_path_for(runtime_id),
+            state_path=state_path,
             strategy_name=artifacts.strategy_name,
-            labels=self._runtime_labels(bot, runtime_id, context),
+            labels=self._runtime_labels(bot, generation_id, runtime_id, context),
         )
         try:
             state = self._driver.provision(container_spec)
@@ -114,12 +142,15 @@ class FreqtradeExecutionAdapter:
             self._write_failure(record, context, exc.reason_code)
             return self._status(bot.tenant_id, bot.bot_id, runtime_id, BotObservedState.ERROR)
 
+        self._workspace_store.set_current_record(record)
         self._write_success(record, context)
         return self._status(bot.tenant_id, bot.bot_id, runtime_id, self._observed_state(state))
 
     def start_bot(self, bot: BotInstance, context: CorrelationContext) -> RuntimeStatus:
         self._require_dry_run(bot)
+        desired_generation_id = self._desired_generation_id(bot)
         record = self._require_record(bot.tenant_id, bot.bot_id)
+        self._require_generation(record, desired_generation_id)
         self._require_revision(record, bot)
         return self._lifecycle_status(record, context, self._driver.start)
 
@@ -357,8 +388,7 @@ class FreqtradeExecutionAdapter:
         )
 
     def _require_record(self, tenant_id: str, bot_id: str) -> RuntimeRecord:
-        runtime_id = self._workspace_store.runtime_id_for(tenant_id, bot_id)
-        record = self._workspace_store.read_record(runtime_id)
+        record = self._workspace_store.read_current_record(tenant_id, bot_id)
         if record is None:
             raise RuntimeNotProvisionedError("runtime has not been provisioned")
         self._require_record_identity(record, tenant_id, bot_id)
@@ -471,6 +501,20 @@ class FreqtradeExecutionAdapter:
             raise RuntimeNotProvisionedError("runtime identity does not match tenant and bot")
 
     @staticmethod
+    def _require_generation(record: RuntimeRecord, generation_id: str) -> None:
+        if record.generation_id != generation_id:
+            raise RuntimeRevisionConflictError(
+                "provisioned runtime generation does not match desired RuntimeGeneration"
+            )
+
+    @staticmethod
+    def _desired_generation_id(bot: BotInstance) -> str:
+        generation_id = bot.desired_runtime_generation_id
+        if generation_id is None:
+            raise RuntimeNotProvisionedError("bot has no desired RuntimeGeneration")
+        return generation_id
+
+    @staticmethod
     def _require_revision(record: RuntimeRecord, bot: BotInstance) -> None:
         if record.config_revision != bot.spec.config_revision:
             raise RuntimeRevisionConflictError(
@@ -557,6 +601,7 @@ class FreqtradeExecutionAdapter:
     @staticmethod
     def _runtime_labels(
         bot: BotInstance,
+        generation_id: str,
         runtime_id: str,
         context: CorrelationContext,
     ) -> dict[str, str]:
@@ -564,6 +609,7 @@ class FreqtradeExecutionAdapter:
             "ai.portal.runtime_id": runtime_id,
             "ai.portal.tenant_hash": hashlib.sha256(bot.tenant_id.encode()).hexdigest()[:16],
             "ai.portal.bot_hash": hashlib.sha256(bot.bot_id.encode()).hexdigest()[:16],
+            "ai.portal.generation_hash": hashlib.sha256(generation_id.encode()).hexdigest()[:16],
             "ai.portal.config_revision": str(bot.spec.config_revision),
             "ai.portal.request_id": str(context.request_id),
             "ai.portal.correlation_id": str(context.correlation_id),

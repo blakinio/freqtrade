@@ -105,6 +105,11 @@ class RuntimeGenerationRow(Base):
     request_id: Mapped[str] = mapped_column(String(36), nullable=False)
     correlation_id: Mapped[str] = mapped_column(String(36), nullable=False)
     causation_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    isolation_plan_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    gateway_artifact_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    gateway_contract_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    market_data_egress_policy_version: Mapped[str] = mapped_column(String(255), nullable=False)
+    market_data_egress_policy_digest: Mapped[str] = mapped_column(String(64), nullable=False)
 
     __table_args__ = (
         CheckConstraint(

@@ -16,6 +16,9 @@ from ai_platform.portal.database.schema import (
     MIGRATION_TABLE_NAME,
     OIDC_LOGOUT_REPLAY_TABLE_NAME,
     OIDC_SCHEMA_REVISION,
+    RUNTIME_GENERATION_SCHEMA_REVISION,
+    RUNTIME_ISOLATION_BINDING_COLUMNS,
+    SchemaMigrationError,
     SchemaReadinessError,
     UnversionedSchemaError,
     _canonical_check_sql,
@@ -25,7 +28,16 @@ from ai_platform.portal.database.schema import (
 )
 
 
+def _drop_runtime_isolation_binding_revision(connection) -> None:
+    for column_name in RUNTIME_ISOLATION_BINDING_COLUMNS:
+        connection.exec_driver_sql(
+            f"ALTER TABLE portal_runtime_generations DROP COLUMN {column_name}"
+        )
+    connection.execute(text(f"DELETE FROM {MIGRATION_TABLE_NAME} WHERE sequence = 4"))
+
+
 def _drop_runtime_generation_revision(connection) -> None:
+    _drop_runtime_isolation_binding_revision(connection)
     for table_name in (
         "portal_command_idempotency",
         "portal_runtime_generation_observations",
@@ -86,6 +98,7 @@ def test_fresh_sqlite_migration_is_exact_and_idempotent() -> None:
         assert [revision["revision_id"] for revision in first["applied_revisions"]] == [
             INITIAL_SCHEMA_REVISION,
             OIDC_SCHEMA_REVISION,
+            RUNTIME_GENERATION_SCHEMA_REVISION,
             EXPECTED_SCHEMA_REVISION,
         ]
         assert first["sqlite_foreign_keys"] is True
@@ -94,7 +107,7 @@ def test_fresh_sqlite_migration_is_exact_and_idempotent() -> None:
         engine.dispose()
 
 
-def test_exact_revision_one_upgrades_atomically_through_revision_three(tmp_path: Path) -> None:
+def test_exact_revision_one_upgrades_atomically_through_revision_four(tmp_path: Path) -> None:
     engine = build_engine(f"sqlite+pysqlite:///{tmp_path / 'upgrade-v1.db'}")
     try:
         migrate_database(engine)
@@ -109,6 +122,7 @@ def test_exact_revision_one_upgrades_atomically_through_revision_three(tmp_path:
         assert [revision["revision_id"] for revision in upgraded["applied_revisions"]] == [
             INITIAL_SCHEMA_REVISION,
             OIDC_SCHEMA_REVISION,
+            RUNTIME_GENERATION_SCHEMA_REVISION,
             EXPECTED_SCHEMA_REVISION,
         ]
         assert OIDC_LOGOUT_REPLAY_TABLE_NAME not in upgraded["differences"]["missing_tables"]
@@ -175,6 +189,93 @@ def test_revision_two_backfills_only_latest_authored_and_state_version(tmp_path:
         assert row["desired_runtime_generation_id"] is None
         assert row["observed_runtime_generation_id"] is None
         assert row["state_version"] == 1
+    finally:
+        engine.dispose()
+
+
+def test_revision_three_without_generations_upgrades_to_isolation_binding(tmp_path: Path) -> None:
+    engine = build_engine(f"sqlite+pysqlite:///{tmp_path / 'upgrade-v3-empty.db'}")
+    try:
+        migrate_database(engine)
+        with engine.begin() as connection:
+            _drop_runtime_isolation_binding_revision(connection)
+
+        upgraded = migrate_database(engine)
+
+        assert upgraded["status"] == "ready"
+        assert upgraded["applied_revisions"][-1]["revision_id"] == EXPECTED_SCHEMA_REVISION
+        changed = upgraded["differences"]["changed_tables"]
+        assert "portal_runtime_generations" not in changed
+    finally:
+        engine.dispose()
+
+
+def test_revision_three_with_generation_rows_refuses_identity_fabrication(tmp_path: Path) -> None:
+    engine = build_engine(f"sqlite+pysqlite:///{tmp_path / 'upgrade-v3-populated.db'}")
+    try:
+        migrate_database(engine)
+        with engine.begin() as connection:
+            _drop_runtime_isolation_binding_revision(connection)
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO portal_bots (
+                        tenant_id, bot_id, name, spec_json,
+                        desired_state, observed_state, current_revision,
+                        latest_authored_revision_id, desired_revision_id,
+                        desired_runtime_generation_id, observed_runtime_generation_id,
+                        state_version
+                    ) VALUES (
+                        'tenant-a', 'bot-legacy', 'Legacy bot', '{}',
+                        'STOPPED', 'STOPPED', 1,
+                        NULL, NULL, NULL, NULL, 1
+                    )
+                    """
+                )
+            )
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO portal_runtime_generations (
+                        generation_id, generation_ordinal, tenant_id, bot_id,
+                        config_revision_id, config_revision_number,
+                        config_revision_digest, normalized_runtime_config_digest,
+                        runtime_image_digest, strategy_version, strategy_artifact_digest,
+                        model_version, model_artifact_digest, feature_schema_version,
+                        risk_policy_version, risk_policy_digest, execution_mode,
+                        managed_mode, managed_mode_request_digest,
+                        managed_mode_resolution_digest, paper_authorization_digest,
+                        exchange_mode, exchange_connection_revision,
+                        isolation_profile_version, isolation_profile_digest,
+                        gateway_contract_version, generation_spec_version,
+                        generation_spec_digest, created_by_actor_id, created_at,
+                        request_id, correlation_id, causation_id
+                    ) VALUES (
+                        'generation-legacy', 1, 'tenant-a', 'bot-legacy',
+                        'revision-legacy', 1,
+                        :d1, :d2, :d3, 'strategy-v1', :d4,
+                        NULL, NULL, NULL,
+                        'risk-v1', :d5, 'dry_run',
+                        'shadow', :d6, :d7, NULL,
+                        'dry-run-public-market-data', NULL,
+                        'isolation-v1', :d8,
+                        'gateway-v1', 'v1', :d9,
+                        'actor-1', '2026-08-08T00:00:00+00:00',
+                        'request-1', 'correlation-1', NULL
+                    )
+                    """
+                ),
+                {f"d{index}": str(index) * 64 for index in range(1, 10)},
+            )
+
+        with pytest.raises(SchemaMigrationError) as exc_info:
+            migrate_database(engine)
+
+        assert exc_info.value.report["status"] == "runtime_generation_identity_backfill_forbidden"
+        assert exc_info.value.report["runtime_generation_count"] == 1
+        assert exc_info.value.report["policy"] == (
+            "fail_closed_recreate_generation_from_trusted_material"
+        )
     finally:
         engine.dispose()
 
@@ -327,7 +428,7 @@ def test_unknown_revision_and_schema_drift_fail_readiness() -> None:
             connection.execute(
                 text(
                     f"UPDATE {MIGRATION_TABLE_NAME} "
-                    "SET revision_id = 'unknown-revision' WHERE sequence = 3"
+                    "SET revision_id = 'unknown-revision' WHERE sequence = 4"
                 )
             )
         with pytest.raises(SchemaReadinessError):
@@ -336,7 +437,7 @@ def test_unknown_revision_and_schema_drift_fail_readiness() -> None:
             connection.execute(
                 text(
                     f"UPDATE {MIGRATION_TABLE_NAME} "
-                    "SET revision_id = :revision_id WHERE sequence = 3"
+                    "SET revision_id = :revision_id WHERE sequence = 4"
                 ),
                 {"revision_id": EXPECTED_SCHEMA_REVISION},
             )

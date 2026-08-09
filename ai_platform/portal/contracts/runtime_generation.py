@@ -71,7 +71,12 @@ class RuntimeGeneration(ContractModel):
 
     isolation_profile_version: NonEmptyStr
     isolation_profile_digest: Sha256Hex
+    isolation_plan_digest: Sha256Hex
+    gateway_artifact_digest: Sha256Hex
     gateway_contract_version: NonEmptyStr
+    gateway_contract_digest: Sha256Hex
+    market_data_egress_policy_version: NonEmptyStr
+    market_data_egress_policy_digest: Sha256Hex
 
     generation_spec_version: NonEmptyStr
     generation_spec_digest: Sha256Hex
@@ -137,7 +142,12 @@ class RuntimeGenerationMaterial(ContractModel):
     exchange_connection_revision: NonEmptyStr | None = None
     isolation_profile_version: NonEmptyStr
     isolation_profile_digest: Sha256Hex
+    isolation_plan_digest: Sha256Hex
+    gateway_artifact_digest: Sha256Hex
     gateway_contract_version: NonEmptyStr
+    gateway_contract_digest: Sha256Hex
+    market_data_egress_policy_version: NonEmptyStr
+    market_data_egress_policy_digest: Sha256Hex
     paper_activation_authorized: StrictBool = False
     paper_authorization_id: NonEmptyStr | None = None
     paper_authorization_digest: Sha256Hex | None = None

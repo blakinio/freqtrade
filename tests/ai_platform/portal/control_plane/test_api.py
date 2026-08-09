@@ -67,7 +67,12 @@ def _generation_material(*_args: object) -> RuntimeGenerationMaterial:
         exchange_connection_revision="exchange-revision-1",
         isolation_profile_version="isolation-v1",
         isolation_profile_digest="6" * 64,
+        isolation_plan_digest="9" * 64,
+        gateway_artifact_digest="a" * 64,
         gateway_contract_version="gateway-v1",
+        gateway_contract_digest="b" * 64,
+        market_data_egress_policy_version="market-egress-v1",
+        market_data_egress_policy_digest="c" * 64,
     )
 
 
@@ -199,6 +204,9 @@ def test_api_requires_explicit_apply_before_running_intent(
     )
     assert applied.status_code == 200
     generation_id = applied.json()["generation"]["generation_id"]
+    assert applied.json()["generation"]["isolation_plan_digest"] == "9" * 64
+    assert applied.json()["generation"]["gateway_artifact_digest"] == "a" * 64
+    assert applied.json()["generation"]["market_data_egress_policy_digest"] == "c" * 64
 
     response = client.post(
         "/v1/bots/bot-1/desired-state",
@@ -214,6 +222,7 @@ def test_api_requires_explicit_apply_before_running_intent(
     assert truth.status_code == 200
     assert truth.json()["pending_rollout"] is True
     assert truth.json()["desired_generation"]["generation_id"] == generation_id
+    assert truth.json()["desired_generation"]["gateway_contract_digest"] == "b" * 64
     assert truth.json()["latest_rollout"]["status"] == "REQUESTED"
 
 

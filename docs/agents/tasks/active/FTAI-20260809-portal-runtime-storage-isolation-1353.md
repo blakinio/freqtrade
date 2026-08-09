@@ -7,8 +7,8 @@ repository: blakinio/freqtrade
 issue: 1353
 lane: freqtrade-portal
 task_kind: implementation
-phase: implement
-status: implementing
+phase: validate
+status: validating
 priority: high
 prompting_standard_version: 2.1
 execution_policy_version: 2
@@ -30,7 +30,8 @@ feature_scope:
 base_branch: develop
 trusted_base_sha: 39d741061a9f2ca17259d85609e83ca46b94f28f
 branch: fix/portal-runtime-storage-isolation-1353
-pr: none
+head: 51dcac10044130aab5a0231977fc389a52eb5d28
+pr: 1425
 related_issues:
   - 1354
   - 1355
@@ -51,10 +52,10 @@ Implement the ADR-020 trust/storage split for Portal-managed dry-run runtimes so
 
 - `ai_platform/portal/execution/**`
 - `tests/ai_platform/portal/execution/**`
-- task-specific Portal execution integration/E2E tests when required
+- task-specific Portal execution integration/E2E tests
 - this task record
 
-Do not implement #1354 hard resource/network/process isolation or #1355 Runtime Supervisor authority in this task except where a minimal interface shape is required to preserve the accepted storage boundary.
+Do not implement #1354 hard resource/network/process isolation or #1355 Runtime Supervisor authority in this task.
 
 ## Acceptance inventory
 
@@ -63,23 +64,24 @@ Do not implement #1354 hard resource/network/process isolation or #1355 Runtime 
 - Durable runtime DB/state is physically separate, generation-scoped and explicitly selected by `db_url`.
 - Runtime manifest/control evidence is never mounted into Freqtrade.
 - Replacement uses a distinct generation/runtime identity; old generation state/evidence remains historical and cannot become current implicitly.
-- Replacement is fail-closed unless the previous generation is stopped/missing; no magical auto-replace.
+- Replacement is fail-closed unless the previous generation is stopped/missing; no magical running-generation replacement.
 - Lifecycle/private-read operations resolve only the current control-owned generation record.
 - Restart/recovery reuses the same generation-scoped durable state without allowing runtime state to redefine control identity.
 - Path derivation is deterministic from trusted identities and resists traversal/path escape by never using raw IDs as filesystem path components.
 - Tests prove mount separation/read-only config/manifest absence, explicit persistent DB path, replacement semantics and stale-generation rejection.
-- Exact-head required CI and relevant Portal API-mode/component integration pass.
+- A real Docker E2E attempts to mutate immutable config from inside a container, verifies control evidence is absent, and verifies state remains writable.
+- Exact-head required CI and relevant Portal component integration pass.
 - No live capital, private exchange credentials, public Freqtrade exposure, production deployment, #1354 resource/network hardening or #1355 Supervisor authority.
 
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 1
-updated_at: 2026-08-09T18:12:00Z
-head: 39d741061a9f2ca17259d85609e83ca46b94f28f
+checkpoint_version: 2
+updated_at: 2026-08-09T18:31:00Z
+head: 51dcac10044130aab5a0231977fc389a52eb5d28
 branch: fix/portal-runtime-storage-isolation-1353
-pr: none
-status: implementing
+pr: 1425
+status: validating
 context_routes:
   - docs/ai_platform/portal/RUNTIME_ISOLATION_AND_SUPERVISOR_CONTRACT.md sections 10-11
   - issue 1353 and ADR-020
@@ -87,32 +89,77 @@ owned_paths:
   - ai_platform/portal/execution/**
   - tests/ai_platform/portal/execution/**
 proven:
-  - current driver mounts one runtime workspace read-write at /freqtrade/user_data
-  - current workspace stores config.json and runtime-manifest.json together
-  - dry-run config does not set db_url, leaving trade DB in the container writable layer
-  - control plane now persists immutable RuntimeGeneration and BotInstance exposes desired_runtime_generation_id/observed_runtime_generation_id
-  - no overlapping 1353 implementation PR or branch exists
-  - issue 1353 remains open implementation work after accepted ADR-020
-  - issue 1137 has released repository ownership and owns no paths
-  - issues 1354 and 1355 remain separate follow-up boundaries
-derived:
-  - execution adapter must bind provisioning to the trusted desired RuntimeGeneration identity rather than stable tenant+bot identity alone
-  - storage must be split into control evidence, immutable input and generation-local durable state roots
-unknown:
-  - exact final component/E2E routing after changed paths are committed
-conflicts: []
+  - provisioning now requires trusted desired_runtime_generation_id
+  - runtime ID and all filesystem roots use hashed trusted identities rather than raw IDs
+  - immutable config, durable generation state and control evidence use disjoint roots
+  - Docker receives only read-only /runtime/config and writable /runtime/state mounts
+  - runtime-manifest.json is control-owned and never mounted
+  - dry-run db_url is fixed to /runtime/state/tradesv3.dryrun.sqlite
+  - current generation advances only after successful provision
+  - running/paused/starting old generations cannot be replaced
+  - stale historical record updates cannot repoint current-generation authority
+  - same-generation recovery reuses durable state
+  - new real-container E2E asserts config write denial, control-record absence and writable state
+  - mypy passed on first implementation head
 first_failure:
-  marker: runtime writable mount contains trusted config/manifest and DB persistence is implicit container-layer state
-  evidence: ai_platform/portal/execution/workspace.py, driver.py, config.py
-rejected_hypotheses:
-  - relying on host UID ownership is sufficient; rejected by ADR-020 trust-boundary requirements
+  marker: Freqtrade CI pre-commit
+  evidence: run 31329068993 job 93284230947
+  cause: one E501 line in workspace.py and ruff-format changes in workspace.py/test_driver.py
+  remediation: applied exact ruff formatting in commits 0cc6a0e and 9f71e5b
+repair_cycles_for_current_gate: 1
+ci_checks_for_current_head: 1
+unchanged_state_checks: 0
+identical_failure_retries: 0
+context_reconstruction_attempts: 0
+stall_warnings: 0
 changed_paths:
+  - ai_platform/portal/execution/adapter.py
+  - ai_platform/portal/execution/config.py
+  - ai_platform/portal/execution/driver.py
+  - ai_platform/portal/execution/runtime.py
+  - ai_platform/portal/execution/workspace.py
+  - tests/ai_platform/portal/execution/test_adapter.py
+  - tests/ai_platform/portal/execution/test_config.py
+  - tests/ai_platform/portal/execution/test_driver.py
+  - tests/ai_platform/portal/execution/test_private_read.py
+  - tests/ai_platform/portal/execution/test_runtime_storage_e2e.py
+  - tests/ai_platform/portal/execution/test_workspace.py
   - docs/agents/tasks/active/FTAI-20260809-portal-runtime-storage-isolation-1353.md
 validation:
-  - command: live repository preflight and overlap inventory
-    result: PASS
-    evidence: develop@39d741061a9f2ca17259d85609e83ca46b94f28f; issue #1353; no implementation PR/branch for 1353
+  - command: first implementation exact-head CI
+    result: FAIL_REPAIRED
+    evidence: run 31329068993; mypy PASS; only ruff/format failure
+  - command: current exact-head workflow discovery
+    result: RUNNING
+    evidence: current head 51dcac10044130aab5a0231977fc389a52eb5d28; runs 31329254083, 31329254188 and associated Portal/security workflows
 blockers:
   - none
-next_action: Implement generation-scoped control/input/state paths, explicit durable db_url, read-only config mount and current-generation replacement fencing with focused tests.
+next_action: Inspect current-head component and required CI results; repair the first actionable failure, then perform fresh acceptance audit and current-develop refresh before final closeout.
+```
+
+## Recovery checkpoint
+
+```yaml
+recovery:
+  policy_version: 1
+  generation: 1
+  session_id: 20260809T181100Z-chat-github
+  session_started_at: 2026-08-09T18:11:00Z
+  checkpointed_at: 2026-08-09T18:31:00Z
+  last_progress_at: 2026-08-09T18:31:00Z
+  phase: component_validation
+  exact_head: 51dcac10044130aab5a0231977fc389a52eb5d28
+  pull_request: 1425
+  active_operation: exact-head GitHub Actions validation
+  external_run_ids:
+    - 31329254083
+    - 31329254188
+  operation_started_at: 2026-08-09T18:30:00Z
+  wait_deadline_at: 2026-08-09T19:00:00Z
+  check_generation: implementation-plus-e2e-v1
+  checks_used: 1
+  status: active
+  safe_to_resume: true
+  resume_condition: current-head workflows become terminal or expose first actionable failure
+  next_action: Inspect the aggregate current-head CI state and repair the first actionable failure; if green, fresh-audit the exact diff.
 ```

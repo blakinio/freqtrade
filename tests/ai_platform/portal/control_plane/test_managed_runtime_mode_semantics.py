@@ -33,6 +33,7 @@ from ai_platform.wickhunter.runtime_mode import (
     RuntimeModeResolutionError,
 )
 
+
 NOW = datetime(2026, 8, 9, 8, 30, tzinfo=UTC)
 
 
@@ -141,9 +142,7 @@ def _create_promoted(
 
 def _activation_counts(session_factory: SessionFactory) -> tuple[int, int]:
     with session_factory() as session:
-        generations = session.scalar(
-            select(func.count()).select_from(RuntimeGenerationRow)
-        )
+        generations = session.scalar(select(func.count()).select_from(RuntimeGenerationRow))
         rollouts = session.scalar(select(func.count()).select_from(BotRolloutRow))
     return int(generations or 0), int(rollouts or 0)
 
@@ -338,10 +337,7 @@ def test_denied_and_malformed_paper_evidence_have_stable_fail_closed_reasons(
             2,
             "paper-malformed",
         )
-    assert (
-        malformed_error.value.reason
-        is RuntimeModeRejectionReason.PAPER_ELIGIBILITY_INVALID
-    )
+    assert malformed_error.value.reason is RuntimeModeRejectionReason.PAPER_ELIGIBILITY_INVALID
     assert _activation_counts(malformed_factory) == (0, 0)
 
 
@@ -453,7 +449,6 @@ def test_api_rejects_client_paper_authorization_and_reports_server_reason(
     )
     assert server_check.status_code == 409
     assert (
-        server_check.json()["detail"]
-        == RuntimeModeRejectionReason.PAPER_ELIGIBILITY_REQUIRED.value
+        server_check.json()["detail"] == RuntimeModeRejectionReason.PAPER_ELIGIBILITY_REQUIRED.value
     )
     assert _activation_counts(session_factory) == (0, 0)

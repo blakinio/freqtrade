@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -15,6 +16,7 @@ MODULE_PATH = ROOT / "deploy" / "synology" / "portal-oidc" / "market_evidence_ru
 SPEC = importlib.util.spec_from_file_location("portal_oidc_market_evidence_runtime", MODULE_PATH)
 assert SPEC and SPEC.loader
 runtime = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = runtime
 SPEC.loader.exec_module(runtime)
 
 

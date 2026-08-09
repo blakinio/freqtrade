@@ -93,7 +93,9 @@ class RuntimeWorkspaceStore:
 
     def set_current_record(self, record: RuntimeRecord) -> None:
         """Advance the Portal-owned current-generation pointer explicitly."""
-        self._write_text_atomic(self.record_path_for(record.runtime_id), self._record_payload(record))
+        self._write_text_atomic(
+            self.record_path_for(record.runtime_id), self._record_payload(record)
+        )
         self._write_text_atomic(
             self.current_record_path_for(record.tenant_id, record.bot_id),
             self._record_payload(record),

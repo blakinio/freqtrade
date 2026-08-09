@@ -11,11 +11,12 @@ test.describe("BMW-02 lifecycle command intents", { tag: [tags.critical, tags.se
     page.once("dialog", (dialog) => dialog.accept());
     await page.getByRole("button", { name: "Pause" }).click();
 
-    await expect(page.getByRole("status")).toContainText("Command intent");
-    await expect(page.getByRole("status")).toContainText("accepted and persisted");
-    await expect(page.getByRole("status")).toContainText(
-      "Desired and observed runtime state remain unchanged",
+    const status = page.getByRole("status");
+    await expect(status).toContainText("Command intent");
+    await expect(status).toContainText(
+      "accepted for generation fixture-generation:bot-btc-dryrun-01:1 (SHADOW)",
     );
+    await expect(status).toContainText("Desired and observed runtime state remain unchanged");
     await expect(page.getByText(/never calls a runtime or exchange endpoint/i)).toBeVisible();
   });
 

@@ -80,25 +80,45 @@ class RuntimeWorkspaceStore:
         return path
 
     def write_record(self, record: RuntimeRecord) -> None:
-        """Update historical control evidence without changing generation authority."""
+        """Update operational metadata without changing immutable generation identity."""
+        historical = self.read_record(record.runtime_id)
+        if historical is not None:
+            self._require_same_identity(historical, record)
+
         payload = self._record_payload(record)
         self._write_text_atomic(self.record_path_for(record.runtime_id), payload)
 
         current = self.read_current_record(record.tenant_id, record.bot_id)
         if current is not None and current.generation_id == record.generation_id:
+            self._require_same_identity(current, record)
             self._write_text_atomic(
                 self.current_record_path_for(record.tenant_id, record.bot_id),
                 payload,
             )
 
     def set_current_record(self, record: RuntimeRecord) -> None:
-        """Advance the Portal-owned current-generation pointer explicitly."""
-        self._write_text_atomic(
-            self.record_path_for(record.runtime_id), self._record_payload(record)
-        )
+        """Advance current-generation authority monotonically by generation ordinal."""
+        historical = self.read_record(record.runtime_id)
+        if historical is not None:
+            self._require_same_identity(historical, record)
+
+        current = self.read_current_record(record.tenant_id, record.bot_id)
+        if current is not None:
+            if record.generation_ordinal < current.generation_ordinal:
+                raise ValueError("current runtime generation cannot move backwards")
+            if (
+                record.generation_ordinal == current.generation_ordinal
+                and record.generation_id != current.generation_id
+            ):
+                raise ValueError("generation ordinal cannot identify multiple runtimes")
+            if record.generation_id == current.generation_id:
+                self._require_same_identity(current, record)
+
+        payload = self._record_payload(record)
+        self._write_text_atomic(self.record_path_for(record.runtime_id), payload)
         self._write_text_atomic(
             self.current_record_path_for(record.tenant_id, record.bot_id),
-            self._record_payload(record),
+            payload,
         )
 
     def read_record(self, runtime_id: str) -> RuntimeRecord | None:
@@ -112,6 +132,32 @@ class RuntimeWorkspaceStore:
         if not path.exists():
             return None
         return RuntimeRecord.model_validate_json(path.read_text(encoding="utf-8"))
+
+    @classmethod
+    def _require_same_identity(cls, existing: RuntimeRecord, candidate: RuntimeRecord) -> None:
+        if cls._identity(existing) != cls._identity(candidate):
+            raise ValueError("immutable runtime generation control identity cannot change")
+
+    @staticmethod
+    def _identity(record: RuntimeRecord) -> tuple[object, ...]:
+        return (
+            record.tenant_id,
+            record.bot_id,
+            record.generation_id,
+            record.generation_ordinal,
+            record.generation_spec_digest,
+            record.config_revision_id,
+            record.config_revision,
+            record.config_revision_digest,
+            record.normalized_runtime_config_digest,
+            record.runtime_image_digest,
+            record.strategy_artifact_digest,
+            record.model_artifact_digest,
+            record.runtime_id,
+            record.image,
+            record.strategy_name,
+            record.config_sha256,
+        )
 
     @staticmethod
     def _record_payload(record: RuntimeRecord) -> str:

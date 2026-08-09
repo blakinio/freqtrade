@@ -17,6 +17,7 @@ from ai_platform.portal.control_plane.service import (
     ControlPlaneService,
     RuntimeGenerationMaterialUnavailableError,
 )
+from ai_platform.wickhunter.runtime_mode import RuntimeModeResolutionError
 
 
 class RevisionStateRequest(BaseModel):
@@ -193,6 +194,11 @@ def build_router(
                 )
             else:  # pragma: no cover - closed local call set
                 raise ValueError("unsupported activation operation")
+        except RuntimeModeResolutionError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=exc.reason.value,
+            ) from exc
         except RuntimeGenerationMaterialUnavailableError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

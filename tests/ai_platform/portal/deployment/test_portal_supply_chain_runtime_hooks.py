@@ -3,9 +3,10 @@ from __future__ import annotations
 import importlib
 import sys
 from pathlib import Path
+from types import ModuleType
 
 
-def _runtime_module():
+def _runtime_module() -> ModuleType:
     tools_agents = str(Path("tools/agents").resolve())
     sys.path.insert(0, tools_agents)
     try:

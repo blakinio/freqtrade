@@ -1,0 +1,49 @@
+name: Temporary 1089 Docker preflight patch
+
+on:
+  push:
+    branches:
+      - fix/1089-docker-runtime-preflight-20260809
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: fix/1089-docker-runtime-preflight-20260809
+          persist-credentials: true
+      - name: Insert Docker runtime preflight before expensive tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/portal-oidc-public-deploy.yml')
+          text = path.read_text(encoding='utf-8')
+          marker = '''      - name: Install checksum-pinned Syft and Grype
+          '''
+          insertion = '''      - name: Verify Synology Docker runtime can start containers
+              shell: bash
+              run: |
+                set -euo pipefail
+                python3 deploy/synology/portal-oidc/docker_runtime_preflight.py
+
+              - name: Install checksum-pinned Syft and Grype
+          '''
+          if text.count(marker) != 1:
+              raise SystemExit('expected Syft/Grype step marker not found exactly once')
+          path.write_text(text.replace(marker, insertion), encoding='utf-8')
+          PY
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .github/workflows/portal-oidc-public-deploy.yml
+          git commit -m 'ci(portal): preflight Docker runtime before OIDC image build (#1089)'
+          git push origin HEAD:fix/1089-docker-runtime-preflight-20260809

@@ -141,7 +141,9 @@ def _create_promoted(
 
 def _activation_counts(session_factory: SessionFactory) -> tuple[int, int]:
     with session_factory() as session:
-        generations = session.scalar(select(func.count()).select_from(RuntimeGenerationRow))
+        generations = session.scalar(
+            select(func.count()).select_from(RuntimeGenerationRow)
+        )
         rollouts = session.scalar(select(func.count()).select_from(BotRolloutRow))
     return int(generations or 0), int(rollouts or 0)
 
@@ -393,9 +395,12 @@ def test_rollback_and_restart_resolve_mode_from_target_revision(
         BotMode.SHADOW,
         BotMode.PAPER,
     ]
-    assert [
-        generation.generation_ordinal for generation in (g1, g2, g3, g4)
-    ] == [1, 2, 3, 4]
+    assert [generation.generation_ordinal for generation in (g1, g2, g3, g4)] == [
+        1,
+        2,
+        3,
+        4,
+    ]
     assert restarted.desired_runtime_generation_id == g4.generation_id
 
 

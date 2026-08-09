@@ -35,6 +35,7 @@ from ai_platform.portal.execution.private_read import RuntimeReadFreshness
 NOW = datetime(2026, 7, 28, 12, 0, tzinfo=UTC)
 COMMAND_ID = UUID("11111111-1111-4111-8111-111111111111")
 RETRY_COMMAND_ID = UUID("44444444-4444-4444-8444-444444444444")
+GENERATION_ID = "generation-3"
 
 
 class FixedRuntimeProvider:
@@ -87,6 +88,7 @@ def _runtime() -> AuthoritativeBotRuntimeState:
         tenant_id="tenant-a",
         bot_id="bot-a",
         config_revision=3,
+        runtime_generation_id=GENERATION_ID,
         runtime_id="runtime-a",
         runtime_revision=7,
         environment=Environment.TEST,
@@ -99,12 +101,14 @@ def _runtime() -> AuthoritativeBotRuntimeState:
 def _request(
     *,
     expected_config_revision: int = 3,
+    expected_runtime_generation_id: str = GENERATION_ID,
     action: LifecycleAction = LifecycleAction.START,
 ) -> LifecycleIntentRequest:
     return LifecycleIntentRequest(
         bot_id="bot-a",
         action=action,
         expected_config_revision=expected_config_revision,
+        expected_runtime_generation_id=expected_runtime_generation_id,
         idempotency_key="lifecycle-bot-a-r3",
     )
 
@@ -157,6 +161,7 @@ def test_current_runtime_persists_accepted_intent_without_execution_submission()
     assert result.execution_submission_performed is False
     history = commands.list_history(_read_context(), str(COMMAND_ID))
     assert len(history) == 1
+    assert history[0].command.target.runtime_generation_id == GENERATION_ID
     assert history[0].outcome.status == CommandOutcomeStatus.ACCEPTED
     assert history[0].outcome.execution_attempt_ref is None
     assert history[0].outcome.reconciliation_ref is None
@@ -179,6 +184,30 @@ def test_stale_configuration_is_persisted_as_rejected_evidence() -> None:
     assert result.reason_codes == (CommandReasonCode.STALE_REVISION,)
     assert result.command_persisted is True
     assert result.execution_submission_performed is False
+
+
+def test_stale_generation_is_persisted_as_rejected_evidence() -> None:
+    session_factory = _session_factory()
+    commands = BotCommandService(session_factory, clock=lambda: NOW)
+    service = LifecycleCommandIntentService(
+        commands,
+        FixedRuntimeProvider(_runtime()),
+        idempotency_lookup=SqlAlchemyIdempotentCommandLookup(session_factory),
+        clock=lambda: NOW,
+        id_factory=lambda: COMMAND_ID,
+    )
+
+    result = service.submit(
+        _context(),
+        _request(expected_runtime_generation_id="generation-stale"),
+    )
+
+    assert result.status == CommandOutcomeStatus.REJECTED
+    assert result.reason_codes == (CommandReasonCode.STALE_GENERATION,)
+    assert result.command_persisted is True
+    history = commands.list_history(_read_context(), str(COMMAND_ID))
+    assert history[-1].outcome.observed_runtime_generation_id == GENERATION_ID
+    assert history[-1].outcome.execution_attempt_ref is None
 
 
 def test_transport_retry_returns_existing_command_without_duplicate_history() -> None:

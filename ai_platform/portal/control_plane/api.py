@@ -9,6 +9,13 @@ from ai_platform.portal.control_plane.api_core import *  # noqa: F403
 from ai_platform.portal.control_plane.api_core import create_app as _create_core_app
 from ai_platform.portal.control_plane.context import RequestContext, identity_dependency
 from ai_platform.portal.control_plane.database import SessionFactory
+from ai_platform.portal.control_plane.runtime_generation_api import (
+    build_router as build_runtime_generation_router,
+)
+from ai_platform.portal.control_plane.service import (
+    ControlPlaneService,
+    GenerationMaterialResolver,
+)
 from ai_platform.portal.feature_registry.router import (
     build_router as build_feature_registry_router,
 )
@@ -27,6 +34,7 @@ def create_app(
     feature_registry_service: FeatureRegistryService | None = None,
     strategy_lab_service: StrategyLabService | None = None,
     signal_wizard_service: SignalWizardService | None = None,
+    generation_material_resolver: GenerationMaterialResolver | None = None,
     **kwargs: Any,
 ) -> FastAPI:
     """Build the canonical Portal API with research-only strategy services."""
@@ -43,8 +51,19 @@ def create_app(
         session_factory,
         feature_registry=feature_registry,
     )
+    runtime_generation = ControlPlaneService(
+        session_factory,
+        generation_material_resolver=generation_material_resolver,
+    )
     context_dependency = identity_dependency(identity_context_provider)
     app.include_router(build_feature_registry_router(feature_registry, context_dependency))
     app.include_router(build_signal_wizard_router(signal_wizard, context_dependency))
     app.include_router(build_strategy_lab_router(strategy_lab, context_dependency))
+    app.include_router(
+        build_runtime_generation_router(
+            runtime_generation,
+            session_factory,
+            context_dependency,
+        )
+    )
     return app

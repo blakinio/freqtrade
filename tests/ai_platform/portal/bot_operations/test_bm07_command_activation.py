@@ -88,6 +88,7 @@ TARGET = CommandTarget(
     tenant_id="tenant-a",
     bot_id="bot-1",
     config_revision=7,
+    runtime_generation_id="generation-1",
     runtime_id="runtime-1",
     runtime_revision=9,
 )
@@ -95,6 +96,7 @@ RUNTIME = AuthoritativeBotRuntimeState(
     tenant_id="tenant-a",
     bot_id="bot-1",
     config_revision=7,
+    runtime_generation_id="generation-1",
     runtime_id="runtime-1",
     runtime_revision=9,
     environment=Environment.TEST,

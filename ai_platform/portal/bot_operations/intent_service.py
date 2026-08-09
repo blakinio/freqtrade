@@ -137,6 +137,7 @@ class LifecycleIntentRequest(ContractModel):
     bot_id: NonEmptyStr
     action: LifecycleAction
     expected_config_revision: PositiveInt
+    expected_runtime_generation_id: NonEmptyStr
     idempotency_key: NonEmptyStr
 
 
@@ -230,6 +231,7 @@ class LifecycleCommandIntentService:
                 tenant_id=context.tenant_id,
                 bot_id=request.bot_id,
                 config_revision=request.expected_config_revision,
+                runtime_generation_id=request.expected_runtime_generation_id,
                 runtime_id=runtime.runtime_id,
                 runtime_revision=runtime.runtime_revision,
             ),
@@ -277,5 +279,7 @@ class LifecycleCommandIntentService:
             and existing_command.target.tenant_id == context.tenant_id
             and existing_command.target.bot_id == request.bot_id
             and existing_command.target.config_revision == request.expected_config_revision
+            and existing_command.target.runtime_generation_id
+            == request.expected_runtime_generation_id
             and existing_command.action == request.action
         )

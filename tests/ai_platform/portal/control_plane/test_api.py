@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from ai_platform.portal.contracts.bots import BotSpec
 from ai_platform.portal.contracts.environment import Environment, ExecutionMode
 from ai_platform.portal.contracts.identity import ActorType, Permission
+from ai_platform.portal.contracts.runtime_generation import RuntimeGenerationMaterial
 from ai_platform.portal.control_plane.api import create_app
 from ai_platform.portal.control_plane.context import RequestContext
 from ai_platform.portal.control_plane.database import (
@@ -51,6 +52,22 @@ def _spec(tenant_id: str, revision: int = 1) -> BotSpec:
         config_revision=revision,
         environment=Environment.TEST,
         execution_mode=ExecutionMode.DRY_RUN,
+    )
+
+
+def _generation_material(*_args: object) -> RuntimeGenerationMaterial:
+    return RuntimeGenerationMaterial(
+        normalized_runtime_config_digest="1" * 64,
+        runtime_image_digest="2" * 64,
+        strategy_artifact_digest="3" * 64,
+        model_artifact_digest="4" * 64,
+        feature_schema_version="features-v1",
+        risk_policy_digest="5" * 64,
+        exchange_mode="dry-run-public-market-data",
+        exchange_connection_revision="exchange-revision-1",
+        isolation_profile_version="isolation-v1",
+        isolation_profile_digest="6" * 64,
+        gateway_contract_version="gateway-v1",
     )
 
 
@@ -142,22 +159,62 @@ def test_api_rejects_undeclared_raw_exchange_secret_fields(
     assert response.status_code == 422
 
 
-def test_api_desired_state_changes_intent_without_claiming_observed_execution(
+def test_api_requires_explicit_apply_before_running_intent(
     session_factory: SessionFactory,
 ) -> None:
-    holder = {"context": _context("tenant-a", Permission.BOT_CREATE)}
-    client = TestClient(create_app(session_factory, lambda: holder["context"]))
+    context = _context(
+        "tenant-a",
+        Permission.BOT_CREATE,
+        Permission.BOT_READ,
+        Permission.BOT_START,
+    )
+    client = TestClient(
+        create_app(
+            session_factory,
+            lambda: context,
+            generation_material_resolver=_generation_material,
+        )
+    )
     created = client.post("/v1/bots", json=_create_payload("tenant-a")).json()
 
-    holder["context"] = _context("tenant-a", Permission.BOT_START)
+    rejected_start = client.post(
+        "/v1/bots/bot-1/desired-state",
+        json={"desired_state": "RUNNING"},
+    )
+    assert rejected_start.status_code == 409
+
+    revision_id = created["latest_authored_revision_id"]
+    promoted = client.post(
+        f"/v1/bots/bot-1/revisions/{revision_id}/promote",
+        json={"expected_state_version": 1},
+    )
+    assert promoted.status_code == 200
+    applied = client.post(
+        "/v1/bots/bot-1/apply",
+        json={
+            "revision_id": revision_id,
+            "expected_state_version": 2,
+            "idempotency_key": "api-apply-r1",
+        },
+    )
+    assert applied.status_code == 200
+    generation_id = applied.json()["generation"]["generation_id"]
+
     response = client.post(
         "/v1/bots/bot-1/desired-state",
         json={"desired_state": "RUNNING"},
     )
-
     assert response.status_code == 200
     assert response.json()["desired_state"] == "RUNNING"
     assert response.json()["observed_state"] == created["observed_state"] == "CREATED"
+    assert response.json()["desired_runtime_generation_id"] == generation_id
+    assert response.json()["observed_runtime_generation_id"] is None
+
+    truth = client.get("/v1/bots/bot-1/runtime-truth")
+    assert truth.status_code == 200
+    assert truth.json()["pending_rollout"] is True
+    assert truth.json()["desired_generation"]["generation_id"] == generation_id
+    assert truth.json()["latest_rollout"]["status"] == "REQUESTED"
 
 
 def test_read_only_portal_data_routes_fail_closed_through_trusted_context(
@@ -229,6 +286,12 @@ def test_openapi_surface_contains_only_control_plane_business_routes(
         "/v1/bots/{bot_id}",
         "/v1/bots/{bot_id}/revisions",
         "/v1/bots/{bot_id}/desired-state",
+        "/v1/bots/{bot_id}/runtime-truth",
+        "/v1/bots/{bot_id}/revisions/{revision_id}/promote",
+        "/v1/bots/{bot_id}/revisions/{revision_id}/deprecate",
+        "/v1/bots/{bot_id}/apply",
+        "/v1/bots/{bot_id}/restart",
+        "/v1/bots/{bot_id}/rollback",
         "/v1/terminal/intents",
         "/v1/models",
         "/v1/trade-analysis",

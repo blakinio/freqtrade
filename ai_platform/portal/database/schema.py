@@ -28,9 +28,27 @@ from ai_platform.portal.database.model_registry import load_portal_models
 
 
 INITIAL_SCHEMA_REVISION = "20260803_01_portal_authoritative"
-EXPECTED_SCHEMA_REVISION = "20260805_02_oidc_logout_replay"
+OIDC_SCHEMA_REVISION = "20260805_02_oidc_logout_replay"
+EXPECTED_SCHEMA_REVISION = "20260808_03_runtime_generation_state"
 MIGRATION_TABLE_NAME = "portal_schema_migrations"
 OIDC_LOGOUT_REPLAY_TABLE_NAME = "portal_oidc_logout_replays"
+RUNTIME_GENERATION_TABLE_NAMES = frozenset(
+    {
+        "portal_runtime_generations",
+        "portal_runtime_generation_observations",
+        "portal_bot_rollouts",
+        "portal_command_idempotency",
+    }
+)
+BOT_RUNTIME_STATE_COLUMNS = frozenset(
+    {
+        "latest_authored_revision_id",
+        "desired_revision_id",
+        "desired_runtime_generation_id",
+        "observed_runtime_generation_id",
+        "state_version",
+    }
+)
 _POSTGRES_MIGRATION_LOCK_ID = 1_122_202_608_03
 _POSTGRES_STRING_CAST_RE = re.compile(r"::(?:character varying|varchar|text)(?:\[\])?")
 _POSTGRES_ANY_ARRAY_RE = re.compile(
@@ -70,6 +88,43 @@ _HARD_RELATIONS = (
           ON parent.tenant_id = child.tenant_id
          AND parent.bot_id = child.bot_id
         WHERE parent.bot_id IS NULL
+        """,
+    ),
+    HardRelation(
+        "runtime_generation_to_bot",
+        "portal_runtime_generations",
+        "portal_bots",
+        """
+        SELECT COUNT(*)
+        FROM portal_runtime_generations child
+        LEFT JOIN portal_bots parent
+          ON parent.tenant_id = child.tenant_id
+         AND parent.bot_id = child.bot_id
+        WHERE parent.bot_id IS NULL
+        """,
+    ),
+    HardRelation(
+        "rollout_to_generation",
+        "portal_bot_rollouts",
+        "portal_runtime_generations",
+        """
+        SELECT COUNT(*)
+        FROM portal_bot_rollouts child
+        LEFT JOIN portal_runtime_generations parent
+          ON parent.generation_id = child.to_generation_id
+        WHERE parent.generation_id IS NULL
+        """,
+    ),
+    HardRelation(
+        "runtime_observation_to_generation",
+        "portal_runtime_generation_observations",
+        "portal_runtime_generations",
+        """
+        SELECT COUNT(*)
+        FROM portal_runtime_generation_observations child
+        LEFT JOIN portal_runtime_generations parent
+          ON parent.generation_id = child.generation_id
+        WHERE parent.generation_id IS NULL
         """,
     ),
     HardRelation(
@@ -295,8 +350,25 @@ def _expected_snapshot(engine: Engine) -> dict[str, Any]:
     }
 
 
-def _initial_snapshot(engine: Engine) -> dict[str, Any]:
+def _pre_runtime_generation_snapshot(engine: Engine) -> dict[str, Any]:
     snapshot = _expected_snapshot(engine)
+    for table_name in RUNTIME_GENERATION_TABLE_NAMES:
+        if table_name not in snapshot:
+            raise RuntimeError(f"Runtime generation table is missing from manifest: {table_name}")
+        snapshot.pop(table_name)
+    bot_snapshot = snapshot.get("portal_bots")
+    if bot_snapshot is None:
+        raise RuntimeError("portal_bots is missing from the Portal model manifest")
+    bot_snapshot["columns"] = [
+        column
+        for column in bot_snapshot["columns"]
+        if column["name"] not in BOT_RUNTIME_STATE_COLUMNS
+    ]
+    return snapshot
+
+
+def _initial_snapshot(engine: Engine) -> dict[str, Any]:
+    snapshot = _pre_runtime_generation_snapshot(engine)
     if OIDC_LOGOUT_REPLAY_TABLE_NAME not in snapshot:
         raise RuntimeError("OIDC logout replay table is missing from the Portal model manifest")
     return {
@@ -308,6 +380,7 @@ def _initial_snapshot(engine: Engine) -> dict[str, Any]:
 
 def _expected_revision_chain(engine: Engine) -> list[dict[str, Any]]:
     initial = _initial_snapshot(engine)
+    oidc = _pre_runtime_generation_snapshot(engine)
     current = _expected_snapshot(engine)
     return [
         {
@@ -318,6 +391,12 @@ def _expected_revision_chain(engine: Engine) -> list[dict[str, Any]]:
         },
         {
             "sequence": 2,
+            "revision_id": OIDC_SCHEMA_REVISION,
+            "dialect_name": engine.dialect.name,
+            "schema_fingerprint": _fingerprint(oidc),
+        },
+        {
+            "sequence": 3,
             "revision_id": EXPECTED_SCHEMA_REVISION,
             "dialect_name": engine.dialect.name,
             "schema_fingerprint": _fingerprint(current),
@@ -591,12 +670,65 @@ def _insert_revision(
     )
 
 
+def _create_oidc_revision(
+    connection: Any,
+    manifest_tables: tuple[Table, ...],
+    revision: dict[str, Any],
+) -> None:
+    replay_table = next(
+        table for table in manifest_tables if table.name == OIDC_LOGOUT_REPLAY_TABLE_NAME
+    )
+    replay_table.create(connection, checkfirst=False)
+    _insert_revision(connection, revision=revision, applied_at=datetime.now(UTC))
+
+
+def _create_runtime_generation_revision(
+    connection: Any,
+    manifest_tables: tuple[Table, ...],
+    revision: dict[str, Any],
+) -> None:
+    connection.exec_driver_sql(
+        "ALTER TABLE portal_bots ADD COLUMN latest_authored_revision_id VARCHAR(255)"
+    )
+    connection.exec_driver_sql(
+        "ALTER TABLE portal_bots ADD COLUMN desired_revision_id VARCHAR(255)"
+    )
+    connection.exec_driver_sql(
+        "ALTER TABLE portal_bots ADD COLUMN desired_runtime_generation_id VARCHAR(36)"
+    )
+    connection.exec_driver_sql(
+        "ALTER TABLE portal_bots ADD COLUMN observed_runtime_generation_id VARCHAR(36)"
+    )
+    connection.exec_driver_sql("ALTER TABLE portal_bots ADD COLUMN state_version INTEGER")
+    connection.execute(
+        text(
+            """
+            UPDATE portal_bots
+               SET latest_authored_revision_id = (
+                   SELECT revision.revision_id
+                     FROM portal_bot_config_revisions revision
+                    WHERE revision.tenant_id = portal_bots.tenant_id
+                      AND revision.bot_id = portal_bots.bot_id
+                      AND revision.revision = portal_bots.current_revision
+               )
+             WHERE latest_authored_revision_id IS NULL
+            """
+        )
+    )
+    connection.execute(text("UPDATE portal_bots SET state_version = 1 WHERE state_version IS NULL"))
+    for table in manifest_tables:
+        if table.name in RUNTIME_GENERATION_TABLE_NAMES:
+            table.create(connection, checkfirst=False)
+    _insert_revision(connection, revision=revision, applied_at=datetime.now(UTC))
+
+
 def migrate_database(engine: Engine) -> dict[str, Any]:
     manifest_tables = _manifest_tables()
     expected = {
         table.name: _expected_table_snapshot(table, engine.dialect) for table in manifest_tables
     }
     initial = _initial_snapshot(engine)
+    oidc = _pre_runtime_generation_snapshot(engine)
     expected_revisions = _expected_revision_chain(engine)
     with engine.begin() as connection:
         _acquire_migration_lock(connection, engine)
@@ -620,6 +752,7 @@ def migrate_database(engine: Engine) -> dict[str, Any]:
                     report,
                 )
             _schema_migrations.create(connection, checkfirst=False)
+
         revisions = _revision_rows(connection)
         if revisions:
             actual = _actual_snapshot(connection)
@@ -628,27 +761,36 @@ def migrate_database(engine: Engine) -> dict[str, Any]:
                 actual,
             ):
                 return _schema_status_connection(connection, engine)
+
             if _revisions_match(revisions, expected_revisions[:1]) and _snapshot_matches(
                 initial,
                 actual,
             ):
-                replay_table = next(
-                    table
-                    for table in manifest_tables
-                    if table.name == OIDC_LOGOUT_REPLAY_TABLE_NAME
-                )
-                replay_table.create(connection, checkfirst=False)
-                _insert_revision(
+                _create_oidc_revision(
                     connection,
-                    revision=expected_revisions[1],
-                    applied_at=datetime.now(UTC),
+                    manifest_tables,
+                    expected_revisions[1],
+                )
+                revisions = _revision_rows(connection)
+                actual = _actual_snapshot(connection)
+
+            if _revisions_match(revisions, expected_revisions[:2]) and _snapshot_matches(
+                oidc,
+                actual,
+            ):
+                _create_runtime_generation_revision(
+                    connection,
+                    manifest_tables,
+                    expected_revisions[2],
                 )
                 return _schema_status_connection(connection, engine)
+
             report = _schema_status_connection(connection, engine)
             raise SchemaMigrationError(
                 "Applied Portal schema revision is divergent or unknown",
                 report,
             )
+
         partial_tables = sorted(
             table_name
             for table_name in inspect(connection).get_table_names()

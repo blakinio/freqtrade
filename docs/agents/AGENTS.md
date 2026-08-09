@@ -2,6 +2,21 @@
 
 Before advising the repository owner or writing a prompt for another agent, read `PROMPTING_HANDOVER.md` and the normative `PROMPTING_STANDARD.md`. Use the handover to inspect live repository state and the standard to construct the prompt. Return a direct recommendation in Polish, a compact reason, and one ready-to-paste worker prompt.
 
+## Owner short-role commands
+
+For long-running repository roles, also read `AGENT_ROLE_COMMON_CONTRACT.md` and resolve owner aliases from `prompts/AGENT_COMMANDS.md` when applicable.
+
+The canonical short role aliases are:
+
+```text
+AUDYT PLATFORMY
+NAPRAWA PLATFORMY
+ARCHITEKTURA PLATFORMY
+WICKHUNTER
+```
+
+The short command selects a repository-owned role prompt; it does not replace live-state discovery, the governing `AGENTS.md` hierarchy, programme/task state, or safety/authority checks. Do not ask the owner to paste the long prompt when the alias can be resolved from the repository.
+
 Before substantial implementation, product-facing validation, audit, E2E, PR cleanup, or task closeout, read and follow `DELIVERY_COMPLETENESS_AND_CLOSEOUT.md`. It is mandatory for prompt evaluation discipline, trust and authority boundaries, delivery classification, frontend/backend or producer/consumer completeness, independent audit, real E2E, exact-head validation, related-PR terminal states, and archival. A worker summary is not terminal evidence.
 
 Before autonomous, long-running, retry-prone, CI-waiting, repair, continuation, or multi-task work, read and follow `ANTI_STALL_AND_EXECUTION_BUDGET.md`. Its runtime, no-progress, CI-check, retry, repair-cycle, context-reconstruction, command-timeout, and additional-task limits are mandatory. Budget exhaustion or unchanged pending state is a real stop condition even when another contract says to continue autonomously.

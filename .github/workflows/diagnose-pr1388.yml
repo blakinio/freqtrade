@@ -26,6 +26,19 @@ jobs:
           pytest jsonschema "pydantic>=2.2" "SQLAlchemy>=2.0.6"
           "httpx>=0.24.1" fastapi pyjwt cryptography "PyYAML>=6.0"
           ruff==0.15.21 codespell==2.4.2
+      - name: Emit exact EOF-fixed schema blob
+        shell: bash
+        run: |
+          python - <<'PY'
+          import base64
+          from pathlib import Path
+
+          path = Path("ai_platform/portal/database/schema.py")
+          data = path.read_bytes()
+          if not data.endswith(b"\n"):
+              data += b"\n"
+          print("FIXED_SCHEMA_BASE64=" + base64.b64encode(data).decode("ascii"))
+          PY
       - name: Diagnose pytest
         shell: bash
         run: |

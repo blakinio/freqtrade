@@ -20,6 +20,10 @@ function fixtureRuntimeTruth(botId: string): BotRuntimeTruth | null {
     config_revision_id: revisionId,
     config_revision_number: bot.spec.config_revision,
     generation_spec_digest: "f".repeat(64),
+    managed_mode: "shadow" as const,
+    managed_mode_request_digest: "d".repeat(64),
+    managed_mode_resolution_digest: "e".repeat(64),
+    paper_authorization_digest: null,
   };
 
   return {
@@ -37,6 +41,7 @@ function fixtureRuntimeTruth(botId: string): BotRuntimeTruth | null {
         revision: bot.spec.config_revision,
         state: "PROMOTED",
         revision_content_digest: null,
+        managed_mode: "shadow",
       },
     ],
     desired_generation: generation,

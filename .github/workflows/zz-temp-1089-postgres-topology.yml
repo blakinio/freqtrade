@@ -1,0 +1,74 @@
+name: Temporary 1089 PostgreSQL topology diagnostic
+
+on:
+  push:
+    branches:
+      - diag/1089-postgres-topology-20260809
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 10
+    steps:
+      - name: Checkout trusted implementation
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          ref: 0f95b0dad5cd537a783301135605f2a10ad99f98
+      - name: Refuse trading credential environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            test -z "${!name:-}" || { echo "trading credential environment present: $name" >&2; exit 1; }
+          done
+      - name: Probe PostgreSQL topology without secret values
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import subprocess
+
+          container = 'freqtrade-portal-postgresql'
+          network = 'portal_oidc_public'
+          alias = 'portal-postgresql'
+          postgres_image = 'docker.io/library/postgres:16.13-alpine3.23@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777'
+          control_image = 'sha256:0bd79c3bb178dba4073db9c1cb47cb22e7bc11eb32d133a28a97fd44658701fc'
+
+          raw = subprocess.run(
+              ['docker', 'inspect', container], check=True, text=True, capture_output=True, timeout=15
+          ).stdout
+          payload = json.loads(raw)[0]
+          state = payload.get('State', {})
+          networks = payload.get('NetworkSettings', {}).get('Networks', {})
+          endpoint = networks.get(network)
+          aliases = endpoint.get('Aliases', []) if isinstance(endpoint, dict) else []
+          print(f"TOPOLOGY running={state.get('Running') is True} healthy={state.get('Health', {}).get('Status') == 'healthy'} attached={endpoint is not None} alias_present={alias in aliases}")
+
+          ready = subprocess.run(
+              ['docker','run','--rm','--network',network,'--entrypoint','pg_isready',postgres_image,
+               '-h',alias,'-p','5432','-U','portal','-d','portal_admin','-t','5'],
+              check=False, text=True, capture_output=True, timeout=15,
+          )
+          print(f"PG_ISREADY rc={ready.returncode} accepting={ready.returncode == 0}")
+
+          socket_probe = subprocess.run(
+              ['docker','run','--rm','--network',network,'--entrypoint','python',control_image,
+               '-c',
+               "import socket; s=socket.create_connection(('portal-postgresql',5432),5); s.close(); print('TCP_OK')"],
+              check=False, text=True, capture_output=True, timeout=15,
+          )
+          print(f"CONTROL_TCP rc={socket_probe.returncode} connected={'TCP_OK' in socket_probe.stdout}")
+
+          if endpoint is None or alias not in aliases or ready.returncode != 0 or socket_probe.returncode != 0:
+              raise SystemExit(1)
+          PY

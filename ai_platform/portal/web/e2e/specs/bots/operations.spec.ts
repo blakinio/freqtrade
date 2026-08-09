@@ -42,7 +42,7 @@ test.describe("bot operations", { tag: [tags.critical, tags.regression] }, () =>
 
     const mode = page.getByLabel("Managed mode");
     await expect(mode).toHaveValue("shadow");
-    await expect(page.getByRole("option", { name: "LIVE — unavailable" })).toBeDisabled();
+    await expect(mode.locator('option[value="live_blocked"]')).toHaveAttribute("disabled", "");
     await mode.selectOption("paper");
     await expect(mode).toHaveValue("paper");
     await expect(
@@ -64,10 +64,11 @@ test.describe("bot operations", { tag: [tags.critical, tags.regression] }, () =>
   test("records lifecycle intent while runtime state remains independent", async ({ botDetail, page }) => {
     await botDetail.open();
     await botDetail.requestPause();
-    await expect(page.getByRole("status")).toContainText("accepted and persisted");
-    await expect(page.getByRole("status")).toContainText(
-      "Desired and observed runtime state remain unchanged",
+    const status = page.getByRole("status");
+    await expect(status).toContainText(
+      "accepted for generation fixture-generation:bot-btc-dryrun-01:1 (SHADOW)",
     );
+    await expect(status).toContainText("Desired and observed runtime state remain unchanged");
   });
 
   test("lifecycle-intent BFF is deterministic and never claims execution", async ({ identity, request }) => {

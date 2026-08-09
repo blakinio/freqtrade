@@ -27,58 +27,45 @@ jobs:
 
           path = Path('tools/agents/portal_supply_chain_runtime.py')
           text = path.read_text(encoding='utf-8')
-          old = '''    entrypoint = _module(
-              "portal_oidc_deploy_entrypoint",
-              directory / "deploy_entrypoint.py",
-          )
-          setattr(  # noqa: B010
-              deploy,
-              "_discovery_from_identity_container",
-              lambda: discovery.deployment_probe(deploy.DeploymentError),
-          )
-          entrypoint._install_verified_build_timeout(deploy)
-          entrypoint._install_docker_host_liquidations_preflight(deploy)
-          setattr(  # noqa: B010
-              deploy,
-              "_build_images",
-              lambda _repo, _sha: _approved_image_tuple(images),
-          )
-          '''
-          new = '''    entrypoint = _module(
-              "portal_oidc_deploy_entrypoint",
-              directory / "deploy_entrypoint.py",
-          )
-          docker_host_state = _module(
-              "portal_oidc_docker_host_state",
-              directory / "docker_host_state.py",
-          )
-          market_evidence = _module(
-              "portal_oidc_market_evidence_runtime",
-              directory / "market_evidence_runtime.py",
-          )
-          copy_on_write = _module(
-              "portal_oidc_postgresql_copy_on_write",
-              directory / "postgresql_copy_on_write.py",
-          )
-          setattr(  # noqa: B010
-              deploy,
-              "_discovery_from_identity_container",
-              lambda: discovery.deployment_probe(deploy.DeploymentError),
-          )
-          entrypoint._install_verified_build_timeout(deploy)
-          setattr(  # noqa: B010
-              deploy,
-              "_build_images",
-              lambda _repo, _sha: _approved_image_tuple(images),
-          )
-          docker_host_state.install(deploy)
-          entrypoint._install_docker_host_liquidations_preflight(deploy)
-          market_evidence.install(deploy)
-          copy_on_write.install(deploy)
-          '''
-          if text.count(old) != 1:
-              raise SystemExit('expected deploy_approved hook block not found exactly once')
-          path.write_text(text.replace(old, new), encoding='utf-8')
+          anchor = 'def deploy_approved(args: argparse.Namespace) -> int:'
+          function_start = text.index(anchor)
+          start = text.index('    entrypoint = _module(\n', function_start)
+          end = text.index('    archive_root = Path(deploy.PORTAL_STATE_DIR)', start)
+          replacement = '\n'.join([
+              '    entrypoint = _module(',
+              '        "portal_oidc_deploy_entrypoint",',
+              '        directory / "deploy_entrypoint.py",',
+              '    )',
+              '    docker_host_state = _module(',
+              '        "portal_oidc_docker_host_state",',
+              '        directory / "docker_host_state.py",',
+              '    )',
+              '    market_evidence = _module(',
+              '        "portal_oidc_market_evidence_runtime",',
+              '        directory / "market_evidence_runtime.py",',
+              '    )',
+              '    copy_on_write = _module(',
+              '        "portal_oidc_postgresql_copy_on_write",',
+              '        directory / "postgresql_copy_on_write.py",',
+              '    )',
+              '    setattr(  # noqa: B010',
+              '        deploy,',
+              '        "_discovery_from_identity_container",',
+              '        lambda: discovery.deployment_probe(deploy.DeploymentError),',
+              '    )',
+              '    entrypoint._install_verified_build_timeout(deploy)',
+              '    setattr(  # noqa: B010',
+              '        deploy,',
+              '        "_build_images",',
+              '        lambda _repo, _sha: _approved_image_tuple(images),',
+              '    )',
+              '    docker_host_state.install(deploy)',
+              '    entrypoint._install_docker_host_liquidations_preflight(deploy)',
+              '    market_evidence.install(deploy)',
+              '    copy_on_write.install(deploy)',
+              '',
+          ])
+          path.write_text(text[:start] + replacement + text[end:], encoding='utf-8')
           PY
           git diff --check
           git config user.name github-actions[bot]

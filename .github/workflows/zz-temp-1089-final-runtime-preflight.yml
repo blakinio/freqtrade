@@ -1,4 +1,4 @@
-name: Temporary 1089 second restart-loop recovery
+name: Temporary 1089 post-build runtime recovery probe
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  recover:
+  probe:
     runs-on: [freqtrade-staging]
     timeout-minutes: 5
     steps:
@@ -32,28 +32,10 @@ jobs:
           persist-credentials: false
           ref: 27b6b65ad6a79184c4922a79a86f6e72b3d4383e
 
-      - name: Force-remove second known restart-loop container
+      - name: Probe Docker runtime after protected image build failure
         shell: bash
         run: |
           set -euo pipefail
-          candidate='wickhunter-production-research-runtime-wickhunter-production-research-runtime-1'
-          if timeout 10 docker ps -a --format '{{.Names}}' | grep -Fxq "$candidate"; then
-            state="$(timeout 5 docker inspect --format '{{.State.Status}}' "$candidate" 2>/dev/null || echo unknown)"
-            policy="$(timeout 5 docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$candidate" 2>/dev/null || echo unknown)"
-            echo "candidate_state=$state restart_policy=$policy"
-            timeout 25 docker rm -f "$candidate"
-            if timeout 10 docker ps -a --format '{{.Names}}' | grep -Fxq "$candidate"; then
-              echo 'restart-loop container still exists after force-remove' >&2
-              exit 1
-            fi
-            echo 'second_restart_loop_recovered=yes'
-          else
-            echo 'second_restart_loop_already_absent=yes'
-          fi
-
-      - name: Verify Docker runtime after restart-loop cleanup
-        shell: bash
-        run: |
-          set -euo pipefail
+          timeout 10 docker info --format 'before_running={{.ContainersRunning}} stopped={{.ContainersStopped}} live_restore={{.LiveRestoreEnabled}}'
           python3 deploy/synology/portal-oidc/docker_runtime_preflight.py
-          timeout 10 docker info --format 'running={{.ContainersRunning}} stopped={{.ContainersStopped}} live_restore={{.LiveRestoreEnabled}}'
+          timeout 10 docker info --format 'after_running={{.ContainersRunning}} stopped={{.ContainersStopped}} live_restore={{.LiveRestoreEnabled}}'

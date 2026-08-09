@@ -18,6 +18,7 @@ COPY . .
 RUN mkdir -p public \
     && npm run build \
     && ./node_modules/.bin/tsc \
+      --ignoreConfig \
       --noEmit false \
       --target ES2022 \
       --module Node16 \

@@ -8,6 +8,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
+from ai_platform.wickhunter.candidate_evaluation_identity import validate_evaluation_case_counts
 from ai_platform.wickhunter.canonical import canonical_sha256
 from ai_platform.wickhunter.contracts import BotMode
 from ai_platform.wickhunter.lightgbm_scorer import (
@@ -542,8 +543,10 @@ def load_verified_candidate_package(  # noqa: C901
     _require_zero_authority(evaluation, field="evaluation identity")
     if evaluation.get("evaluation_sha256") != manifest.get("evaluation_sha256"):
         raise CandidateActivationError("evaluation identity does not match candidate manifest")
-    if evaluation.get("case_count") != 919:
-        raise CandidateActivationError("candidate evaluation case count mismatch")
+    try:
+        validate_evaluation_case_counts(evaluation)
+    except ValueError as exc:
+        raise CandidateActivationError(str(exc)) from exc
 
     optimizer = _load_object(root / "optimizer-result.json", field="optimizer result")
     _require_zero_authority(optimizer, field="optimizer result")

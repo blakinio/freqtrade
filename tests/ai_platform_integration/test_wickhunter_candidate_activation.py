@@ -102,7 +102,8 @@ def _package(root: Path) -> Path:
     payloads = {
         "evaluation-identity.json": {
             "evaluation_sha256": EVALUATION_SHA,
-            "case_count": 919,
+            "case_count": 824,
+            "split_counts": {"train": 565, "validation": 178, "test": 81},
             "protected_holdout_accessed": False,
             "execution_enabled": False,
             "live_capital_authorized": False,

@@ -258,9 +258,7 @@ def test_provisioning_requires_control_plane_runtime_generation(tmp_path: Path) 
 
 def test_resolver_cross_tenant_or_generation_identity_is_rejected(tmp_path: Path) -> None:
     adapter, _driver, resolver, _store = _adapter(tmp_path)
-    resolver.materials[("tenant-a", "bot-1", "generation-1")] = _material(
-        tenant_id="tenant-b"
-    )
+    resolver.materials[("tenant-a", "bot-1", "generation-1")] = _material(tenant_id="tenant-b")
 
     with pytest.raises(
         RuntimeRevisionConflictError,

@@ -162,9 +162,7 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
         result = deploy._run(["docker", "ps", "-a", "--format", "{{.Names}}"])
         prefix = f"{deploy.PORTAL_CONTAINER}-backup-"
         return {
-            line.strip()
-            for line in result.stdout.splitlines()
-            if line.strip().startswith(prefix)
+            line.strip() for line in result.stdout.splitlines() if line.strip().startswith(prefix)
         }
 
     def restore_new_web_backup(backup: str) -> None:
@@ -197,7 +195,8 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
                     restore_new_web_backup(backup)
                 except Exception as restore_exc:
                     raise deploy.DeploymentError(
-                        "Portal web post-promotion verification failed and backup restoration failed"
+                        "Portal web post-promotion verification failed and "
+                        "backup restoration failed"
                     ) from restore_exc
             raise
 

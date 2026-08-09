@@ -73,6 +73,58 @@ def _rollout_from_row(row: BotRolloutRow | None) -> BotRollout | None:
     )
 
 
+def _activation_response(
+    service: ControlPlaneService,
+    operation: str,
+    request: ActivateRevisionRequest,
+    context: RequestContext,
+    bot_id: str,
+) -> RuntimeGenerationActivation:
+    try:
+        if operation == "APPLY":
+            result = service.apply_revision(
+                context,
+                bot_id,
+                request.revision_id,
+                request.expected_state_version,
+                request.idempotency_key,
+            )
+        elif operation == "RESTART":
+            result = service.restart_with_revision(
+                context,
+                bot_id,
+                request.revision_id,
+                request.expected_state_version,
+                request.idempotency_key,
+            )
+        elif operation == "ROLLBACK":
+            result = service.rollback_to_revision(
+                context,
+                bot_id,
+                request.revision_id,
+                request.expected_state_version,
+                request.idempotency_key,
+            )
+        else:  # pragma: no cover - closed local call set
+            raise ValueError("unsupported activation operation")
+    except RuntimeModeResolutionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=exc.reason.value,
+        ) from exc
+    except RuntimeGenerationMaterialUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    bot, generation, rollout = result
+    return RuntimeGenerationActivation(
+        bot=bot,
+        generation=generation,
+        rollout=rollout,
+    )
+
+
 def build_router(
     service: ControlPlaneService,
     session_factory: SessionFactory,
@@ -161,56 +213,6 @@ def build_router(
             request.expected_state_version,
         )
 
-    def _activation_response(
-        operation: str,
-        request: ActivateRevisionRequest,
-        context: RequestContext,
-        bot_id: str,
-    ) -> RuntimeGenerationActivation:
-        try:
-            if operation == "APPLY":
-                result = service.apply_revision(
-                    context,
-                    bot_id,
-                    request.revision_id,
-                    request.expected_state_version,
-                    request.idempotency_key,
-                )
-            elif operation == "RESTART":
-                result = service.restart_with_revision(
-                    context,
-                    bot_id,
-                    request.revision_id,
-                    request.expected_state_version,
-                    request.idempotency_key,
-                )
-            elif operation == "ROLLBACK":
-                result = service.rollback_to_revision(
-                    context,
-                    bot_id,
-                    request.revision_id,
-                    request.expected_state_version,
-                    request.idempotency_key,
-                )
-            else:  # pragma: no cover - closed local call set
-                raise ValueError("unsupported activation operation")
-        except RuntimeModeResolutionError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=exc.reason.value,
-            ) from exc
-        except RuntimeGenerationMaterialUnavailableError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=str(exc),
-            ) from exc
-        bot, generation, rollout = result
-        return RuntimeGenerationActivation(
-            bot=bot,
-            generation=generation,
-            rollout=rollout,
-        )
-
     @router.post(
         "/v1/bots/{bot_id}/apply",
         response_model=RuntimeGenerationActivation,
@@ -220,7 +222,7 @@ def build_router(
         request: ActivateRevisionRequest,
         context: RequestContext = Depends(context_dependency),
     ) -> RuntimeGenerationActivation:
-        return _activation_response("APPLY", request, context, bot_id)
+        return _activation_response(service, "APPLY", request, context, bot_id)
 
     @router.post(
         "/v1/bots/{bot_id}/restart",
@@ -231,7 +233,7 @@ def build_router(
         request: ActivateRevisionRequest,
         context: RequestContext = Depends(context_dependency),
     ) -> RuntimeGenerationActivation:
-        return _activation_response("RESTART", request, context, bot_id)
+        return _activation_response(service, "RESTART", request, context, bot_id)
 
     @router.post(
         "/v1/bots/{bot_id}/rollback",
@@ -242,6 +244,6 @@ def build_router(
         request: ActivateRevisionRequest,
         context: RequestContext = Depends(context_dependency),
     ) -> RuntimeGenerationActivation:
-        return _activation_response("ROLLBACK", request, context, bot_id)
+        return _activation_response(service, "ROLLBACK", request, context, bot_id)
 
     return router

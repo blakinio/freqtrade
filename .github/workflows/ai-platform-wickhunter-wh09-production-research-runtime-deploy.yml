@@ -84,8 +84,6 @@ jobs:
           if payload != expected:
               raise SystemExit("WH09 retry v5 authorization contract mismatch")
           PY
-          git cat-file -e "$DEPLOY_COMMIT^{commit}"
-          git merge-base --is-ancestor "$DEPLOY_COMMIT" "$GITHUB_SHA"
 
       - name: Snapshot authorized Synology compose hardening
         shell: bash

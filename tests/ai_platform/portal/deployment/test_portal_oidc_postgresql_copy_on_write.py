@@ -15,6 +15,9 @@ SPEC.loader.exec_module(module)
 
 def _cutover_stubs(deploy: SimpleNamespace, tmp_path: Path) -> None:
     deploy.PORTAL_RUNTIME_ENV = tmp_path / "runtime.env"
+    deploy.PORTAL_CONTAINER = "freqtrade-portal-web"
+    deploy.CONTROL_CONTAINER = "freqtrade-portal-control-plane"
+    deploy._container_running = lambda _container: False
     deploy._activate_candidate_runtime = lambda: None
     deploy._promote_control = lambda _candidate: None
     deploy._write_env_atomic = lambda path, values: path.write_text(
@@ -135,19 +138,21 @@ def test_existing_postgresql_is_cloned_after_quiesce_before_migration(tmp_path: 
         "source_database": "portal_candidate_oldoldold",
         "candidate_database": "portal_candidate_aaaaaaaaaaaa",
         "source_database_retained_for_rollback": True,
-        "authority_journaled_before_promotion": True,
+        "authority_journaled_before_promotion": False,
+        "candidate_quiesced_before_authority_restore": False,
     }
     assert captured_report["database_recovery"] == {
         "pre_migration_backup_sha256": "backup-sha256",
         "source_database": "portal_candidate_oldoldold",
         "candidate_database": "portal_candidate_aaaaaaaaaaaa",
         "source_database_retained_for_rollback": True,
-        "authority_journaled_before_promotion": True,
+        "authority_journaled_before_promotion": False,
+        "candidate_quiesced_before_authority_restore": False,
         "restore_authorized": False,
     }
 
 
-def test_authority_is_journaled_before_promotion_and_restored_before_rollback(
+def test_authority_is_journaled_before_promotion_and_candidate_is_quiet_before_rollback(
     tmp_path: Path,
 ) -> None:
     args = SimpleNamespace(expected_repository_sha="c" * 40)
@@ -161,6 +166,10 @@ def test_authority_is_journaled_before_promotion_and_restored_before_rollback(
         encoding="utf-8",
     )
     events: list[str] = []
+    running = {
+        "freqtrade-portal-web": True,
+        "freqtrade-portal-control-plane": True,
+    }
 
     deploy = SimpleNamespace(
         DeploymentError=RuntimeError,
@@ -168,6 +177,8 @@ def test_authority_is_journaled_before_promotion_and_restored_before_rollback(
         PORTAL_POSTGRES_USER="portal",
         PORTAL_POSTGRES_ADMIN_DB="portal_admin",
         PORTAL_RUNTIME_ENV=runtime_path,
+        PORTAL_CONTAINER="freqtrade-portal-web",
+        CONTROL_CONTAINER="freqtrade-portal-control-plane",
         _current_database_mode=lambda _runtime, _postgres: (
             "postgresql",
             "portal_candidate_oldoldold",
@@ -182,10 +193,19 @@ def test_authority_is_journaled_before_promotion_and_restored_before_rollback(
         _write_report=lambda _path, _report: "report-sha256",
         _assert_database_name=lambda _database_name: None,
         _backup_postgres=lambda _database_name, _sha: "backup-sha256",
-        _run=lambda *_args, **_kwargs: SimpleNamespace(returncode=0, stdout="", stderr=""),
         _postgres_database_exists=lambda _database_name: True,
         _drop_candidate_database=lambda _database_name: events.append("drop-candidate"),
+        _container_running=lambda container: running[container],
     )
+
+    def run(command, **_kwargs):
+        if command[:2] == ["docker", "stop"]:
+            container = command[2]
+            events.append(f"stop:{container}")
+            running[container] = False
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    deploy._run = run
 
     def activate_candidate_runtime() -> None:
         events.append("journal-candidate-authority")
@@ -203,6 +223,7 @@ def test_authority_is_journaled_before_promotion_and_restored_before_rollback(
     deploy._promote_control = promote_control
 
     def write_env_atomic(path: Path, values: dict[str, str]) -> None:
+        assert not any(running.values())
         events.append("restore-runtime-authority")
         path.write_text(
             "\n".join(f"{name}={value}" for name, value in sorted(values.items())) + "\n",
@@ -212,6 +233,7 @@ def test_authority_is_journaled_before_promotion_and_restored_before_rollback(
     deploy._write_env_atomic = write_env_atomic
 
     def restore_previous_portal(_previous, _control_backup, _web_backup) -> None:
+        assert not any(running.values())
         assert runtime_path.read_text(encoding="utf-8") == (
             "PORTAL_DATABASE_URL=postgresql://old-authority\n"
         )
@@ -237,6 +259,12 @@ def test_authority_is_journaled_before_promotion_and_restored_before_rollback(
 
     assert deploy.deploy(args) == 1
     assert events.index("journal-candidate-authority") < events.index("promote-control")
+    assert events.index("stop:freqtrade-portal-web") < events.index(
+        "stop:freqtrade-portal-control-plane"
+    )
+    assert events.index("stop:freqtrade-portal-control-plane") < events.index(
+        "restore-runtime-authority"
+    )
     assert events.index("restore-runtime-authority") < events.index("restore-old-containers")
     assert events[-1] == "drop-candidate"
     assert runtime_path.read_text(encoding="utf-8") == (

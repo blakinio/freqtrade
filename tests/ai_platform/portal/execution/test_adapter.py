@@ -108,6 +108,7 @@ def _bot(
     tenant_id: str = "tenant-a",
     bot_id: str = "bot-1",
     revision: int = 1,
+    generation_id: str | None = "generation-1",
     execution_mode: ExecutionMode = ExecutionMode.DRY_RUN,
 ) -> BotInstance:
     return BotInstance(
@@ -131,6 +132,7 @@ def _bot(
         ),
         desired_state=BotDesiredState.CREATED,
         observed_state=BotObservedState.CREATED,
+        desired_runtime_generation_id=generation_id,
     )
 
 
@@ -153,7 +155,7 @@ def _adapter(
     return protocol_adapter, driver, resolver, store
 
 
-def test_provisioning_is_deterministic_isolated_and_correlation_labeled(tmp_path: Path) -> None:
+def test_provisioning_is_generation_scoped_isolated_and_correlation_labeled(tmp_path: Path) -> None:
     adapter, driver, _resolver, store = _adapter(tmp_path)
     context = _context()
 
@@ -164,16 +166,35 @@ def test_provisioning_is_deterministic_isolated_and_correlation_labeled(tmp_path
     assert first.runtime_id == second.runtime_id
     assert first.runtime_id != other_tenant.runtime_id
     assert first.observed_state is BotObservedState.CREATED
-    assert driver.provision_specs[0].workspace == store.workspace_for(first.runtime_id)
-    assert driver.provision_specs[0].labels["ai.portal.correlation_id"] == str(
-        context.correlation_id
-    )
-    assert "tenant-a" not in driver.provision_specs[0].labels.values()
-    assert "bot-1" not in driver.provision_specs[0].labels.values()
+    spec = driver.provision_specs[0]
+    assert spec.config_path == store.config_path_for(first.runtime_id)
+    assert spec.state_path == store.state_path_for(first.runtime_id)
+    assert spec.config_path.parent != spec.state_path
+    assert store.record_path_for(first.runtime_id).parent != spec.config_path.parent
+    assert store.record_path_for(first.runtime_id).parent != spec.state_path
+    assert spec.labels["ai.portal.correlation_id"] == str(context.correlation_id)
+    assert "tenant-a" not in spec.labels.values()
+    assert "bot-1" not in spec.labels.values()
+    assert "generation-1" not in spec.labels.values()
 
-    config = json.loads(store.config_path_for(first.runtime_id).read_text(encoding="utf-8"))
+    config_path = store.config_path_for(first.runtime_id)
+    config = json.loads(config_path.read_text(encoding="utf-8"))
     assert config["dry_run"] is True
     assert config["api_server"] == {"enabled": False}
+    assert config["db_url"] == "sqlite:////runtime/state/tradesv3.dryrun.sqlite"
+    assert config_path.stat().st_mode & 0o222 == 0
+
+    current = store.read_current_record("tenant-a", "bot-1")
+    assert current is not None
+    assert current.generation_id == "generation-1"
+    assert current.runtime_id == first.runtime_id
+
+
+def test_provisioning_requires_control_plane_runtime_generation(tmp_path: Path) -> None:
+    adapter, _driver, _resolver, _store = _adapter(tmp_path)
+
+    with pytest.raises(RuntimeNotProvisionedError, match="desired RuntimeGeneration"):
+        adapter.provision_bot(_bot(generation_id=None), _context())
 
 
 def test_runtime_operations_are_tenant_scoped(tmp_path: Path) -> None:
@@ -191,17 +212,66 @@ def test_simulated_mode_is_rejected_by_p3(tmp_path: Path) -> None:
         adapter.provision_bot(_bot(execution_mode=ExecutionMode.SIMULATED), _context())
 
 
-def test_config_revision_change_requires_explicit_reprovision_boundary(tmp_path: Path) -> None:
+def test_config_revision_change_inside_same_generation_is_rejected(tmp_path: Path) -> None:
     adapter, _driver, _resolver, _store = _adapter(tmp_path)
-    adapter.provision_bot(_bot(revision=1), _context())
+    adapter.provision_bot(_bot(revision=1, generation_id="generation-1"), _context())
 
     with pytest.raises(RuntimeRevisionConflictError, match="config revision"):
-        adapter.provision_bot(_bot(revision=2), _context())
+        adapter.provision_bot(_bot(revision=2, generation_id="generation-1"), _context())
 
 
-def test_artifact_change_cannot_mutate_existing_revision_config(tmp_path: Path) -> None:
+def test_replacement_requires_old_running_generation_to_stop_and_preserves_state(
+    tmp_path: Path,
+) -> None:
+    adapter, _driver, _resolver, store = _adapter(tmp_path)
+    first_bot = _bot(revision=1, generation_id="generation-1")
+    first = adapter.provision_bot(first_bot, _context())
+    adapter.start_bot(first_bot, _context())
+    first_state = store.state_path_for(first.runtime_id)
+    (first_state / "tradesv3.dryrun.sqlite").write_text("generation-one", encoding="utf-8")
+
+    replacement = _bot(revision=2, generation_id="generation-2")
+    with pytest.raises(RuntimeRevisionConflictError, match="must be stopped"):
+        adapter.provision_bot(replacement, _context())
+
+    adapter.stop_bot(first_bot.tenant_id, first_bot.bot_id, _context())
+    second = adapter.provision_bot(replacement, _context())
+
+    assert second.runtime_id != first.runtime_id
+    assert (first_state / "tradesv3.dryrun.sqlite").read_text(encoding="utf-8") == (
+        "generation-one"
+    )
+    assert store.state_path_for(second.runtime_id) != first_state
+    assert store.state_path_for(second.runtime_id).is_dir()
+
+    old_record = store.read_record(first.runtime_id)
+    current = store.read_current_record(first_bot.tenant_id, first_bot.bot_id)
+    assert old_record is not None
+    assert old_record.generation_id == "generation-1"
+    assert current is not None
+    assert current.generation_id == "generation-2"
+    assert current.runtime_id == second.runtime_id
+
+    with pytest.raises(RuntimeRevisionConflictError, match="desired RuntimeGeneration"):
+        adapter.start_bot(first_bot, _context())
+
+
+def test_same_generation_recovery_reuses_durable_state(tmp_path: Path) -> None:
+    adapter, _driver, _resolver, store = _adapter(tmp_path)
+    bot = _bot(generation_id="generation-1")
+    first = adapter.provision_bot(bot, _context())
+    state_file = store.state_path_for(first.runtime_id) / "checkpoint.txt"
+    state_file.write_text("persisted", encoding="utf-8")
+
+    second = adapter.provision_bot(bot, _context())
+
+    assert second.runtime_id == first.runtime_id
+    assert state_file.read_text(encoding="utf-8") == "persisted"
+
+
+def test_artifact_change_cannot_mutate_existing_generation_config(tmp_path: Path) -> None:
     adapter, _driver, resolver, store = _adapter(tmp_path)
-    bot = _bot(revision=1)
+    bot = _bot(revision=1, generation_id="generation-1")
     status = adapter.provision_bot(bot, _context())
     config_path = store.config_path_for(status.runtime_id)
     original = config_path.read_text(encoding="utf-8")

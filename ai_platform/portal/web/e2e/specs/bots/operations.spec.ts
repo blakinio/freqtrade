@@ -37,6 +37,24 @@ test.describe("bot operations", { tag: [tags.critical, tags.regression] }, () =>
     ).toBeVisible();
   });
 
+  test("shows fail-closed managed mode authoring and separate desired/active truth", async ({ botDetail, page }) => {
+    await botDetail.open();
+
+    const mode = page.getByLabel("Managed mode");
+    await expect(mode).toHaveValue("shadow");
+    await expect(mode.locator('option[value="live_blocked"]')).toHaveAttribute("disabled", "");
+    await mode.selectOption("paper");
+    await expect(mode).toHaveValue("paper");
+    await expect(
+      page.getByText(/PAPER is accepted only when trusted server evidence authorizes it/),
+    ).toBeVisible();
+
+    const desired = page.locator("dt", { hasText: "Desired" }).locator("..");
+    const active = page.locator("dt", { hasText: "Active" }).locator("..");
+    await expect(desired).toContainText("SHADOW");
+    await expect(active).toContainText("SHADOW");
+  });
+
   test("creates a confirmed immutable revision through the same-origin BFF", async ({ botDetail, page }) => {
     await botDetail.open();
     await botDetail.createRevision("model-revision-e2e");
@@ -46,10 +64,11 @@ test.describe("bot operations", { tag: [tags.critical, tags.regression] }, () =>
   test("records lifecycle intent while runtime state remains independent", async ({ botDetail, page }) => {
     await botDetail.open();
     await botDetail.requestPause();
-    await expect(page.getByRole("status")).toContainText("accepted and persisted");
-    await expect(page.getByRole("status")).toContainText(
-      "Desired and observed runtime state remain unchanged",
+    const status = page.getByRole("status");
+    await expect(status).toContainText(
+      "accepted for generation fixture-generation:bot-btc-dryrun-01:1 (SHADOW)",
     );
+    await expect(status).toContainText("Desired and observed runtime state remain unchanged");
   });
 
   test("lifecycle-intent BFF is deterministic and never claims execution", async ({ identity, request }) => {
@@ -58,6 +77,7 @@ test.describe("bot operations", { tag: [tags.critical, tags.regression] }, () =>
       bot_id: "bot-btc-dryrun-01",
       action: "PAUSE_NEW_ENTRIES",
       expected_config_revision: 1,
+      expected_runtime_generation_id: "fixture-generation:bot-btc-dryrun-01:1",
       idempotency_key: "operations-lifecycle-intent-replay",
     };
 

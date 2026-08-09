@@ -63,6 +63,7 @@ class CommandReasonCode(StrEnum):
     RISK_REJECTED = "RISK_REJECTED"
     RUNTIME_UNAVAILABLE = "RUNTIME_UNAVAILABLE"
     RUNTIME_RESPONSE_AMBIGUOUS = "RUNTIME_RESPONSE_AMBIGUOUS"
+    STALE_GENERATION = "STALE_GENERATION"
     STALE_REVISION = "STALE_REVISION"
     TENANT_MISMATCH = "TENANT_MISMATCH"
 
@@ -71,6 +72,7 @@ class CommandTarget(ContractModel):
     tenant_id: NonEmptyStr
     bot_id: NonEmptyStr
     config_revision: PositiveInt
+    runtime_generation_id: NonEmptyStr
     runtime_id: NonEmptyStr
     runtime_revision: PositiveInt
 
@@ -257,6 +259,21 @@ def _validate_outcome_revision(outcome: CommandOutcome) -> None:
         raise ValueError("revision mismatch must use STALE_REVISION reason code")
 
 
+def _validate_outcome_generation(outcome: CommandOutcome) -> None:
+    stale = CommandReasonCode.STALE_GENERATION in outcome.reason_codes
+    if stale:
+        if outcome.observed_runtime_generation_id is None:
+            raise ValueError("stale generation outcome requires observed generation")
+        if outcome.observed_runtime_generation_id == outcome.target.runtime_generation_id:
+            raise ValueError("stale generation outcome must show a different generation")
+        return
+    if (
+        outcome.observed_runtime_generation_id is not None
+        and outcome.observed_runtime_generation_id != outcome.target.runtime_generation_id
+    ):
+        raise ValueError("generation mismatch must use STALE_GENERATION reason code")
+
+
 class CommandOutcome(ContractModel):
     command_id: NonEmptyStr
     tenant_id: NonEmptyStr
@@ -264,6 +281,7 @@ class CommandOutcome(ContractModel):
     status: CommandOutcomeStatus
     reason_codes: tuple[CommandReasonCode, ...] = ()
     observed_config_revision: PositiveInt | None = None
+    observed_runtime_generation_id: NonEmptyStr | None = None
     execution_attempt_ref: NonEmptyStr | None = None
     reconciliation_ref: NonEmptyStr | None = None
     decided_at: UtcDateTime
@@ -275,4 +293,5 @@ class CommandOutcome(ContractModel):
         _validate_outcome_reason_codes(self)
         _validate_outcome_status(self)
         _validate_outcome_revision(self)
+        _validate_outcome_generation(self)
         return self

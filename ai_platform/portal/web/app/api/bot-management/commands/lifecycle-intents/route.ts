@@ -25,6 +25,7 @@ const allowedKeys = new Set([
   "bot_id",
   "action",
   "expected_config_revision",
+  "expected_runtime_generation_id",
   "idempotency_key",
 ]);
 
@@ -39,6 +40,8 @@ function validRequest(value: unknown): value is LifecycleIntentRequest {
     actions.has(request.action as LifecycleAction) &&
     Number.isInteger(request.expected_config_revision) &&
     Number(request.expected_config_revision) > 0 &&
+    typeof request.expected_runtime_generation_id === "string" &&
+    request.expected_runtime_generation_id.trim().length > 0 &&
     typeof request.idempotency_key === "string" &&
     request.idempotency_key.trim().length > 0
   );

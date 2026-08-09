@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { csrfFetch } from "@/lib/client-fetch";
 import type { BotMutationPermissions } from "@/lib/bot-operations";
@@ -9,6 +9,10 @@ import type {
   LifecycleIntentResult,
 } from "@/lib/bot-command-contracts";
 import type { BotDesiredState, BotObservedState } from "@/lib/contracts";
+import type {
+  BotRuntimeTruth,
+  RuntimeGenerationTruth,
+} from "@/lib/runtime-generation-contracts";
 
 export function BotLifecycleControls({
   botId,
@@ -26,6 +30,59 @@ export function BotLifecycleControls({
   const [pending, setPending] = useState<LifecycleAction | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [runtimeTruth, setRuntimeTruth] = useState<BotRuntimeTruth | null>(null);
+  const [runtimeTruthUnavailable, setRuntimeTruthUnavailable] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    async function loadRuntimeTruth() {
+      try {
+        const response = await fetch(
+          `/api/bots/${encodeURIComponent(botId)}/runtime-truth`,
+          { cache: "no-store" },
+        );
+        if (!response.ok) {
+          if (active) setRuntimeTruthUnavailable(true);
+          return;
+        }
+        const payload = (await response.json()) as BotRuntimeTruth;
+        if (active) {
+          setRuntimeTruth(payload);
+          setRuntimeTruthUnavailable(false);
+        }
+      } catch {
+        if (active) setRuntimeTruthUnavailable(true);
+      }
+    }
+    void loadRuntimeTruth();
+    return () => {
+      active = false;
+    };
+  }, [botId]);
+
+  const revisions = runtimeTruth?.revisions ?? [];
+  const latestSaved = revisions.reduce(
+    (latest, revision) =>
+      latest === null || revision.revision > latest.revision ? revision : latest,
+    null as (typeof revisions)[number] | null,
+  );
+  const latestEligible = revisions.reduce(
+    (latest, revision) =>
+      revision.state === "PROMOTED" &&
+      (latest === null || revision.revision > latest.revision)
+        ? revision
+        : latest,
+    null as (typeof revisions)[number] | null,
+  );
+  const desiredGeneration = runtimeTruth?.desired_generation ?? null;
+  const observedGeneration = runtimeTruth?.observed_generation ?? null;
+  const rollout = runtimeTruth?.latest_rollout ?? null;
+
+  function commandTarget(action: LifecycleAction): RuntimeGenerationTruth | null {
+    return action === "START" || action === "RESUME"
+      ? desiredGeneration
+      : observedGeneration;
+  }
 
   const startAction: LifecycleAction = desiredState === "PAUSED" ? "RESUME" : "START";
   const actions: Array<{
@@ -37,26 +94,35 @@ export function BotLifecycleControls({
     {
       action: startAction,
       label: startAction === "RESUME" ? "Resume" : "Start",
-      allowed: permissions.start,
+      allowed: permissions.start && desiredGeneration !== null,
       inactive: desiredState === "RUNNING",
     },
     {
       action: "PAUSE_NEW_ENTRIES",
       label: "Pause",
-      allowed: permissions.pause,
+      allowed: permissions.pause && observedGeneration !== null,
       inactive: desiredState === "PAUSED",
     },
     {
       action: "STOP_KEEP_POSITIONS",
       label: "Stop",
-      allowed: permissions.stop,
+      allowed: permissions.stop && observedGeneration !== null,
       inactive: desiredState === "STOPPED",
     },
   ];
 
   async function requestAction(action: LifecycleAction) {
+    const target = commandTarget(action);
+    if (target === null) {
+      setError(
+        action === "START" || action === "RESUME"
+          ? "No desired RuntimeGeneration is available. Promote and apply a revision first."
+          : "No observed RuntimeGeneration is available for this lifecycle command.",
+      );
+      return;
+    }
     const confirmed = window.confirm(
-      `Record lifecycle command intent ${action} for ${botId}? This does not execute a runtime action or submit trades.`,
+      `Record lifecycle command intent ${action} for ${botId} generation ${target.generation_id} (${target.managed_mode.toUpperCase()})? This does not execute a runtime action or submit trades.`,
     );
     if (!confirmed) return;
 
@@ -72,7 +138,8 @@ export function BotLifecycleControls({
           body: JSON.stringify({
             bot_id: botId,
             action,
-            expected_config_revision: configRevision,
+            expected_config_revision: target.config_revision_number,
+            expected_runtime_generation_id: target.generation_id,
             idempotency_key: crypto.randomUUID(),
           }),
         },
@@ -86,7 +153,7 @@ export function BotLifecycleControls({
       }
       if (payload.status === "ACCEPTED" && payload.command_id) {
         setMessage(
-          `Command intent ${payload.command_id} accepted and persisted. Desired and observed runtime state remain unchanged pending separate execution and reconciliation.`,
+          `Command intent ${payload.command_id} accepted for generation ${target.generation_id} (${target.managed_mode.toUpperCase()}). Desired and observed runtime state remain unchanged pending separate execution and reconciliation.`,
         );
       } else {
         const reasons = payload.reason_codes.join(", ") || "UNKNOWN";
@@ -108,10 +175,49 @@ export function BotLifecycleControls({
         </div>
       </div>
       <p className="freshness">
-        Desired: <strong>{desiredState}</strong> · Observed: <strong>{observedState}</strong> · Config
-        revision: <strong>{configRevision}</strong>. Commands are capability-gated and audited; this
-        surface never calls a runtime or exchange endpoint.
+        Desired lifecycle: <strong>{desiredState}</strong> · Observed lifecycle: <strong>{observedState}</strong>.
+        Commands are capability-gated, generation-bound and audited; this surface never calls a runtime or exchange endpoint.
       </p>
+      <dl className="definition-list">
+        <div>
+          <dt>Latest saved</dt>
+          <dd>{latestSaved ? `R${latestSaved.revision} · ${latestSaved.state} · ${latestSaved.managed_mode.toUpperCase()}` : `R${configRevision} · truth unavailable`}</dd>
+        </div>
+        <div>
+          <dt>Eligible</dt>
+          <dd>{latestEligible ? `R${latestEligible.revision} · PROMOTED · ${latestEligible.managed_mode.toUpperCase()}` : "None"}</dd>
+        </div>
+        <div>
+          <dt>Desired</dt>
+          <dd>
+            {desiredGeneration
+              ? `R${desiredGeneration.config_revision_number} · G${desiredGeneration.generation_ordinal} · ${desiredGeneration.managed_mode.toUpperCase()} · ${desiredGeneration.generation_id}`
+              : "No desired RuntimeGeneration"}
+          </dd>
+        </div>
+        <div>
+          <dt>Active</dt>
+          <dd>
+            {observedGeneration
+              ? `R${observedGeneration.config_revision_number} · G${observedGeneration.generation_ordinal} · ${observedGeneration.managed_mode.toUpperCase()} · ${observedGeneration.generation_id}`
+              : "No active runtime"}
+          </dd>
+        </div>
+        <div>
+          <dt>Pending rollout</dt>
+          <dd>
+            {runtimeTruthUnavailable
+              ? "Unavailable"
+              : runtimeTruth?.pending_rollout
+                ? "Yes"
+                : "No"}
+          </dd>
+        </div>
+        <div>
+          <dt>Rollout</dt>
+          <dd>{rollout ? `${rollout.status}${rollout.reason_code ? ` · ${rollout.reason_code}` : ""}` : "None"}</dd>
+        </div>
+      </dl>
       <div className="status-cluster" aria-label="Bot lifecycle actions">
         {actions.map((action) => (
           <button
@@ -119,7 +225,13 @@ export function BotLifecycleControls({
             disabled={pending !== null || !action.allowed || action.inactive}
             key={action.action}
             onClick={() => requestAction(action.action)}
-            title={action.allowed ? undefined : `Missing bot.${action.label.toLowerCase()} permission`}
+            title={
+              action.allowed
+                ? undefined
+                : action.action === "START" || action.action === "RESUME"
+                  ? "A PROMOTED revision must be explicitly applied before start or resume"
+                  : "An observed RuntimeGeneration is required for pause or stop"
+            }
             type="button"
           >
             {pending === action.action ? `${action.label}…` : action.label}

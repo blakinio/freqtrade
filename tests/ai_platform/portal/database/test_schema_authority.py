@@ -10,10 +10,12 @@ from sqlalchemy.exc import IntegrityError
 from ai_platform.portal.control_plane.database import Base, build_engine
 from ai_platform.portal.database.model_registry import load_portal_models
 from ai_platform.portal.database.schema import (
+    BOT_RUNTIME_STATE_COLUMNS,
     EXPECTED_SCHEMA_REVISION,
     INITIAL_SCHEMA_REVISION,
     MIGRATION_TABLE_NAME,
     OIDC_LOGOUT_REPLAY_TABLE_NAME,
+    OIDC_SCHEMA_REVISION,
     SchemaReadinessError,
     UnversionedSchemaError,
     _canonical_check_sql,
@@ -21,6 +23,19 @@ from ai_platform.portal.database.schema import (
     migrate_database,
     scan_database_integrity,
 )
+
+
+def _drop_runtime_generation_revision(connection) -> None:
+    for table_name in (
+        "portal_command_idempotency",
+        "portal_runtime_generation_observations",
+        "portal_bot_rollouts",
+        "portal_runtime_generations",
+    ):
+        connection.exec_driver_sql(f"DROP TABLE {table_name}")
+    for column_name in BOT_RUNTIME_STATE_COLUMNS:
+        connection.exec_driver_sql(f"ALTER TABLE portal_bots DROP COLUMN {column_name}")
+    connection.execute(text(f"DELETE FROM {MIGRATION_TABLE_NAME} WHERE sequence = 3"))
 
 
 def test_postgresql_string_array_check_matches_declared_in_expression() -> None:
@@ -70,6 +85,7 @@ def test_fresh_sqlite_migration_is_exact_and_idempotent() -> None:
         assert first["expected_revision"]["revision_id"] == EXPECTED_SCHEMA_REVISION
         assert [revision["revision_id"] for revision in first["applied_revisions"]] == [
             INITIAL_SCHEMA_REVISION,
+            OIDC_SCHEMA_REVISION,
             EXPECTED_SCHEMA_REVISION,
         ]
         assert first["sqlite_foreign_keys"] is True
@@ -78,11 +94,12 @@ def test_fresh_sqlite_migration_is_exact_and_idempotent() -> None:
         engine.dispose()
 
 
-def test_exact_revision_one_upgrades_atomically_to_revision_two(tmp_path: Path) -> None:
-    engine = build_engine(f"sqlite+pysqlite:///{tmp_path / 'upgrade.db'}")
+def test_exact_revision_one_upgrades_atomically_through_revision_three(tmp_path: Path) -> None:
+    engine = build_engine(f"sqlite+pysqlite:///{tmp_path / 'upgrade-v1.db'}")
     try:
         migrate_database(engine)
         with engine.begin() as connection:
+            _drop_runtime_generation_revision(connection)
             connection.exec_driver_sql(f"DROP TABLE {OIDC_LOGOUT_REPLAY_TABLE_NAME}")
             connection.execute(text(f"DELETE FROM {MIGRATION_TABLE_NAME} WHERE sequence = 2"))
 
@@ -91,9 +108,73 @@ def test_exact_revision_one_upgrades_atomically_to_revision_two(tmp_path: Path) 
         assert upgraded["status"] == "ready"
         assert [revision["revision_id"] for revision in upgraded["applied_revisions"]] == [
             INITIAL_SCHEMA_REVISION,
+            OIDC_SCHEMA_REVISION,
             EXPECTED_SCHEMA_REVISION,
         ]
         assert OIDC_LOGOUT_REPLAY_TABLE_NAME not in upgraded["differences"]["missing_tables"]
+    finally:
+        engine.dispose()
+
+
+def test_revision_two_backfills_only_latest_authored_and_state_version(tmp_path: Path) -> None:
+    engine = build_engine(f"sqlite+pysqlite:///{tmp_path / 'upgrade-v2.db'}")
+    try:
+        migrate_database(engine)
+        with engine.begin() as connection:
+            _drop_runtime_generation_revision(connection)
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO portal_bots (
+                        tenant_id, bot_id, name, spec_json,
+                        desired_state, observed_state, current_revision
+                    ) VALUES (
+                        'tenant-a', 'bot-legacy', 'Legacy bot', '{}',
+                        'STOPPED', 'STOPPED', 2
+                    )
+                    """
+                )
+            )
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO portal_bot_config_revisions (
+                        tenant_id, bot_id, revision, revision_id,
+                        revision_json, created_by_actor_id, created_at
+                    ) VALUES (
+                        'tenant-a', 'bot-legacy', 2, 'revision-legacy-2',
+                        '{}', 'actor-1', '2026-08-03T00:00:00+00:00'
+                    )
+                    """
+                )
+            )
+
+        upgraded = migrate_database(engine)
+
+        assert upgraded["status"] == "ready"
+        with engine.connect() as connection:
+            row = (
+                connection.execute(
+                    text(
+                        """
+                        SELECT latest_authored_revision_id,
+                               desired_revision_id,
+                               desired_runtime_generation_id,
+                               observed_runtime_generation_id,
+                               state_version
+                          FROM portal_bots
+                         WHERE tenant_id = 'tenant-a' AND bot_id = 'bot-legacy'
+                        """
+                    )
+                )
+                .mappings()
+                .one()
+            )
+        assert row["latest_authored_revision_id"] == "revision-legacy-2"
+        assert row["desired_revision_id"] is None
+        assert row["desired_runtime_generation_id"] is None
+        assert row["observed_runtime_generation_id"] is None
+        assert row["state_version"] == 1
     finally:
         engine.dispose()
 
@@ -246,7 +327,7 @@ def test_unknown_revision_and_schema_drift_fail_readiness() -> None:
             connection.execute(
                 text(
                     f"UPDATE {MIGRATION_TABLE_NAME} "
-                    "SET revision_id = 'unknown-revision' WHERE sequence = 2"
+                    "SET revision_id = 'unknown-revision' WHERE sequence = 3"
                 )
             )
         with pytest.raises(SchemaReadinessError):
@@ -255,7 +336,7 @@ def test_unknown_revision_and_schema_drift_fail_readiness() -> None:
             connection.execute(
                 text(
                     f"UPDATE {MIGRATION_TABLE_NAME} "
-                    "SET revision_id = :revision_id WHERE sequence = 2"
+                    "SET revision_id = :revision_id WHERE sequence = 3"
                 ),
                 {"revision_id": EXPECTED_SCHEMA_REVISION},
             )

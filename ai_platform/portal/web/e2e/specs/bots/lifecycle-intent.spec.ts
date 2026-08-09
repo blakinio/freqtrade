@@ -11,11 +11,12 @@ test.describe("BMW-02 lifecycle command intents", { tag: [tags.critical, tags.se
     page.once("dialog", (dialog) => dialog.accept());
     await page.getByRole("button", { name: "Pause" }).click();
 
-    await expect(page.getByRole("status")).toContainText("Command intent");
-    await expect(page.getByRole("status")).toContainText("accepted and persisted");
-    await expect(page.getByRole("status")).toContainText(
-      "Desired and observed runtime state remain unchanged",
+    const status = page.getByRole("status");
+    await expect(status).toContainText("Command intent");
+    await expect(status).toContainText(
+      "accepted for generation fixture-generation:bot-btc-dryrun-01:1 (SHADOW)",
     );
+    await expect(status).toContainText("Desired and observed runtime state remain unchanged");
     await expect(page.getByText(/never calls a runtime or exchange endpoint/i)).toBeVisible();
   });
 
@@ -27,6 +28,7 @@ test.describe("BMW-02 lifecycle command intents", { tag: [tags.critical, tags.se
         bot_id: "bot-btc-dryrun-01",
         action: "PAUSE_NEW_ENTRIES",
         expected_config_revision: 1,
+        expected_runtime_generation_id: "fixture-generation:bot-btc-dryrun-01:1",
         idempotency_key: "browser-authority-rejected",
         runtime_id: "browser-runtime",
         runtime_revision: 99,

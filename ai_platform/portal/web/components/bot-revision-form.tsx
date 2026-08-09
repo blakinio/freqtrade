@@ -5,6 +5,13 @@ import { FormEvent, useState } from "react";
 
 import { csrfFetch } from "@/lib/client-fetch";
 import type { BotInstance, BotSpec } from "@/lib/contracts";
+import type { ManagedRuntimeMode } from "@/lib/runtime-generation-contracts";
+
+type ManagedBotSpec = BotSpec & { managed_mode?: ManagedRuntimeMode };
+type ManagedBotResponse = Omit<BotInstance, "spec"> & {
+  spec?: ManagedBotSpec;
+  detail?: string;
+};
 
 export function BotRevisionForm({
   botId,
@@ -12,7 +19,7 @@ export function BotRevisionForm({
   allowed,
 }: {
   botId: string;
-  spec: BotSpec;
+  spec: ManagedBotSpec;
   allowed: boolean;
 }) {
   const router = useRouter();
@@ -30,7 +37,7 @@ export function BotRevisionForm({
       .split(",")
       .map((pair) => pair.trim())
       .filter(Boolean);
-    const nextSpec: BotSpec = {
+    const nextSpec: ManagedBotSpec = {
       tenant_id: currentSpec.tenant_id,
       strategy_version: String(form.get("strategy_version")),
       model_version: String(form.get("model_version")),
@@ -44,10 +51,11 @@ export function BotRevisionForm({
       config_revision: currentSpec.config_revision + 1,
       environment: currentSpec.environment,
       execution_mode: currentSpec.execution_mode,
+      managed_mode: String(form.get("managed_mode") ?? "shadow") as ManagedRuntimeMode,
     };
 
     const confirmed = window.confirm(
-      `Create immutable revision ${nextSpec.config_revision} for ${botId}? Revision ${currentSpec.config_revision} will remain unchanged in history.`,
+      `Create immutable revision ${nextSpec.config_revision} for ${botId}? Revision ${currentSpec.config_revision} will remain unchanged in history. Saving does not roll out the new managed mode; Apply or Restart is required.`,
     );
     if (!confirmed) return;
 
@@ -60,7 +68,7 @@ export function BotRevisionForm({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ spec: nextSpec }),
       });
-      const payload = (await response.json()) as Partial<BotInstance> & { detail?: string };
+      const payload = (await response.json()) as ManagedBotResponse;
       if (!response.ok || !payload.spec) {
         throw new Error(payload.detail ?? `Revision creation failed with status ${response.status}`);
       }
@@ -69,7 +77,7 @@ export function BotRevisionForm({
       setMessage(
         idempotent
           ? `Revision ${payload.spec.config_revision} already exists with the same immutable content.`
-          : `Immutable revision ${payload.spec.config_revision} created and attributed to the bot.`,
+          : `Immutable revision ${payload.spec.config_revision} created in ${(payload.spec.managed_mode ?? "shadow").toUpperCase()} mode. Runtime remains unchanged until explicit Apply or Restart.`,
       );
       router.refresh();
     } catch (caught) {
@@ -99,9 +107,21 @@ export function BotRevisionForm({
       <form className="bot-form" onSubmit={submit}>
         <div className="form-safety">
           <strong>Next revision: {currentSpec.config_revision + 1}</strong>
-          <span>Environment and execution mode remain fixed at {currentSpec.environment} / {currentSpec.execution_mode}. Existing revisions are never edited.</span>
+          <span>
+            Environment and execution mode remain fixed at {currentSpec.environment} / {currentSpec.execution_mode}.
+            Managed mode is immutable per revision. PAPER is accepted only when trusted server evidence authorizes it;
+            LIVE remains unavailable. Saving never changes the running generation.
+          </span>
         </div>
         <div className="form-grid">
+          <label>
+            Managed mode
+            <select name="managed_mode" defaultValue={currentSpec.managed_mode ?? "shadow"}>
+              <option value="shadow">SHADOW — market observation only</option>
+              <option value="paper">PAPER — server eligibility required on Apply</option>
+              <option value="live_blocked" disabled>LIVE — unavailable</option>
+            </select>
+          </label>
           <label>Strategy version<input name="strategy_version" defaultValue={currentSpec.strategy_version} required /></label>
           <label>Model version<input name="model_version" defaultValue={currentSpec.model_version} required /></label>
           <label>Risk policy<input name="risk_policy_version" defaultValue={currentSpec.risk_policy_version} required /></label>

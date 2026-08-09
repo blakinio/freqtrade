@@ -6,9 +6,10 @@ from typing import Annotated, Self
 
 from pydantic import Field, PositiveInt, model_validator
 
-from ai_platform.portal.contracts.common import ContractModel, NonEmptyStr, UtcDateTime
+from ai_platform.portal.contracts.common import ContractModel, NonEmptyStr, Sha256Hex, UtcDateTime
 from ai_platform.portal.contracts.environment import Environment, ExecutionMode
 from ai_platform.portal.contracts.sensitive import OpaqueSensitiveReference
+from ai_platform.wickhunter.contracts import BotMode
 
 
 PositiveDecimal = Annotated[Decimal, Field(gt=0)]
@@ -52,6 +53,7 @@ class BotSpec(ContractModel):
     config_revision: PositiveInt
     environment: Environment
     execution_mode: ExecutionMode = ExecutionMode.DRY_RUN
+    managed_mode: BotMode = BotMode.SHADOW
 
     @model_validator(mode="after")
     def validate_pair_universe(self) -> Self:
@@ -78,7 +80,9 @@ class BotConfigRevision(ContractModel):
     runtime_version: NonEmptyStr
     environment: Environment
     execution_mode: ExecutionMode = ExecutionMode.DRY_RUN
+    managed_mode: BotMode = BotMode.SHADOW
     state: BotConfigRevisionState = BotConfigRevisionState.DRAFT
+    revision_content_digest: Sha256Hex | None = None
     created_by_actor_id: NonEmptyStr
     created_at: UtcDateTime
 
@@ -95,9 +99,15 @@ class BotInstance(ContractModel):
     bot_id: NonEmptyStr
     tenant_id: NonEmptyStr
     name: NonEmptyStr
+    # Compatibility projection of the latest authored revision. It is not runtime authority.
     spec: BotSpec
     desired_state: BotDesiredState
     observed_state: BotObservedState
+    latest_authored_revision_id: NonEmptyStr | None = None
+    desired_revision_id: NonEmptyStr | None = None
+    desired_runtime_generation_id: NonEmptyStr | None = None
+    observed_runtime_generation_id: NonEmptyStr | None = None
+    state_version: PositiveInt = 1
 
     @model_validator(mode="after")
     def validate_tenant_scope(self) -> Self:

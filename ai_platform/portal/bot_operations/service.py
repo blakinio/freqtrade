@@ -259,7 +259,7 @@ class BotCommandService:
                 if stored_by_id is not None:
                     raise BotCommandIdentityConflictError("bot command identity already exists")
 
-                status, reasons, observed_revision = self._decide(
+                status, reasons, observed_revision, observed_generation = self._decide(
                     context,
                     command,
                     runtime,
@@ -271,6 +271,7 @@ class BotCommandService:
                     reasons,
                     occurred_at,
                     observed_config_revision=observed_revision,
+                    observed_runtime_generation_id=observed_generation,
                 )
                 entry = self._history_entry(
                     context,
@@ -298,11 +299,17 @@ class BotCommandService:
         command: BotOperationCommand,
         runtime: AuthoritativeBotRuntimeState,
         policy: _CommandPolicy,
-    ) -> tuple[CommandOutcomeStatus, tuple[CommandReasonCode, ...], int | None]:
+    ) -> tuple[
+        CommandOutcomeStatus,
+        tuple[CommandReasonCode, ...],
+        int | None,
+        str | None,
+    ]:
         if command.tenant_id != context.tenant_id or runtime.tenant_id != context.tenant_id:
             return (
                 CommandOutcomeStatus.REJECTED,
                 (CommandReasonCode.TENANT_MISMATCH,),
+                None,
                 None,
             )
         if command.actor != context.actor:
@@ -310,11 +317,13 @@ class BotCommandService:
                 CommandOutcomeStatus.REJECTED,
                 (CommandReasonCode.INVALID_COMMAND,),
                 None,
+                None,
             )
         if command.environment != context.environment or runtime.environment != context.environment:
             return (
                 CommandOutcomeStatus.REJECTED,
                 (CommandReasonCode.ENVIRONMENT_MISMATCH,),
+                None,
                 None,
             )
         if policy.capability not in context.capabilities or command.capability != policy.capability:
@@ -322,11 +331,13 @@ class BotCommandService:
                 CommandOutcomeStatus.REJECTED,
                 (CommandReasonCode.CAPABILITY_MISSING,),
                 None,
+                None,
             )
         if runtime.bot_id != command.target.bot_id:
             return (
                 CommandOutcomeStatus.REJECTED,
                 (CommandReasonCode.INVALID_COMMAND,),
+                None,
                 None,
             )
         if runtime.config_revision != command.target.config_revision:
@@ -334,6 +345,14 @@ class BotCommandService:
                 CommandOutcomeStatus.REJECTED,
                 (CommandReasonCode.STALE_REVISION,),
                 runtime.config_revision,
+                None,
+            )
+        if runtime.runtime_generation_id != command.target.runtime_generation_id:
+            return (
+                CommandOutcomeStatus.REJECTED,
+                (CommandReasonCode.STALE_GENERATION,),
+                None,
+                runtime.runtime_generation_id,
             )
         if (
             runtime.runtime_id != command.target.runtime_id
@@ -343,11 +362,13 @@ class BotCommandService:
                 CommandOutcomeStatus.BLOCKED,
                 (CommandReasonCode.RUNTIME_UNAVAILABLE,),
                 None,
+                None,
             )
         if runtime.freshness != RuntimeReadFreshness.CURRENT:
             return (
                 CommandOutcomeStatus.BLOCKED,
                 (CommandReasonCode.RUNTIME_UNAVAILABLE,),
+                None,
                 None,
             )
         if runtime.kill_switch_active and policy.blocked_by_kill_switch:
@@ -355,8 +376,9 @@ class BotCommandService:
                 CommandOutcomeStatus.BLOCKED,
                 (CommandReasonCode.KILL_SWITCH_ACTIVE,),
                 None,
+                None,
             )
-        return CommandOutcomeStatus.ACCEPTED, (), None
+        return CommandOutcomeStatus.ACCEPTED, (), None, None
 
     @staticmethod
     def _outcome(
@@ -365,6 +387,7 @@ class BotCommandService:
         reasons: tuple[CommandReasonCode, ...],
         occurred_at: datetime,
         observed_config_revision: int | None = None,
+        observed_runtime_generation_id: str | None = None,
     ) -> CommandOutcome:
         return CommandOutcome(
             command_id=command.command_id,
@@ -373,6 +396,7 @@ class BotCommandService:
             status=status,
             reason_codes=tuple(sorted(reasons, key=lambda reason: reason.value)),
             observed_config_revision=observed_config_revision,
+            observed_runtime_generation_id=observed_runtime_generation_id,
             decided_at=occurred_at,
         )
 

@@ -81,6 +81,27 @@ def test_trusted_generation_material_requires_each_isolation_binding(field: str)
         RuntimeGenerationMaterial.model_validate(payload)
 
 
+@pytest.mark.parametrize(
+    ("field", "malformed"),
+    [
+        ("isolation_plan_digest", "not-a-sha256"),
+        ("gateway_artifact_digest", "A" * 64),
+        ("gateway_contract_digest", "0" * 63),
+        ("market_data_egress_policy_version", "   "),
+        ("market_data_egress_policy_digest", "g" * 64),
+    ],
+)
+def test_trusted_generation_material_rejects_malformed_isolation_binding(
+    field: str,
+    malformed: str,
+) -> None:
+    payload = _material_payload()
+    payload[field] = malformed
+
+    with pytest.raises(ValidationError):
+        RuntimeGenerationMaterial.model_validate(payload)
+
+
 @pytest.mark.parametrize("field", _REQUIRED_BINDING_FIELDS)
 def test_activation_request_rejects_client_supplied_isolation_binding(field: str) -> None:
     payload: dict[str, object] = {

@@ -122,7 +122,7 @@ export function BotLifecycleControls({
       return;
     }
     const confirmed = window.confirm(
-      `Record lifecycle command intent ${action} for ${botId} generation ${target.generation_id}? This does not execute a runtime action or submit trades.`,
+      `Record lifecycle command intent ${action} for ${botId} generation ${target.generation_id} (${target.managed_mode.toUpperCase()})? This does not execute a runtime action or submit trades.`,
     );
     if (!confirmed) return;
 
@@ -153,7 +153,7 @@ export function BotLifecycleControls({
       }
       if (payload.status === "ACCEPTED" && payload.command_id) {
         setMessage(
-          `Command intent ${payload.command_id} accepted for generation ${target.generation_id}. Desired and observed runtime state remain unchanged pending separate execution and reconciliation.`,
+          `Command intent ${payload.command_id} accepted for generation ${target.generation_id} (${target.managed_mode.toUpperCase()}). Desired and observed runtime state remain unchanged pending separate execution and reconciliation.`,
         );
       } else {
         const reasons = payload.reason_codes.join(", ") || "UNKNOWN";
@@ -181,17 +181,17 @@ export function BotLifecycleControls({
       <dl className="definition-list">
         <div>
           <dt>Latest saved</dt>
-          <dd>{latestSaved ? `R${latestSaved.revision} · ${latestSaved.state}` : `R${configRevision} · truth unavailable`}</dd>
+          <dd>{latestSaved ? `R${latestSaved.revision} · ${latestSaved.state} · ${latestSaved.managed_mode.toUpperCase()}` : `R${configRevision} · truth unavailable`}</dd>
         </div>
         <div>
           <dt>Eligible</dt>
-          <dd>{latestEligible ? `R${latestEligible.revision} · PROMOTED` : "None"}</dd>
+          <dd>{latestEligible ? `R${latestEligible.revision} · PROMOTED · ${latestEligible.managed_mode.toUpperCase()}` : "None"}</dd>
         </div>
         <div>
           <dt>Desired</dt>
           <dd>
             {desiredGeneration
-              ? `R${desiredGeneration.config_revision_number} · G${desiredGeneration.generation_ordinal} · ${desiredGeneration.generation_id}`
+              ? `R${desiredGeneration.config_revision_number} · G${desiredGeneration.generation_ordinal} · ${desiredGeneration.managed_mode.toUpperCase()} · ${desiredGeneration.generation_id}`
               : "No desired RuntimeGeneration"}
           </dd>
         </div>
@@ -199,7 +199,7 @@ export function BotLifecycleControls({
           <dt>Active</dt>
           <dd>
             {observedGeneration
-              ? `R${observedGeneration.config_revision_number} · G${observedGeneration.generation_ordinal} · ${observedGeneration.generation_id}`
+              ? `R${observedGeneration.config_revision_number} · G${observedGeneration.generation_ordinal} · ${observedGeneration.managed_mode.toUpperCase()} · ${observedGeneration.generation_id}`
               : "No active runtime"}
           </dd>
         </div>

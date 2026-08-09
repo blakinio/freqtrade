@@ -21,9 +21,9 @@ from ai_platform.portal.contracts.runtime_generation import (
 from ai_platform.portal.control_plane._service_core import (
     ActivationResult,
     BotNotFoundError,
-    Clock,
+    Clock as Clock,
     ControlPlaneConflictError,
-    GenerationMaterialResolver,
+    GenerationMaterialResolver as GenerationMaterialResolver,
     RuntimeGenerationMaterialUnavailableError,
 )
 from ai_platform.portal.control_plane._service_core import (
@@ -113,7 +113,7 @@ class ControlPlaneService(_CoreControlPlaneService):
                     session, context.tenant_id, bot_id
                 )
                 generation_id = str(uuid4())
-                generation_digest = self._generation_spec_digest(
+                generation_digest = self._managed_generation_spec_digest(
                     revision,
                     material,
                     mode_resolution,
@@ -283,7 +283,7 @@ class ControlPlaneService(_CoreControlPlaneService):
         )
 
     @classmethod
-    def _generation_spec_digest(
+    def _managed_generation_spec_digest(
         cls,
         revision: BotConfigRevision,
         material: RuntimeGenerationMaterial,

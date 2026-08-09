@@ -115,15 +115,34 @@ def test_final_retry_v5_is_one_shot_exact_source_and_zero_authority() -> None:
     assert 'git rev-parse "$GITHUB_SHA:$COMPOSE_FILE"' in workflow
     assert "docker build --no-cache" in workflow
     assert "org.opencontainers.image.revision" in workflow
+    assert 'COMPOSE_PROJECT_NAME: wickhunter-production-research-runtime' in workflow
+    assert 'COMPOSE_SERVICE: wickhunter-production-research-runtime' in workflow
+    assert 'label=com.docker.compose.project=$COMPOSE_PROJECT_NAME' in workflow
+    assert 'label=com.docker.compose.service=$COMPOSE_SERVICE' in workflow
+    assert "WH09 compose service identity is not unique" in workflow
+    assert "PREVIOUS_RUNTIME_CONTAINER_ID" in workflow
+    assert 'docker stop --time 30 "$PREVIOUS_RUNTIME_CONTAINER_ID"' in workflow
+    assert '[[ "$existing" == "${PREVIOUS_RUNTIME_CONTAINER_ID:-}" ]] && continue' in workflow
     assert "--pid=host" in workflow
     assert "--network none" in workflow
     assert "--read-only" in workflow
     assert "--cap-drop ALL" in workflow
     assert "--security-opt no-new-privileges:true" in workflow
-    assert "/proc/1/status" in workflow
+    assert "hidepid=" in workflow
+    assert "restrictive proc visibility is not allowed" in workflow
+    assert "snapshot =" in workflow
+    assert "host PID namespace probe has incomplete PID visibility" in workflow
+    assert "cannot read stable host PID" in workflow
+    assert "if not pid_dir.exists():" in workflow
     assert "HOST_PID_UID_ISOLATION_PASS" in workflow
     assert "ps -eo uid=" not in workflow
+    assert 'export WICKHUNTER_RESEARCH_RUNTIME_IMAGE="$image_id"' in workflow
+    assert '"$image_id" - "$RUNTIME_UID"' in workflow
     assert "--no-build --force-recreate" in workflow
+    assert "deployed_image_id=\"$(docker inspect --format '{{.Image}}'" in workflow
+    assert '[[ "$deployed_image_id" == "$image_id" ]]' in workflow
+    assert "runtime immutable image identity mismatch" in workflow
+    assert "'image_id': runtime_image_id" in workflow
     assert "two advancing cycles" in workflow
     assert "docker exec" in workflow
     assert "research_runtime_healthcheck.py" in workflow

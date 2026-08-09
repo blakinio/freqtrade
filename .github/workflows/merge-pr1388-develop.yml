@@ -1,6 +1,11 @@
 name: Merge PR1388 Develop
 
 on:
+  push:
+    branches:
+      - feat/portal-runtime-generation-state-1357
+    paths:
+      - ".github/workflows/merge-pr1388-develop.yml"
   pull_request:
     branches:
       - develop
@@ -12,7 +17,7 @@ permissions:
 
 jobs:
   merge-develop:
-    if: github.event.pull_request.head.ref == 'feat/portal-runtime-generation-state-1357'
+    if: github.event_name == 'push' || github.event.pull_request.head.ref == 'feat/portal-runtime-generation-state-1357'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout authoritative branch

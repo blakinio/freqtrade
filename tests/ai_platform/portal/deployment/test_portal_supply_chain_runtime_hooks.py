@@ -1,6 +1,39 @@
 from __future__ import annotations
 
+import importlib
+import sys
 from pathlib import Path
+from types import ModuleType
+
+
+def _runtime_module() -> ModuleType:
+    tools_agents = str(Path("tools/agents").resolve())
+    sys.path.insert(0, tools_agents)
+    try:
+        return importlib.import_module("portal_supply_chain_runtime")
+    finally:
+        sys.path.remove(tools_agents)
+
+
+def test_dynamic_module_loader_registers_dataclass_module_before_exec(tmp_path: Path) -> None:
+    runtime = _runtime_module()
+    module_path = tmp_path / "dynamic_dataclass.py"
+    module_path.write_text(
+        "from __future__ import annotations\n"
+        "from dataclasses import dataclass\n\n"
+        "@dataclass(frozen=True)\n"
+        "class Payload:\n"
+        "    value: int\n",
+        encoding="utf-8",
+    )
+    module_name = "portal_supply_chain_runtime_test_dataclass"
+    sys.modules.pop(module_name, None)
+    try:
+        loaded = runtime._module(module_name, module_path)
+        assert sys.modules[module_name] is loaded
+        assert loaded.Payload(7).value == 7
+    finally:
+        sys.modules.pop(module_name, None)
 
 
 def test_approved_deploy_installs_runtime_hooks_after_approved_images() -> None:

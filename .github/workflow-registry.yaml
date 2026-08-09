@@ -831,6 +831,22 @@
     {
       "classification": "canonical",
       "lifecycle": "active",
+      "name": "Portal API Mode Browser",
+      "owner": "portal",
+      "path": ".github/workflows/portal-api-mode-browser.yml",
+      "permissions": {
+        "contents": "read"
+      },
+      "review_date": "2027-02-04",
+      "risk_class": "low",
+      "triggers": [
+        "pull_request",
+        "workflow_dispatch"
+      ]
+    },
+    {
+      "classification": "canonical",
+      "lifecycle": "active",
       "name": "Portal Authentik Deployment",
       "owner": "portal",
       "path": ".github/workflows/portal-authentik-deployment.yml",

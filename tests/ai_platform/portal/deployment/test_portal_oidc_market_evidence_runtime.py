@@ -130,7 +130,9 @@ def test_immutable_selection_requires_canonical_verifier_to_confirm_v2_base() ->
         runtime._verify_immutable_selection(deploy, IMAGE, preselection)
 
 
-def test_active_selection_is_verified_as_runtime_user_and_pins_active_pointer(tmp_path: Path) -> None:
+def test_active_selection_is_verified_as_runtime_user_and_pins_active_pointer(
+    tmp_path: Path,
+) -> None:
     preselection = {
         "run_id": ACTIVE_RUN_ID,
         "group_id": "321",

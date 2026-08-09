@@ -38,6 +38,7 @@ from ai_platform.portal.execution.private_read import (
 )
 from ai_platform.portal.execution.runtime import (
     DriverRuntimeState,
+    ResolvedRuntimeArtifacts,
     RuntimeArtifactResolver,
     RuntimeContainerSpec,
     RuntimeDriver,
@@ -65,14 +66,28 @@ class FreqtradeExecutionAdapter:
         self._private_read_collector = private_read_collector
 
     def provision_bot(self, bot: BotInstance, context: CorrelationContext) -> RuntimeStatus:
-        self._require_dry_run(bot)
         generation_id = self._desired_generation_id(bot)
+        artifacts = self._artifact_resolver.resolve(
+            bot.tenant_id,
+            bot.bot_id,
+            generation_id,
+        )
+        self._require_resolved_identity(artifacts, bot.tenant_id, bot.bot_id, generation_id)
+        self._require_dry_run_material(artifacts)
+        self._require_exact_image_reference(artifacts)
+
+        config = build_safe_dry_run_config(artifacts)
+        config_sha256 = self._workspace_store.config_sha256(config)
+        if config_sha256 != artifacts.normalized_runtime_config_digest:
+            raise RuntimeRevisionConflictError(
+                "resolved runtime config does not match RuntimeGeneration config digest"
+            )
+
         runtime_id = self._workspace_store.runtime_id_for(
             bot.tenant_id,
             bot.bot_id,
             generation_id,
         )
-
         current = self._workspace_store.read_current_record(bot.tenant_id, bot.bot_id)
         if current is not None:
             self._require_record_identity(current, bot.tenant_id, bot.bot_id)
@@ -91,19 +106,7 @@ class FreqtradeExecutionAdapter:
         if existing is not None:
             self._require_record_identity(existing, bot.tenant_id, bot.bot_id)
             self._require_generation(existing, generation_id)
-            self._require_revision(existing, bot)
-
-        artifacts = self._artifact_resolver.resolve(bot)
-        config = build_safe_dry_run_config(bot, artifacts)
-        config_sha256 = self._workspace_store.config_sha256(config)
-        if existing is not None and (
-            existing.config_sha256 != config_sha256
-            or existing.image != artifacts.image
-            or existing.strategy_name != artifacts.strategy_name
-        ):
-            raise RuntimeRevisionConflictError(
-                "runtime artifacts changed without a new immutable RuntimeGeneration"
-            )
+            self._require_material_unchanged(existing, artifacts, config_sha256)
 
         try:
             self._workspace_store.write_config(runtime_id, config)
@@ -115,8 +118,15 @@ class FreqtradeExecutionAdapter:
             tenant_id=bot.tenant_id,
             bot_id=bot.bot_id,
             generation_id=generation_id,
+            generation_spec_digest=artifacts.generation_spec_digest,
+            config_revision_id=artifacts.config_revision_id,
+            config_revision=artifacts.config_revision,
+            config_revision_digest=artifacts.config_revision_digest,
+            normalized_runtime_config_digest=artifacts.normalized_runtime_config_digest,
+            runtime_image_digest=artifacts.runtime_image_digest,
+            strategy_artifact_digest=artifacts.strategy_artifact_digest,
+            model_artifact_digest=artifacts.model_artifact_digest,
             runtime_id=runtime_id,
-            config_revision=bot.spec.config_revision,
             image=artifacts.image,
             strategy_name=artifacts.strategy_name,
             config_sha256=config_sha256,
@@ -134,7 +144,13 @@ class FreqtradeExecutionAdapter:
             config_path=self._workspace_store.config_path_for(runtime_id),
             state_path=state_path,
             strategy_name=artifacts.strategy_name,
-            labels=self._runtime_labels(bot, generation_id, runtime_id, context),
+            labels=self._runtime_labels(
+                bot,
+                generation_id,
+                artifacts.config_revision,
+                runtime_id,
+                context,
+            ),
         )
         try:
             state = self._driver.provision(container_spec)
@@ -147,11 +163,9 @@ class FreqtradeExecutionAdapter:
         return self._status(bot.tenant_id, bot.bot_id, runtime_id, self._observed_state(state))
 
     def start_bot(self, bot: BotInstance, context: CorrelationContext) -> RuntimeStatus:
-        self._require_dry_run(bot)
         desired_generation_id = self._desired_generation_id(bot)
         record = self._require_record(bot.tenant_id, bot.bot_id)
         self._require_generation(record, desired_generation_id)
-        self._require_revision(record, bot)
         return self._lifecycle_status(record, context, self._driver.start)
 
     def pause_bot(
@@ -515,16 +529,57 @@ class FreqtradeExecutionAdapter:
         return generation_id
 
     @staticmethod
-    def _require_revision(record: RuntimeRecord, bot: BotInstance) -> None:
-        if record.config_revision != bot.spec.config_revision:
+    def _require_resolved_identity(
+        artifacts: ResolvedRuntimeArtifacts,
+        tenant_id: str,
+        bot_id: str,
+        generation_id: str,
+    ) -> None:
+        if (
+            artifacts.tenant_id != tenant_id
+            or artifacts.bot_id != bot_id
+            or artifacts.generation_id != generation_id
+        ):
             raise RuntimeRevisionConflictError(
-                "provisioned runtime revision does not match bot config revision"
+                "resolved runtime material does not match requested RuntimeGeneration identity"
             )
 
     @staticmethod
-    def _require_dry_run(bot: BotInstance) -> None:
-        if bot.spec.execution_mode is not ExecutionMode.DRY_RUN:
+    def _require_dry_run_material(artifacts: ResolvedRuntimeArtifacts) -> None:
+        if artifacts.execution_mode is not ExecutionMode.DRY_RUN:
             raise UnsupportedExecutionModeError("P3 only supports dry_run execution mode")
+
+    @staticmethod
+    def _require_exact_image_reference(artifacts: ResolvedRuntimeArtifacts) -> None:
+        expected_suffix = f"@sha256:{artifacts.runtime_image_digest}"
+        if not artifacts.image.endswith(expected_suffix):
+            raise RuntimeRevisionConflictError(
+                "runtime image reference does not match RuntimeGeneration image digest"
+            )
+
+    @staticmethod
+    def _require_material_unchanged(
+        record: RuntimeRecord,
+        artifacts: ResolvedRuntimeArtifacts,
+        config_sha256: str,
+    ) -> None:
+        if (
+            record.generation_spec_digest != artifacts.generation_spec_digest
+            or record.config_revision_id != artifacts.config_revision_id
+            or record.config_revision != artifacts.config_revision
+            or record.config_revision_digest != artifacts.config_revision_digest
+            or record.normalized_runtime_config_digest
+            != artifacts.normalized_runtime_config_digest
+            or record.runtime_image_digest != artifacts.runtime_image_digest
+            or record.strategy_artifact_digest != artifacts.strategy_artifact_digest
+            or record.model_artifact_digest != artifacts.model_artifact_digest
+            or record.config_sha256 != config_sha256
+            or record.image != artifacts.image
+            or record.strategy_name != artifacts.strategy_name
+        ):
+            raise RuntimeRevisionConflictError(
+                "runtime material changed without a new immutable RuntimeGeneration"
+            )
 
     def _write_success(self, record: RuntimeRecord, context: CorrelationContext) -> None:
         self._workspace_store.write_record(
@@ -602,6 +657,7 @@ class FreqtradeExecutionAdapter:
     def _runtime_labels(
         bot: BotInstance,
         generation_id: str,
+        config_revision: int,
         runtime_id: str,
         context: CorrelationContext,
     ) -> dict[str, str]:
@@ -610,7 +666,7 @@ class FreqtradeExecutionAdapter:
             "ai.portal.tenant_hash": hashlib.sha256(bot.tenant_id.encode()).hexdigest()[:16],
             "ai.portal.bot_hash": hashlib.sha256(bot.bot_id.encode()).hexdigest()[:16],
             "ai.portal.generation_hash": hashlib.sha256(generation_id.encode()).hexdigest()[:16],
-            "ai.portal.config_revision": str(bot.spec.config_revision),
+            "ai.portal.config_revision": str(config_revision),
             "ai.portal.request_id": str(context.request_id),
             "ai.portal.correlation_id": str(context.correlation_id),
         }

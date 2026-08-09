@@ -1,4 +1,4 @@
-name: Temporary 1089 direct Portal candidate recovery
+name: Temporary 1089 second restart-loop recovery
 
 on:
   push:
@@ -32,26 +32,26 @@ jobs:
           persist-credentials: false
           ref: 27b6b65ad6a79184c4922a79a86f6e72b3d4383e
 
-      - name: Force-remove stale Portal candidate only
+      - name: Force-remove second known restart-loop container
         shell: bash
         run: |
           set -euo pipefail
-          candidate='freqtrade-portal-control-plane-candidate-81005a01301f'
+          candidate='wickhunter-production-research-runtime-wickhunter-production-research-runtime-1'
           if timeout 10 docker ps -a --format '{{.Names}}' | grep -Fxq "$candidate"; then
-            policy="$(timeout 5 docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$candidate" 2>/dev/null || echo unknown)"
             state="$(timeout 5 docker inspect --format '{{.State.Status}}' "$candidate" 2>/dev/null || echo unknown)"
+            policy="$(timeout 5 docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$candidate" 2>/dev/null || echo unknown)"
             echo "candidate_state=$state restart_policy=$policy"
-            timeout 20 docker rm -f "$candidate"
+            timeout 25 docker rm -f "$candidate"
             if timeout 10 docker ps -a --format '{{.Names}}' | grep -Fxq "$candidate"; then
-              echo 'stale Portal candidate still exists after force-remove' >&2
+              echo 'restart-loop container still exists after force-remove' >&2
               exit 1
             fi
-            echo 'portal_candidate_recovered=yes'
+            echo 'second_restart_loop_recovered=yes'
           else
-            echo 'portal_candidate_already_absent=yes'
+            echo 'second_restart_loop_already_absent=yes'
           fi
 
-      - name: Verify Docker runtime after direct recovery
+      - name: Verify Docker runtime after restart-loop cleanup
         shell: bash
         run: |
           set -euo pipefail

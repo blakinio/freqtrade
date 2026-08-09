@@ -27,9 +27,7 @@ def _workflow_shell_step(workflow: str, step_name: str) -> str:
     marker = f"      - name: {step_name}"
     start = lines.index(marker)
     run_index = next(
-        index
-        for index in range(start + 1, len(lines))
-        if lines[index] == "        run: |"
+        index for index in range(start + 1, len(lines)) if lines[index] == "        run: |"
     )
     body: list[str] = []
     for line in lines[run_index + 1 :]:
@@ -180,9 +178,7 @@ def test_final_retry_v6_is_one_shot_exact_source_and_zero_authority() -> None:
     assert 'RUNTIME_UID: "65531"' in workflow
     assert 'RUNTIME_GID: "65531"' in workflow
     assert "RLIMIT_NPROC_DEDICATED_HOST_UID_FALLBACK" in workflow
-    assert (
-        "pids_limit" in workflow
-    )  # forbidden-field guard documents the unsupported setting
+    assert "pids_limit" in workflow  # forbidden-field guard documents the unsupported setting
     assert "PidsLimit" not in workflow
 
     assert retry == {

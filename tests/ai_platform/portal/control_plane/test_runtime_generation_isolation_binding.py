@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from ai_platform.portal.contracts.bots import BotConfigRevision, BotConfigRevisionState
 from ai_platform.portal.contracts.environment import Environment, ExecutionMode
 from ai_platform.portal.contracts.runtime_generation import RuntimeGenerationMaterial
+from ai_platform.portal.control_plane.runtime_generation_api import ActivateRevisionRequest
 from ai_platform.portal.control_plane.service import ControlPlaneService
 from ai_platform.wickhunter.contracts import BotMode
 from ai_platform.wickhunter.runtime_mode import ManagedRuntimeModeRequest, resolve_managed_runtime_mode
@@ -75,6 +76,19 @@ def test_trusted_generation_material_requires_each_isolation_binding(field: str)
 
     with pytest.raises(ValidationError):
         RuntimeGenerationMaterial.model_validate(payload)
+
+
+@pytest.mark.parametrize("field", _REQUIRED_BINDING_FIELDS)
+def test_activation_request_rejects_client_supplied_isolation_binding(field: str) -> None:
+    payload: dict[str, object] = {
+        "revision_id": "revision-1",
+        "expected_state_version": 1,
+        "idempotency_key": "apply-1",
+        field: "client-controlled-value",
+    }
+
+    with pytest.raises(ValidationError):
+        ActivateRevisionRequest.model_validate(payload)
 
 
 @pytest.mark.parametrize(

@@ -85,28 +85,40 @@ runtime_commit: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
 - A later exact-head review found that an endpoint-only `git diff before..after` could miss diagnostic-v4 when one pushed commit touched the file and a later pushed commit restored the original final tree. The current repair therefore requires `before` to be an ancestor of `after` and enumerates changed paths across every commit in `before..after` using NUL-delimited Git history; a touched-then-reverted diagnostic request remains diagnostic.
 - Dedicated classifier tests now cover Actions-style payloads without changed-file arrays, exact-path versus `.bak`, touched-then-reverted diagnostic-v4 history, null/unprovable ranges and non-ancestor ranges.
 - Diagnostic v4 remains bound to the exact failed run/job, original 64-character container ID and exact image ID. Container discovery uses `docker ps -aq --no-trunc`; secret-free identity evidence is created before identity fail-fast; the diagnostic path contains no start/stop/restart/recreate/remove/kill command.
-- Fresh review also required the durable checkpoint to preserve its bounded phase/task-shape and anti-stall state; those fields are restored below without changing runtime/model/threshold/authority semantics.
+- The 2026-08-09 01:08+02:00 invocation exhausted its per-gate repair budget at four recorded repair cycles. That invocation is now explicitly terminal as `ROTATE`; this checkpoint is a fresh replacement validator session on the same task, not a continuation of the exhausted foreground invocation.
+- The replacement session uses the supported bounded phase `validate`; prior exhausted counters remain durably recorded below and are not silently reset or erased.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-09T01:08:12+02:00
+updated_at: 2026-08-09T09:12:00+02:00
 head: UNKNOWN
 branch: diagnose/wickhunter-wh09-runtime-health-20260808
 pr: 1394
 status: validating
-phase: diagnose
+phase: validate
+session_id: agent-20260809-0912-wh09-validator
+session_role: validator
 execution_mode: chat_github_actions
 context_pressure: medium
 context_growth: stable
 decomposition_decision: phased
-session_rotation_count: 3
+session_rotation_count: 4
 repair_cycle_generation: push_range_per_commit_enumeration
+previous_invocation_result: ROTATE
+previous_invocation_terminal_reason: max_repair_cycles_per_gate_exhausted
+previous_invocation_started_at: 2026-08-09T00:25:00+02:00
+previous_invocation_last_progress_at: 2026-08-09T01:08:12+02:00
+previous_invocation_repair_cycles_for_current_gate: 4
+previous_invocation_context_reconstruction_attempts: 1
+previous_invocation_stall_warnings: 0
 context_routes:
   - docs/agents/PROMPTING_STANDARD.md
   - docs/agents/PROMPTING_HANDOVER.md
   - docs/agents/AUTONOMOUS_PROGRAM_CONTINUATION.md
+  - docs/agents/EXECUTION_PROTOCOL.md
+  - docs/agents/ANTI_STALL_AND_EXECUTION_BUDGET.md
   - .github/workflows/ai-platform-wickhunter-wh09-production-research-runtime-deploy.yml
   - tools/ci/classify_wickhunter_wh09_deploy_request.py
   - tests/ai_platform_integration/test_wickhunter_production_research_runtime_deploy.py
@@ -161,19 +173,19 @@ validation:
     evidence: superseded by fresh review P1 requiring per-commit push-range enumeration rather than endpoint-only tree diff
   - command: focused classifier regression after per-commit enumeration repair
     result: NOT_RUN
-    evidence: exact final head will be resolved after this checkpoint successor and must pass the mandatory lightweight gate
+    evidence: exact final head must pass the mandatory lightweight gate
   - command: exact final head CI and independent review after per-commit classifier and checkpoint repair
     result: NOT_RUN
     evidence: resolve PR #1394 live head and require all applicable exact-head gates plus a fresh independent review before merge
 blockers:
-  - exact-final-head CI and fresh independent review must pass after this repair
-next_action: Resolve PR #1394 live head after this checkpoint repair, require exact-final-head CI and a fresh independent review with zero material P1/P2, squash-merge only if green, then consume the diagnostic-v4 Synology artifact before any redeploy or runtime mutation.
-invocation_started_at: 2026-08-09T00:25:00+02:00
-last_progress_at: 2026-08-09T01:08:12+02:00
+  - exact-final-head CI and fresh independent review must pass after this replacement-session checkpoint repair
+next_action: Resolve PR #1394 live head after this replacement-session checkpoint repair, require exact-final-head CI and a fresh independent review with zero material P1/P2, squash-merge only if green, then consume the diagnostic-v4 Synology artifact before any redeploy or runtime mutation.
+invocation_started_at: 2026-08-09T09:12:00+02:00
+last_progress_at: 2026-08-09T09:12:00+02:00
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 4
-context_reconstruction_attempts: 1
+repair_cycles_for_current_gate: 0
+context_reconstruction_attempts: 0
 stall_warnings: 0
 ```

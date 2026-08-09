@@ -4,7 +4,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEPLOY_SCRIPT = REPO_ROOT / "deploy" / "synology" / "portal-oidc" / "deploy.py"
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "portal-oidc-public-deploy.yml"
-STRATEGY_LAB_API = REPO_ROOT / "ai_platform" / "portal" / "web" / "lib" / "strategy-lab-api.ts"
+STRATEGY_LAB_API = (
+    REPO_ROOT / "ai_platform" / "portal" / "web" / "lib" / "strategy-lab-api.ts"
+)
 BLUEPRINT = (
     REPO_ROOT
     / "deploy"

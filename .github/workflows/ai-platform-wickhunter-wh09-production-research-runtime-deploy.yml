@@ -139,10 +139,6 @@ jobs:
             [[ -z "${!name:-}" ]] || { echo "Forbidden credential or proxy environment: $name" >&2; exit 1; }
           done
 
-          if ps -eo uid= | awk -v uid="$RUNTIME_UID" '$1 == uid { found=1 } END { exit(found ? 0 : 1) }'; then
-            echo "Dedicated WH09 runtime UID is already active on the host" >&2
-            exit 1
-          fi
           while IFS= read -r existing; do
             [[ -n "$existing" ]] || continue
             existing_user="$(docker inspect --format '{{.Config.User}}' "$existing" 2>/dev/null || true)"
@@ -231,7 +227,7 @@ jobs:
           printf 'JOURNAL_CONTAINER=%s\n' "$journal_container" >> "$GITHUB_ENV"
           printf 'OPERATOR_CONTAINER=%s\n' "$operator_container" >> "$GITHUB_ENV"
 
-      - name: Build and force-recreate repaired SHADOW runtime
+      - name: Build exact image verify host UID isolation and force-recreate SHADOW runtime
         shell: bash
         run: |
           set -euo pipefail
@@ -244,6 +240,47 @@ jobs:
           [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$WICKHUNTER_RESEARCH_RUNTIME_IMAGE")" == "$DEPLOY_COMMIT" ]]
           image_id="$(docker image inspect --format '{{.Id}}' "$WICKHUNTER_RESEARCH_RUNTIME_IMAGE")"
           [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]
+
+          docker run --rm \
+            --pid=host \
+            --network none \
+            --read-only \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --user 0:0 \
+            --entrypoint python \
+            "$WICKHUNTER_RESEARCH_RUNTIME_IMAGE" - "$RUNTIME_UID" <<'PY'
+          import os
+          import sys
+          from pathlib import Path
+
+          target_uid = int(sys.argv[1])
+          pid1 = Path('/proc/1/status')
+          if not pid1.is_file():
+              raise SystemExit('host PID namespace probe cannot see /proc/1/status')
+          if os.getuid() == target_uid:
+              raise SystemExit('host PID namespace probe unexpectedly runs as target runtime UID')
+
+          collisions = []
+          for status in Path('/proc').glob('[0-9]*/status'):
+              try:
+                  lines = status.read_text(encoding='utf-8', errors='replace').splitlines()
+              except OSError:
+                  continue
+              for line in lines:
+                  if not line.startswith('Uid:'):
+                      continue
+                  fields = line.split()
+                  if len(fields) >= 2 and int(fields[1]) == target_uid:
+                      collisions.append(status.parent.name)
+                  break
+          if collisions:
+              raise SystemExit(
+                  'dedicated WH09 runtime UID is already active in Synology host PID namespace: '
+                  + ','.join(sorted(collisions, key=int))
+              )
+          print('HOST_PID_UID_ISOLATION_PASS')
+          PY
 
           cp -- "$AUTHORIZED_COMPOSE_SNAPSHOT" "$COMPOSE_FILE"
           docker compose -f "$COMPOSE_FILE" config --quiet

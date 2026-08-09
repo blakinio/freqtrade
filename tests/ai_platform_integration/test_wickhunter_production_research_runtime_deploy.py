@@ -115,6 +115,14 @@ def test_final_retry_v5_is_one_shot_exact_source_and_zero_authority() -> None:
     assert 'git rev-parse "$GITHUB_SHA:$COMPOSE_FILE"' in workflow
     assert "docker build --no-cache" in workflow
     assert "org.opencontainers.image.revision" in workflow
+    assert "--pid=host" in workflow
+    assert "--network none" in workflow
+    assert "--read-only" in workflow
+    assert "--cap-drop ALL" in workflow
+    assert "--security-opt no-new-privileges:true" in workflow
+    assert "/proc/1/status" in workflow
+    assert "HOST_PID_UID_ISOLATION_PASS" in workflow
+    assert "ps -eo uid=" not in workflow
     assert "--no-build --force-recreate" in workflow
     assert "two advancing cycles" in workflow
     assert "docker exec" in workflow

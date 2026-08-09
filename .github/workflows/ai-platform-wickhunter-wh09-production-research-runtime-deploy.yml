@@ -17,6 +17,9 @@ concurrency:
 env:
   REQUEST_PATH: deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260809-v5.json
   DEPLOY_COMMIT: 8ef53efc133773e6245a86afa1b0f1914e2d8a55
+  EXPECTED_COMPOSE_BLOB_SHA: 8e783dec49c3054c46db845e5c7a2deff3ab55bf
+  RUNTIME_UID: "65531"
+  RUNTIME_GID: "65531"
   STATE_DIR: /var/lib/freqtrade-staging-state
   MODEL_PACKAGE_REL: wickhunter-candidate-materialization/packages/wickhunter-wh09-candidate-materialization-20260808-r1-h900s-7b23a958fd4d
   LIQUID20_CONTAINER: liquid20-live
@@ -42,11 +45,15 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.sha }}
 
-      - name: Validate immutable retry authorization
+      - name: Validate immutable one-shot retry authorization
         shell: bash
         run: |
           set -euo pipefail
           [[ "$GITHUB_REF" == "refs/heads/develop" ]]
+          [[ "$(git rev-list --parents -n 1 "$GITHUB_SHA" | wc -w)" -eq 3 ]]
+          request_change="$(git diff --name-status "$GITHUB_SHA^1" "$GITHUB_SHA" -- "$REQUEST_PATH")"
+          [[ "$request_change" == $'A\t'"$REQUEST_PATH" ]]
+          [[ "$(git rev-parse "$GITHUB_SHA:$COMPOSE_FILE")" == "$EXPECTED_COMPOSE_BLOB_SHA" ]]
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -90,6 +97,7 @@ jobs:
             echo "Authorized compose contains unsupported CPU/PIDs cgroup fields" >&2
             exit 1
           fi
+          grep -Fq 'user: "65531:65531"' "$snapshot"
           grep -Fq 'ulimits:' "$snapshot"
           grep -Fq 'nproc:' "$snapshot"
           grep -Fq 'soft: 256' "$snapshot"
@@ -130,6 +138,21 @@ jobs:
           do
             [[ -z "${!name:-}" ]] || { echo "Forbidden credential or proxy environment: $name" >&2; exit 1; }
           done
+
+          if ps -eo uid= | awk -v uid="$RUNTIME_UID" '$1 == uid { found=1 } END { exit(found ? 0 : 1) }'; then
+            echo "Dedicated WH09 runtime UID is already active on the host" >&2
+            exit 1
+          fi
+          while IFS= read -r existing; do
+            [[ -n "$existing" ]] || continue
+            existing_user="$(docker inspect --format '{{.Config.User}}' "$existing" 2>/dev/null || true)"
+            case "$existing_user" in
+              "$RUNTIME_UID"|"$RUNTIME_UID:"*|*":"$RUNTIME_GID")
+                echo "Dedicated WH09 runtime UID/GID is already used by another container" >&2
+                exit 1
+                ;;
+            esac
+          done < <(docker ps -aq --no-trunc)
 
           state_root="$(readlink -f -- "$STATE_DIR")"
           [[ "$state_root" == "$STATE_DIR" ]]
@@ -179,7 +202,11 @@ jobs:
           )"
 
           runtime_container="$state_root/$RUNTIME_STATE_REL"
-          mkdir -p -- "$runtime_container/$JOURNAL_REL" 2>/dev/null || true
+          if [[ -e "$runtime_container" || -L "$runtime_container" ]]; then
+            [[ -d "$runtime_container" && ! -L "$runtime_container" ]]
+          else
+            mkdir -- "$runtime_container"
+          fi
           journal_container="$state_root/$JOURNAL_REL"
           operator_container="$state_root/$OPERATOR_REL"
           for path in "$journal_container" "$operator_container"; do
@@ -194,7 +221,7 @@ jobs:
             echo "Runtime state contains a forbidden symlink" >&2
             exit 1
           fi
-          chown -R --no-dereference 65532:65532 "$journal_container" "$operator_container"
+          chown -R --no-dereference "$RUNTIME_UID:$RUNTIME_GID" "$journal_container" "$operator_container"
 
           printf 'MODEL_ROOT_HOST=%s/%s\n' "$host_state_dir" "$model_rel" >> "$GITHUB_ENV"
           printf 'LIQUID20_READER_GID=%s\n' "$reader_gid" >> "$GITHUB_ENV"
@@ -213,13 +240,7 @@ jobs:
           export MODEL_ROOT_HOST LIQUID20_LIVE_HOST LIQUID20_READER_GID JOURNAL_ROOT_HOST OPERATOR_STATE_HOST
           export POLL_SECONDS=60 MAXIMUM_SOURCE_AGE_MS=300000 MODEL_DRIFT=healthy DATA_DRIFT=healthy CIRCUIT_BREAKER_ACTIVE=false SUPERVISOR_CYCLES=0 HEALTH_MAX_AGE_SECONDS=600
 
-          revision=""
-          if docker image inspect "$WICKHUNTER_RESEARCH_RUNTIME_IMAGE" >/dev/null 2>&1; then
-            revision="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$WICKHUNTER_RESEARCH_RUNTIME_IMAGE")"
-          fi
-          if [[ "$revision" != "$DEPLOY_COMMIT" ]]; then
-            docker build --progress=plain --build-arg "OPERATOR_COMMIT=$DEPLOY_COMMIT" --tag "$WICKHUNTER_RESEARCH_RUNTIME_IMAGE" --file deploy/synology/wickhunter-production-research-runtime/Dockerfile .
-          fi
+          docker build --no-cache --progress=plain --build-arg "OPERATOR_COMMIT=$DEPLOY_COMMIT" --tag "$WICKHUNTER_RESEARCH_RUNTIME_IMAGE" --file deploy/synology/wickhunter-production-research-runtime/Dockerfile .
           [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$WICKHUNTER_RESEARCH_RUNTIME_IMAGE")" == "$DEPLOY_COMMIT" ]]
           image_id="$(docker image inspect --format '{{.Id}}' "$WICKHUNTER_RESEARCH_RUNTIME_IMAGE")"
           [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]
@@ -260,6 +281,8 @@ jobs:
 
           deploy_commit = os.environ['DEPLOY_COMMIT']
           container_id = os.environ['RUNTIME_CONTAINER_ID']
+          runtime_uid = os.environ['RUNTIME_UID']
+          runtime_gid = os.environ['RUNTIME_GID']
           started_at_ms = int(os.environ['RUNTIME_STARTED_AT_MS'])
           health_path = Path(os.environ['OPERATOR_CONTAINER']) / 'health.json'
           telemetry_path = Path(os.environ['JOURNAL_CONTAINER']) / 'telemetry.json'
@@ -282,8 +305,8 @@ jobs:
           host = inspect['HostConfig']
           if inspect['State']['Running'] is not True or host['Privileged'] is not False or host['ReadonlyRootfs'] is not True:
               raise SystemExit('runtime base hardening mismatch')
-          if inspect['Config']['User'] != '65532:65532':
-              raise SystemExit('runtime user identity mismatch')
+          if inspect['Config']['User'] != f'{runtime_uid}:{runtime_gid}':
+              raise SystemExit('runtime dedicated user identity mismatch')
           if inspect['NetworkSettings'].get('Ports') not in ({}, None):
               raise SystemExit('runtime exposes inbound ports')
           if host['RestartPolicy'].get('Name') != 'unless-stopped':
@@ -299,7 +322,7 @@ jobs:
               raise SystemExit(f'runtime nproc ulimit mismatch: {ulimits!r}')
           if inspect['Config'].get('Labels', {}).get('org.opencontainers.image.revision') != deploy_commit:
               raise SystemExit('runtime image revision mismatch')
-          subprocess.run(['docker', 'exec', container_id, 'python', '-c', "import resource; assert resource.getrlimit(resource.RLIMIT_NPROC) == (256, 256)"], check=True)
+          subprocess.run(['docker', 'exec', container_id, 'python', '-c', "import os, resource; assert os.getuid() == 65531; assert os.getgid() == 65531; assert resource.getrlimit(resource.RLIMIT_NPROC) == (256, 256)"], check=True)
 
           def load_regular(path: Path, label: str):
               if path.is_symlink() or not path.is_file():
@@ -369,7 +392,7 @@ jobs:
               'image': os.environ['WICKHUNTER_RESEARCH_RUNTIME_IMAGE'],
               'image_id': os.environ['RUNTIME_IMAGE_ID'],
               'liquid20_active_run_id': os.environ['LIQUID20_ACTIVE_RUN_ID'],
-              'process_limit': {'mechanism': 'RLIMIT_NPROC', 'soft': 256, 'hard': 256},
+              'process_limit': {'mechanism': 'RLIMIT_NPROC_DEDICATED_HOST_UID_FALLBACK', 'soft': 256, 'hard': 256, 'uid': int(runtime_uid)},
               'baseline': {'checked_at_ms': baseline[0], 'runtime_generation': baseline[1], 'decision_count': baseline[2]},
               'post_start_advances': [{'checked_at_ms': p[0], 'runtime_generation': p[1], 'decision_count': p[2]} for p in advances],
               'health_status': final_health['status'],

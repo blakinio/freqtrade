@@ -29,7 +29,8 @@ from ai_platform.portal.database.model_registry import load_portal_models
 
 INITIAL_SCHEMA_REVISION = "20260803_01_portal_authoritative"
 OIDC_SCHEMA_REVISION = "20260805_02_oidc_logout_replay"
-EXPECTED_SCHEMA_REVISION = "20260808_03_runtime_generation_state"
+RUNTIME_GENERATION_SCHEMA_REVISION = "20260808_03_runtime_generation_state"
+EXPECTED_SCHEMA_REVISION = "20260809_04_runtime_isolation_binding"
 MIGRATION_TABLE_NAME = "portal_schema_migrations"
 OIDC_LOGOUT_REPLAY_TABLE_NAME = "portal_oidc_logout_replays"
 RUNTIME_GENERATION_TABLE_NAMES = frozenset(
@@ -49,7 +50,16 @@ BOT_RUNTIME_STATE_COLUMNS = frozenset(
         "state_version",
     }
 )
-_POSTGRES_MIGRATION_LOCK_ID = 1_122_202_608_03
+RUNTIME_ISOLATION_BINDING_COLUMNS = frozenset(
+    {
+        "isolation_plan_digest",
+        "gateway_artifact_digest",
+        "gateway_contract_digest",
+        "market_data_egress_policy_version",
+        "market_data_egress_policy_digest",
+    }
+)
+_POSTGRES_MIGRATION_LOCK_ID = 1_122_202_608_04
 _POSTGRES_STRING_CAST_RE = re.compile(r"::(?:character varying|varchar|text)(?:\[\])?")
 _POSTGRES_ANY_ARRAY_RE = re.compile(
     r"\b(?P<column>[a-z_][a-z0-9_]*)\s*=\s*any\s*"
@@ -367,6 +377,19 @@ def _pre_runtime_generation_snapshot(engine: Engine) -> dict[str, Any]:
     return snapshot
 
 
+def _pre_runtime_isolation_binding_snapshot(engine: Engine) -> dict[str, Any]:
+    snapshot = _expected_snapshot(engine)
+    generation_snapshot = snapshot.get("portal_runtime_generations")
+    if generation_snapshot is None:
+        raise RuntimeError("portal_runtime_generations is missing from the Portal model manifest")
+    generation_snapshot["columns"] = [
+        column
+        for column in generation_snapshot["columns"]
+        if column["name"] not in RUNTIME_ISOLATION_BINDING_COLUMNS
+    ]
+    return snapshot
+
+
 def _initial_snapshot(engine: Engine) -> dict[str, Any]:
     snapshot = _pre_runtime_generation_snapshot(engine)
     if OIDC_LOGOUT_REPLAY_TABLE_NAME not in snapshot:
@@ -381,6 +404,7 @@ def _initial_snapshot(engine: Engine) -> dict[str, Any]:
 def _expected_revision_chain(engine: Engine) -> list[dict[str, Any]]:
     initial = _initial_snapshot(engine)
     oidc = _pre_runtime_generation_snapshot(engine)
+    runtime_generation = _pre_runtime_isolation_binding_snapshot(engine)
     current = _expected_snapshot(engine)
     return [
         {
@@ -397,6 +421,12 @@ def _expected_revision_chain(engine: Engine) -> list[dict[str, Any]]:
         },
         {
             "sequence": 3,
+            "revision_id": RUNTIME_GENERATION_SCHEMA_REVISION,
+            "dialect_name": engine.dialect.name,
+            "schema_fingerprint": _fingerprint(runtime_generation),
+        },
+        {
+            "sequence": 4,
             "revision_id": EXPECTED_SCHEMA_REVISION,
             "dialect_name": engine.dialect.name,
             "schema_fingerprint": _fingerprint(current),
@@ -722,6 +752,57 @@ def _create_runtime_generation_revision(
     _insert_revision(connection, revision=revision, applied_at=datetime.now(UTC))
 
 
+def _create_runtime_isolation_binding_revision(
+    connection: Any,
+    *,
+    revision: dict[str, Any],
+    previous_snapshot: dict[str, Any],
+    expected_snapshot: dict[str, Any],
+) -> None:
+    actual = _actual_snapshot(connection)
+    if _snapshot_matches(expected_snapshot, actual):
+        _insert_revision(connection, revision=revision, applied_at=datetime.now(UTC))
+        return
+    if not _snapshot_matches(previous_snapshot, actual):
+        raise SchemaMigrationError(
+            "Runtime isolation binding migration source schema is divergent",
+            {
+                "status": "runtime_isolation_binding_source_divergent",
+                "differences": _snapshot_differences(previous_snapshot, actual),
+            },
+        )
+
+    generation_count = int(
+        connection.execute(text("SELECT COUNT(*) FROM portal_runtime_generations")).scalar_one()
+    )
+    if generation_count:
+        raise SchemaMigrationError(
+            "Historical RuntimeGeneration rows cannot be assigned resolved isolation/TCB identity",
+            {
+                "status": "runtime_generation_identity_backfill_forbidden",
+                "runtime_generation_count": generation_count,
+                "policy": "fail_closed_recreate_generation_from_trusted_material",
+            },
+        )
+
+    connection.exec_driver_sql(
+        "ALTER TABLE portal_runtime_generations ADD COLUMN isolation_plan_digest VARCHAR(64) NOT NULL"
+    )
+    connection.exec_driver_sql(
+        "ALTER TABLE portal_runtime_generations ADD COLUMN gateway_artifact_digest VARCHAR(64) NOT NULL"
+    )
+    connection.exec_driver_sql(
+        "ALTER TABLE portal_runtime_generations ADD COLUMN gateway_contract_digest VARCHAR(64) NOT NULL"
+    )
+    connection.exec_driver_sql(
+        "ALTER TABLE portal_runtime_generations ADD COLUMN market_data_egress_policy_version VARCHAR(255) NOT NULL"
+    )
+    connection.exec_driver_sql(
+        "ALTER TABLE portal_runtime_generations ADD COLUMN market_data_egress_policy_digest VARCHAR(64) NOT NULL"
+    )
+    _insert_revision(connection, revision=revision, applied_at=datetime.now(UTC))
+
+
 def migrate_database(engine: Engine) -> dict[str, Any]:
     manifest_tables = _manifest_tables()
     expected = {
@@ -729,6 +810,7 @@ def migrate_database(engine: Engine) -> dict[str, Any]:
     }
     initial = _initial_snapshot(engine)
     oidc = _pre_runtime_generation_snapshot(engine)
+    runtime_generation = _pre_runtime_isolation_binding_snapshot(engine)
     expected_revisions = _expected_revision_chain(engine)
     with engine.begin() as connection:
         _acquire_migration_lock(connection, engine)
@@ -782,6 +864,16 @@ def migrate_database(engine: Engine) -> dict[str, Any]:
                     connection,
                     manifest_tables,
                     expected_revisions[2],
+                )
+                revisions = _revision_rows(connection)
+                actual = _actual_snapshot(connection)
+
+            if _revisions_match(revisions, expected_revisions[:3]):
+                _create_runtime_isolation_binding_revision(
+                    connection,
+                    revision=expected_revisions[3],
+                    previous_snapshot=runtime_generation,
+                    expected_snapshot=expected,
                 )
                 return _schema_status_connection(connection, engine)
 

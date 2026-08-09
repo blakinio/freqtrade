@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -17,10 +18,7 @@ from ai_platform.portal.contracts.bots import (
 )
 from ai_platform.portal.contracts.common import CorrelationContext
 from ai_platform.portal.contracts.environment import Environment, ExecutionMode
-from ai_platform.portal.contracts.execution import (
-    ExecutionAdapter,
-    RuntimeHealthState,
-)
+from ai_platform.portal.contracts.execution import ExecutionAdapter, RuntimeHealthState
 from ai_platform.portal.contracts.risk import ApprovedExecutionIntent
 from ai_platform.portal.execution.adapter import FreqtradeExecutionAdapter
 from ai_platform.portal.execution.errors import (
@@ -41,17 +39,73 @@ from ai_platform.portal.execution.workspace import RuntimeWorkspaceStore
 NOW = datetime(2026, 7, 22, 12, 0, tzinfo=UTC)
 
 
+def _safe_config() -> dict[str, object]:
+    return {
+        "exchange": {"name": "binance", "pair_whitelist": ["BTC/USDT"]},
+        "dry_run": True,
+        "dry_run_wallet": 1000.0,
+        "stake_currency": "USDT",
+        "timeframe": "5m",
+        "db_url": "sqlite:////runtime/state/tradesv3.dryrun.sqlite",
+        "api_server": {"enabled": False},
+        "telegram": {"enabled": False},
+    }
+
+
+def _config_digest(config: dict[str, object]) -> str:
+    canonical = json.dumps(
+        config,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def _material(
+    *,
+    tenant_id: str = "tenant-a",
+    bot_id: str = "bot-1",
+    generation_id: str = "generation-1",
+    revision: int = 1,
+    execution_mode: ExecutionMode = ExecutionMode.DRY_RUN,
+    image_digest: str = "2" * 64,
+    config: dict[str, object] | None = None,
+) -> ResolvedRuntimeArtifacts:
+    runtime_config = config or _safe_config()
+    return ResolvedRuntimeArtifacts(
+        tenant_id=tenant_id,
+        bot_id=bot_id,
+        generation_id=generation_id,
+        config_revision_id=f"revision-{revision}",
+        config_revision=revision,
+        config_revision_digest=(str(revision % 10) * 64),
+        generation_spec_digest=hashlib.sha256(f"spec:{generation_id}".encode()).hexdigest(),
+        normalized_runtime_config_digest=_config_digest(runtime_config),
+        runtime_image_digest=image_digest,
+        strategy_artifact_digest="3" * 64,
+        model_artifact_digest="4" * 64,
+        execution_mode=execution_mode,
+        image=f"freqtradeorg/freqtrade@sha256:{image_digest}",
+        strategy_name="PortalStrategy",
+        runtime_config=runtime_config,
+    )
+
+
 class _Resolver:
     def __init__(self) -> None:
-        self.artifacts = ResolvedRuntimeArtifacts(
-            image="freqtradeorg/freqtrade:stable",
-            strategy_name="PortalStrategy",
-            base_config={"exchange": {"name": "binance"}},
-        )
+        self.materials: dict[tuple[str, str, str], ResolvedRuntimeArtifacts] = {}
 
-    def resolve(self, bot: BotInstance) -> ResolvedRuntimeArtifacts:
-        del bot
-        return self.artifacts
+    def register(self, material: ResolvedRuntimeArtifacts) -> None:
+        self.materials[(material.tenant_id, material.bot_id, material.generation_id)] = material
+
+    def resolve(
+        self,
+        tenant_id: str,
+        bot_id: str,
+        generation_id: str,
+    ) -> ResolvedRuntimeArtifacts:
+        return self.materials[(tenant_id, bot_id, generation_id)]
 
 
 class _FakeDriver:
@@ -149,6 +203,7 @@ def _adapter(
 ) -> tuple[ExecutionAdapter, _FakeDriver, _Resolver, RuntimeWorkspaceStore]:
     driver = _FakeDriver()
     resolver = _Resolver()
+    resolver.register(_material())
     store = RuntimeWorkspaceStore(tmp_path)
     adapter = FreqtradeExecutionAdapter(driver, resolver, store, clock=lambda: NOW)
     protocol_adapter: ExecutionAdapter = adapter
@@ -156,11 +211,12 @@ def _adapter(
 
 
 def test_provisioning_is_generation_scoped_isolated_and_correlation_labeled(tmp_path: Path) -> None:
-    adapter, driver, _resolver, store = _adapter(tmp_path)
+    adapter, driver, resolver, store = _adapter(tmp_path)
     context = _context()
 
     first = adapter.provision_bot(_bot(), context)
     second = adapter.provision_bot(_bot(), context)
+    resolver.register(_material(tenant_id="tenant-b"))
     other_tenant = adapter.provision_bot(_bot(tenant_id="tenant-b"), context)
 
     assert first.runtime_id == second.runtime_id
@@ -179,15 +235,14 @@ def test_provisioning_is_generation_scoped_isolated_and_correlation_labeled(tmp_
 
     config_path = store.config_path_for(first.runtime_id)
     config = json.loads(config_path.read_text(encoding="utf-8"))
-    assert config["dry_run"] is True
-    assert config["api_server"] == {"enabled": False}
-    assert config["db_url"] == "sqlite:////runtime/state/tradesv3.dryrun.sqlite"
+    assert config == _safe_config()
     assert config_path.stat().st_mode & 0o222 == 0
 
     current = store.read_current_record("tenant-a", "bot-1")
     assert current is not None
     assert current.generation_id == "generation-1"
     assert current.runtime_id == first.runtime_id
+    assert current.generation_spec_digest == _material().generation_spec_digest
 
 
 def test_provisioning_requires_control_plane_runtime_generation(tmp_path: Path) -> None:
@@ -197,33 +252,83 @@ def test_provisioning_requires_control_plane_runtime_generation(tmp_path: Path) 
         adapter.provision_bot(_bot(generation_id=None), _context())
 
 
+def test_resolver_cross_tenant_or_generation_identity_is_rejected(tmp_path: Path) -> None:
+    adapter, _driver, resolver, _store = _adapter(tmp_path)
+    resolver.materials[("tenant-a", "bot-1", "generation-1")] = _material(
+        tenant_id="tenant-b"
+    )
+
+    with pytest.raises(RuntimeRevisionConflictError, match="requested RuntimeGeneration identity"):
+        adapter.provision_bot(_bot(), _context())
+
+
 def test_runtime_operations_are_tenant_scoped(tmp_path: Path) -> None:
     adapter, _driver, _resolver, _store = _adapter(tmp_path)
-    adapter.provision_bot(_bot(tenant_id="tenant-a", bot_id="shared"), _context())
+    adapter.provision_bot(_bot(tenant_id="tenant-a", bot_id="bot-1"), _context())
 
     with pytest.raises(RuntimeNotProvisionedError):
-        adapter.pause_bot("tenant-b", "shared", _context())
+        adapter.pause_bot("tenant-b", "bot-1", _context())
 
 
-def test_simulated_mode_is_rejected_by_p3(tmp_path: Path) -> None:
-    adapter, _driver, _resolver, _store = _adapter(tmp_path)
+def test_non_dry_run_trusted_generation_is_rejected_even_if_bot_projection_is_dry_run(
+    tmp_path: Path,
+) -> None:
+    adapter, _driver, resolver, _store = _adapter(tmp_path)
+    resolver.register(_material(execution_mode=ExecutionMode.SIMULATED))
 
     with pytest.raises(UnsupportedExecutionModeError, match="dry_run"):
-        adapter.provision_bot(_bot(execution_mode=ExecutionMode.SIMULATED), _context())
+        adapter.provision_bot(_bot(execution_mode=ExecutionMode.DRY_RUN), _context())
 
 
-def test_config_revision_change_inside_same_generation_is_rejected(tmp_path: Path) -> None:
-    adapter, _driver, _resolver, _store = _adapter(tmp_path)
-    adapter.provision_bot(_bot(revision=1, generation_id="generation-1"), _context())
+def test_latest_authored_projection_cannot_redefine_existing_generation(tmp_path: Path) -> None:
+    adapter, _driver, _resolver, store = _adapter(tmp_path)
+    first = adapter.provision_bot(_bot(revision=1), _context())
 
-    with pytest.raises(RuntimeRevisionConflictError, match="config revision"):
-        adapter.provision_bot(_bot(revision=2, generation_id="generation-1"), _context())
+    second = adapter.provision_bot(_bot(revision=99), _context())
+
+    assert second.runtime_id == first.runtime_id
+    record = store.read_current_record("tenant-a", "bot-1")
+    assert record is not None
+    assert record.config_revision == 1
+    assert record.config_revision_id == "revision-1"
+
+
+def test_config_digest_mismatch_with_generation_fails_closed(tmp_path: Path) -> None:
+    adapter, _driver, resolver, _store = _adapter(tmp_path)
+    material = _material()
+    resolver.register(
+        ResolvedRuntimeArtifacts(
+            **{
+                **material.__dict__,
+                "normalized_runtime_config_digest": "f" * 64,
+            }
+        )
+    )
+
+    with pytest.raises(RuntimeRevisionConflictError, match="config digest"):
+        adapter.provision_bot(_bot(), _context())
+
+
+def test_image_must_be_pinned_to_generation_digest(tmp_path: Path) -> None:
+    adapter, _driver, resolver, _store = _adapter(tmp_path)
+    material = _material()
+    resolver.register(
+        ResolvedRuntimeArtifacts(
+            **{
+                **material.__dict__,
+                "image": "freqtradeorg/freqtrade:stable",
+            }
+        )
+    )
+
+    with pytest.raises(RuntimeRevisionConflictError, match="image digest"):
+        adapter.provision_bot(_bot(), _context())
 
 
 def test_replacement_requires_old_running_generation_to_stop_and_preserves_state(
     tmp_path: Path,
 ) -> None:
-    adapter, _driver, _resolver, store = _adapter(tmp_path)
+    adapter, _driver, resolver, store = _adapter(tmp_path)
     first_bot = _bot(revision=1, generation_id="generation-1")
     first = adapter.provision_bot(first_bot, _context())
     adapter.start_bot(first_bot, _context())
@@ -231,6 +336,7 @@ def test_replacement_requires_old_running_generation_to_stop_and_preserves_state
     (first_state / "tradesv3.dryrun.sqlite").write_text("generation-one", encoding="utf-8")
 
     replacement = _bot(revision=2, generation_id="generation-2")
+    resolver.register(_material(generation_id="generation-2", revision=2))
     with pytest.raises(RuntimeRevisionConflictError, match="must be stopped"):
         adapter.provision_bot(replacement, _context())
 
@@ -269,19 +375,15 @@ def test_same_generation_recovery_reuses_durable_state(tmp_path: Path) -> None:
     assert state_file.read_text(encoding="utf-8") == "persisted"
 
 
-def test_artifact_change_cannot_mutate_existing_generation_config(tmp_path: Path) -> None:
+def test_material_change_cannot_mutate_existing_generation(tmp_path: Path) -> None:
     adapter, _driver, resolver, store = _adapter(tmp_path)
     bot = _bot(revision=1, generation_id="generation-1")
     status = adapter.provision_bot(bot, _context())
     config_path = store.config_path_for(status.runtime_id)
     original = config_path.read_text(encoding="utf-8")
-    resolver.artifacts = ResolvedRuntimeArtifacts(
-        image="freqtradeorg/freqtrade:next",
-        strategy_name="PortalStrategy",
-        base_config={"exchange": {"name": "binance"}},
-    )
+    resolver.register(_material(image_digest="a" * 64))
 
-    with pytest.raises(RuntimeRevisionConflictError, match="artifacts changed"):
+    with pytest.raises(RuntimeRevisionConflictError, match="material changed"):
         adapter.provision_bot(bot, _context())
 
     assert config_path.read_text(encoding="utf-8") == original

@@ -5,9 +5,7 @@ name: Deploy WickHunter WH09 Production Research Runtime
     branches:
       - develop
     paths:
-      - deploy/synology/wickhunter-production-research-runtime/run-requests/activate-wh09-production-research-20260808-v1.json
-      - deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260808-v2.json
-      - deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260808-v3.json
+      - deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260809-v5.json
       - deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json
 
 permissions:
@@ -21,8 +19,10 @@ env:
   REQUEST_PATH: deploy/synology/wickhunter-production-research-runtime/run-requests/activate-wh09-production-research-20260808-v1.json
   RETRY_PATH: deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260808-v2.json
   RETRY_V3_PATH: deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260808-v3.json
+  RETRY_V5_PATH: deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260809-v5.json
   DIAGNOSTIC_V4_PATH: deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json
-  DEPLOY_COMMIT: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
+  DEPLOY_COMMIT: 8ef53efc133773e6245a86afa1b0f1914e2d8a55
+  DIAGNOSTIC_DEPLOY_COMMIT: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
   DEPLOYMENT_AUTHORIZATION_COMMIT: c64df386a4fa3ba739b6eaa1a223ca798a7bcae2
   EXPECTED_DIAGNOSTIC_CONTAINER_ID: 6724290d3078f09fc82c434e239d2d8afd3686ddedd27ff7d400834538cfbfe0
   EXPECTED_DIAGNOSTIC_IMAGE_ID: sha256:c5a67281912e262a183dd7a5804609a2f69ca356d5eb98e4a5a8da169e07a749
@@ -140,15 +140,40 @@ jobs:
               "orders_submitted": 0,
               "live_capital_authorized": False,
           }
+          retry_v5_expected = {
+              "schema_version": 1,
+              "request_id": "wickhunter-wh09-production-research-deploy-retry-20260809-v5",
+              "deploy_commit": "8ef53efc133773e6245a86afa1b0f1914e2d8a55",
+              "previous_run_id": 31303052040,
+              "previous_job_id": 93218894845,
+              "failure_class": "candidate_loader_case_count_fixed_and_synology_pids_cgroup_unavailable",
+              "reuse_exact_image_if_present": False,
+              "synology_pids_cgroup_unavailable": True,
+              "nproc_soft_limit": 256,
+              "nproc_hard_limit": 256,
+              "persistent_internal_demo_production_authorized": True,
+              "mode": "shadow",
+              "no_trade_confidence": "0.60",
+              "paper_activation_authorized": False,
+              "automatic_promotion_enabled": False,
+              "trading_credentials_present": False,
+              "order_adapter_present": False,
+              "execution_enabled": False,
+              "orders_submitted": 0,
+              "live_capital_authorized": False,
+          }
           request = json.loads(Path("deploy/synology/wickhunter-production-research-runtime/run-requests/activate-wh09-production-research-20260808-v1.json").read_text(encoding="utf-8"))
           retry = json.loads(Path("deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260808-v2.json").read_text(encoding="utf-8"))
           retry_v3 = json.loads(Path("deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260808-v3.json").read_text(encoding="utf-8"))
+          retry_v5 = json.loads(Path("deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260809-v5.json").read_text(encoding="utf-8"))
           if request != request_expected:
               raise SystemExit("WH09 deployment authorization contract mismatch")
           if retry != retry_expected:
               raise SystemExit("WH09 deployment retry v2 contract mismatch")
           if retry_v3 != retry_v3_expected:
               raise SystemExit("WH09 deployment retry v3 contract mismatch")
+          if retry_v5 != retry_v5_expected:
+              raise SystemExit("WH09 deployment retry v5 contract mismatch")
           PY
           git cat-file -e "$DEPLOY_COMMIT^{commit}"
           git merge-base --is-ancestor "$DEPLOY_COMMIT" "$GITHUB_SHA"
@@ -166,6 +191,10 @@ jobs:
           fi
           grep -Fq 'pids_limit: 256' "$AUTHORIZED_COMPOSE_SNAPSHOT"
           grep -Fq 'mem_limit: 2g' "$AUTHORIZED_COMPOSE_SNAPSHOT"
+          grep -Fq 'ulimits:' "$AUTHORIZED_COMPOSE_SNAPSHOT"
+          grep -Fq 'nproc:' "$AUTHORIZED_COMPOSE_SNAPSHOT"
+          [[ "$(grep -Fc 'soft: 256' "$AUTHORIZED_COMPOSE_SNAPSHOT")" -eq 1 ]]
+          [[ "$(grep -Fc 'hard: 256' "$AUTHORIZED_COMPOSE_SNAPSHOT")" -eq 1 ]]
           printf 'AUTHORIZED_COMPOSE_SNAPSHOT=%s\n' "$AUTHORIZED_COMPOSE_SNAPSHOT" >> "$GITHUB_ENV"
 
       - name: Checkout exact merged runtime implementation
@@ -416,6 +445,26 @@ jobs:
           if image_revision != deploy_commit:
               raise SystemExit("runtime image revision mismatch")
 
+          ulimits = inspect["HostConfig"].get("Ulimits") or []
+          nproc = [item for item in ulimits if item.get("Name") == "nproc"]
+          if len(nproc) != 1 or nproc[0].get("Soft") != 256 or nproc[0].get("Hard") != 256:
+              raise SystemExit("runtime nproc HostConfig limit mismatch")
+          runtime_nproc = json.loads(
+              subprocess.check_output(
+                  [
+                      "docker",
+                      "exec",
+                      container_id,
+                      "python",
+                      "-c",
+                      "import json,resource; print(json.dumps(resource.getrlimit(resource.RLIMIT_NPROC)))",
+                  ],
+                  text=True,
+              )
+          )
+          if runtime_nproc != [256, 256]:
+              raise SystemExit("runtime RLIMIT_NPROC is not enforced at 256")
+
           def load_regular(path: Path, label: str) -> dict[str, object]:
               if path.is_symlink() or not path.is_file():
                   raise RuntimeError(f"{label} is not a regular file")
@@ -508,7 +557,7 @@ jobs:
           report = {
               "schema_version": 1,
               "result": "PASS",
-              "request_id": "wickhunter-wh09-production-research-deploy-retry-20260808-v3",
+              "request_id": "wickhunter-wh09-production-research-deploy-retry-20260809-v5",
               "deployment_commit": deploy_commit,
               "workflow_authorization_commit": os.environ["GITHUB_SHA"],
               "runner_name": os.environ.get("RUNNER_NAME", "freqtrade-synology-staging"),
@@ -518,6 +567,10 @@ jobs:
               "image_id": os.environ["RUNTIME_IMAGE_ID"],
               "liquid20_active_run_id": os.environ["LIQUID20_ACTIVE_RUN_ID"],
               "synology_cpu_cfs_limit_disabled": True,
+              "pids_limit": inspect["HostConfig"].get("PidsLimit"),
+              "nproc_soft_limit": nproc[0]["Soft"],
+              "nproc_hard_limit": nproc[0]["Hard"],
+              "runtime_nproc_limit": runtime_nproc,
               "baseline": {
                   "checked_at_ms": baseline[0],
                   "runtime_generation": baseline[1],
@@ -615,9 +668,9 @@ jobs:
           if payload != expected:
               raise SystemExit("WH09 diagnostic authorization contract mismatch")
           PY
-          git cat-file -e "$DEPLOY_COMMIT^{commit}"
+          git cat-file -e "$DIAGNOSTIC_DEPLOY_COMMIT^{commit}"
           git cat-file -e "$DEPLOYMENT_AUTHORIZATION_COMMIT^{commit}"
-          git merge-base --is-ancestor "$DEPLOY_COMMIT" "$GITHUB_SHA"
+          git merge-base --is-ancestor "$DIAGNOSTIC_DEPLOY_COMMIT" "$GITHUB_SHA"
           git merge-base --is-ancestor "$DEPLOYMENT_AUTHORIZATION_COMMIT" "$GITHUB_SHA"
 
       - name: Inspect current runtime state

@@ -23,7 +23,9 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
         "backup_sha256": None,
         "previous_runtime": {},
         "authority_switched": False,
+        "authority_was_journaled": False,
         "authority_restore_failed": False,
+        "candidate_quiesced_before_authority_restore": False,
     }
 
     def guarded_deploy(args: Any) -> int:
@@ -35,7 +37,9 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
                 "backup_sha256": None,
                 "previous_runtime": {},
                 "authority_switched": False,
+                "authority_was_journaled": False,
                 "authority_restore_failed": False,
+                "candidate_quiesced_before_authority_restore": False,
             }
         )
         return int(original_deploy(args))
@@ -127,6 +131,7 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
             return
         original_activate_candidate_runtime()
         state["authority_switched"] = True
+        state["authority_was_journaled"] = True
 
     def promote_control(candidate: str) -> str | None:
         # The candidate container has already started from runtime.candidate.env and is not
@@ -134,6 +139,18 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
         # first promotion step can expose a process that may accept writes.
         activate_candidate_runtime()
         return original_promote_control(candidate)
+
+    def quiesce_candidate_before_authority_restore() -> None:
+        if not state["authority_switched"]:
+            return
+        # The public web process is stopped first so no new externally-originated mutation can
+        # reach the candidate control plane while rollback is changing durable database
+        # authority. A host/process crash after either stop remains recovery-safe because
+        # runtime.env still points at the candidate until both candidate processes are quiet.
+        for container in (deploy.PORTAL_CONTAINER, deploy.CONTROL_CONTAINER):
+            if deploy._container_running(container):
+                deploy._run(["docker", "stop", container])
+        state["candidate_quiesced_before_authority_restore"] = True
 
     def restore_runtime_authority() -> None:
         if not state["authority_switched"]:
@@ -157,9 +174,10 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
         control_backup: str | None,
         web_backup: str | None,
     ) -> None:
-        # Restore the durable authority pointer before restarting the old containers. This
-        # preserves restart safety and prevents a subsequent deploy from treating a failed
-        # candidate database as authoritative.
+        # Keep candidate authority durable until the candidate processes are quiesced. After
+        # that point restoring runtime.env is crash-safe: no process can continue writing the
+        # candidate database while a future deploy sees the source database as authoritative.
+        quiesce_candidate_before_authority_restore()
         restore_runtime_authority()
         original_restore_previous_portal(previous, control_backup, web_backup)
 
@@ -187,7 +205,10 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
                     "source_database": source_database,
                     "candidate_database": candidate_database,
                     "source_database_retained_for_rollback": True,
-                    "authority_journaled_before_promotion": True,
+                    "authority_journaled_before_promotion": state["authority_was_journaled"],
+                    "candidate_quiesced_before_authority_restore": state[
+                        "candidate_quiesced_before_authority_restore"
+                    ],
                     "restore_authorized": False,
                 }
             )
@@ -200,7 +221,12 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
                         "source_database": source_database,
                         "candidate_database": candidate_database,
                         "source_database_retained_for_rollback": True,
-                        "authority_journaled_before_promotion": True,
+                        "authority_journaled_before_promotion": state[
+                            "authority_was_journaled"
+                        ],
+                        "candidate_quiesced_before_authority_restore": state[
+                            "candidate_quiesced_before_authority_restore"
+                        ],
                     }
                 )
         return str(original_write_report(path, report))

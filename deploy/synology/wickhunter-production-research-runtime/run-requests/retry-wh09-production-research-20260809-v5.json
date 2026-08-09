@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "request_id": "wickhunter-wh09-production-research-deploy-retry-20260809-v5",
+  "deploy_commit": "8ef53efc133773e6245a86afa1b0f1914e2d8a55",
+  "previous_run_id": 31303052040,
+  "previous_job_id": 93218894845,
+  "failure_class": "candidate_loader_case_count_fixed_and_synology_pids_cgroup_unavailable",
+  "reuse_exact_image_if_present": false,
+  "synology_pids_cgroup_unavailable": true,
+  "nproc_soft_limit": 256,
+  "nproc_hard_limit": 256,
+  "persistent_internal_demo_production_authorized": true,
+  "mode": "shadow",
+  "no_trade_confidence": "0.60",
+  "paper_activation_authorized": false,
+  "automatic_promotion_enabled": false,
+  "trading_credentials_present": false,
+  "order_adapter_present": false,
+  "execution_enabled": false,
+  "orders_submitted": 0,
+  "live_capital_authorized": false
+}

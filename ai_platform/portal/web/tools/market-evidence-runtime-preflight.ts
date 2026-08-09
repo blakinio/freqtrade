@@ -1,5 +1,5 @@
-import { lstat } from "node:fs/promises";
-import { resolve } from "node:path";
+import { lstat, readdir } from "node:fs/promises";
+import { relative, resolve, sep } from "node:path";
 
 import {
   MarketEvidenceIntegrityError,
@@ -9,6 +9,11 @@ import {
 
 const RUN_ID_PATTERN = /^wickhunter-production-market-evidence-\d{8}-v\d+-r\d+$/u;
 const MARKER = "__PORTAL_MARKET_EVIDENCE_VERIFIED__";
+
+interface MountedRun {
+  run_id: string;
+  relative_path: string;
+}
 
 function record(value: unknown, field: string): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -33,11 +38,38 @@ async function regularDirectory(path: string): Promise<boolean> {
   }
 }
 
+async function runsRoot(dataRoot: string): Promise<string> {
+  const nested = resolve(dataRoot, "runs");
+  return (await regularDirectory(nested)) ? nested : dataRoot;
+}
+
 async function runRoot(dataRoot: string, runId: string): Promise<string> {
   for (const candidate of [resolve(dataRoot, "runs", runId), resolve(dataRoot, runId)]) {
     if (await regularDirectory(candidate)) return candidate;
   }
   throw new MarketEvidenceIntegrityError(`bound run is unavailable: ${runId}`);
+}
+
+function relativeRunPath(dataRoot: string, root: string, runId: string): string {
+  const value = relative(resolve(dataRoot), resolve(root));
+  if (value !== runId && value !== `runs${sep}${runId}`) {
+    throw new MarketEvidenceIntegrityError("bound run path escaped the canonical data root");
+  }
+  return value.split(sep).join("/");
+}
+
+async function discoverSelectedRun(dataRoot: string): Promise<string> {
+  const root = await runsRoot(dataRoot);
+  const entries = await readdir(root, { withFileTypes: true });
+  const candidates = entries
+    .filter((entry) => entry.isDirectory() && !entry.isSymbolicLink() && RUN_ID_PATTERN.test(entry.name))
+    .map((entry) => entry.name)
+    .sort()
+    .reverse();
+  for (const runId of candidates) {
+    if (await regularDirectory(resolve(root, runId, "immutable-package"))) return runId;
+  }
+  throw new MarketEvidenceIntegrityError("no verified immutable Market Evidence run is available");
 }
 
 async function verifyRun(dataRoot: string, runId: string): Promise<VerifiedMarketEvidencePackage> {
@@ -55,7 +87,7 @@ async function verifyRun(dataRoot: string, runId: string): Promise<VerifiedMarke
 async function verifyBoundBaseV1(
   dataRoot: string,
   selected: VerifiedMarketEvidencePackage,
-): Promise<string | null> {
+): Promise<{ runId: string; verified: VerifiedMarketEvidencePackage } | null> {
   if (selected.version !== 2) return null;
   const binding = record(
     JSON.parse(selected.artifact("source-package-binding.json").toString("utf8")) as unknown,
@@ -89,23 +121,75 @@ async function verifyBoundBaseV1(
   ) {
     throw new MarketEvidenceIntegrityError("bound base v1 package identity mismatch");
   }
-  return baseRunId;
+  return { runId: baseRunId, verified: verifiedBase };
+}
+
+async function collectPackageAccessGroups(
+  dataRoot: string,
+  runId: string,
+  verified: VerifiedMarketEvidencePackage,
+  groupIds: Set<number>,
+): Promise<MountedRun> {
+  const root = await runRoot(dataRoot, runId);
+  const runMetadata = await lstat(root);
+  if (runMetadata.isSymbolicLink() || !runMetadata.isDirectory() || (runMetadata.mode & 0o050) !== 0o050) {
+    throw new MarketEvidenceIntegrityError("run directory is not group-readable and traversable");
+  }
+  groupIds.add(runMetadata.gid);
+  const packageRoot = resolve(root, "immutable-package");
+
+  async function visit(path: string): Promise<void> {
+    const metadata = await lstat(path);
+    if (metadata.isSymbolicLink()) {
+      throw new MarketEvidenceIntegrityError("runtime package path traverses a symlink");
+    }
+    groupIds.add(metadata.gid);
+    if (metadata.isDirectory()) {
+      if ((metadata.mode & 0o050) !== 0o050) {
+        throw new MarketEvidenceIntegrityError("runtime package directory is not group-readable and traversable");
+      }
+      const children = await readdir(path, { withFileTypes: true });
+      for (const child of children) {
+        await visit(resolve(path, child.name));
+      }
+      return;
+    }
+    if (!metadata.isFile() || (metadata.mode & 0o040) !== 0o040) {
+      throw new MarketEvidenceIntegrityError("runtime package member is not group-readable");
+    }
+  }
+
+  await visit(packageRoot);
+  // Touch a verified artifact so this permission walk remains coupled to the canonical
+  // verifier contract rather than becoming a parallel acceptance path.
+  verified.artifact("run-state.json");
+  return { run_id: runId, relative_path: relativeRunPath(dataRoot, root, runId) };
 }
 
 async function main(): Promise<void> {
-  const [dataRootArg, runId] = process.argv.slice(2);
-  if (!dataRootArg || !runId) {
-    throw new MarketEvidenceIntegrityError("usage: runtime-preflight <data-root> <run-id>");
+  const [dataRootArg] = process.argv.slice(2);
+  if (!dataRootArg) {
+    throw new MarketEvidenceIntegrityError("usage: runtime-preflight <data-root>");
   }
   const dataRoot = resolve(dataRootArg);
-  const selected = await verifyRun(dataRoot, runId);
-  const baseV1RunId = await verifyBoundBaseV1(dataRoot, selected);
+  const selectedRunId = await discoverSelectedRun(dataRoot);
+  const selected = await verifyRun(dataRoot, selectedRunId);
+  const base = await verifyBoundBaseV1(dataRoot, selected);
+  const groupIds = new Set<number>();
+  const mounts: MountedRun[] = [
+    await collectPackageAccessGroups(dataRoot, selectedRunId, selected, groupIds),
+  ];
+  if (base) {
+    mounts.push(await collectPackageAccessGroups(dataRoot, base.runId, base.verified, groupIds));
+  }
   process.stdout.write(
     MARKER +
       JSON.stringify({
-        run_id: runId,
+        run_id: selectedRunId,
         version: selected.version,
-        base_v1_run_id: baseV1RunId,
+        base_v1_run_id: base?.runId ?? (selected.version === 1 ? selectedRunId : null),
+        group_ids: [...groupIds].sort((left, right) => left - right),
+        mounts,
       }),
   );
 }

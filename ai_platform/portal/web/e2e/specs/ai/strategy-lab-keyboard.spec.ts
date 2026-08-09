@@ -6,7 +6,7 @@ const variantExperimentId = "22222222-2222-5222-8222-222222222222";
 
 test.describe(
   "Strategy Lab experiment selection",
-  { tag: [tags.accessibility, tags.regression] },
+  { tag: [tags.accessibility, tags.regression, tags.critical] },
   () => {
     test("opens experiment detail with native keyboard activation", async ({ page }) => {
       await page.goto("/ai/experiments");

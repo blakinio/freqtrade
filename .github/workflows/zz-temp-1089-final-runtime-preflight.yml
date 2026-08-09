@@ -1,4 +1,4 @@
-name: Temporary 1089 Synology stuck-container probe
+name: Temporary 1089 targeted Portal recovery
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  probe:
+  recover:
     runs-on: [freqtrade-staging]
     timeout-minutes: 5
     steps:
@@ -26,18 +26,31 @@ jobs:
             test -z "${!name:-}" || exit 1
           done
 
-      - name: Enumerate container state without mutation
+      - name: Checkout merged implementation
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          ref: 27b6b65ad6a79184c4922a79a86f6e72b3d4383e
+
+      - name: Quiesce stale Portal candidate only
         shell: bash
         run: |
           set -euo pipefail
-          timeout 10 docker info --format 'docker_server={{.ServerVersion}} live_restore={{.LiveRestoreEnabled}} running={{.ContainersRunning}} paused={{.ContainersPaused}} stopped={{.ContainersStopped}}'
-          echo "containers_begin"
-          timeout 20 docker ps -a --no-trunc --format '{{.ID}}|{{.Names}}|{{.State}}|{{.Status}}'
-          echo "containers_end"
+          candidate='freqtrade-portal-control-plane-candidate-81005a01301f'
+          if timeout 10 docker ps -a --format '{{.Names}}' | grep -Fxq "$candidate"; then
+            timeout 10 docker update --restart=no "$candidate"
+            if ! timeout 15 docker stop --time 5 "$candidate"; then
+              timeout 10 docker kill "$candidate"
+            fi
+            timeout 15 docker rm -f "$candidate"
+            echo 'portal_candidate_recovered=yes'
+          else
+            echo 'portal_candidate_already_absent=yes'
+          fi
 
-          echo "special_mount_candidates_begin"
-          timeout 20 docker ps -q | while read -r cid; do
-            [ -n "$cid" ] || continue
-            timeout 4 docker inspect --format '{{.Name}}|priv={{.HostConfig.Privileged}}|pid={{.HostConfig.PidMode}}|{{range .Mounts}}{{if eq .Source "/"}}src_root={{.Destination}};{{end}}{{if eq .Source "/run"}}src_run={{.Destination}};{{end}}{{if eq .Source "/var/run"}}src_varrun={{.Destination}};{{end}}{{if eq .Source "/usr/syno"}}src_usr_syno={{.Destination}};{{end}}{{if eq .Source "/proc"}}src_proc={{.Destination}};{{end}}{{if eq .Source "/sys"}}src_sys={{.Destination}};{{end}}{{end}}' "$cid" 2>/dev/null || echo "inspect_timeout=$cid"
-          done
-          echo "special_mount_candidates_end"
+      - name: Verify Docker runtime after targeted recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 deploy/synology/portal-oidc/docker_runtime_preflight.py
+          timeout 10 docker info --format 'running={{.ContainersRunning}} stopped={{.ContainersStopped}} live_restore={{.LiveRestoreEnabled}}'

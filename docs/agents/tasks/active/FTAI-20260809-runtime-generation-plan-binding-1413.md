@@ -25,7 +25,9 @@ status: active
 base_branch: develop
 trusted_base_sha: 220f529bd52929d04d41b03ac27bfa9e55db13b3
 branch: feat/runtime-generation-isolation-plan-binding-1413
+head: 446457672989d6e3e7a8d5650c4017b081143966
 issue: 1413
+pull_request: 1416
 related_adr: ADR-020
 related_issues:
   - 1353
@@ -66,8 +68,24 @@ Bind every executable `RuntimeGeneration` to the exact resolved isolation-plan d
 
 ## Current state
 
-`READY`: issue #1413 created after duplicate search found no existing issue/PR for the post-#1388 binding gap. Branch created from `develop@220f529bd52929d04d41b03ac27bfa9e55db13b3`.
+`IMPLEMENTED_PENDING_VALIDATION` on PR #1416.
+
+Implemented:
+
+- required isolation-plan/Gateway/egress identities in trusted material and executable generation contracts;
+- generation-spec digest binding for all five identities;
+- authoritative persistence/round-trip columns;
+- ordered schema revision `20260809_04_runtime_isolation_binding`;
+- fail-closed migration when historical generation rows would require fabricated security/TCB identity;
+- API/client-extra-field rejection coverage;
+- required-field, persistence and digest-sensitivity tests.
+
+Validation evidence so far:
+
+- stale earlier head `510cbe6` passed mypy but failed pre-commit only on five E501 lines in `schema.py`; those lines were corrected before current head;
+- PR diff audit found no raw client engine/isolation authority addition;
+- exact-head CI for `446457672989d6e3e7a8d5650c4017b081143966` is queued/in progress and is not yet terminal evidence.
 
 ## Next action
 
-Implement the smallest complete persistence/materialization slice, validate, audit, run exact-head CI, merge/close/archive, then continue to #1353 if READY.
+Resolve the first exact-head CI failure if any; then fresh-audit PR #1416, make it review-ready, merge/close/archive when all exact-head gates pass, and continue to #1353 if READY.

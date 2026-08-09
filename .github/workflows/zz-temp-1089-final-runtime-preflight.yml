@@ -1,4 +1,4 @@
-name: Temporary 1089 Synology recovery probe
+name: Temporary 1089 Synology stuck-container probe
 
 on:
   push:
@@ -26,44 +26,18 @@ jobs:
             test -z "${!name:-}" || exit 1
           done
 
-      - name: Probe host recovery capabilities without mutation
+      - name: Enumerate container state without mutation
         shell: bash
         run: |
           set -euo pipefail
-          echo "runner_uid=$(id -u)"
-          echo "runner_gid=$(id -g)"
-          echo "runner_hostname=$(hostname)"
-          echo "pid1_comm=$(cat /proc/1/comm 2>/dev/null || echo unknown)"
-          echo "docker_socket=$([ -S /var/run/docker.sock ] && echo yes || echo no)"
+          timeout 10 docker info --format 'docker_server={{.ServerVersion}} live_restore={{.LiveRestoreEnabled}} running={{.ContainersRunning}} paused={{.ContainersPaused}} stopped={{.ContainersStopped}}'
+          echo "containers_begin"
+          timeout 20 docker ps -a --no-trunc --format '{{.ID}}|{{.Names}}|{{.State}}|{{.Status}}'
+          echo "containers_end"
 
-          for tool in sudo synopkg synosystemctl systemctl service nsenter chroot; do
-            if command -v "$tool" >/dev/null 2>&1; then
-              echo "tool_${tool}=yes"
-            else
-              echo "tool_${tool}=no"
-            fi
-          done
-
-          if command -v sudo >/dev/null 2>&1 && timeout 5 sudo -n true >/dev/null 2>&1; then
-            echo "passwordless_sudo=yes"
-          else
-            echo "passwordless_sudo=no"
-          fi
-
-          timeout 10 docker info --format 'docker_server={{.ServerVersion}} live_restore={{.LiveRestoreEnabled}} running={{.ContainersRunning}}'
-
-          self_id="$(hostname)"
-          if timeout 10 docker inspect "$self_id" >/dev/null 2>&1; then
-            timeout 10 docker inspect --format 'runner_container_privileged={{.HostConfig.Privileged}} pid_mode={{.HostConfig.PidMode}} network_mode={{.HostConfig.NetworkMode}}' "$self_id"
-          else
-            echo "runner_container_inspect=no"
-          fi
-
-          echo "candidate_existing_containers_begin"
-          timeout 15 docker ps -q | while read -r cid; do
+          echo "special_mount_candidates_begin"
+          timeout 20 docker ps -q | while read -r cid; do
             [ -n "$cid" ] || continue
-            timeout 5 docker inspect --format '{{.Name}}|priv={{.HostConfig.Privileged}}|pid={{.HostConfig.PidMode}}|{{range .Mounts}}{{if eq .Source "/"}}host_root={{.Destination}};{{end}}{{if eq .Destination "/host"}}host_mount=yes;{{end}}{{if eq .Destination "/hostfs"}}hostfs_mount=yes;{{end}}{{if eq .Destination "/rootfs"}}rootfs_mount=yes;{{end}}{{end}}' "$cid" || true
+            timeout 4 docker inspect --format '{{.Name}}|priv={{.HostConfig.Privileged}}|pid={{.HostConfig.PidMode}}|{{range .Mounts}}{{if eq .Source "/"}}src_root={{.Destination}};{{end}}{{if eq .Source "/run"}}src_run={{.Destination}};{{end}}{{if eq .Source "/var/run"}}src_varrun={{.Destination}};{{end}}{{if eq .Source "/usr/syno"}}src_usr_syno={{.Destination}};{{end}}{{if eq .Source "/proc"}}src_proc={{.Destination}};{{end}}{{if eq .Source "/sys"}}src_sys={{.Destination}};{{end}}{{end}}' "$cid" 2>/dev/null || echo "inspect_timeout=$cid"
           done
-          echo "candidate_existing_containers_end"
-
-          echo "probe_complete=yes"
+          echo "special_mount_candidates_end"

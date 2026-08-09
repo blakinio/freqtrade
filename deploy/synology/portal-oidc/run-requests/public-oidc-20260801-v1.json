@@ -1,0 +1,16 @@
+{
+  "request_id": "portal-authentik-public-oidc-20260801-v1",
+  "environment": "synology-staging",
+  "runner": "freqtrade-staging",
+  "implementation_sha": "a958076af53c4403115008aade18f483e430081c",
+  "portal_origin": "https://quant.molehill.cloud",
+  "authentik_origin": "https://auth.molehill.cloud",
+  "identity_transport": "https",
+  "identity_fixture_mode": "disabled",
+  "bootstrap_membership_authorized": false,
+  "dry_run_required": true,
+  "public_ingress_authorized": true,
+  "live_capital_authorized": false,
+  "restore_authorized": false,
+  "secret_values_in_request": false
+}

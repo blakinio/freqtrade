@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 from tools.ci.classify_wickhunter_wh09_deploy_request import diagnostic_request_changed
@@ -14,11 +15,31 @@ WORKFLOW = (
     / "workflows"
     / "ai-platform-wickhunter-wh09-production-research-runtime-deploy.yml"
 )
-RETRY_V5 = DEPLOY / "run-requests" / "retry-wh09-production-research-20260809-v5.json"
+RETRY_V6 = DEPLOY / "run-requests" / "retry-wh09-production-research-20260809-v6.json"
 DIAGNOSTIC_PATH = (
     "deploy/synology/wickhunter-production-research-runtime/run-requests/"
     "diagnose-wh09-production-research-20260808-v4.json"
 )
+
+
+def _workflow_shell_step(workflow: str, step_name: str) -> str:
+    lines = workflow.splitlines()
+    marker = f"      - name: {step_name}"
+    start = lines.index(marker)
+    run_index = next(
+        index for index in range(start + 1, len(lines)) if lines[index] == "        run: |"
+    )
+    body: list[str] = []
+    for line in lines[run_index + 1 :]:
+        if line.startswith("      - name: "):
+            break
+        if line.startswith("          "):
+            body.append(line[10:])
+        elif not line:
+            body.append("")
+        else:
+            raise AssertionError(f"unexpected workflow shell indentation: {line!r}")
+    return "\n".join(body) + "\n"
 
 
 def test_compose_keeps_zero_authority_and_synology_compatible_hardening() -> None:
@@ -101,14 +122,14 @@ def test_healthcheck_rejects_nested_fail_closed_runtime() -> None:
     assert 'error_code = None if status == "healthy" else "runtime_fail_closed"' in operator
 
 
-def test_final_retry_v5_is_one_shot_exact_source_and_zero_authority() -> None:
+def test_final_retry_v6_is_one_shot_exact_source_and_zero_authority() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
-    retry = json.loads(RETRY_V5.read_text(encoding="utf-8"))
+    retry = json.loads(RETRY_V6.read_text(encoding="utf-8"))
 
     assert "environment: synology-staging" in workflow
     assert "timeout-minutes: 45" in workflow
     assert "freqtrade-staging" in workflow
-    assert "retry-wh09-production-research-20260809-v5.json" in workflow
+    assert "retry-wh09-production-research-20260809-v6.json" in workflow
     assert "EXPECTED_COMPOSE_BLOB_SHA" in workflow
     assert "git diff --name-status" in workflow
     assert "$'A\\t'\"$REQUEST_PATH\"" in workflow
@@ -123,6 +144,9 @@ def test_final_retry_v5_is_one_shot_exact_source_and_zero_authority() -> None:
     assert "PREVIOUS_RUNTIME_CONTAINER_ID" in workflow
     assert 'docker stop --time 30 "$PREVIOUS_RUNTIME_CONTAINER_ID"' in workflow
     assert '[[ "$existing" == "${PREVIOUS_RUNTIME_CONTAINER_ID:-}" ]] && continue' in workflow
+    assert workflow.count('"$RUNTIME_UID"|"$RUNTIME_UID":*|*:"$RUNTIME_GID")') == 2
+    assert '"$RUNTIME_UID:"*' not in workflow
+    assert '*":"$RUNTIME_GID"' not in workflow
     assert "--pid=host" in workflow
     assert "--network none" in workflow
     assert "--read-only" in workflow
@@ -159,11 +183,11 @@ def test_final_retry_v5_is_one_shot_exact_source_and_zero_authority() -> None:
 
     assert retry == {
         "schema_version": 1,
-        "request_id": "wickhunter-wh09-production-research-deploy-retry-20260809-v5",
+        "request_id": "wickhunter-wh09-production-research-deploy-retry-20260809-v6",
         "deploy_commit": "90cfc5ded10b0c6cb6406d00042817aca611e900",
-        "previous_run_id": 31303052040,
-        "previous_job_id": 93218894845,
-        "failure_class": "frozen_candidate_case_count_loader_rejected_integrity_valid_h900_package",
+        "previous_run_id": 31326580829,
+        "previous_job_id": 93277819212,
+        "failure_class": "bash_case_pattern_parse_error_before_host_validation",
         "runtime_repair_authorized": True,
         "container_recreate_authorized": True,
         "replace_unsupported_pids_cgroup_with_nproc_rlimit": True,
@@ -178,6 +202,22 @@ def test_final_retry_v5_is_one_shot_exact_source_and_zero_authority() -> None:
         "orders_submitted": 0,
         "live_capital_authorized": False,
     }
+
+
+def test_wh09_deployment_shell_steps_are_bash_parseable() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    for step_name in (
+        "Validate runner zero authority and host inputs",
+        "Build exact image verify host UID isolation and force-recreate SHADOW runtime",
+    ):
+        script = _workflow_shell_step(workflow, step_name)
+        subprocess.run(
+            ["bash", "-n"],
+            input=script,
+            text=True,
+            check=True,
+            capture_output=True,
+        )
 
 
 def test_diagnostic_classifier_matches_only_exact_changed_file_elements() -> None:

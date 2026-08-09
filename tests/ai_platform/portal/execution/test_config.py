@@ -1,65 +1,59 @@
-from decimal import Decimal
+from __future__ import annotations
+
+from typing import Any
 
 import pytest
 
-from ai_platform.portal.contracts.bots import (
-    BotDesiredState,
-    BotInstance,
-    BotObservedState,
-    BotSpec,
-)
-from ai_platform.portal.contracts.environment import Environment, ExecutionMode
+from ai_platform.portal.contracts.environment import ExecutionMode
 from ai_platform.portal.execution.config import build_safe_dry_run_config
 from ai_platform.portal.execution.errors import UnsafeRuntimeConfigurationError
 from ai_platform.portal.execution.runtime import ResolvedRuntimeArtifacts
 
 
-def _bot() -> BotInstance:
-    return BotInstance(
-        bot_id="bot-1",
+_IMAGE_DIGEST = "2" * 64
+
+
+def _artifacts(runtime_config: dict[str, Any]) -> ResolvedRuntimeArtifacts:
+    return ResolvedRuntimeArtifacts(
         tenant_id="tenant-a",
-        name="Test bot",
-        spec=BotSpec(
-            tenant_id="tenant-a",
-            strategy_version="strategy-v1",
-            model_version="model-v1",
-            risk_policy_version="risk-v1",
-            exchange_connection_ref="exchange-1",
-            pair_universe=("BTC/USDT", "ETH/USDT"),
-            timeframe="5m",
-            capital_allocation=Decimal("1000"),
-            capital_currency="USDT",
-            runtime_version="runtime-v1",
-            config_revision=1,
-            environment=Environment.TEST,
-            execution_mode=ExecutionMode.DRY_RUN,
-        ),
-        desired_state=BotDesiredState.CREATED,
-        observed_state=BotObservedState.CREATED,
-    )
-
-
-def test_runtime_config_forces_dry_run_and_disables_control_surfaces() -> None:
-    artifacts = ResolvedRuntimeArtifacts(
-        image="freqtradeorg/freqtrade:stable",
+        bot_id="bot-1",
+        generation_id="generation-1",
+        generation_ordinal=1,
+        config_revision_id="revision-1",
+        config_revision=1,
+        config_revision_digest="0" * 64,
+        generation_spec_digest="1" * 64,
+        normalized_runtime_config_digest="3" * 64,
+        runtime_image_digest=_IMAGE_DIGEST,
+        strategy_artifact_digest="4" * 64,
+        model_artifact_digest="5" * 64,
+        execution_mode=ExecutionMode.DRY_RUN,
+        image=f"freqtradeorg/freqtrade@sha256:{_IMAGE_DIGEST}",
         strategy_name="PortalStrategy",
-        base_config={
-            "exchange": {"name": "binance"},
-            "dry_run": False,
-            "api_server": {"enabled": True},
-            "telegram": {"enabled": True},
-        },
+        runtime_config=runtime_config,
     )
 
-    config = build_safe_dry_run_config(_bot(), artifacts)
 
-    assert config["dry_run"] is True
-    assert config["dry_run_wallet"] == 1000.0
-    assert config["stake_currency"] == "USDT"
-    assert config["timeframe"] == "5m"
-    assert config["api_server"] == {"enabled": False}
-    assert config["telegram"] == {"enabled": False}
-    assert config["exchange"]["pair_whitelist"] == ["BTC/USDT", "ETH/USDT"]
+def _safe_config() -> dict[str, Any]:
+    return {
+        "exchange": {"name": "binance", "pair_whitelist": ["BTC/USDT", "ETH/USDT"]},
+        "dry_run": True,
+        "dry_run_wallet": 1000.0,
+        "stake_currency": "USDT",
+        "timeframe": "5m",
+        "db_url": "sqlite:////runtime/state/tradesv3.dryrun.sqlite",
+        "api_server": {"enabled": False},
+        "telegram": {"enabled": False},
+    }
+
+
+def test_runtime_config_uses_exact_trusted_generation_material() -> None:
+    expected = _safe_config()
+
+    config = build_safe_dry_run_config(_artifacts(expected))
+
+    assert config == expected
+    assert config is not expected
 
 
 @pytest.mark.parametrize(
@@ -67,27 +61,50 @@ def test_runtime_config_forces_dry_run_and_disables_control_surfaces() -> None:
     ["api_key", "client_secret", "access_token", "apiKey"],
 )
 def test_runtime_config_rejects_credential_fields(field_name: str) -> None:
-    artifacts = ResolvedRuntimeArtifacts(
-        image="freqtradeorg/freqtrade:stable",
-        strategy_name="PortalStrategy",
-        base_config={
-            "exchange": {
-                "name": "binance",
-                field_name: "must-not-be-present",
-            }
-        },
-    )
+    config = _safe_config()
+    config["exchange"] = {"name": "binance", field_name: "must-not-be-present"}
 
     with pytest.raises(UnsafeRuntimeConfigurationError, match="forbidden"):
-        build_safe_dry_run_config(_bot(), artifacts)
+        build_safe_dry_run_config(_artifacts(config))
 
 
 def test_runtime_config_requires_non_secret_exchange_metadata() -> None:
-    artifacts = ResolvedRuntimeArtifacts(
-        image="freqtradeorg/freqtrade:stable",
-        strategy_name="PortalStrategy",
-        base_config={},
-    )
+    config = _safe_config()
+    config.pop("exchange")
 
     with pytest.raises(UnsafeRuntimeConfigurationError, match="exchange metadata"):
-        build_safe_dry_run_config(_bot(), artifacts)
+        build_safe_dry_run_config(_artifacts(config))
+
+
+@pytest.mark.parametrize(
+    ("field", "unsafe_value", "message"),
+    [
+        ("dry_run", False, "dry_run=true"),
+        ("db_url", "sqlite:///container-local.sqlite", "generation-scoped durable db_url"),
+        ("api_server", {"enabled": True}, "disable api_server"),
+        ("telegram", {"enabled": True}, "disable telegram"),
+    ],
+)
+def test_runtime_config_rejects_unsafe_generation_values(
+    field: str,
+    unsafe_value: object,
+    message: str,
+) -> None:
+    config = _safe_config()
+    config[field] = unsafe_value
+
+    with pytest.raises(UnsafeRuntimeConfigurationError, match=message):
+        build_safe_dry_run_config(_artifacts(config))
+
+
+def test_runtime_config_rejects_non_dry_run_generation() -> None:
+    artifacts = _artifacts(_safe_config())
+    artifacts = ResolvedRuntimeArtifacts(
+        **{
+            **artifacts.__dict__,
+            "execution_mode": ExecutionMode.SIMULATED,
+        }
+    )
+
+    with pytest.raises(UnsafeRuntimeConfigurationError, match="dry_run execution mode"):
+        build_safe_dry_run_config(artifacts)

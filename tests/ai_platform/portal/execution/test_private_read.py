@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -390,13 +391,52 @@ def test_http_transport_maps_authentication_without_leaking_endpoint() -> None:
     assert str(exc_info.value) == "RUNTIME_READ_AUTHENTICATION_FAILED"
 
 
+def _runtime_config() -> dict[str, object]:
+    return {
+        "exchange": {"name": "binance", "pair_whitelist": ["BTC/USDT"]},
+        "dry_run": True,
+        "dry_run_wallet": 1000.0,
+        "stake_currency": "USDT",
+        "timeframe": "5m",
+        "db_url": "sqlite:////runtime/state/tradesv3.dryrun.sqlite",
+        "api_server": {"enabled": False},
+        "telegram": {"enabled": False},
+    }
+
+
 class _Resolver:
-    def resolve(self, bot: BotInstance) -> ResolvedRuntimeArtifacts:
-        del bot
+    def resolve(
+        self,
+        tenant_id: str,
+        bot_id: str,
+        generation_id: str,
+    ) -> ResolvedRuntimeArtifacts:
+        config = _runtime_config()
+        canonical = json.dumps(
+            config,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        config_digest = hashlib.sha256(canonical.encode()).hexdigest()
+        image_digest = "2" * 64
         return ResolvedRuntimeArtifacts(
-            image="freqtradeorg/freqtrade:stable",
+            tenant_id=tenant_id,
+            bot_id=bot_id,
+            generation_id=generation_id,
+            generation_ordinal=1,
+            config_revision_id="revision-1",
+            config_revision=1,
+            config_revision_digest="0" * 64,
+            generation_spec_digest="1" * 64,
+            normalized_runtime_config_digest=config_digest,
+            runtime_image_digest=image_digest,
+            strategy_artifact_digest="3" * 64,
+            model_artifact_digest="4" * 64,
+            execution_mode=ExecutionMode.DRY_RUN,
+            image=f"freqtradeorg/freqtrade@sha256:{image_digest}",
             strategy_name="PortalStrategy",
-            base_config={"exchange": {"name": "binance"}},
+            runtime_config=config,
         )
 
 
@@ -445,6 +485,7 @@ def _bot(tenant_id: str = TENANT) -> BotInstance:
         ),
         desired_state=BotDesiredState.CREATED,
         observed_state=BotObservedState.CREATED,
+        desired_runtime_generation_id="generation-private-read",
     )
 
 

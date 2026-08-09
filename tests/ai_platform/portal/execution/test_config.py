@@ -57,6 +57,7 @@ def test_runtime_config_forces_dry_run_and_disables_control_surfaces() -> None:
     assert config["dry_run_wallet"] == 1000.0
     assert config["stake_currency"] == "USDT"
     assert config["timeframe"] == "5m"
+    assert config["db_url"] == "sqlite:////runtime/state/tradesv3.dryrun.sqlite"
     assert config["api_server"] == {"enabled": False}
     assert config["telegram"] == {"enabled": False}
     assert config["exchange"]["pair_whitelist"] == ["BTC/USDT", "ETH/USDT"]

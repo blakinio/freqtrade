@@ -15,7 +15,7 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
     original_restore_previous_portal = deploy._restore_previous_portal
     original_drop_candidate_database = deploy._drop_candidate_database
     original_write_report = deploy._write_report
-    original_deploy_web = deploy._deploy_web
+    original_deploy_web = getattr(deploy, "_deploy_web", None)
 
     state: dict[str, Any] = {
         "implementation_sha": None,
@@ -179,6 +179,8 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
         # authority first and then starts it iff the pre-deployment runtime was running.
 
     def deploy_web(image: str, suffix: str) -> tuple[str | None, str]:
+        if original_deploy_web is None:
+            raise deploy.DeploymentError("Portal web deployment hook is unavailable")
         backups_before = web_backup_names()
         try:
             return original_deploy_web(image, suffix)
@@ -301,7 +303,8 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
     deploy._current_database_mode = current_database_mode
     deploy._create_postgres_database = create_postgres_database
     deploy._quiesce_existing_portal = quiesce_existing_portal
-    deploy._deploy_web = deploy_web
+    if original_deploy_web is not None:
+        deploy._deploy_web = deploy_web
     deploy._activate_candidate_runtime = activate_candidate_runtime
     deploy._promote_control = promote_control
     deploy._restore_previous_portal = restore_previous_portal

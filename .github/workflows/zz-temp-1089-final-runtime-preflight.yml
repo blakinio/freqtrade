@@ -1,4 +1,4 @@
-name: Temporary 1089 final runtime preflight
+name: Temporary 1089 Synology recovery probe
 
 on:
   push:
@@ -9,15 +9,10 @@ permissions:
   contents: read
 
 jobs:
-  preflight:
+  probe:
     runs-on: [freqtrade-staging]
     timeout-minutes: 5
     steps:
-      - name: Checkout merged implementation
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-        with:
-          persist-credentials: false
-          ref: 27b6b65ad6a79184c4922a79a86f6e72b3d4383e
       - name: Refuse trading credential environment
         shell: bash
         run: |
@@ -30,8 +25,45 @@ jobs:
           do
             test -z "${!name:-}" || exit 1
           done
-      - name: Run merged Docker runtime preflight
+
+      - name: Probe host recovery capabilities without mutation
         shell: bash
         run: |
           set -euo pipefail
-          python3 deploy/synology/portal-oidc/docker_runtime_preflight.py
+          echo "runner_uid=$(id -u)"
+          echo "runner_gid=$(id -g)"
+          echo "runner_hostname=$(hostname)"
+          echo "pid1_comm=$(cat /proc/1/comm 2>/dev/null || echo unknown)"
+          echo "docker_socket=$([ -S /var/run/docker.sock ] && echo yes || echo no)"
+
+          for tool in sudo synopkg synosystemctl systemctl service nsenter chroot; do
+            if command -v "$tool" >/dev/null 2>&1; then
+              echo "tool_${tool}=yes"
+            else
+              echo "tool_${tool}=no"
+            fi
+          done
+
+          if command -v sudo >/dev/null 2>&1 && timeout 5 sudo -n true >/dev/null 2>&1; then
+            echo "passwordless_sudo=yes"
+          else
+            echo "passwordless_sudo=no"
+          fi
+
+          timeout 10 docker info --format 'docker_server={{.ServerVersion}} live_restore={{.LiveRestoreEnabled}} running={{.ContainersRunning}}'
+
+          self_id="$(hostname)"
+          if timeout 10 docker inspect "$self_id" >/dev/null 2>&1; then
+            timeout 10 docker inspect --format 'runner_container_privileged={{.HostConfig.Privileged}} pid_mode={{.HostConfig.PidMode}} network_mode={{.HostConfig.NetworkMode}}' "$self_id"
+          else
+            echo "runner_container_inspect=no"
+          fi
+
+          echo "candidate_existing_containers_begin"
+          timeout 15 docker ps -q | while read -r cid; do
+            [ -n "$cid" ] || continue
+            timeout 5 docker inspect --format '{{.Name}}|priv={{.HostConfig.Privileged}}|pid={{.HostConfig.PidMode}}|{{range .Mounts}}{{if eq .Source "/"}}host_root={{.Destination}};{{end}}{{if eq .Destination "/host"}}host_mount=yes;{{end}}{{if eq .Destination "/hostfs"}}hostfs_mount=yes;{{end}}{{if eq .Destination "/rootfs"}}rootfs_mount=yes;{{end}}{{end}}' "$cid" || true
+          done
+          echo "candidate_existing_containers_end"
+
+          echo "probe_complete=yes"

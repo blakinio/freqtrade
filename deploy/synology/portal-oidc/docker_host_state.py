@@ -27,9 +27,7 @@ def _portal_relative_path(deploy: Any) -> Path:
             "Portal data directory is outside the canonical Synology Docker root"
         ) from exc
     if relative != Path("freqtrade-portal-oidc/data"):
-        raise deploy.DeploymentError(
-            "Portal data directory differs from the frozen host path"
-        )
+        raise deploy.DeploymentError("Portal data directory differs from the frozen host path")
     return relative
 
 
@@ -132,9 +130,7 @@ def _prepare_docker_host_state(deploy: Any) -> None:
     ]
     result = cast(subprocess.CompletedProcess[str], deploy._run(command))
     if PREPARE_MARKER not in result.stdout.splitlines():
-        raise deploy.DeploymentError(
-            "Docker-host Portal state preparation returned no marker"
-        )
+        raise deploy.DeploymentError("Docker-host Portal state preparation returned no marker")
 
 
 def _snapshot_script(filename: str) -> str:
@@ -208,24 +204,18 @@ def _snapshot_legacy_sqlite(
         None,
     )
     if payload_text is None:
-        raise deploy.DeploymentError(
-            "Docker-host SQLite snapshot returned no marker"
-        )
+        raise deploy.DeploymentError("Docker-host SQLite snapshot returned no marker")
     try:
         payload = json.loads(payload_text)
     except json.JSONDecodeError as exc:
-        raise deploy.DeploymentError(
-            "Docker-host SQLite snapshot returned invalid JSON"
-        ) from exc
+        raise deploy.DeploymentError("Docker-host SQLite snapshot returned invalid JSON") from exc
     if (
         not isinstance(payload, dict)
         or payload.get("filename") != filename
         or not isinstance(payload.get("sha256"), str)
         or SHA256_PATTERN.fullmatch(payload["sha256"]) is None
     ):
-        raise deploy.DeploymentError(
-            "Docker-host SQLite snapshot returned invalid metadata"
-        )
+        raise deploy.DeploymentError("Docker-host SQLite snapshot returned invalid metadata")
     return Path(deploy.PORTAL_LEGACY_BACKUP_DIR) / filename, payload["sha256"]
 
 
@@ -250,10 +240,7 @@ def _postgres_backup_script() -> str:
             "unset PGPASSWORD",
             'chmod 600 "$destination"',
             'digest="$(sha256sum "$destination" | awk \'{print $1}\')"',
-            (
-                f"printf '%s%s|%s\\n' {POSTGRES_MARKER!r} "
-                '"$BACKUP_NAME" "$digest"'
-            ),
+            (f'printf \'%s%s|%s\\n\' {POSTGRES_MARKER!r} "$BACKUP_NAME" "$digest"'),
         ]
     )
 
@@ -294,18 +281,10 @@ def _backup_postgres(
         None,
     )
     if marker is None:
-        raise deploy.DeploymentError(
-            "Docker-host PostgreSQL backup returned no marker"
-        )
+        raise deploy.DeploymentError("Docker-host PostgreSQL backup returned no marker")
     returned_name, separator, digest = marker.partition("|")
-    if (
-        separator != "|"
-        or returned_name != filename
-        or SHA256_PATTERN.fullmatch(digest) is None
-    ):
-        raise deploy.DeploymentError(
-            "Docker-host PostgreSQL backup returned invalid metadata"
-        )
+    if separator != "|" or returned_name != filename or SHA256_PATTERN.fullmatch(digest) is None:
+        raise deploy.DeploymentError("Docker-host PostgreSQL backup returned invalid metadata")
     return digest
 
 
@@ -320,9 +299,7 @@ def install(deploy: Any) -> None:
         )
         control_image = result[0]
         if not control_image:
-            raise deploy.DeploymentError(
-                "exact control-plane image build returned no tag"
-            )
+            raise deploy.DeploymentError("exact control-plane image build returned no tag")
         state["control_image"] = control_image
         return result
 

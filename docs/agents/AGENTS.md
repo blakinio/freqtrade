@@ -10,6 +10,7 @@ The canonical short role aliases are:
 
 ```text
 AUDYT PLATFORMY
+NAPRAWA PLATFORMY
 ARCHITEKTURA PLATFORMY
 WICKHUNTER
 ```

@@ -67,6 +67,7 @@ def _material(
     tenant_id: str = "tenant-a",
     bot_id: str = "bot-1",
     generation_id: str = "generation-1",
+    generation_ordinal: int = 1,
     revision: int = 1,
     execution_mode: ExecutionMode = ExecutionMode.DRY_RUN,
     image_digest: str = "2" * 64,
@@ -77,6 +78,7 @@ def _material(
         tenant_id=tenant_id,
         bot_id=bot_id,
         generation_id=generation_id,
+        generation_ordinal=generation_ordinal,
         config_revision_id=f"revision-{revision}",
         config_revision=revision,
         config_revision_digest=(str(revision % 10) * 64),
@@ -241,6 +243,7 @@ def test_provisioning_is_generation_scoped_isolated_and_correlation_labeled(tmp_
     current = store.read_current_record("tenant-a", "bot-1")
     assert current is not None
     assert current.generation_id == "generation-1"
+    assert current.generation_ordinal == 1
     assert current.runtime_id == first.runtime_id
     assert current.generation_spec_digest == _material().generation_spec_digest
 
@@ -336,7 +339,9 @@ def test_replacement_requires_old_running_generation_to_stop_and_preserves_state
     (first_state / "tradesv3.dryrun.sqlite").write_text("generation-one", encoding="utf-8")
 
     replacement = _bot(revision=2, generation_id="generation-2")
-    resolver.register(_material(generation_id="generation-2", revision=2))
+    resolver.register(
+        _material(generation_id="generation-2", generation_ordinal=2, revision=2)
+    )
     with pytest.raises(RuntimeRevisionConflictError, match="must be stopped"):
         adapter.provision_bot(replacement, _context())
 
@@ -356,6 +361,7 @@ def test_replacement_requires_old_running_generation_to_stop_and_preserves_state
     assert old_record.generation_id == "generation-1"
     assert current is not None
     assert current.generation_id == "generation-2"
+    assert current.generation_ordinal == 2
     assert current.runtime_id == second.runtime_id
 
     with pytest.raises(RuntimeRevisionConflictError, match="desired RuntimeGeneration"):
@@ -387,6 +393,31 @@ def test_material_change_cannot_mutate_existing_generation(tmp_path: Path) -> No
         adapter.provision_bot(bot, _context())
 
     assert config_path.read_text(encoding="utf-8") == original
+
+
+def test_lower_generation_ordinal_cannot_reclaim_current_authority(tmp_path: Path) -> None:
+    adapter, _driver, resolver, store = _adapter(tmp_path)
+    first_bot = _bot(generation_id="generation-1")
+    first = adapter.provision_bot(first_bot, _context())
+    adapter.stop_bot(first_bot.tenant_id, first_bot.bot_id, _context())
+
+    resolver.register(
+        _material(generation_id="generation-2", generation_ordinal=2, revision=2)
+    )
+    second_bot = _bot(generation_id="generation-2", revision=2)
+    second = adapter.provision_bot(second_bot, _context())
+    adapter.stop_bot(second_bot.tenant_id, second_bot.bot_id, _context())
+
+    resolver.register(
+        _material(generation_id="generation-3", generation_ordinal=1, revision=3)
+    )
+    with pytest.raises(RuntimeRevisionConflictError, match="cannot move backwards"):
+        adapter.provision_bot(_bot(generation_id="generation-3", revision=3), _context())
+
+    current = store.read_current_record("tenant-a", "bot-1")
+    assert current is not None
+    assert current.runtime_id == second.runtime_id
+    assert current.runtime_id != first.runtime_id
 
 
 def test_lifecycle_operations_are_idempotent_and_truthful(tmp_path: Path) -> None:

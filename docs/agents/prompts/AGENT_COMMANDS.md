@@ -1,7 +1,7 @@
 # Quant Platform Owner Short Commands
 
 ```yaml
-short_command_registry_version: 1
+short_command_registry_version: 2
 status: active-after-merge
 ```
 
@@ -70,7 +70,83 @@ Do not mutate repository state unless the owner separately asks to repair a stal
 
 ---
 
-# 2. Platform architecture
+# 2. Platform repair
+
+## `NAPRAWA PLATFORMY`
+
+Run **Agent 2 — Repair Worker** from:
+
+```text
+docs/agents/prompts/FTAI_PLATFORM_CONTINUOUS_ASSURANCE_AGENTS.md
+```
+
+and resolve queue/claim semantics through:
+
+```text
+docs/agents/prompts/FTAI_PLATFORM_CONTINUOUS_ASSURANCE_SHORT_INVOCATIONS.md
+```
+
+Interpretation:
+
+- first resume any valid active repair claim owned by the current durable task/session when repository state proves continuation is safe;
+- otherwise select the highest-priority safe Issue from the canonical audit-repair ready queue;
+- acquire and verify the canonical claim before mutation;
+- independently re-check the Issue against current `develop`, architecture, existing PRs, tasks, dependencies and exact code before implementing it;
+- classify the Issue evidence as `CONFIRMED`, `PARTIALLY_VALID`, `STALE`, `DUPLICATE`, `SUPERSEDED`, or `INVALID`;
+- implement only `CONFIRMED` or the still-valid bounded portion of `PARTIALLY_VALID` work;
+- for `STALE`, `DUPLICATE`, `SUPERSEDED`, or `INVALID`, persist accurate disposition/evidence instead of implementing obsolete work;
+- deliver the smallest complete applicable vertical slice through focused validation, component/integration checks, outcome verification, fresh audit, required real E2E, exact-head CI, PR cleanup, merge/terminal state, Issue closeout, task archival and ownership release;
+- never use repair work to bypass architecture, production, credential, protected-environment or live-capital boundaries.
+
+Equivalent natural-language alias:
+
+```text
+Uruchom agenta naprawczego platformy.
+```
+
+## `NAPRAWA PLATFORMY dalej`
+
+Resume valid active repair work from the exact durable `next_action`. When no valid active repair exists, resolve the highest-priority safe `agent:ready` Issue according to the existing Repair Worker claim contract.
+
+Equivalent alias:
+
+```text
+Kontynuuj naprawę platformy autonomicznie.
+```
+
+## `NAPRAWA PLATFORMY #<NUMBER>`
+
+Resolve the named Issue, its current labels, dependencies, claims, task record, branch, PRs, review threads, CI and live code. Re-validate the finding before implementation and continue only the valid bounded work.
+
+Equivalent alias:
+
+```text
+Kontynuuj naprawę issue #<NUMBER>.
+```
+
+## `NAPRAWA PLATFORMY status`
+
+Read-only. Report ready, claimed, waiting, blocked and stale repair work, active claims, dependencies, branches/PRs, conflicts and the highest-priority safe next repair.
+
+Equivalent alias:
+
+```text
+Pokaż kolejkę napraw platformy.
+```
+
+## `NAPRAWA PLATFORMY x3`
+
+Coordinate up to three existing Repair Workers using the canonical multi-worker rules. Only disjoint Issues with non-overlapping owned/shared paths and conflict groups may run concurrently; each worker must win its own verified claim. Do not manufacture parallelism when fewer safe Issues exist.
+
+Equivalent alias:
+
+```text
+Uruchom 3 agentów naprawczych platformy.
+```
+
+---
+
+# 3. Platform architecture
 
 ## `ARCHITEKTURA PLATFORMY`
 
@@ -104,7 +180,7 @@ This command authorizes documentation/architecture recording only. It does not a
 
 ---
 
-# 3. WickHunter
+# 4. WickHunter
 
 ## `WICKHUNTER`
 
@@ -166,6 +242,12 @@ AUDYT PLATFORMY
 or:
 
 ```text
+NAPRAWA PLATFORMY
+```
+
+or:
+
+```text
 ARCHITEKTURA PLATFORMY dalej
 ```
 
@@ -194,6 +276,14 @@ Input: `AUDYT PLATFORMY`
 
 Expected: load `PLATFORM_AUDITOR.md`, inspect live state, resume/start the audit, and choose Issue versus direct PR per the bounded gate. Do not return a long prompt.
 
+Input: `NAPRAWA PLATFORMY`
+
+Expected: load the existing Repair Worker prompt, inspect current claims and the ready queue, verify a winning claim before mutation, re-check the Issue against live code, and repair only confirmed valid scope through full closeout.
+
+Input: `NAPRAWA PLATFORMY #1234`
+
+Expected: inspect Issue #1234 plus live task/branch/PR/code state and classify it before implementation; do not assume the Issue description is current truth.
+
 Input: `ARCHITEKTURA PLATFORMY dalej`
 
 Expected: load `PLATFORM_ARCHITECT.md`, inspect live ADR/implementation state, and continue architecture analysis without runtime mutation.
@@ -212,6 +302,10 @@ Input: `AUDYT PLATFORMY`
 
 Forbidden: creating a direct PR for a material unresolved trust-boundary decision just because the apparent patch is small.
 
+Input: `NAPRAWA PLATFORMY` with no verified claim or with a stale/duplicate finding.
+
+Forbidden: editing runtime/product code before claim validation or implementing obsolete scope merely because the Issue is open.
+
 ### Boundary
 
 Input: `WICKHUNTER status`
@@ -221,3 +315,7 @@ Expected: read-only status. Do not resume implementation.
 Input: `AUDYT PLATFORMY dalej` with an existing active Issue/PR for the same finding.
 
 Expected: deduplicate/resume existing durable work rather than create another Issue or PR.
+
+Input: `NAPRAWA PLATFORMY status`
+
+Expected: read-only queue/claim report; do not claim or mutate an Issue.

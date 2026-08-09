@@ -46,8 +46,7 @@ def test_market_web_args_adds_pinned_read_only_mount_identity_and_group() -> Non
     assert args.count("--group-add") == 2
     assert "456" in args
     assert (
-        f"type=bind,src={RUN_ROOT},"
-        f"dst={runtime.MARKET_EVIDENCE_CONTAINER_ROOT}/{RUN_ID},readonly"
+        f"type=bind,src={RUN_ROOT},dst={runtime.MARKET_EVIDENCE_CONTAINER_ROOT}/{RUN_ID},readonly"
     ) in args
     assert f"PORTAL_MARKET_EVIDENCE_DATA_ROOT={runtime.MARKET_EVIDENCE_CONTAINER_ROOT}" in args
     assert f"PORTAL_MARKET_EVIDENCE_TENANT_ID={runtime.MARKET_EVIDENCE_TENANT_ID}" in args

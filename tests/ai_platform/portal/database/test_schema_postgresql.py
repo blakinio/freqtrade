@@ -89,7 +89,7 @@ def test_concurrent_postgresql_migrations_converge_on_ordered_revision_chain() -
                 connection.execute(
                     text(f"SELECT COUNT(*) FROM {MIGRATION_TABLE_NAME}")
                 ).scalar_one()
-                == 3
+                == 4
             )
         assert assert_schema_ready(engine)["status"] == "ready"
     finally:

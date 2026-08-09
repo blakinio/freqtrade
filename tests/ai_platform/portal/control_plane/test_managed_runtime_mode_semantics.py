@@ -87,7 +87,12 @@ def _base_material() -> RuntimeGenerationMaterial:
         exchange_connection_revision="exchange-revision-1",
         isolation_profile_version="isolation-v1",
         isolation_profile_digest="6" * 64,
+        isolation_plan_digest="9" * 64,
+        gateway_artifact_digest="a" * 64,
         gateway_contract_version="gateway-v1",
+        gateway_contract_digest="b" * 64,
+        market_data_egress_policy_version="market-egress-v1",
+        market_data_egress_policy_digest="c" * 64,
     )
 
 
@@ -166,6 +171,11 @@ def test_shadow_generation_binds_mode_identity_and_persists(
     assert generation.paper_authorization_digest is None
     assert len(generation.managed_mode_request_digest) == 64
     assert len(generation.managed_mode_resolution_digest) == 64
+    assert generation.isolation_plan_digest == "9" * 64
+    assert generation.gateway_artifact_digest == "a" * 64
+    assert generation.gateway_contract_digest == "b" * 64
+    assert generation.market_data_egress_policy_version == "market-egress-v1"
+    assert generation.market_data_egress_policy_digest == "c" * 64
     assert bot.desired_runtime_generation_id == generation.generation_id
     assert bot.observed_runtime_generation_id is None
     with session_factory() as session:

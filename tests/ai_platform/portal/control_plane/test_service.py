@@ -88,7 +88,12 @@ def _generation_material(*_args: object) -> RuntimeGenerationMaterial:
         exchange_connection_revision="exchange-revision-1",
         isolation_profile_version="isolation-v1",
         isolation_profile_digest="6" * 64,
+        isolation_plan_digest="9" * 64,
+        gateway_artifact_digest="a" * 64,
         gateway_contract_version="gateway-v1",
+        gateway_contract_digest="b" * 64,
+        market_data_egress_policy_version="market-egress-v1",
+        market_data_egress_policy_digest="c" * 64,
     )
 
 

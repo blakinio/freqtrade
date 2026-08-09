@@ -286,9 +286,7 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
                         "source_database": source_database,
                         "candidate_database": candidate_database,
                         "source_database_retained_for_rollback": True,
-                        "authority_journaled_before_promotion": state[
-                            "authority_was_journaled"
-                        ],
+                        "authority_journaled_before_promotion": state["authority_was_journaled"],
                         "candidate_quiesced_before_authority_restore": state[
                             "candidate_quiesced_before_authority_restore"
                         ],

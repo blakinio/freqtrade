@@ -115,10 +115,10 @@ def test_final_retry_v5_is_one_shot_exact_source_and_zero_authority() -> None:
     assert 'git rev-parse "$GITHUB_SHA:$COMPOSE_FILE"' in workflow
     assert "docker build --no-cache" in workflow
     assert "org.opencontainers.image.revision" in workflow
-    assert 'COMPOSE_PROJECT_NAME: wickhunter-production-research-runtime' in workflow
-    assert 'COMPOSE_SERVICE: wickhunter-production-research-runtime' in workflow
-    assert 'label=com.docker.compose.project=$COMPOSE_PROJECT_NAME' in workflow
-    assert 'label=com.docker.compose.service=$COMPOSE_SERVICE' in workflow
+    assert "COMPOSE_PROJECT_NAME: wickhunter-production-research-runtime" in workflow
+    assert "COMPOSE_SERVICE: wickhunter-production-research-runtime" in workflow
+    assert "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" in workflow
+    assert "label=com.docker.compose.service=$COMPOSE_SERVICE" in workflow
     assert "WH09 compose service identity is not unique" in workflow
     assert "PREVIOUS_RUNTIME_CONTAINER_ID" in workflow
     assert 'docker stop --time 30 "$PREVIOUS_RUNTIME_CONTAINER_ID"' in workflow

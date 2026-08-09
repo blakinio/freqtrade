@@ -22,16 +22,22 @@ class _RecordingRunner:
         return self.results.pop(0)
 
 
-def test_docker_provision_creates_private_container_without_published_ports(tmp_path) -> None:
+def test_docker_provision_mounts_only_immutable_config_and_generation_state(tmp_path) -> None:
     runner = _RecordingRunner(
         CommandResult(returncode=1, stderr="Error: No such object: runtime-1"),
         CommandResult(returncode=0, stdout="container-id"),
     )
     driver = DockerCliRuntimeDriver(runner)
+    config_path = tmp_path / "runtime-inputs" / "generation" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text("{}\n", encoding="utf-8")
+    state_path = tmp_path / "runtime-state" / "generation"
+    state_path.mkdir(parents=True)
     spec = RuntimeContainerSpec(
         runtime_id="runtime-1",
         image="freqtradeorg/freqtrade:stable",
-        workspace=tmp_path / "runtime-1",
+        config_path=config_path,
+        state_path=state_path,
         strategy_name="PortalStrategy",
         labels={
             "ai.portal.correlation_id": "correlation-1",
@@ -47,12 +53,17 @@ def test_docker_provision_creates_private_container_without_published_ports(tmp_
     assert "-p" not in create
     assert "--publish" not in create
     assert "--publish-all" not in create
-    assert f"type=bind,source={tmp_path / 'runtime-1'},target=/freqtrade/user_data" in create
+    assert (
+        f"type=bind,source={config_path.parent},target=/runtime/config,readonly" in create
+    )
+    assert f"type=bind,source={state_path},target=/runtime/state" in create
+    assert not any("/freqtrade/user_data" in arg for arg in create)
+    assert not any("runtime-manifest.json" in arg for arg in create)
     assert "ai.portal.correlation_id=correlation-1" in create
     assert create[-5:] == (
         "trade",
         "--config",
-        "/freqtrade/user_data/config.json",
+        "/runtime/config/config.json",
         "--strategy",
         "PortalStrategy",
     )

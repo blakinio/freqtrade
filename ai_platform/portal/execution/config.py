@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-from ai_platform.portal.contracts.bots import BotInstance
+from ai_platform.portal.contracts.environment import ExecutionMode
 from ai_platform.portal.contracts.payloads import reject_sensitive_payload_keys
 from ai_platform.portal.execution.errors import UnsafeRuntimeConfigurationError
 from ai_platform.portal.execution.runtime import ResolvedRuntimeArtifacts
@@ -30,11 +30,11 @@ _FORBIDDEN_CREDENTIAL_FIELDS = frozenset(
 _DRY_RUN_DB_URL = "sqlite:////runtime/state/tradesv3.dryrun.sqlite"
 
 
-def build_safe_dry_run_config(
-    bot: BotInstance,
-    artifacts: ResolvedRuntimeArtifacts,
-) -> dict[str, Any]:
-    config = deepcopy(dict(artifacts.base_config))
+def build_safe_dry_run_config(artifacts: ResolvedRuntimeArtifacts) -> dict[str, Any]:
+    if artifacts.execution_mode is not ExecutionMode.DRY_RUN:
+        raise UnsafeRuntimeConfigurationError("runtime generation must use dry_run execution mode")
+
+    config = deepcopy(dict(artifacts.runtime_config))
     _reject_credential_fields(config)
 
     exchange = config.get("exchange")
@@ -44,17 +44,18 @@ def build_safe_dry_run_config(
     if not isinstance(exchange_name, str) or not exchange_name.strip():
         raise UnsafeRuntimeConfigurationError("exchange.name is required")
 
-    safe_exchange = deepcopy(exchange)
-    safe_exchange["pair_whitelist"] = list(bot.spec.pair_universe)
-
-    config["dry_run"] = True
-    config["dry_run_wallet"] = float(bot.spec.capital_allocation)
-    config["stake_currency"] = bot.spec.capital_currency
-    config["timeframe"] = bot.spec.timeframe
-    config["db_url"] = _DRY_RUN_DB_URL
-    config["exchange"] = safe_exchange
-    config["api_server"] = {"enabled": False}
-    config["telegram"] = {"enabled": False}
+    if config.get("dry_run") is not True:
+        raise UnsafeRuntimeConfigurationError("runtime generation config must set dry_run=true")
+    if config.get("db_url") != _DRY_RUN_DB_URL:
+        raise UnsafeRuntimeConfigurationError(
+            "runtime generation config must use generation-scoped durable db_url"
+        )
+    api_server = config.get("api_server")
+    if not isinstance(api_server, dict) or api_server.get("enabled") is not False:
+        raise UnsafeRuntimeConfigurationError("runtime generation config must disable api_server")
+    telegram = config.get("telegram")
+    if not isinstance(telegram, dict) or telegram.get("enabled") is not False:
+        raise UnsafeRuntimeConfigurationError("runtime generation config must disable telegram")
 
     _reject_credential_fields(config)
     return config

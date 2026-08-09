@@ -4,6 +4,8 @@ import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[4]
 MODULE_PATH = ROOT / "deploy" / "synology" / "portal-oidc" / "postgresql_copy_on_write.py"
@@ -140,6 +142,7 @@ def test_existing_postgresql_is_cloned_after_quiesce_before_migration(tmp_path: 
         "source_database_retained_for_rollback": True,
         "authority_journaled_before_promotion": False,
         "candidate_quiesced_before_authority_restore": False,
+        "candidate_database_retained_for_recovery": False,
     }
     assert captured_report["database_recovery"] == {
         "pre_migration_backup_sha256": "backup-sha256",
@@ -148,16 +151,16 @@ def test_existing_postgresql_is_cloned_after_quiesce_before_migration(tmp_path: 
         "source_database_retained_for_rollback": True,
         "authority_journaled_before_promotion": False,
         "candidate_quiesced_before_authority_restore": False,
+        "candidate_database_retained_for_recovery": False,
         "restore_authorized": False,
     }
 
 
-def test_authority_is_journaled_before_promotion_and_candidate_is_quiet_before_rollback(
+def test_authority_is_journaled_before_promotion_and_exposed_candidate_is_retained_on_rollback(
     tmp_path: Path,
 ) -> None:
     args = SimpleNamespace(expected_repository_sha="c" * 40)
     old_runtime = {"PORTAL_DATABASE_URL": "postgresql://old-authority"}
-    new_runtime = {"PORTAL_DATABASE_URL": "postgresql://candidate-authority"}
     runtime_path = tmp_path / "runtime.env"
     candidate_path = tmp_path / "runtime.candidate.env"
     runtime_path.write_text("PORTAL_DATABASE_URL=postgresql://old-authority\n", encoding="utf-8")
@@ -166,10 +169,15 @@ def test_authority_is_journaled_before_promotion_and_candidate_is_quiet_before_r
         encoding="utf-8",
     )
     events: list[str] = []
+    databases = {"portal_candidate_oldoldold"}
+    captured_report: dict[str, object] = {}
     running = {
         "freqtrade-portal-web": True,
         "freqtrade-portal-control-plane": True,
     }
+
+    def database_exists(database_name: str) -> bool:
+        return database_name in databases
 
     deploy = SimpleNamespace(
         DeploymentError=RuntimeError,
@@ -190,15 +198,21 @@ def test_authority_is_journaled_before_promotion_and_candidate_is_quiet_before_r
             "control_exists": True,
             "control_running": True,
         },
-        _write_report=lambda _path, _report: "report-sha256",
         _assert_database_name=lambda _database_name: None,
         _backup_postgres=lambda _database_name, _sha: "backup-sha256",
-        _postgres_database_exists=lambda _database_name: True,
-        _drop_candidate_database=lambda _database_name: events.append("drop-candidate"),
+        _postgres_database_exists=database_exists,
         _container_running=lambda container: running[container],
     )
 
+    def drop_candidate_database(database_name: str) -> None:
+        events.append("drop-candidate")
+        databases.discard(database_name)
+
+    deploy._drop_candidate_database = drop_candidate_database
+
     def run(command, **_kwargs):
+        if "createdb" in command:
+            databases.add(command[-1])
         if command[:2] == ["docker", "stop"]:
             container = command[2]
             events.append(f"stop:{container}")
@@ -241,17 +255,26 @@ def test_authority_is_journaled_before_promotion_and_candidate_is_quiet_before_r
 
     deploy._restore_previous_portal = restore_previous_portal
 
+    def write_report(_path, report):
+        captured_report.update(report)
+        return "report-sha256"
+
+    deploy._write_report = write_report
+
     def original_deploy(_args) -> int:
         mode, database_name = deploy._current_database_mode(old_runtime, {})
         assert mode == "fresh"
         assert database_name is None
-        deploy._create_postgres_database("portal_candidate_cccccccccccc")
+        candidate = "portal_candidate_cccccccccccc"
+        deploy._create_postgres_database(candidate)
         previous = deploy._quiesce_existing_portal()
+        assert candidate in databases
         deploy._promote_control("control-candidate")
         deploy._activate_candidate_runtime()
         assert events.count("journal-candidate-authority") == 1
         deploy._restore_previous_portal(previous, "control-backup", "web-backup")
-        deploy._drop_candidate_database("portal_candidate_cccccccccccc")
+        deploy._drop_candidate_database(candidate)
+        deploy._write_report(Path("report.json"), {"status": "failure", "database": {}})
         return 1
 
     deploy.deploy = original_deploy
@@ -266,11 +289,50 @@ def test_authority_is_journaled_before_promotion_and_candidate_is_quiet_before_r
         "restore-runtime-authority"
     )
     assert events.index("restore-runtime-authority") < events.index("restore-old-containers")
-    assert events[-1] == "drop-candidate"
+    assert "drop-candidate" not in events
+    assert "portal_candidate_cccccccccccc" in databases
+    recovery = captured_report["database_recovery"]
+    assert isinstance(recovery, dict)
+    assert recovery["authority_journaled_before_promotion"] is True
+    assert recovery["candidate_quiesced_before_authority_restore"] is True
+    assert recovery["candidate_database_retained_for_recovery"] is True
     assert runtime_path.read_text(encoding="utf-8") == (
         "PORTAL_DATABASE_URL=postgresql://old-authority\n"
     )
-    assert new_runtime != old_runtime
+
+
+def test_retry_fails_closed_when_same_revision_candidate_is_retained(tmp_path: Path) -> None:
+    args = SimpleNamespace(expected_repository_sha="c" * 40)
+    active_database = "portal_candidate_oldoldold"
+    retained_candidate = "portal_candidate_cccccccccccc"
+
+    deploy = SimpleNamespace(
+        DeploymentError=RuntimeError,
+        PORTAL_POSTGRES_CONTAINER="portal-postgresql",
+        PORTAL_POSTGRES_USER="portal",
+        PORTAL_POSTGRES_ADMIN_DB="portal_admin",
+        _current_database_mode=lambda _runtime, _postgres: ("postgresql", active_database),
+        _create_postgres_database=lambda _database_name: None,
+        _quiesce_existing_portal=lambda: {},
+        _write_report=lambda _path, _report: "report-sha256",
+        _assert_database_name=lambda _database_name: None,
+        _backup_postgres=lambda _database_name, _sha: "backup-sha256",
+        _run=lambda *_args, **_kwargs: SimpleNamespace(returncode=0, stdout="", stderr=""),
+        _postgres_database_exists=lambda database_name: database_name == retained_candidate,
+        _drop_candidate_database=lambda _database_name: None,
+        _restore_previous_portal=lambda *_args: None,
+    )
+    _cutover_stubs(deploy, tmp_path)
+
+    def original_deploy(_args):
+        deploy._current_database_mode({}, {})
+        return 0
+
+    deploy.deploy = original_deploy
+    module.install(deploy)
+
+    with pytest.raises(RuntimeError, match="reconcile the retained candidate"):
+        deploy.deploy(args)
 
 
 def test_same_revision_database_is_reused_without_copy_on_write(tmp_path: Path) -> None:

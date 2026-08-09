@@ -9,6 +9,7 @@ from pydantic import Field, PositiveInt, model_validator
 from ai_platform.portal.contracts.common import ContractModel, NonEmptyStr, Sha256Hex, UtcDateTime
 from ai_platform.portal.contracts.environment import Environment, ExecutionMode
 from ai_platform.portal.contracts.sensitive import OpaqueSensitiveReference
+from ai_platform.wickhunter.contracts import BotMode
 
 
 PositiveDecimal = Annotated[Decimal, Field(gt=0)]
@@ -52,6 +53,7 @@ class BotSpec(ContractModel):
     config_revision: PositiveInt
     environment: Environment
     execution_mode: ExecutionMode = ExecutionMode.DRY_RUN
+    managed_mode: BotMode = BotMode.SHADOW
 
     @model_validator(mode="after")
     def validate_pair_universe(self) -> Self:
@@ -78,6 +80,7 @@ class BotConfigRevision(ContractModel):
     runtime_version: NonEmptyStr
     environment: Environment
     execution_mode: ExecutionMode = ExecutionMode.DRY_RUN
+    managed_mode: BotMode = BotMode.SHADOW
     state: BotConfigRevisionState = BotConfigRevisionState.DRAFT
     revision_content_digest: Sha256Hex | None = None
     created_by_actor_id: NonEmptyStr

@@ -66,11 +66,25 @@ if (fs.existsSync(nested)) {{
   nestedLayout = true;
 }}
 const runsRoot = nestedLayout ? nested : root;
+const runOrder = (runId) => {{
+  const match = runId.match(/-(\d{{8}})-v(\d+)-r(\d+)$/);
+  if (!match) process.exit(1);
+  return [BigInt(match[1]), BigInt(match[2]), BigInt(match[3])];
+}};
+const newestRunFirst = (left, right) => {{
+  const leftOrder = runOrder(left);
+  const rightOrder = runOrder(right);
+  for (let index = 0; index < leftOrder.length; index += 1) {{
+    if (leftOrder[index] !== rightOrder[index]) {{
+      return leftOrder[index] > rightOrder[index] ? -1 : 1;
+    }}
+  }}
+  return left.localeCompare(right);
+}};
 const runIds = fs.readdirSync(runsRoot, {{withFileTypes: true}})
   .filter((entry) => entry.isDirectory() && !entry.isSymbolicLink() && runPattern.test(entry.name))
   .map((entry) => entry.name)
-  .sort()
-  .reverse();
+  .sort(newestRunFirst);
 if (runIds.length === 0) process.exit(1);
 const runId = runIds[0];
 const runRoot = path.join(runsRoot, runId);

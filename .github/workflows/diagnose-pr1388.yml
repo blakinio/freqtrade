@@ -64,3 +64,25 @@ jobs:
             echo "::error title=PR1388 ruff diagnostic::$message"
           fi
           exit $status
+      - name: Show exact Ruff repair diff
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ruff check --fix \
+            ai_platform/portal/control_plane/service.py \
+            tests/ai_platform/portal/control_plane/test_managed_runtime_mode_semantics.py \
+            >/tmp/ruff-fix.log 2>&1
+          ruff format \
+            ai_platform/portal/control_plane/service.py \
+            tests/ai_platform/portal/control_plane/test_managed_runtime_mode_semantics.py \
+            >>/tmp/ruff-fix.log 2>&1
+          git diff -- \
+            ai_platform/portal/control_plane/service.py \
+            tests/ai_platform/portal/control_plane/test_managed_runtime_mode_semantics.py \
+            >/tmp/ruff-fix.diff
+          message=$(cat /tmp/ruff-fix.diff)
+          message=${message//'%'/'%25'}
+          message=${message//$'\r'/'%0D'}
+          message=${message//$'\n'/'%0A'}
+          echo "::notice title=PR1388 exact Ruff repair diff::$message"

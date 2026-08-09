@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# ruff: noqa: E501 -- the embedded Node.js preflight is intentionally kept line-oriented.
+
 import json
 import re
 import subprocess

@@ -1,0 +1,40 @@
+name: Temporary 1089 post-snapshot diagnostic noenv
+
+on:
+  push:
+    branches:
+      - fix/1089-post-snapshot-diagnostic-20260809
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 15
+    steps:
+      - name: Checkout diagnostic branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          ref: fix/1089-post-snapshot-diagnostic-20260809
+      - name: Refuse trading credential environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "recognized trading credential environment is present: $name" >&2
+              exit 1
+            fi
+          done
+      - name: Run isolated PostgreSQL migration diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/agents/zz_temp_1089_post_snapshot_diag.py

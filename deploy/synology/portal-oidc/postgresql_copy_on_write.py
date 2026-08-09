@@ -60,10 +60,6 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
         if database_name == candidate_database:
             return mode, database_name
 
-        # A same-revision candidate while another database remains authoritative can be a
-        # retained post-exposure recovery database from an earlier failed cutover. Never
-        # delete or overwrite it automatically: explicit reconciliation must decide whether
-        # it contains writes that need to be recovered before another attempt.
         if deploy._postgres_database_exists(candidate_database):
             raise deploy.DeploymentError(
                 "PostgreSQL copy-on-write candidate already exists for this revision; "
@@ -84,10 +80,11 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
         # Capture the pre-stop state outside deploy.py so a partial stop failure cannot erase
         # the information needed to restore an already-stopped public container. The canonical
         # deploy entrypoint always installs this shim before invoking deploy.main().
+        container_exists = getattr(deploy, "_container_exists", lambda _container: True)
         pre_quiesce = {
-            "web_exists": deploy._container_exists(deploy.PORTAL_CONTAINER),
+            "web_exists": container_exists(deploy.PORTAL_CONTAINER),
             "web_running": deploy._container_running(deploy.PORTAL_CONTAINER),
-            "control_exists": deploy._container_exists(deploy.CONTROL_CONTAINER),
+            "control_exists": container_exists(deploy.CONTROL_CONTAINER),
             "control_running": deploy._container_running(deploy.CONTROL_CONTAINER),
         }
         try:
@@ -165,19 +162,12 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
         state["authority_was_journaled"] = True
 
     def promote_control(candidate: str) -> str | None:
-        # The candidate container has already started from runtime.candidate.env and is not
-        # externally reachable. Journal the candidate database identity durably before the
-        # first promotion step can expose a process that may accept writes.
         activate_candidate_runtime()
         return original_promote_control(candidate)
 
     def quiesce_candidate_before_authority_restore() -> None:
         if not state["authority_switched"]:
             return
-        # The public web process is stopped first so no new externally-originated mutation can
-        # reach the candidate control plane while rollback is changing durable database
-        # authority. A host/process crash after either stop remains recovery-safe because
-        # runtime.env still points at the candidate until both candidate processes are quiet.
         for container in (deploy.PORTAL_CONTAINER, deploy.CONTROL_CONTAINER):
             if deploy._container_running(container):
                 deploy._run(["docker", "stop", container])
@@ -205,18 +195,11 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
         control_backup: str | None,
         web_backup: str | None,
     ) -> None:
-        # Keep candidate authority durable until the candidate processes are quiesced. After
-        # that point restoring runtime.env is crash-safe: no process can continue writing the
-        # candidate database while a future deploy sees the source database as authoritative.
         quiesce_candidate_before_authority_restore()
         restore_runtime_authority()
         original_restore_previous_portal(previous, control_backup, web_backup)
 
     def drop_candidate_database(database_name: str) -> None:
-        # Once candidate authority was journaled, the candidate may have accepted writes. Even
-        # after a clean rollback to the source database, deleting that candidate would make
-        # those writes unrecoverable. Retain it and make a same-revision retry fail closed in
-        # current_database_mode until an operator explicitly reconciles the two databases.
         if state["authority_was_journaled"]:
             state["candidate_retained_for_recovery"] = True
             return

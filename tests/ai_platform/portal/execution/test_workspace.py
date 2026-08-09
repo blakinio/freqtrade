@@ -11,6 +11,7 @@ from ai_platform.portal.execution.workspace import RuntimeWorkspaceStore
 
 
 NOW = datetime(2026, 8, 9, 18, 30, tzinfo=UTC)
+_IMAGE_DIGEST = "6" * 64
 
 
 def _record(
@@ -24,11 +25,18 @@ def _record(
         tenant_id="tenant-a",
         bot_id="bot-1",
         generation_id=generation_id,
-        runtime_id=runtime_id,
+        generation_spec_digest="1" * 64,
+        config_revision_id=f"revision-{revision}",
         config_revision=revision,
-        image="freqtradeorg/freqtrade:stable",
+        config_revision_digest="2" * 64,
+        normalized_runtime_config_digest="3" * 64,
+        runtime_image_digest=_IMAGE_DIGEST,
+        strategy_artifact_digest="4" * 64,
+        model_artifact_digest="5" * 64,
+        runtime_id=runtime_id,
+        image=f"freqtradeorg/freqtrade@sha256:{_IMAGE_DIGEST}",
         strategy_name="PortalStrategy",
-        config_sha256="a" * 64,
+        config_sha256="3" * 64,
         request_id=UUID("00000000-0000-0000-0000-000000000001"),
         correlation_id=UUID("00000000-0000-0000-0000-000000000002"),
         causation_id=None,

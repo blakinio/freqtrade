@@ -30,13 +30,9 @@ def deploy_module(tmp_path: Path, run):
         DeploymentError=RuntimeError,
         PORTAL_STATE_DIR=tmp_path / "runner-state",
         PORTAL_DATA_DIR=Path("/volume1/docker/freqtrade-portal-oidc/data"),
-        PORTAL_LEGACY_BACKUP_DIR=Path(
-            "/volume1/docker/freqtrade-portal-oidc/data/legacy-backups"
-        ),
+        PORTAL_LEGACY_BACKUP_DIR=Path("/volume1/docker/freqtrade-portal-oidc/data/legacy-backups"),
         PORTAL_POSTGRES_ENV=tmp_path / "postgres.env",
-        PORTAL_POSTGRES_IMAGE=(
-            "docker.io/library/postgres:16.13-alpine3.23@sha256:" + "1" * 64
-        ),
+        PORTAL_POSTGRES_IMAGE=("docker.io/library/postgres:16.13-alpine3.23@sha256:" + "1" * 64),
         PORTAL_POSTGRES_ALIAS="portal-postgresql",
         PORTAL_NETWORK="portal_oidc_public",
         PORTAL_UID=10001,
@@ -234,7 +230,7 @@ def test_install_captures_exact_control_image_and_entrypoint_wires_bridge(
 
 def test_noncanonical_portal_host_path_is_rejected(tmp_path: Path) -> None:
     deploy = deploy_module(tmp_path, lambda *_args, **_kwargs: None)
-    deploy.PORTAL_DATA_DIR = Path("/tmp/portal-data")
+    deploy.PORTAL_DATA_DIR = Path("/srv/noncanonical-portal-data")
 
     with pytest.raises(RuntimeError, match="canonical Synology Docker root"):
         module._portal_relative_path(deploy)

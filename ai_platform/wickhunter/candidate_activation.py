@@ -8,8 +8,8 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
-from ai_platform.wickhunter.canonical import canonical_sha256
 from ai_platform.wickhunter.candidate_evaluation_identity import validate_evaluation_case_counts
+from ai_platform.wickhunter.canonical import canonical_sha256
 from ai_platform.wickhunter.contracts import BotMode
 from ai_platform.wickhunter.lightgbm_scorer import (
     CalibrationCurve,

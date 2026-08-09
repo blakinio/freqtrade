@@ -53,9 +53,7 @@ def test_docker_provision_mounts_only_immutable_config_and_generation_state(tmp_
     assert "-p" not in create
     assert "--publish" not in create
     assert "--publish-all" not in create
-    assert (
-        f"type=bind,source={config_path.parent},target=/runtime/config,readonly" in create
-    )
+    assert f"type=bind,source={config_path.parent},target=/runtime/config,readonly" in create
     assert f"type=bind,source={state_path},target=/runtime/state" in create
     assert not any("/freqtrade/user_data" in arg for arg in create)
     assert not any("runtime-manifest.json" in arg for arg in create)

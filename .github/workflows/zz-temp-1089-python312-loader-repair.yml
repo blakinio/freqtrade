@@ -1,0 +1,145 @@
+name: Temporary 1089 Python 3.12 loader repair
+
+on:
+  push:
+    branches:
+      - fix/1089-python312-module-loader-20260809
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: fix/1089-python312-module-loader-20260809
+          persist-credentials: true
+      - name: Apply and prove Python 3.12 loader repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          runtime = Path('tools/agents/portal_supply_chain_runtime.py')
+          text = runtime.read_text(encoding='utf-8')
+          if 'import sys\n' not in text:
+              text = text.replace('import subprocess\n', 'import subprocess\nimport sys\n', 1)
+          old = '''def _module(name: str, path: Path) -> ModuleType:
+              spec = importlib.util.spec_from_file_location(name, path)
+              if spec is None or spec.loader is None:
+                  raise RuntimeError(f"unable to load module: {path}")
+              module = importlib.util.module_from_spec(spec)
+              spec.loader.exec_module(module)
+              return module
+          '''
+          new = '''def _module(name: str, path: Path) -> ModuleType:
+              spec = importlib.util.spec_from_file_location(name, path)
+              if spec is None or spec.loader is None:
+                  raise RuntimeError(f"unable to load module: {path}")
+              module = importlib.util.module_from_spec(spec)
+              previous = sys.modules.get(name)
+              sys.modules[name] = module
+              try:
+                  spec.loader.exec_module(module)
+              except Exception:
+                  if previous is None:
+                      sys.modules.pop(name, None)
+                  else:
+                      sys.modules[name] = previous
+                  raise
+              return module
+          '''
+          if text.count(old) != 1:
+              raise SystemExit('expected _module block not found exactly once')
+          runtime.write_text(text.replace(old, new), encoding='utf-8')
+
+          test = Path('tests/ai_platform/portal/deployment/test_portal_supply_chain_runtime_hooks.py')
+          test.write_text('''from __future__ import annotations
+
+import importlib
+import sys
+from pathlib import Path
+
+
+def _runtime_module():
+    tools_agents = str(Path("tools/agents").resolve())
+    sys.path.insert(0, tools_agents)
+    try:
+        return importlib.import_module("portal_supply_chain_runtime")
+    finally:
+        sys.path.remove(tools_agents)
+
+
+def test_dynamic_module_loader_registers_dataclass_module_before_exec(tmp_path: Path) -> None:
+    runtime = _runtime_module()
+    module_path = tmp_path / "dynamic_dataclass.py"
+    module_path.write_text(
+        "from __future__ import annotations\\n"
+        "from dataclasses import dataclass\\n\\n"
+        "@dataclass(frozen=True)\\n"
+        "class Payload:\\n"
+        "    value: int\\n",
+        encoding="utf-8",
+    )
+    module_name = "portal_supply_chain_runtime_test_dataclass"
+    sys.modules.pop(module_name, None)
+    try:
+        loaded = runtime._module(module_name, module_path)
+        assert sys.modules[module_name] is loaded
+        assert loaded.Payload(7).value == 7
+    finally:
+        sys.modules.pop(module_name, None)
+
+
+def test_approved_deploy_installs_runtime_hooks_after_approved_images() -> None:
+    source = Path("tools/agents/portal_supply_chain_runtime.py").read_text(encoding="utf-8")
+    function = source.split("def deploy_approved(args: argparse.Namespace) -> int:", 1)[1]
+    function = function.split("\\ndef evaluate_files(", 1)[0]
+
+    approved_images = function.index('\"_build_images\",')
+    docker_host = function.index("docker_host_state.install(deploy)")
+    liquidations = function.index("entrypoint._install_docker_host_liquidations_preflight(deploy)")
+    market_evidence = function.index("market_evidence.install(deploy)")
+    copy_on_write = function.index("copy_on_write.install(deploy)")
+    deploy_call = function.index("deploy.deploy(")
+
+    assert approved_images < docker_host
+    assert docker_host < liquidations < market_evidence < copy_on_write < deploy_call
+    assert 'directory / "docker_host_state.py"' in function
+    assert 'directory / "market_evidence_runtime.py"' in function
+    assert 'directory / "postgresql_copy_on_write.py"' in function
+''', encoding='utf-8')
+          PY
+          python3 -m py_compile tools/agents/portal_supply_chain_runtime.py tests/ai_platform/portal/deployment/test_portal_supply_chain_runtime_hooks.py
+          python3 - <<'PY'
+          import importlib
+          import sys
+          import tempfile
+          from pathlib import Path
+
+          sys.path.insert(0, str(Path('tools/agents').resolve()))
+          runtime = importlib.import_module('portal_supply_chain_runtime')
+          with tempfile.TemporaryDirectory() as directory:
+              path = Path(directory) / 'probe.py'
+              path.write_text(
+                  'from __future__ import annotations\nfrom dataclasses import dataclass\n\n@dataclass(frozen=True)\nclass Probe:\n    value: int\n',
+                  encoding='utf-8',
+              )
+              name = 'portal_supply_chain_runtime_probe'
+              sys.modules.pop(name, None)
+              loaded = runtime._module(name, path)
+              assert sys.modules[name] is loaded
+              assert loaded.Probe(9).value == 9
+              sys.modules.pop(name, None)
+          PY
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add tools/agents/portal_supply_chain_runtime.py tests/ai_platform/portal/deployment/test_portal_supply_chain_runtime_hooks.py
+          git commit -m 'fix(portal): register dynamic deploy modules before exec (#1089)'
+          git push origin HEAD:fix/1089-python312-module-loader-20260809

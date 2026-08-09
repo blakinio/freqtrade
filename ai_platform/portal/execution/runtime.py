@@ -9,8 +9,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, PositiveInt
 
-from ai_platform.portal.contracts.bots import BotInstance
 from ai_platform.portal.contracts.common import NonEmptyStr, Sha256Hex, UtcDateTime
+from ai_platform.portal.contracts.environment import ExecutionMode
 
 
 class DriverRuntimeState(StrEnum):
@@ -22,21 +22,59 @@ class DriverRuntimeState(StrEnum):
     STOPPED = "STOPPED"
 
 
+def _require_sha256(value: str, field_name: str) -> None:
+    if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
+        raise ValueError(f"{field_name} must be a lowercase SHA-256 digest")
+
+
 @dataclass(frozen=True)
 class ResolvedRuntimeArtifacts:
+    """Trusted executable material resolved for one immutable RuntimeGeneration."""
+
+    generation_id: str
+    config_revision_id: str
+    config_revision: int
+    config_revision_digest: str
+    generation_spec_digest: str
+    normalized_runtime_config_digest: str
+    runtime_image_digest: str
+    strategy_artifact_digest: str
+    model_artifact_digest: str | None
+    execution_mode: ExecutionMode
     image: str
     strategy_name: str
-    base_config: Mapping[str, Any]
+    runtime_config: Mapping[str, Any]
 
     def __post_init__(self) -> None:
+        if not self.generation_id.strip():
+            raise ValueError("generation_id must not be empty")
+        if not self.config_revision_id.strip():
+            raise ValueError("config_revision_id must not be empty")
+        if self.config_revision < 1:
+            raise ValueError("config_revision must be positive")
         if not self.image.strip():
             raise ValueError("runtime image must not be empty")
         if not self.strategy_name.strip():
             raise ValueError("strategy name must not be empty")
+        for field_name, digest in (
+            ("config_revision_digest", self.config_revision_digest),
+            ("generation_spec_digest", self.generation_spec_digest),
+            ("normalized_runtime_config_digest", self.normalized_runtime_config_digest),
+            ("runtime_image_digest", self.runtime_image_digest),
+            ("strategy_artifact_digest", self.strategy_artifact_digest),
+        ):
+            _require_sha256(digest, field_name)
+        if self.model_artifact_digest is not None:
+            _require_sha256(self.model_artifact_digest, "model_artifact_digest")
 
 
 class RuntimeArtifactResolver(Protocol):
-    def resolve(self, bot: BotInstance) -> ResolvedRuntimeArtifacts: ...
+    def resolve(
+        self,
+        tenant_id: str,
+        bot_id: str,
+        generation_id: str,
+    ) -> ResolvedRuntimeArtifacts: ...
 
 
 @dataclass(frozen=True)
@@ -55,8 +93,15 @@ class RuntimeRecord(BaseModel):
     tenant_id: NonEmptyStr
     bot_id: NonEmptyStr
     generation_id: NonEmptyStr
-    runtime_id: NonEmptyStr
+    generation_spec_digest: Sha256Hex
+    config_revision_id: NonEmptyStr
     config_revision: PositiveInt
+    config_revision_digest: Sha256Hex
+    normalized_runtime_config_digest: Sha256Hex
+    runtime_image_digest: Sha256Hex
+    strategy_artifact_digest: Sha256Hex
+    model_artifact_digest: Sha256Hex | None = None
+    runtime_id: NonEmptyStr
     image: NonEmptyStr
     strategy_name: NonEmptyStr
     config_sha256: Sha256Hex

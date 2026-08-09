@@ -160,19 +160,20 @@ async function collectPackageAccessGroups(
   }
 
   await visit(packageRoot);
-  // Touch a verified artifact so this permission walk remains coupled to the canonical
-  // verifier contract rather than becoming a parallel acceptance path.
   verified.artifact("run-state.json");
   return { run_id: runId, relative_path: relativeRunPath(dataRoot, root, runId) };
 }
 
 async function main(): Promise<void> {
-  const [dataRootArg] = process.argv.slice(2);
+  const [dataRootArg, requestedRunId] = process.argv.slice(2);
   if (!dataRootArg) {
-    throw new MarketEvidenceIntegrityError("usage: runtime-preflight <data-root>");
+    throw new MarketEvidenceIntegrityError("usage: runtime-preflight <data-root> [run-id]");
   }
   const dataRoot = resolve(dataRootArg);
-  const selectedRunId = await discoverSelectedRun(dataRoot);
+  const selectedRunId = requestedRunId || (await discoverSelectedRun(dataRoot));
+  if (!RUN_ID_PATTERN.test(selectedRunId)) {
+    throw new MarketEvidenceIntegrityError("selected run identity is invalid");
+  }
   const selected = await verifyRun(dataRoot, selectedRunId);
   const base = await verifyBoundBaseV1(dataRoot, selected);
   const groupIds = new Set<number>();
@@ -187,7 +188,7 @@ async function main(): Promise<void> {
       JSON.stringify({
         run_id: selectedRunId,
         version: selected.version,
-        base_v1_run_id: base?.runId ?? (selected.version === 1 ? selectedRunId : null),
+        base_v1_run_id: base?.runId ?? null,
         group_ids: [...groupIds].sort((left, right) => left - right),
         mounts,
       }),

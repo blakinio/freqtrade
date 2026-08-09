@@ -21,11 +21,17 @@ from ai_platform.portal.contracts.runtime_generation import (
 from ai_platform.portal.control_plane._service_core import (
     ActivationResult,
     BotNotFoundError,
-    Clock as Clock,
     ControlPlaneConflictError,
-    ControlPlaneService as _CoreControlPlaneService,
-    GenerationMaterialResolver as GenerationMaterialResolver,
     RuntimeGenerationMaterialUnavailableError,
+)
+from ai_platform.portal.control_plane._service_core import (
+    Clock as Clock,
+)
+from ai_platform.portal.control_plane._service_core import (
+    ControlPlaneService as _CoreControlPlaneService,
+)
+from ai_platform.portal.control_plane._service_core import (
+    GenerationMaterialResolver as GenerationMaterialResolver,
 )
 from ai_platform.portal.control_plane.context import RequestContext
 from ai_platform.portal.security.authorization import require_permission

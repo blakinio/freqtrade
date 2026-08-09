@@ -3,10 +3,11 @@ from __future__ import annotations
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import NonNegativeInt, PositiveInt
+from pydantic import NonNegativeInt, PositiveInt, StrictBool
 
 from ai_platform.portal.contracts.common import ContractModel, NonEmptyStr, Sha256Hex, UtcDateTime
 from ai_platform.portal.contracts.environment import ExecutionMode
+from ai_platform.wickhunter.contracts import BotMode
 
 
 class BotRolloutStatus(StrEnum):
@@ -61,6 +62,10 @@ class RuntimeGeneration(ContractModel):
     risk_policy_version: NonEmptyStr
     risk_policy_digest: Sha256Hex
     execution_mode: ExecutionMode
+    managed_mode: BotMode
+    managed_mode_request_digest: Sha256Hex
+    managed_mode_resolution_digest: Sha256Hex
+    paper_authorization_digest: Sha256Hex | None = None
     exchange_mode: NonEmptyStr
     exchange_connection_revision: NonEmptyStr | None = None
 
@@ -116,7 +121,11 @@ class RuntimeGenerationObservation(ContractModel):
 
 
 class RuntimeGenerationMaterial(ContractModel):
-    """Trusted, immutable material resolved before a generation can be created."""
+    """Trusted, immutable material resolved before a generation can be created.
+
+    PAPER authorization evidence is supplied only by the server-side material resolver.
+    It is never accepted from the browser activation request.
+    """
 
     normalized_runtime_config_digest: Sha256Hex
     runtime_image_digest: Sha256Hex
@@ -129,4 +138,9 @@ class RuntimeGenerationMaterial(ContractModel):
     isolation_profile_version: NonEmptyStr
     isolation_profile_digest: Sha256Hex
     gateway_contract_version: NonEmptyStr
+    paper_activation_authorized: StrictBool = False
+    paper_authorization_id: NonEmptyStr | None = None
+    paper_authorization_digest: Sha256Hex | None = None
+    paper_candidate_package_id: NonEmptyStr | None = None
+    paper_candidate_manifest_sha256: Sha256Hex | None = None
     generation_spec_version: NonEmptyStr = "v1"

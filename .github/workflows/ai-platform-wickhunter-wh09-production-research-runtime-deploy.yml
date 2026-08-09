@@ -8,6 +8,7 @@ name: Deploy WickHunter WH09 Production Research Runtime
       - deploy/synology/wickhunter-production-research-runtime/run-requests/activate-wh09-production-research-20260808-v1.json
       - deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260808-v2.json
       - deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260808-v3.json
+      - deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json
 
 permissions:
   contents: read
@@ -20,7 +21,11 @@ env:
   REQUEST_PATH: deploy/synology/wickhunter-production-research-runtime/run-requests/activate-wh09-production-research-20260808-v1.json
   RETRY_PATH: deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260808-v2.json
   RETRY_V3_PATH: deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260808-v3.json
+  DIAGNOSTIC_V4_PATH: deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json
   DEPLOY_COMMIT: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
+  DEPLOYMENT_AUTHORIZATION_COMMIT: c64df386a4fa3ba739b6eaa1a223ca798a7bcae2
+  EXPECTED_DIAGNOSTIC_CONTAINER_ID: 6724290d3078f09fc82c434e239d2d8afd3686ddedd27ff7d400834538cfbfe0
+  EXPECTED_DIAGNOSTIC_IMAGE_ID: sha256:c5a67281912e262a183dd7a5804609a2f69ca356d5eb98e4a5a8da169e07a749
   STATE_DIR: /var/lib/freqtrade-staging-state
   MODEL_PACKAGE_REL: wickhunter-candidate-materialization/packages/wickhunter-wh09-candidate-materialization-20260808-r1-h900s-7b23a958fd4d
   LIQUID20_CONTAINER: liquid20-live
@@ -32,7 +37,30 @@ env:
   COMPOSE_FILE: deploy/synology/wickhunter-production-research-runtime/compose.yaml
 
 jobs:
+  classify:
+    name: Classify exact WH09 run request
+    runs-on: ubuntu-latest
+    outputs:
+      diagnostic_v4: ${{ steps.classify.outputs.diagnostic_v4 }}
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Classify exact diagnostic v4 path
+        id: classify
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/ci/classify_wickhunter_wh09_deploy_request.py \
+            --event "$GITHUB_EVENT_PATH" \
+            --target-path "$DIAGNOSTIC_V4_PATH" \
+            --github-output "$GITHUB_OUTPUT"
+
   deploy:
+    needs: classify
+    if: ${{ needs.classify.outputs.diagnostic_v4 != 'true' }}
     name: Deploy exact merged WH09 SHADOW runtime
     runs-on:
       - freqtrade-staging
@@ -530,5 +558,252 @@ jobs:
         with:
           name: wickhunter-wh09-production-research-deployment-${{ github.run_id }}-${{ github.run_attempt }}
           path: deployment-report.json
+          if-no-files-found: error
+          retention-days: 30
+
+  diagnose:
+    needs: classify
+    if: ${{ needs.classify.outputs.diagnostic_v4 == 'true' }}
+    name: Inspect existing WH09 SHADOW runtime without recreation
+    runs-on:
+      - freqtrade-staging
+    environment: synology-staging
+    timeout-minutes: 10
+    steps:
+      - name: Checkout diagnostic authorization
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Validate immutable diagnostic authorization
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == "refs/heads/develop" ]]
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          expected = {
+              "schema_version": 1,
+              "request_id": "wickhunter-wh09-production-research-diagnostic-20260808-v4",
+              "deploy_commit": "ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5",
+              "deployment_authorization_commit": "c64df386a4fa3ba739b6eaa1a223ca798a7bcae2",
+              "previous_run_id": 31275253098,
+              "previous_job_id": 93147659559,
+              "expected_container_id": "6724290d3078f09fc82c434e239d2d8afd3686ddedd27ff7d400834538cfbfe0",
+              "expected_image_id": "sha256:c5a67281912e262a183dd7a5804609a2f69ca356d5eb98e4a5a8da169e07a749",
+              "failure_class": "runtime_health_file_absent_after_container_start",
+              "diagnostic_only": True,
+              "container_recreate_authorized": False,
+              "mode": "shadow",
+              "no_trade_confidence": "0.60",
+              "paper_activation_authorized": False,
+              "automatic_promotion_enabled": False,
+              "trading_credentials_present": False,
+              "order_adapter_present": False,
+              "execution_enabled": False,
+              "orders_submitted": 0,
+              "live_capital_authorized": False,
+          }
+          payload = json.loads(Path(
+              "deploy/synology/wickhunter-production-research-runtime/run-requests/"
+              "diagnose-wh09-production-research-20260808-v4.json"
+          ).read_text(encoding="utf-8"))
+          if payload != expected:
+              raise SystemExit("WH09 diagnostic authorization contract mismatch")
+          PY
+          git cat-file -e "$DEPLOY_COMMIT^{commit}"
+          git cat-file -e "$DEPLOYMENT_AUTHORIZATION_COMMIT^{commit}"
+          git merge-base --is-ancestor "$DEPLOY_COMMIT" "$GITHUB_SHA"
+          git merge-base --is-ancestor "$DEPLOYMENT_AUTHORIZATION_COMMIT" "$GITHUB_SHA"
+
+      - name: Inspect current runtime state
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ -d "$STATE_DIR" && ! -L "$STATE_DIR" ]]
+          docker version >/dev/null
+
+          for name in \
+            BINANCE_API_KEY BINANCE_API_SECRET BINANCE_SECRET_KEY \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            EXCHANGE_API_KEY EXCHANGE_API_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]] || { echo "Forbidden credential environment: $name" >&2; exit 1; }
+          done
+
+          evidence_dir="$RUNNER_TEMP/wickhunter-wh09-runtime-diagnostic"
+          mkdir -p "$evidence_dir"
+          identity="$evidence_dir/identity-discovery.txt"
+          report="$evidence_dir/report.json"
+          logs="$evidence_dir/container.log"
+          fs="$evidence_dir/filesystem.txt"
+
+          mapfile -t containers < <(
+            docker ps -aq --no-trunc \
+              --filter 'label=com.docker.compose.project=wickhunter-production-research-runtime' \
+              --filter 'label=com.docker.compose.service=wickhunter-production-research-runtime'
+          )
+          {
+            printf 'expected_container_id=%s\n' "$EXPECTED_DIAGNOSTIC_CONTAINER_ID"
+            printf 'expected_image_id=%s\n' "$EXPECTED_DIAGNOSTIC_IMAGE_ID"
+            printf 'discovered_container_count=%s\n' "${#containers[@]}"
+            for candidate in "${containers[@]}"; do
+              candidate_image="$(docker inspect --format '{{.Image}}' "$candidate" 2>/dev/null || true)"
+              printf 'candidate_container_id=%s candidate_image_id=%s\n' "$candidate" "$candidate_image"
+            done
+          } > "$identity"
+
+          if [[ "${#containers[@]}" -ne 1 ]]; then
+            printf 'Expected exactly one WH09 container; found %s\n' "${#containers[@]}" >&2
+            exit 1
+          fi
+          container_id="${containers[0]}"
+          observed_image_id="$(docker inspect --format '{{.Image}}' "$container_id" 2>/dev/null || true)"
+          {
+            printf 'selected_container_id=%s\n' "$container_id"
+            printf 'selected_image_id=%s\n' "$observed_image_id"
+          } >> "$identity"
+          if [[ "$container_id" != "$EXPECTED_DIAGNOSTIC_CONTAINER_ID" ]]; then
+            echo "runtime container identity mismatch" >&2
+            exit 1
+          fi
+          if [[ "$observed_image_id" != "$EXPECTED_DIAGNOSTIC_IMAGE_ID" ]]; then
+            echo "runtime image id mismatch" >&2
+            exit 1
+          fi
+          printf 'RUNTIME_CONTAINER_ID=%s\n' "$container_id" >> "$GITHUB_ENV"
+
+          python3 - "$container_id" "$report" "$EXPECTED_DIAGNOSTIC_IMAGE_ID" <<'PY'
+          import json
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          container_id, report_path, expected_image_id = sys.argv[1:]
+          inspect = json.loads(subprocess.check_output(["docker", "inspect", container_id], text=True))[0]
+          if inspect.get("Id") != container_id:
+              raise SystemExit("runtime container identity mismatch")
+          if inspect.get("Image") != expected_image_id:
+              raise SystemExit("runtime image id mismatch")
+          labels = inspect.get("Config", {}).get("Labels", {}) or {}
+          revision = labels.get("org.opencontainers.image.revision")
+          if revision != "ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5":
+              raise SystemExit("runtime image revision mismatch")
+          mounts = [
+              {
+                  "destination": item.get("Destination"),
+                  "source": item.get("Source"),
+                  "type": item.get("Type"),
+                  "rw": item.get("RW"),
+              }
+              for item in inspect.get("Mounts", [])
+              if item.get("Destination") in {
+                  "/runtime/model",
+                  "/runtime/liquid20",
+                  "/runtime/journal",
+                  "/runtime/operator",
+              }
+          ]
+          host = inspect.get("HostConfig", {})
+          state = inspect.get("State", {})
+          payload = {
+              "schema_version": 1,
+              "container_id": container_id,
+              "image": inspect.get("Config", {}).get("Image"),
+              "image_id": inspect.get("Image"),
+              "image_revision": revision,
+              "user": inspect.get("Config", {}).get("User"),
+              "state": {
+                  "status": state.get("Status"),
+                  "running": state.get("Running"),
+                  "restarting": state.get("Restarting"),
+                  "oom_killed": state.get("OOMKilled"),
+                  "dead": state.get("Dead"),
+                  "pid": state.get("Pid"),
+                  "exit_code": state.get("ExitCode"),
+                  "error": state.get("Error"),
+                  "started_at": state.get("StartedAt"),
+                  "finished_at": state.get("FinishedAt"),
+                  "health": state.get("Health"),
+              },
+              "restart_count": inspect.get("RestartCount"),
+              "hardening": {
+                  "privileged": host.get("Privileged"),
+                  "readonly_rootfs": host.get("ReadonlyRootfs"),
+                  "restart_policy": host.get("RestartPolicy"),
+                  "pids_limit": host.get("PidsLimit"),
+                  "memory": host.get("Memory"),
+                  "cap_drop": host.get("CapDrop"),
+                  "security_opt": host.get("SecurityOpt"),
+                  "port_bindings": host.get("PortBindings"),
+              },
+              "mounts": mounts,
+          }
+          Path(report_path).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          print(json.dumps(payload, sort_keys=True))
+          PY
+
+          docker logs --tail 300 "$container_id" >"$logs" 2>&1 || true
+          echo '--- container logs (tail 300) ---'
+          cat "$logs"
+
+          {
+            echo '--- host runtime state ---'
+            for path in \
+              "$STATE_DIR/$RUNTIME_STATE_REL" \
+              "$STATE_DIR/$JOURNAL_REL" \
+              "$STATE_DIR/$OPERATOR_REL"
+            do
+              if [[ -e "$path" || -L "$path" ]]; then
+                stat -Lc '%n type=%F mode=%a uid=%u gid=%g size=%s' "$path" || true
+              else
+                printf '%s MISSING\n' "$path"
+              fi
+            done
+            echo '--- host runtime files ---'
+            find "$STATE_DIR/$RUNTIME_STATE_REL" -maxdepth 2 -type f \
+              -printf '%p mode=%m uid=%U gid=%G size=%s mtime=%T@\n' 2>/dev/null | sort || true
+            echo '--- in-container access ---'
+            if [[ "$(docker inspect --format '{{.State.Running}}' "$container_id")" == "true" ]]; then
+              docker exec --interactive "$container_id" python - <<'PY'
+          import os
+          from pathlib import Path
+
+          print(f"uid={os.getuid()} gid={os.getgid()} groups={os.getgroups()}")
+          for raw in ("/runtime/operator", "/runtime/journal", "/runtime/liquid20", "/runtime/model"):
+              path = Path(raw)
+              try:
+                  stat = path.stat()
+                  print(
+                      f"{raw} exists={path.exists()} symlink={path.is_symlink()} "
+                      f"mode={oct(stat.st_mode & 0o7777)} uid={stat.st_uid} gid={stat.st_gid} "
+                      f"readable={os.access(path, os.R_OK)} writable={os.access(path, os.W_OK)}"
+                  )
+              except Exception as exc:
+                  print(f"{raw} ERROR {type(exc).__name__}: {exc}")
+          for raw in ("/runtime/operator/health.json", "/runtime/journal/telemetry.json"):
+              path = Path(raw)
+              print(f"{raw} exists={path.exists()} file={path.is_file()} symlink={path.is_symlink()}")
+          PY
+            else
+              echo 'container is not currently running; in-container access skipped'
+            fi
+          } | tee "$fs"
+
+      - name: Upload secret-free diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: wickhunter-wh09-runtime-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/wickhunter-wh09-runtime-diagnostic/
           if-no-files-found: error
           retention-days: 30

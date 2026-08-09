@@ -1,0 +1,113 @@
+name: Temporary #1089 protected deploy hook repair
+
+on:
+  push:
+    branches:
+      - fix/1089-approved-deploy-host-state-20260809
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: fix/1089-approved-deploy-host-state-20260809
+          persist-credentials: true
+      - name: Apply runtime hook parity repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('tools/agents/portal_supply_chain_runtime.py')
+          text = path.read_text(encoding='utf-8')
+          old = '''    entrypoint = _module(
+              "portal_oidc_deploy_entrypoint",
+              directory / "deploy_entrypoint.py",
+          )
+          setattr(  # noqa: B010
+              deploy,
+              "_discovery_from_identity_container",
+              lambda: discovery.deployment_probe(deploy.DeploymentError),
+          )
+          entrypoint._install_verified_build_timeout(deploy)
+          entrypoint._install_docker_host_liquidations_preflight(deploy)
+          setattr(  # noqa: B010
+              deploy,
+              "_build_images",
+              lambda _repo, _sha: _approved_image_tuple(images),
+          )
+          '''
+          new = '''    entrypoint = _module(
+              "portal_oidc_deploy_entrypoint",
+              directory / "deploy_entrypoint.py",
+          )
+          docker_host_state = _module(
+              "portal_oidc_docker_host_state",
+              directory / "docker_host_state.py",
+          )
+          market_evidence = _module(
+              "portal_oidc_market_evidence_runtime",
+              directory / "market_evidence_runtime.py",
+          )
+          copy_on_write = _module(
+              "portal_oidc_postgresql_copy_on_write",
+              directory / "postgresql_copy_on_write.py",
+          )
+          setattr(  # noqa: B010
+              deploy,
+              "_discovery_from_identity_container",
+              lambda: discovery.deployment_probe(deploy.DeploymentError),
+          )
+          entrypoint._install_verified_build_timeout(deploy)
+          setattr(  # noqa: B010
+              deploy,
+              "_build_images",
+              lambda _repo, _sha: _approved_image_tuple(images),
+          )
+          docker_host_state.install(deploy)
+          entrypoint._install_docker_host_liquidations_preflight(deploy)
+          market_evidence.install(deploy)
+          copy_on_write.install(deploy)
+          '''
+          if text.count(old) != 1:
+              raise SystemExit('expected deploy_approved hook block not found exactly once')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+
+          test = Path('tests/ai_platform/portal/deployment/test_portal_supply_chain_runtime_hooks.py')
+          test.write_text('''from __future__ import annotations
+
+from pathlib import Path
+
+
+def test_approved_deploy_installs_runtime_hooks_after_approved_images() -> None:
+    source = Path("tools/agents/portal_supply_chain_runtime.py").read_text(encoding="utf-8")
+    function = source.split("def deploy_approved(args: argparse.Namespace) -> int:", 1)[1]
+    function = function.split("\ndef evaluate_files(", 1)[0]
+
+    approved_images = function.index('"_build_images",')
+    docker_host = function.index("docker_host_state.install(deploy)")
+    liquidations = function.index("entrypoint._install_docker_host_liquidations_preflight(deploy)")
+    market_evidence = function.index("market_evidence.install(deploy)")
+    copy_on_write = function.index("copy_on_write.install(deploy)")
+    deploy_call = function.index("deploy.deploy(")
+
+    assert approved_images < docker_host
+    assert docker_host < liquidations < market_evidence < copy_on_write < deploy_call
+    assert 'directory / "docker_host_state.py"' in function
+    assert 'directory / "market_evidence_runtime.py"' in function
+    assert 'directory / "postgresql_copy_on_write.py"' in function
+''', encoding='utf-8')
+          PY
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add tools/agents/portal_supply_chain_runtime.py tests/ai_platform/portal/deployment/test_portal_supply_chain_runtime_hooks.py
+          git commit -m 'fix(portal): apply runtime hooks to approved deploy (#1089)'
+          git push origin HEAD:fix/1089-approved-deploy-host-state-20260809

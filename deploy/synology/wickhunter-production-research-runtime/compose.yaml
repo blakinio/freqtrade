@@ -75,7 +75,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
-    user: "65532:65532"
+    user: "65531:65531"
     group_add:
       - "${LIQUID20_READER_GID:?set exact GID of LIQUID20_LIVE_HOST}"
     cap_drop:

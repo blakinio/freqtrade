@@ -15,7 +15,19 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
 
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
-RUN mkdir -p public && npm run build
+RUN mkdir -p public \
+    && npm run build \
+    && ./node_modules/.bin/tsc \
+      --noEmit false \
+      --target ES2022 \
+      --module Node16 \
+      --moduleResolution Node16 \
+      --types node \
+      --skipLibCheck \
+      --rootDir . \
+      --outDir /tmp/portal-market-evidence-verifier \
+      tools/market-evidence-runtime-preflight.ts \
+      lib/market-evidence/integrity.ts
 
 FROM node:22.23.1-bookworm-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3 AS node-security-runtime
 
@@ -80,6 +92,7 @@ ENV NODE_ENV=production \
 COPY --from=builder --chown=node:node /app/public ./public
 COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static
+COPY --from=builder --chown=node:node /tmp/portal-market-evidence-verifier /usr/local/lib/portal-market-evidence-verifier
 
 USER node
 

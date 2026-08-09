@@ -25,6 +25,10 @@ CREATE TABLE portal_runtime_generations (
     risk_policy_version TEXT NOT NULL,
     risk_policy_digest TEXT NOT NULL,
     execution_mode TEXT NOT NULL,
+    managed_mode TEXT NOT NULL,
+    managed_mode_request_digest TEXT NOT NULL,
+    managed_mode_resolution_digest TEXT NOT NULL,
+    paper_authorization_digest TEXT NULL,
     exchange_mode TEXT NOT NULL,
     exchange_connection_revision TEXT NULL,
     isolation_profile_version TEXT NOT NULL,
@@ -37,6 +41,8 @@ CREATE TABLE portal_runtime_generations (
     request_id TEXT NOT NULL,
     correlation_id TEXT NOT NULL,
     causation_id TEXT NULL,
+    CONSTRAINT ck_portal_runtime_generation_managed_mode
+        CHECK (managed_mode IN ('shadow', 'paper')),
     CONSTRAINT fk_portal_runtime_generation_bot
         FOREIGN KEY (tenant_id, bot_id)
         REFERENCES portal_bots (tenant_id, bot_id)

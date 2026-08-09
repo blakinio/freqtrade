@@ -14,7 +14,9 @@ PREFLIGHT_PATH = Path("deploy/synology/portal-oidc/docker_runtime_preflight.py")
 
 
 def _load_preflight() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("portal_docker_runtime_preflight_test", PREFLIGHT_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "portal_docker_runtime_preflight_test", PREFLIGHT_PATH
+    )
     assert spec is not None
     assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -27,7 +29,9 @@ def _completed(command: list[str], returncode: int = 0, stdout: str = "ok\n") ->
     return subprocess.CompletedProcess(command, returncode, stdout=stdout, stderr="")
 
 
-def test_runtime_preflight_proves_disposable_container_start(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_runtime_preflight_proves_disposable_container_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     module = _load_preflight()
     commands: list[list[str]] = []
 

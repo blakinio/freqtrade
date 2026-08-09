@@ -16,6 +16,7 @@ WORKFLOW = (
 )
 RETRY_V2 = DEPLOY / "run-requests" / "retry-wh09-production-research-20260808-v2.json"
 RETRY_V3 = DEPLOY / "run-requests" / "retry-wh09-production-research-20260808-v3.json"
+RETRY_V5 = DEPLOY / "run-requests" / "retry-wh09-production-research-20260809-v5.json"
 DIAGNOSTIC_V4 = DEPLOY / "run-requests" / "diagnose-wh09-production-research-20260808-v4.json"
 DIAGNOSTIC_PATH = (
     "deploy/synology/wickhunter-production-research-runtime/run-requests/"
@@ -45,6 +46,10 @@ def test_compose_keeps_zero_authority_and_hardened_mounts() -> None:
     assert "/runtime/liquid20" in compose
     assert "/runtime/journal" in compose
     assert "/runtime/operator" in compose
+    assert "ulimits:" in compose
+    assert "nproc:" in compose
+    assert "soft: 256" in compose
+    assert "hard: 256" in compose
     assert "pids_limit: 256" in compose
     assert "mem_limit: 2g" in compose
     assert "restart: unless-stopped" in compose
@@ -103,12 +108,16 @@ def test_bounded_deploy_retries_preserve_exact_image_and_authorized_compose() ->
     workflow = WORKFLOW.read_text(encoding="utf-8")
     retry_v2 = json.loads(RETRY_V2.read_text(encoding="utf-8"))
     retry_v3 = json.loads(RETRY_V3.read_text(encoding="utf-8"))
+    retry_v5 = json.loads(RETRY_V5.read_text(encoding="utf-8"))
 
     assert "environment: synology-staging" in workflow
     assert "timeout-minutes: 45" in workflow
     assert "freqtrade-staging" in workflow
     assert "retry-wh09-production-research-20260808-v2.json" in workflow
     assert "retry-wh09-production-research-20260808-v3.json" in workflow
+    assert "retry-wh09-production-research-20260809-v5.json" in workflow
+    assert "DEPLOY_COMMIT: 8ef53efc133773e6245a86afa1b0f1914e2d8a55" in workflow
+    assert "DIAGNOSTIC_DEPLOY_COMMIT: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5" in workflow
     assert "docker image inspect" in workflow
     assert "org.opencontainers.image.revision" in workflow
     assert 'revision=""' in workflow
@@ -127,6 +136,10 @@ def test_bounded_deploy_retries_preserve_exact_image_and_authorized_compose() ->
     assert 'cp -- "$COMPOSE_FILE" "$AUTHORIZED_COMPOSE_SNAPSHOT"' in workflow
     assert 'cp -- "$AUTHORIZED_COMPOSE_SNAPSHOT" "$COMPOSE_FILE"' in workflow
     assert "CPU-CFS/NanoCPUs fields" in workflow
+    assert 'inspect["HostConfig"].get("Ulimits")' in workflow
+    assert 'item.get("Name") == "nproc"' in workflow
+    assert "resource.RLIMIT_NPROC" in workflow
+    assert 'runtime_nproc != [256, 256]' in workflow
 
     snapshot_index = workflow.index('cp -- "$COMPOSE_FILE" "$AUTHORIZED_COMPOSE_SNAPSHOT"')
     checkout_index = workflow.index("Checkout exact merged runtime implementation")
@@ -162,6 +175,28 @@ def test_bounded_deploy_retries_preserve_exact_image_and_authorized_compose() ->
         "failure_class": "synology_kernel_rejects_nanocpus_without_cpu_cfs",
         "reuse_exact_image_if_present": True,
         "synology_cpu_cfs_limit_disabled": True,
+        "persistent_internal_demo_production_authorized": True,
+        "mode": "shadow",
+        "no_trade_confidence": "0.60",
+        "paper_activation_authorized": False,
+        "automatic_promotion_enabled": False,
+        "trading_credentials_present": False,
+        "order_adapter_present": False,
+        "execution_enabled": False,
+        "orders_submitted": 0,
+        "live_capital_authorized": False,
+    }
+    assert retry_v5 == {
+        "schema_version": 1,
+        "request_id": "wickhunter-wh09-production-research-deploy-retry-20260809-v5",
+        "deploy_commit": "8ef53efc133773e6245a86afa1b0f1914e2d8a55",
+        "previous_run_id": 31303052040,
+        "previous_job_id": 93218894845,
+        "failure_class": "candidate_loader_case_count_fixed_and_synology_pids_cgroup_unavailable",
+        "reuse_exact_image_if_present": False,
+        "synology_pids_cgroup_unavailable": True,
+        "nproc_soft_limit": 256,
+        "nproc_hard_limit": 256,
         "persistent_internal_demo_production_authorized": True,
         "mode": "shadow",
         "no_trade_confidence": "0.60",
@@ -230,6 +265,7 @@ def test_diagnostic_v4_is_read_only_and_bound_to_failed_deployment() -> None:
     assert evidence_index < discovery_index < identity_write_index < cardinality_index
     assert "candidate_container_id=" in diagnostic_section
     assert "selected_image_id=" in diagnostic_section
+    assert "DIAGNOSTIC_DEPLOY_COMMIT" in diagnostic_section
     assert "docker restart" not in diagnostic_section
     assert "docker start" not in diagnostic_section
     assert "docker stop" not in diagnostic_section

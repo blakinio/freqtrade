@@ -11,7 +11,10 @@ from ai_platform.portal.contracts.runtime_generation import RuntimeGenerationMat
 from ai_platform.portal.control_plane.runtime_generation_api import ActivateRevisionRequest
 from ai_platform.portal.control_plane.service import ControlPlaneService
 from ai_platform.wickhunter.contracts import BotMode
-from ai_platform.wickhunter.runtime_mode import ManagedRuntimeModeRequest, resolve_managed_runtime_mode
+from ai_platform.wickhunter.runtime_mode import (
+    ManagedRuntimeModeRequest,
+    resolve_managed_runtime_mode,
+)
 
 
 _REQUIRED_BINDING_FIELDS = (

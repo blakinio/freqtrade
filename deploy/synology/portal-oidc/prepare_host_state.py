@@ -118,7 +118,17 @@ def _helper_run_args(image: str) -> list[str]:
     ]
 
 
+def _preflight_command() -> list[str]:
+    preflight = Path(__file__).resolve().with_name("docker_runtime_preflight.py")
+    return [sys.executable, str(preflight)]
+
+
 def prepare(repo: Path) -> None:
+    try:
+        _run(_preflight_command())
+    except PreparationError as exc:
+        raise PreparationError("Synology Docker runtime preflight failed") from exc
+
     compose = _compose_command(repo)
     server = _run([*compose, "ps", "-q", "server"]).stdout.strip()
     if not server:

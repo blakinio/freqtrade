@@ -1,6 +1,7 @@
 import type { BotInstance } from "./contracts";
 
 export type BotConfigRevisionState = "DRAFT" | "PROMOTED" | "DEPRECATED";
+export type ManagedRuntimeMode = "shadow" | "paper" | "research" | "live_blocked";
 export type BotRolloutStatus =
   | "REQUESTED"
   | "PRECHECK"
@@ -26,6 +27,7 @@ export interface BotConfigRevisionTruth {
   revision: number;
   state: BotConfigRevisionState;
   revision_content_digest: string | null;
+  managed_mode: ManagedRuntimeMode;
 }
 
 export interface RuntimeGenerationTruth {
@@ -34,6 +36,10 @@ export interface RuntimeGenerationTruth {
   config_revision_id: string;
   config_revision_number: number;
   generation_spec_digest: string;
+  managed_mode: ManagedRuntimeMode;
+  managed_mode_request_digest: string;
+  managed_mode_resolution_digest: string;
+  paper_authorization_digest: string | null;
 }
 
 export interface BotRolloutTruth {

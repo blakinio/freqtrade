@@ -92,7 +92,7 @@ runtime_commit: ec0f53cc4df7dfcf008f5f7a4e6ab3733a2cefe5
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-09T09:12:00+02:00
+updated_at: 2026-08-09T09:57:00+02:00
 head: UNKNOWN
 branch: diagnose/wickhunter-wh09-runtime-health-20260808
 pr: 1394
@@ -122,7 +122,6 @@ context_routes:
   - .github/workflows/ai-platform-wickhunter-wh09-production-research-runtime-deploy.yml
   - tools/ci/classify_wickhunter_wh09_deploy_request.py
   - tests/ai_platform_integration/test_wickhunter_production_research_runtime_deploy.py
-  - tests/ci/test_wickhunter_wh09_deploy_classifier.py
 owned_paths:
   - .github/workflows/ai-platform-wickhunter-wh09-production-research-runtime-deploy.yml
   - deploy/synology/wickhunter-production-research-runtime/run-requests/diagnose-wh09-production-research-20260808-v4.json
@@ -181,11 +180,11 @@ blockers:
   - exact-final-head CI and fresh independent review must pass after this replacement-session checkpoint repair
 next_action: Resolve PR #1394 live head after this replacement-session checkpoint repair, require exact-final-head CI and a fresh independent review with zero material P1/P2, squash-merge only if green, then consume the diagnostic-v4 Synology artifact before any redeploy or runtime mutation.
 invocation_started_at: 2026-08-09T09:12:00+02:00
-last_progress_at: 2026-08-09T09:12:00+02:00
+last_progress_at: 2026-08-09T09:57:00+02:00
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 0
+repair_cycles_for_current_gate: 1
 context_reconstruction_attempts: 0
 stall_warnings: 0
 ```

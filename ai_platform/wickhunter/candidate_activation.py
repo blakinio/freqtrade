@@ -46,6 +46,7 @@ CANDIDATE_FILES = frozenset(
 )
 CHECKSUM_NAME = "artifact-sha256.txt"
 MANIFEST_NAME = "manifest.json"
+EVALUATION_SPLITS = ("train", "validation", "test")
 
 
 class CandidateActivationError(RuntimeError):
@@ -325,6 +326,35 @@ def _integer(value: object, *, field: str) -> int:
     return value
 
 
+def _verify_evaluation_identity(
+    payload: dict[str, Any], *, manifest: dict[str, Any]
+) -> None:
+    _require_zero_authority(payload, field="evaluation identity")
+    if payload.get("evaluation_sha256") != manifest.get("evaluation_sha256"):
+        raise CandidateActivationError("evaluation identity does not match candidate manifest")
+
+    case_count = _integer(payload.get("case_count"), field="evaluation case_count")
+    if case_count < 1:
+        raise CandidateActivationError("candidate evaluation case count must be positive")
+
+    split_counts = payload.get("split_counts")
+    if not isinstance(split_counts, dict) or set(split_counts) != set(EVALUATION_SPLITS):
+        raise CandidateActivationError("candidate evaluation split counts mismatch")
+
+    split_total = 0
+    for split_name in EVALUATION_SPLITS:
+        split_count = _integer(
+            split_counts.get(split_name),
+            field=f"evaluation {split_name} case count",
+        )
+        if split_count < 0:
+            raise CandidateActivationError("candidate evaluation split count must be non-negative")
+        split_total += split_count
+
+    if case_count != split_total:
+        raise CandidateActivationError("candidate evaluation case count mismatch")
+
+
 def _boolean(value: object, *, field: str) -> bool:
     if not isinstance(value, bool):
         raise CandidateActivationError(f"{field} must be boolean")
@@ -539,11 +569,7 @@ def load_verified_candidate_package(  # noqa: C901
     model_artifact = _verify_model(model_payload, manifest=manifest)
 
     evaluation = _load_object(root / "evaluation-identity.json", field="evaluation identity")
-    _require_zero_authority(evaluation, field="evaluation identity")
-    if evaluation.get("evaluation_sha256") != manifest.get("evaluation_sha256"):
-        raise CandidateActivationError("evaluation identity does not match candidate manifest")
-    if evaluation.get("case_count") != 919:
-        raise CandidateActivationError("candidate evaluation case count mismatch")
+    _verify_evaluation_identity(evaluation, manifest=manifest)
 
     optimizer = _load_object(root / "optimizer-result.json", field="optimizer result")
     _require_zero_authority(optimizer, field="optimizer result")

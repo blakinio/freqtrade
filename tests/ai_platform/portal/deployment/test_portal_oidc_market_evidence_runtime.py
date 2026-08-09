@@ -19,29 +19,41 @@ SPEC.loader.exec_module(runtime)
 
 
 IMAGE = "local/freqtrade-portal-web:test"
+RUN_ID = "wickhunter-production-market-evidence-20260808-v2-r1"
+RUN_ROOT = runtime.MARKET_EVIDENCE_HOST_ROOT / "runs" / RUN_ID
 
 
 def _completed(command: list[str], stdout: str) -> subprocess.CompletedProcess[str]:
     return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
 
 
-def test_market_web_args_adds_canonical_read_only_mount_identity_and_group() -> None:
+def test_market_web_args_adds_pinned_read_only_mount_identity_and_group() -> None:
     def original(image: str, name: str, *, publish: bool) -> list[str]:
         del name, publish
         return ["docker", "run", "--group-add", "123", image]
 
-    args = runtime._market_web_args(original, "456", IMAGE, "candidate", publish=False)
+    args = runtime._market_web_args(
+        original,
+        "456",
+        RUN_ID,
+        RUN_ROOT,
+        IMAGE,
+        "candidate",
+        publish=False,
+    )
 
     assert args[-1] == IMAGE
     assert args.count("--group-add") == 2
     assert "456" in args
     assert (
-        f"type=bind,src={runtime.MARKET_EVIDENCE_HOST_ROOT},"
-        f"dst={runtime.MARKET_EVIDENCE_CONTAINER_ROOT},readonly"
+        f"type=bind,src={RUN_ROOT},"
+        f"dst={runtime.MARKET_EVIDENCE_CONTAINER_ROOT}/{RUN_ID},readonly"
     ) in args
     assert f"PORTAL_MARKET_EVIDENCE_DATA_ROOT={runtime.MARKET_EVIDENCE_CONTAINER_ROOT}" in args
     assert f"PORTAL_MARKET_EVIDENCE_TENANT_ID={runtime.MARKET_EVIDENCE_TENANT_ID}" in args
+    assert f"PORTAL_MARKET_EVIDENCE_RUN_ID={RUN_ID}" in args
     assert "ai.freqtrade.market-evidence=read-only" in args
+    assert f"ai.freqtrade.market-evidence-run={RUN_ID}" in args
 
 
 def test_market_web_args_does_not_duplicate_existing_supplementary_group() -> None:
@@ -49,28 +61,34 @@ def test_market_web_args_does_not_duplicate_existing_supplementary_group() -> No
         del name, publish
         return ["docker", "run", "--group-add", "456", image]
 
-    args = runtime._market_web_args(original, "456", IMAGE, "candidate", publish=False)
+    args = runtime._market_web_args(
+        original,
+        "456",
+        RUN_ID,
+        RUN_ROOT,
+        IMAGE,
+        "candidate",
+        publish=False,
+    )
 
     assert args.count("--group-add") == 1
 
 
-def test_docker_host_preflight_requires_valid_immutable_run_marker() -> None:
-    run_id = "wickhunter-production-market-evidence-20260808-v2-r1"
-
+def test_docker_host_preflight_requires_valid_pinned_run_marker() -> None:
     def run(command: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
         return _completed(
             command,
-            f"noise\n{runtime.MARKET_EVIDENCE_PROBE_MARKER}{run_id}|321\n",
+            f"noise\n{runtime.MARKET_EVIDENCE_PROBE_MARKER}{RUN_ID}|321|runs\n",
         )
 
     deploy = SimpleNamespace(_run=run, DeploymentError=RuntimeError)
 
-    assert runtime._docker_host_group(deploy, IMAGE) == (run_id, "321")
+    assert runtime._docker_host_group(deploy, IMAGE) == (RUN_ID, "321", RUN_ROOT)
 
     def invalid_run(command: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
         return _completed(
             command,
-            f"{runtime.MARKET_EVIDENCE_PROBE_MARKER}latest|321\n",
+            f"{runtime.MARKET_EVIDENCE_PROBE_MARKER}latest|321|runs\n",
         )
 
     deploy._run = invalid_run
@@ -78,7 +96,7 @@ def test_docker_host_preflight_requires_valid_immutable_run_marker() -> None:
         runtime._docker_host_group(deploy, IMAGE)
 
 
-def test_docker_host_preflight_requires_active_run_metadata_without_package() -> None:
+def test_docker_host_preflight_verifies_package_integrity_and_active_metadata() -> None:
     rendered = runtime._probe_script()
 
     assert '"incremental-state.json"' in rendered
@@ -86,6 +104,11 @@ def test_docker_host_preflight_requires_active_run_metadata_without_package() ->
     assert '"manifest.json"' in rendered
     assert '"run-state.json"' in rendered
     assert '"verification-report.json"' in rendered
+    assert '"artifact-sha256.txt"' in rendered
+    assert "canonicalSha256" in rendered
+    assert "manifest.manifest_sha256" in rendered
+    assert "content.length !== size || sha256(content) !== digest" in rendered
+    assert "verification.manifest_sha256 !== manifest.manifest_sha256" in rendered
 
 
 def test_tenant_authorization_probe_is_fail_closed() -> None:
@@ -114,14 +137,15 @@ def test_tenant_authorization_probe_is_fail_closed() -> None:
         assert role in rendered
 
 
-def test_running_container_verification_requires_exact_read_only_contract() -> None:
+def test_running_container_verification_requires_exact_selected_run_contract() -> None:
+    destination = f"{runtime.MARKET_EVIDENCE_CONTAINER_ROOT}/{RUN_ID}"
     inspect_payload: list[dict[str, Any]] = [
         {
             "Mounts": [
                 {
                     "Type": "bind",
-                    "Source": str(runtime.MARKET_EVIDENCE_HOST_ROOT),
-                    "Destination": runtime.MARKET_EVIDENCE_CONTAINER_ROOT,
+                    "Source": str(RUN_ROOT),
+                    "Destination": destination,
                     "RW": False,
                 }
             ],
@@ -129,6 +153,7 @@ def test_running_container_verification_requires_exact_read_only_contract() -> N
                 "Env": [
                     (f"PORTAL_MARKET_EVIDENCE_DATA_ROOT={runtime.MARKET_EVIDENCE_CONTAINER_ROOT}"),
                     (f"PORTAL_MARKET_EVIDENCE_TENANT_ID={runtime.MARKET_EVIDENCE_TENANT_ID}"),
+                    f"PORTAL_MARKET_EVIDENCE_RUN_ID={RUN_ID}",
                 ]
             },
             "HostConfig": {"GroupAdd": ["321"]},
@@ -144,16 +169,16 @@ def test_running_container_verification_requires_exact_read_only_contract() -> N
         PORTAL_CONTAINER="freqtrade-portal-web",
     )
 
-    runtime._verify_running_container(deploy, "321")
+    runtime._verify_running_container(deploy, "321", RUN_ID, RUN_ROOT)
 
     mounts = inspect_payload[0]["Mounts"]
     assert isinstance(mounts, list)
     mounts[0]["RW"] = True
-    with pytest.raises(RuntimeError, match="canonical read-only bind"):
-        runtime._verify_running_container(deploy, "321")
+    with pytest.raises(RuntimeError, match="selected-run bind"):
+        runtime._verify_running_container(deploy, "321", RUN_ID, RUN_ROOT)
 
 
-def test_install_injects_contract_for_candidate_and_final_web_then_restores(
+def test_install_injects_pinned_contract_for_candidate_and_final_web_then_restores(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     seen_args: list[list[str]] = []
@@ -177,13 +202,14 @@ def test_install_injects_contract_for_candidate_and_final_web_then_restores(
     monkeypatch.setattr(
         runtime,
         "_docker_host_group",
-        lambda _deploy, _image: (
-            "wickhunter-production-market-evidence-20260808-v2-r1",
-            "321",
-        ),
+        lambda _deploy, _image: (RUN_ID, "321", RUN_ROOT),
     )
     monkeypatch.setattr(runtime, "_assert_tenant_authorized", lambda _deploy: None)
-    monkeypatch.setattr(runtime, "_verify_running_container", lambda _deploy, _gid: None)
+    monkeypatch.setattr(
+        runtime,
+        "_verify_running_container",
+        lambda _deploy, _gid, _run_id, _run_root: None,
+    )
 
     runtime.install(deploy)
     original_after_install = deploy._web_run_args
@@ -194,3 +220,8 @@ def test_install_injects_contract_for_candidate_and_final_web_then_restores(
     for args in seen_args:
         assert f"PORTAL_MARKET_EVIDENCE_TENANT_ID={runtime.MARKET_EVIDENCE_TENANT_ID}" in args
         assert f"PORTAL_MARKET_EVIDENCE_DATA_ROOT={runtime.MARKET_EVIDENCE_CONTAINER_ROOT}" in args
+        assert f"PORTAL_MARKET_EVIDENCE_RUN_ID={RUN_ID}" in args
+        assert (
+            f"type=bind,src={RUN_ROOT},"
+            f"dst={runtime.MARKET_EVIDENCE_CONTAINER_ROOT}/{RUN_ID},readonly"
+        ) in args

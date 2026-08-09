@@ -43,7 +43,8 @@ class RuntimeArtifactResolver(Protocol):
 class RuntimeContainerSpec:
     runtime_id: str
     image: str
-    workspace: Path
+    config_path: Path
+    state_path: Path
     strategy_name: str
     labels: Mapping[str, str]
 
@@ -53,6 +54,7 @@ class RuntimeRecord(BaseModel):
 
     tenant_id: NonEmptyStr
     bot_id: NonEmptyStr
+    generation_id: NonEmptyStr
     runtime_id: NonEmptyStr
     config_revision: PositiveInt
     image: NonEmptyStr

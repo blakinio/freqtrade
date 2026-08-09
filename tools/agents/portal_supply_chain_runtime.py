@@ -861,18 +861,33 @@ def deploy_approved(args: argparse.Namespace) -> int:
         "portal_oidc_deploy_entrypoint",
         directory / "deploy_entrypoint.py",
     )
+    docker_host_state = _module(
+        "portal_oidc_docker_host_state",
+        directory / "docker_host_state.py",
+    )
+    market_evidence = _module(
+        "portal_oidc_market_evidence_runtime",
+        directory / "market_evidence_runtime.py",
+    )
+    copy_on_write = _module(
+        "portal_oidc_postgresql_copy_on_write",
+        directory / "postgresql_copy_on_write.py",
+    )
     setattr(  # noqa: B010
         deploy,
         "_discovery_from_identity_container",
         lambda: discovery.deployment_probe(deploy.DeploymentError),
     )
     entrypoint._install_verified_build_timeout(deploy)
-    entrypoint._install_docker_host_liquidations_preflight(deploy)
     setattr(  # noqa: B010
         deploy,
         "_build_images",
         lambda _repo, _sha: _approved_image_tuple(images),
     )
+    docker_host_state.install(deploy)
+    entrypoint._install_docker_host_liquidations_preflight(deploy)
+    market_evidence.install(deploy)
+    copy_on_write.install(deploy)
     archive_root = Path(deploy.PORTAL_STATE_DIR) / ROLLBACK_ARCHIVE_DIRNAME
     request_path = Path(args.request).resolve()
     archive, pointer = _prepare_approval_archive(

@@ -25,6 +25,7 @@ def _record(
         tenant_id="tenant-a",
         bot_id="bot-1",
         generation_id=generation_id,
+        generation_ordinal=revision,
         generation_spec_digest="1" * 64,
         config_revision_id=f"revision-{revision}",
         config_revision=revision,
@@ -95,6 +96,16 @@ def test_config_is_immutable_per_generation_and_control_manifest_is_separate(
         )
 
 
+def test_control_identity_cannot_be_mutated_after_creation(tmp_path: Path) -> None:
+    store = RuntimeWorkspaceStore(tmp_path)
+    record = _record(store, generation_id="generation-1")
+    store.write_record(record)
+    store.set_current_record(record)
+
+    with pytest.raises(ValueError, match="control identity cannot change"):
+        store.write_record(record.model_copy(update={"runtime_image_digest": "a" * 64}))
+
+
 def test_historical_record_update_cannot_repoint_current_generation(tmp_path: Path) -> None:
     store = RuntimeWorkspaceStore(tmp_path)
     old = _record(store, generation_id="generation-1")
@@ -115,6 +126,9 @@ def test_historical_record_update_cannot_repoint_current_generation(tmp_path: Pa
     assert pointer.runtime_id == current.runtime_id
     assert historical is not None
     assert historical.last_error_code == "STALE_OPERATION"
+
+    with pytest.raises(ValueError, match="cannot move backwards"):
+        store.set_current_record(old)
 
 
 def test_generation_state_survives_control_record_updates(tmp_path: Path) -> None:

@@ -27,6 +27,8 @@ _FORBIDDEN_CREDENTIAL_FIELDS = frozenset(
     }
 )
 
+_DRY_RUN_DB_URL = "sqlite:////runtime/state/tradesv3.dryrun.sqlite"
+
 
 def build_safe_dry_run_config(
     bot: BotInstance,
@@ -49,6 +51,7 @@ def build_safe_dry_run_config(
     config["dry_run_wallet"] = float(bot.spec.capital_allocation)
     config["stake_currency"] = bot.spec.capital_currency
     config["timeframe"] = bot.spec.timeframe
+    config["db_url"] = _DRY_RUN_DB_URL
     config["exchange"] = safe_exchange
     config["api_server"] = {"enabled": False}
     config["telegram"] = {"enabled": False}

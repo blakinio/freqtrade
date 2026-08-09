@@ -1,0 +1,14 @@
+{
+  "request_id": "portal-authentik-login-diagnostic-20260802-v1",
+  "environment": "synology-staging",
+  "runner": "freqtrade-staging",
+  "implementation_sha": "4e947ccd20e87d2a9f6a334509208a4845efc0a5",
+  "since_minutes": 120,
+  "diagnostic_only": true,
+  "configuration_mutation_authorized": false,
+  "browser_acceptance_authorized": false,
+  "public_ingress_authorized": true,
+  "live_capital_authorized": false,
+  "restore_authorized": false,
+  "secret_values_in_request": false
+}

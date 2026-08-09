@@ -35,6 +35,7 @@ from ai_platform.portal.contracts.identity import Actor, ActorType
 NOW = datetime(2026, 7, 27, 9, 0, tzinfo=UTC)
 LATER = datetime(2026, 7, 27, 9, 1, tzinfo=UTC)
 DIGEST = "a" * 64
+GENERATION_ID = "generation-1"
 
 
 def correlation() -> CorrelationContext:
@@ -49,11 +50,16 @@ def actor(tenant_id: str = "tenant-a") -> Actor:
     return Actor(actor_id="actor-1", tenant_id=tenant_id, actor_type=ActorType.USER)
 
 
-def target(tenant_id: str = "tenant-a", config_revision: int = 7) -> CommandTarget:
+def target(
+    tenant_id: str = "tenant-a",
+    config_revision: int = 7,
+    runtime_generation_id: str = GENERATION_ID,
+) -> CommandTarget:
     return CommandTarget(
         tenant_id=tenant_id,
         bot_id="bot-1",
         config_revision=config_revision,
+        runtime_generation_id=runtime_generation_id,
         runtime_id="runtime-1",
         runtime_revision=3,
     )
@@ -179,6 +185,40 @@ def test_stale_revision_requires_exact_mismatch_evidence() -> None:
             status=CommandOutcomeStatus.BLOCKED,
             reason_codes=(CommandReasonCode.RUNTIME_UNAVAILABLE,),
             observed_config_revision=8,
+            decided_at=NOW,
+        )
+
+
+def test_stale_generation_requires_exact_mismatch_evidence() -> None:
+    with pytest.raises(ValidationError, match="observed generation"):
+        CommandOutcome(
+            command_id="command-1",
+            tenant_id="tenant-a",
+            target=target(),
+            status=CommandOutcomeStatus.BLOCKED,
+            reason_codes=(CommandReasonCode.STALE_GENERATION,),
+            decided_at=NOW,
+        )
+
+    stale = CommandOutcome(
+        command_id="command-1",
+        tenant_id="tenant-a",
+        target=target(),
+        status=CommandOutcomeStatus.BLOCKED,
+        reason_codes=(CommandReasonCode.STALE_GENERATION,),
+        observed_runtime_generation_id="generation-2",
+        decided_at=NOW,
+    )
+    assert stale.observed_runtime_generation_id == "generation-2"
+
+    with pytest.raises(ValidationError, match="must use STALE_GENERATION"):
+        CommandOutcome(
+            command_id="command-1",
+            tenant_id="tenant-a",
+            target=target(),
+            status=CommandOutcomeStatus.BLOCKED,
+            reason_codes=(CommandReasonCode.RUNTIME_UNAVAILABLE,),
+            observed_runtime_generation_id="generation-2",
             decided_at=NOW,
         )
 

@@ -412,13 +412,19 @@ class _Resolver:
         generation_id: str,
     ) -> ResolvedRuntimeArtifacts:
         config = _runtime_config()
-        canonical = json.dumps(config, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+        canonical = json.dumps(
+            config,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
         config_digest = hashlib.sha256(canonical.encode()).hexdigest()
         image_digest = "2" * 64
         return ResolvedRuntimeArtifacts(
             tenant_id=tenant_id,
             bot_id=bot_id,
             generation_id=generation_id,
+            generation_ordinal=1,
             config_revision_id="revision-1",
             config_revision=1,
             config_revision_digest="0" * 64,

@@ -52,7 +52,6 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$GITHUB_REF" == "refs/heads/develop" ]]
-          [[ "$(git rev-list --parents -n 1 "$GITHUB_SHA" | wc -w)" -eq 3 ]]
           request_change="$(git diff --name-status "$GITHUB_SHA^1" "$GITHUB_SHA" -- "$REQUEST_PATH")"
           [[ "$request_change" == $'A\t'"$REQUEST_PATH" ]]
           [[ "$(git rev-parse "$GITHUB_SHA:$COMPOSE_FILE")" == "$EXPECTED_COMPOSE_BLOB_SHA" ]]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, PositiveInt
@@ -53,6 +54,14 @@ class BotRuntimeTruth(BaseModel):
     pending_rollout: bool
 
 
+def _restore_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
 def _rollout_from_row(row: BotRolloutRow | None) -> BotRollout | None:
     if row is None:
         return None
@@ -67,9 +76,9 @@ def _rollout_from_row(row: BotRolloutRow | None) -> BotRollout | None:
         requested_by_actor_id=row.requested_by_actor_id,
         idempotency_key=row.idempotency_key,
         attempt=row.attempt,
-        created_at=row.created_at,
-        updated_at=row.updated_at,
-        completed_at=row.completed_at,
+        created_at=_restore_utc(row.created_at),
+        updated_at=_restore_utc(row.updated_at),
+        completed_at=_restore_utc(row.completed_at),
     )
 
 

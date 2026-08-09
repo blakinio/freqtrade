@@ -57,11 +57,13 @@ class DockerCliRuntimeDriver:
         args.extend(
             (
                 "--mount",
-                f"type=bind,source={spec.workspace},target=/freqtrade/user_data",
+                f"type=bind,source={spec.config_path.parent},target=/runtime/config,readonly",
+                "--mount",
+                f"type=bind,source={spec.state_path},target=/runtime/state",
                 spec.image,
                 "trade",
                 "--config",
-                "/freqtrade/user_data/config.json",
+                "/runtime/config/config.json",
                 "--strategy",
                 spec.strategy_name,
             )

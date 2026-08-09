@@ -37,6 +37,24 @@ test.describe("bot operations", { tag: [tags.critical, tags.regression] }, () =>
     ).toBeVisible();
   });
 
+  test("shows fail-closed managed mode authoring and separate desired/active truth", async ({ botDetail, page }) => {
+    await botDetail.open();
+
+    const mode = page.getByLabel("Managed mode");
+    await expect(mode).toHaveValue("shadow");
+    await expect(page.getByRole("option", { name: "LIVE — unavailable" })).toBeDisabled();
+    await mode.selectOption("paper");
+    await expect(mode).toHaveValue("paper");
+    await expect(
+      page.getByText(/PAPER is accepted only when trusted server evidence authorizes it/),
+    ).toBeVisible();
+
+    const desired = page.locator("dt", { hasText: "Desired" }).locator("..");
+    const active = page.locator("dt", { hasText: "Active" }).locator("..");
+    await expect(desired).toContainText("SHADOW");
+    await expect(active).toContainText("SHADOW");
+  });
+
   test("creates a confirmed immutable revision through the same-origin BFF", async ({ botDetail, page }) => {
     await botDetail.open();
     await botDetail.createRevision("model-revision-e2e");

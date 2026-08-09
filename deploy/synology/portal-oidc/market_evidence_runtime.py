@@ -627,10 +627,10 @@ def _is_market_evidence_mount(value: Any) -> TypeGuard[dict[str, Any]]:
     )
 
 
-def _verify_running_container(
+def _verify_running_container(  # noqa: C901 - validates one exact runtime inventory contract
     deploy: Any,
     selection: MarketEvidenceSelection,
-) -> None:  # noqa: C901 - validates one exact runtime inventory contract
+) -> None:
     result = cast(
         subprocess.CompletedProcess[str],
         deploy._run(["docker", "inspect", deploy.PORTAL_CONTAINER], sensitive=True),

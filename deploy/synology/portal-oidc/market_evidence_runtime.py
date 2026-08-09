@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
+import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeGuard, cast
 
@@ -13,185 +16,112 @@ MARKET_EVIDENCE_HOST_ROOT = Path(
 )
 MARKET_EVIDENCE_CONTAINER_ROOT = "/market-evidence-data"
 MARKET_EVIDENCE_TENANT_ID = "tenant-local"
-MARKET_EVIDENCE_PROBE_MARKER = "__PORTAL_MARKET_EVIDENCE__"
+MARKET_EVIDENCE_SELECTION_MARKER = "__PORTAL_MARKET_EVIDENCE_SELECTION__"
+MARKET_EVIDENCE_VERIFIED_MARKER = "__PORTAL_MARKET_EVIDENCE_VERIFIED__"
+MARKET_EVIDENCE_ACTIVE_MARKER = "__PORTAL_MARKET_EVIDENCE_ACTIVE__"
 MARKET_EVIDENCE_TENANT_MARKER = "__PORTAL_MARKET_EVIDENCE_TENANT__"
+MARKET_EVIDENCE_ACTIVE_POINTER = "active-wickhunter-production-market-evidence-v1.json"
+MARKET_EVIDENCE_VERIFIER = (
+    "/usr/local/lib/portal-market-evidence-verifier/tools/market-evidence-runtime-preflight.js"
+)
 HELPER_TMPFS = "/tmp:rw,noexec,nosuid,nodev,size=16m"  # noqa: S108
 RUN_ID_PATTERN = r"wickhunter-production-market-evidence-\d{8}-v\d+-r\d+"
 AUTHORIZED_ROLES = frozenset({"analyst", "model_reviewer", "admin"})
+WEB_RUNTIME_USER = "1000:1000"
 
 
-def _probe_script() -> str:
+@dataclass(frozen=True)
+class MarketEvidenceSelection:
+    run_id: str
+    group_id: str
+    host_run_root: Path
+    version: int | None
+    base_v1_run_id: str | None = None
+    base_v1_group_id: str | None = None
+    base_v1_host_root: Path | None = None
+    active_pointer_host: Path | None = None
+
+
+def _selection_script() -> str:
     return rf"""
-const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const root = {MARKET_EVIDENCE_CONTAINER_ROOT!r};
-const sha256 = (value) => crypto.createHash("sha256").update(value).digest("hex");
-const sortedValue = (value) => {{
-  if (Array.isArray(value)) return value.map(sortedValue);
-  if (value === null || typeof value !== "object") return value;
-  return Object.fromEntries(
-    Object.entries(value)
-      .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
-      .map(([key, item]) => [key, sortedValue(item)])
-  );
-}};
-const canonicalSha256 = (value) => sha256(Buffer.from(JSON.stringify(sortedValue(value))));
+const runPattern = /^{RUN_ID_PATTERN}$/;
 const regularDirectory = (candidate) => {{
   const stat = fs.lstatSync(candidate);
-  if (!stat.isDirectory() || stat.isSymbolicLink() || (stat.mode & 0o050) !== 0o050) process.exit(1);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) process.exit(1);
   return stat;
 }};
-const regularFile = (candidate, limit = 64 * 1024 * 1024) => {{
+const regularFile = (candidate, limit = 8 * 1024 * 1024) => {{
   const stat = fs.lstatSync(candidate);
-  if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o040) !== 0o040 || stat.size > limit) process.exit(1);
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > limit) process.exit(1);
   return stat;
 }};
-const safeMember = (packageRoot, logicalName) => {{
-  if (
-    typeof logicalName !== "string"
-    || !logicalName
-    || logicalName.includes("\\\\")
-    || logicalName.includes("\0")
-    || logicalName.startsWith("/")
-    || logicalName.split("/").some((part) => !part || part === "." || part === "..")
-  ) process.exit(1);
-  const candidate = path.resolve(packageRoot, logicalName);
-  const resolvedRoot = path.resolve(packageRoot) + path.sep;
-  if (!candidate.startsWith(resolvedRoot)) process.exit(1);
-  let current = packageRoot;
-  for (const [index, part] of logicalName.split("/").entries()) {{
-    current = path.join(current, part);
-    const stat = fs.lstatSync(current);
-    if (stat.isSymbolicLink()) process.exit(1);
-    if (index < logicalName.split("/").length - 1 && !stat.isDirectory()) process.exit(1);
-    if (index === logicalName.split("/").length - 1 && !stat.isFile()) process.exit(1);
-  }}
-  return candidate;
-}};
-const rootStat = regularDirectory(root);
+regularDirectory(root);
 const nested = path.join(root, "runs");
-const nestedLayout = fs.existsSync(nested) && fs.lstatSync(nested).isDirectory();
+let nestedLayout = false;
+if (fs.existsSync(nested)) {{
+  regularDirectory(nested);
+  nestedLayout = true;
+}}
 const runsRoot = nestedLayout ? nested : root;
 const runIds = fs.readdirSync(runsRoot, {{withFileTypes: true}})
-  .filter((entry) => entry.isDirectory() && !entry.isSymbolicLink()
-    && /^{RUN_ID_PATTERN}$/.test(entry.name))
+  .filter((entry) => entry.isDirectory() && !entry.isSymbolicLink() && runPattern.test(entry.name))
   .map((entry) => entry.name)
   .sort()
   .reverse();
 if (runIds.length === 0) process.exit(1);
-const latestRun = runIds[0];
-const runRoot = path.join(runsRoot, latestRun);
+const runId = runIds[0];
+const runRoot = path.join(runsRoot, runId);
 const runStat = regularDirectory(runRoot);
-const stats = [rootStat, runStat];
 const packageRoot = path.join(runRoot, "immutable-package");
+let hasPackage = false;
+let baseRunId = null;
+let baseGroupId = null;
+let baseLayout = null;
 if (fs.existsSync(packageRoot)) {{
-  const packageStat = regularDirectory(packageRoot);
-  stats.push(packageStat);
-  const manifestPath = path.join(packageRoot, "manifest.json");
-  const manifestStat = regularFile(manifestPath, 8 * 1024 * 1024);
-  const manifestContent = fs.readFileSync(manifestPath);
-  if (manifestContent.length !== manifestStat.size) process.exit(1);
-  let manifest;
-  try {{ manifest = JSON.parse(manifestContent.toString("utf8")); }} catch {{ process.exit(1); }}
-  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) process.exit(1);
-  const version = manifest.schema_version;
-  if (version !== 1 && version !== 2) process.exit(1);
-  if (!latestRun.includes(`-v${{version}}-`)) process.exit(1);
-  if (
-    manifest.artifact_type !== "WickHunterProductionMarketEvidencePackage"
-    || manifest.run_id !== latestRun
-    || manifest.state !== "completed"
-    || manifest.verification_result !== "accepted"
-    || typeof manifest.manifest_sha256 !== "string"
-    || !/^[0-9a-f]{{64}}$/.test(manifest.manifest_sha256)
-  ) process.exit(1);
-  const manifestSeed = {{...manifest}};
-  delete manifestSeed.manifest_sha256;
-  if (canonicalSha256(manifestSeed) !== manifest.manifest_sha256) process.exit(1);
-  if (!Array.isArray(manifest.artifacts) || manifest.artifacts.length === 0 || manifest.artifacts.length > 1000) process.exit(1);
-  const identities = new Map();
-  let totalBytes = 0;
-  for (const item of manifest.artifacts) {{
-    if (!item || typeof item !== "object" || Array.isArray(item)) process.exit(1);
-    const logicalName = item.logical_name;
-    const digest = item.sha256;
-    const size = item.size_bytes;
-    if (
-      typeof logicalName !== "string"
-      || typeof digest !== "string"
-      || !/^[0-9a-f]{{64}}$/.test(digest)
-      || !Number.isSafeInteger(size)
-      || size < 0
-      || size > 64 * 1024 * 1024
-      || identities.has(logicalName)
-    ) process.exit(1);
-    totalBytes += size;
-    if (totalBytes > 256 * 1024 * 1024) process.exit(1);
-    const candidate = safeMember(packageRoot, logicalName);
-    const stat = regularFile(candidate);
-    const content = fs.readFileSync(candidate);
-    if (stat.size !== size || content.length !== size || sha256(content) !== digest) process.exit(1);
-    identities.set(logicalName, {{digest, size, content, stat}});
-    stats.push(stat);
-  }}
-  const required = version === 1
-    ? ["request.json", "policy.json", "run-state.json", "source-snapshots.ndjson", "market-quality-observations.ndjson", "instrument-snapshots.ndjson", "completed-candles-index.json", "source-artifacts-index.json"]
-    : ["request.json", "source-package-binding.json", "run-state.json", "source-snapshots.ndjson", "market-quality-observations.ndjson", "instrument-snapshots.ndjson", "completed-candles-index.json"];
-  if (required.some((name) => !identities.has(name))) process.exit(1);
-  if (version === 1 && identities.size !== required.length) process.exit(1);
-  let state;
-  try {{ state = JSON.parse(identities.get("run-state.json").content.toString("utf8")); }} catch {{ process.exit(1); }}
-  if (
-    !state || state.schema_version !== version || state.run_id !== latestRun
-    || state.state !== "completed" || state.active !== false
-    || state.verification_result !== "accepted"
-  ) process.exit(1);
-  const verificationPath = path.join(packageRoot, "verification-report.json");
-  const verificationStat = regularFile(verificationPath, 8 * 1024 * 1024);
-  stats.push(verificationStat, manifestStat);
-  let verification;
-  try {{ verification = JSON.parse(fs.readFileSync(verificationPath, "utf8")); }} catch {{ process.exit(1); }}
-  if (
-    !verification || verification.schema_version !== version || verification.run_id !== latestRun
-    || verification.outcome !== "accepted"
-    || verification.manifest_sha256 !== manifest.manifest_sha256
-    || verification.artifact_count !== identities.size
-  ) process.exit(1);
-  const checksumPath = path.join(packageRoot, "artifact-sha256.txt");
-  const checksumStat = regularFile(checksumPath, 8 * 1024 * 1024);
-  stats.push(checksumStat);
-  const expectedChecksums = new Set([
-    ...Array.from(identities.entries()).map(([name, identity]) => `${{identity.digest}}  ${{name}}`),
-    `${{sha256(manifestContent)}}  manifest.json`,
-  ]);
-  const checksumLines = fs.readFileSync(checksumPath, "utf8").split(/\r?\n/).filter(Boolean);
-  if (
-    checksumLines.length !== expectedChecksums.size
-    || new Set(checksumLines).size !== checksumLines.length
-    || checksumLines.some((line) => !expectedChecksums.has(line))
-  ) process.exit(1);
-}} else {{
-  for (const name of ["incremental-state.json", "run-request.json"]) {{
-    const candidate = path.join(runRoot, name);
-    const stat = regularFile(candidate, 8 * 1024 * 1024);
-    let payload;
-    try {{ payload = JSON.parse(fs.readFileSync(candidate, "utf8")); }} catch {{ process.exit(1); }}
-    if (!payload || payload.run_id !== latestRun) process.exit(1);
-    stats.push(stat);
+  regularDirectory(packageRoot);
+  hasPackage = true;
+  const bindingPath = path.join(packageRoot, "source-package-binding.json");
+  if (fs.existsSync(bindingPath)) {{
+    regularFile(bindingPath);
+    let binding;
+    try {{ binding = JSON.parse(fs.readFileSync(bindingPath, "utf8")); }} catch {{ process.exit(1); }}
+    const candidate = binding && binding.base_v1 && binding.base_v1.run_id;
+    if (typeof candidate !== "string" || !runPattern.test(candidate) || !candidate.includes("-v1-")) {{
+      process.exit(1);
+    }}
+    const nestedCandidate = path.join(root, "runs", candidate);
+    const rootCandidate = path.join(root, candidate);
+    const matches = [];
+    if (fs.existsSync(nestedCandidate)) matches.push([nestedCandidate, "runs"]);
+    if (fs.existsSync(rootCandidate)) matches.push([rootCandidate, "root"]);
+    if (matches.length !== 1) process.exit(1);
+    const [baseRoot, layout] = matches[0];
+    const baseStat = regularDirectory(baseRoot);
+    baseRunId = candidate;
+    baseGroupId = String(baseStat.gid);
+    baseLayout = layout;
   }}
 }}
-const groupId = stats[0].gid;
-if (stats.some((stat) => stat.gid !== groupId)) process.exit(1);
 process.stdout.write(
-  {MARKET_EVIDENCE_PROBE_MARKER!r}
-  + latestRun + "|" + groupId + "|" + (nestedLayout ? "runs" : "root")
+  {MARKET_EVIDENCE_SELECTION_MARKER!r}
+  + JSON.stringify({{
+      run_id: runId,
+      group_id: String(runStat.gid),
+      layout: nestedLayout ? "runs" : "root",
+      has_package: hasPackage,
+      base_v1_run_id: baseRunId,
+      base_v1_group_id: baseGroupId,
+      base_v1_layout: baseLayout,
+    }})
 );
 """.strip()
 
 
-def _probe_args(image: str) -> list[str]:
-    return [
+def _base_helper_args(image: str, *, root_mount: bool = False) -> list[str]:
+    args = [
         "docker",
         "run",
         "--rm",
@@ -207,48 +137,313 @@ def _probe_args(image: str) -> list[str]:
         "--pids-limit",
         "32",
         "--memory",
-        "64m",
-        "--user",
-        "0:0",
+        "128m",
+    ]
+    if root_mount:
+        args.extend(
+            [
+                "--user",
+                "0:0",
+                "--mount",
+                (
+                    f"type=bind,src={MARKET_EVIDENCE_HOST_ROOT},"
+                    f"dst={MARKET_EVIDENCE_CONTAINER_ROOT},readonly"
+                ),
+            ]
+        )
+    return args
+
+
+def _selection_args(image: str) -> list[str]:
+    return [
+        *_base_helper_args(image, root_mount=True),
+        "--entrypoint",
+        "node",
+        image,
+        "-e",
+        _selection_script(),
+    ]
+
+
+def _host_run_root(run_id: str, layout: str) -> Path:
+    if layout == "runs":
+        return MARKET_EVIDENCE_HOST_ROOT / "runs" / run_id
+    if layout == "root":
+        return MARKET_EVIDENCE_HOST_ROOT / run_id
+    raise ValueError("unsupported Market Evidence layout")
+
+
+def _preselect(deploy: Any, image: str) -> dict[str, Any]:
+    result = cast(subprocess.CompletedProcess[str], deploy._run(_selection_args(image)))
+    payload_text = next(
+        (
+            line.removeprefix(MARKET_EVIDENCE_SELECTION_MARKER)
+            for line in result.stdout.splitlines()
+            if line.startswith(MARKET_EVIDENCE_SELECTION_MARKER)
+        ),
+        None,
+    )
+    if payload_text is None:
+        raise deploy.DeploymentError("Market Evidence Docker-host selection returned no marker")
+    try:
+        payload = json.loads(payload_text)
+    except json.JSONDecodeError as exc:
+        raise deploy.DeploymentError("Market Evidence Docker-host selection returned invalid JSON") from exc
+    if not isinstance(payload, dict):
+        raise deploy.DeploymentError("Market Evidence Docker-host selection returned invalid metadata")
+    run_id = payload.get("run_id")
+    group_id = payload.get("group_id")
+    layout = payload.get("layout")
+    has_package = payload.get("has_package")
+    if (
+        not isinstance(run_id, str)
+        or re.fullmatch(RUN_ID_PATTERN, run_id) is None
+        or not isinstance(group_id, str)
+        or re.fullmatch(r"\d+", group_id) is None
+        or layout not in {"runs", "root"}
+        or not isinstance(has_package, bool)
+    ):
+        raise deploy.DeploymentError("Market Evidence Docker-host selection returned invalid metadata")
+    base_run_id = payload.get("base_v1_run_id")
+    base_group_id = payload.get("base_v1_group_id")
+    base_layout = payload.get("base_v1_layout")
+    if base_run_id is not None:
+        if (
+            not isinstance(base_run_id, str)
+            or re.fullmatch(RUN_ID_PATTERN, base_run_id) is None
+            or "-v1-" not in base_run_id
+            or not isinstance(base_group_id, str)
+            or re.fullmatch(r"\d+", base_group_id) is None
+            or base_layout not in {"runs", "root"}
+        ):
+            raise deploy.DeploymentError("Market Evidence base-v1 selection metadata is invalid")
+    elif base_group_id is not None or base_layout is not None:
+        raise deploy.DeploymentError("Market Evidence base-v1 selection metadata is incomplete")
+    return {
+        "run_id": run_id,
+        "group_id": group_id,
+        "layout": layout,
+        "has_package": has_package,
+        "base_v1_run_id": base_run_id,
+        "base_v1_group_id": base_group_id,
+        "base_v1_layout": base_layout,
+    }
+
+
+def _group_args(group_ids: list[str]) -> list[str]:
+    args: list[str] = []
+    for group_id in dict.fromkeys(group_ids):
+        args.extend(["--group-add", group_id])
+    return args
+
+
+def _canonical_verifier_args(image: str, preselection: dict[str, Any]) -> list[str]:
+    run_id = cast(str, preselection["run_id"])
+    group_id = cast(str, preselection["group_id"])
+    layout = cast(str, preselection["layout"])
+    host_run_root = _host_run_root(run_id, layout)
+    group_ids = [group_id]
+    mounts = [
         "--mount",
         (
-            f"type=bind,src={MARKET_EVIDENCE_HOST_ROOT},"
-            f"dst={MARKET_EVIDENCE_CONTAINER_ROOT},readonly"
+            f"type=bind,src={host_run_root},"
+            f"dst={MARKET_EVIDENCE_CONTAINER_ROOT}/{run_id},readonly"
+        ),
+    ]
+    base_run_id = preselection.get("base_v1_run_id")
+    if isinstance(base_run_id, str):
+        base_group_id = cast(str, preselection["base_v1_group_id"])
+        base_layout = cast(str, preselection["base_v1_layout"])
+        base_root = _host_run_root(base_run_id, base_layout)
+        group_ids.append(base_group_id)
+        mounts.extend(
+            [
+                "--mount",
+                (
+                    f"type=bind,src={base_root},"
+                    f"dst={MARKET_EVIDENCE_CONTAINER_ROOT}/{base_run_id},readonly"
+                ),
+            ]
+        )
+    return [
+        *_base_helper_args(image),
+        "--user",
+        WEB_RUNTIME_USER,
+        *_group_args(group_ids),
+        *mounts,
+        "--entrypoint",
+        "node",
+        image,
+        MARKET_EVIDENCE_VERIFIER,
+        MARKET_EVIDENCE_CONTAINER_ROOT,
+        run_id,
+    ]
+
+
+def _verify_immutable_selection(
+    deploy: Any,
+    image: str,
+    preselection: dict[str, Any],
+) -> MarketEvidenceSelection:
+    result = cast(
+        subprocess.CompletedProcess[str],
+        deploy._run(_canonical_verifier_args(image, preselection)),
+    )
+    payload_text = next(
+        (
+            line.removeprefix(MARKET_EVIDENCE_VERIFIED_MARKER)
+            for line in result.stdout.splitlines()
+            if line.startswith(MARKET_EVIDENCE_VERIFIED_MARKER)
+        ),
+        None,
+    )
+    if payload_text is None:
+        raise deploy.DeploymentError("canonical Market Evidence verifier returned no marker")
+    try:
+        payload = json.loads(payload_text)
+    except json.JSONDecodeError as exc:
+        raise deploy.DeploymentError("canonical Market Evidence verifier returned invalid JSON") from exc
+    if not isinstance(payload, dict):
+        raise deploy.DeploymentError("canonical Market Evidence verifier returned invalid metadata")
+    run_id = cast(str, preselection["run_id"])
+    group_id = cast(str, preselection["group_id"])
+    layout = cast(str, preselection["layout"])
+    version = payload.get("version")
+    base_run_id = payload.get("base_v1_run_id")
+    if payload.get("run_id") != run_id or version not in {1, 2}:
+        raise deploy.DeploymentError("canonical Market Evidence verifier identity mismatch")
+    if version == 1:
+        if base_run_id is not None:
+            raise deploy.DeploymentError("v1 Market Evidence unexpectedly declared a base package")
+        return MarketEvidenceSelection(
+            run_id=run_id,
+            group_id=group_id,
+            host_run_root=_host_run_root(run_id, layout),
+            version=1,
+        )
+    selected_base = preselection.get("base_v1_run_id")
+    if (
+        not isinstance(base_run_id, str)
+        or base_run_id != selected_base
+        or re.fullmatch(RUN_ID_PATTERN, base_run_id) is None
+        or "-v1-" not in base_run_id
+    ):
+        raise deploy.DeploymentError("v2 Market Evidence base-v1 binding mismatch")
+    base_group_id = cast(str, preselection["base_v1_group_id"])
+    base_layout = cast(str, preselection["base_v1_layout"])
+    return MarketEvidenceSelection(
+        run_id=run_id,
+        group_id=group_id,
+        host_run_root=_host_run_root(run_id, layout),
+        version=2,
+        base_v1_run_id=base_run_id,
+        base_v1_group_id=base_group_id,
+        base_v1_host_root=_host_run_root(base_run_id, base_layout),
+    )
+
+
+def _active_probe_script(run_id: str) -> str:
+    return rf"""
+const fs = require("node:fs");
+const path = require("node:path");
+const root = path.join({MARKET_EVIDENCE_CONTAINER_ROOT!r}, {run_id!r});
+const regularFile = (name) => {{
+  const candidate = path.join(root, name);
+  const stat = fs.lstatSync(candidate);
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 8 * 1024 * 1024) process.exit(1);
+  let payload;
+  try {{ payload = JSON.parse(fs.readFileSync(candidate, "utf8")); }} catch {{ process.exit(1); }}
+  if (!payload || typeof payload !== "object" || Array.isArray(payload) || payload.run_id !== {run_id!r}) {{
+    process.exit(1);
+  }}
+}};
+regularFile("incremental-state.json");
+regularFile("run-request.json");
+process.stdout.write({MARKET_EVIDENCE_ACTIVE_MARKER!r} + {run_id!r});
+""".strip()
+
+
+def _verify_active_selection(
+    deploy: Any,
+    image: str,
+    preselection: dict[str, Any],
+) -> MarketEvidenceSelection:
+    run_id = cast(str, preselection["run_id"])
+    if "-v1-" not in run_id:
+        raise deploy.DeploymentError("active Market Evidence runtime must use schema v1")
+    group_id = cast(str, preselection["group_id"])
+    layout = cast(str, preselection["layout"])
+    host_run_root = _host_run_root(run_id, layout)
+    args = [
+        *_base_helper_args(image),
+        "--user",
+        WEB_RUNTIME_USER,
+        "--group-add",
+        group_id,
+        "--mount",
+        (
+            f"type=bind,src={host_run_root},"
+            f"dst={MARKET_EVIDENCE_CONTAINER_ROOT}/{run_id},readonly"
         ),
         "--entrypoint",
         "node",
         image,
         "-e",
-        _probe_script(),
+        _active_probe_script(run_id),
     ]
-
-
-def _docker_host_group(deploy: Any, image: str) -> tuple[str, str, Path]:
-    result = cast(subprocess.CompletedProcess[str], deploy._run(_probe_args(image)))
+    result = cast(subprocess.CompletedProcess[str], deploy._run(args))
     marker = next(
         (
-            line.removeprefix(MARKET_EVIDENCE_PROBE_MARKER)
+            line.removeprefix(MARKET_EVIDENCE_ACTIVE_MARKER)
             for line in result.stdout.splitlines()
-            if line.startswith(MARKET_EVIDENCE_PROBE_MARKER)
+            if line.startswith(MARKET_EVIDENCE_ACTIVE_MARKER)
         ),
         None,
     )
-    if marker is None:
-        raise deploy.DeploymentError("Market Evidence Docker-host preflight returned no marker")
-    run_id, separator, remainder = marker.partition("|")
-    group_id, second_separator, layout = remainder.partition("|")
-    if (
-        separator != "|"
-        or second_separator != "|"
-        or re.fullmatch(RUN_ID_PATTERN, run_id) is None
-        or re.fullmatch(r"\d+", group_id) is None
-        or layout not in {"runs", "root"}
-    ):
-        raise deploy.DeploymentError(
-            "Market Evidence Docker-host preflight returned invalid metadata"
-        )
-    relative = Path("runs") / run_id if layout == "runs" else Path(run_id)
-    return run_id, group_id, MARKET_EVIDENCE_HOST_ROOT / relative
+    if marker != run_id:
+        raise deploy.DeploymentError("active Market Evidence verifier identity mismatch")
+    pointer = _write_active_pointer(deploy, run_id)
+    return MarketEvidenceSelection(
+        run_id=run_id,
+        group_id=group_id,
+        host_run_root=host_run_root,
+        version=None,
+        active_pointer_host=pointer,
+    )
+
+
+def _write_active_pointer(deploy: Any, run_id: str) -> Path:
+    state_dir = Path(deploy.PORTAL_STATE_DIR)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    path = state_dir / f"market-evidence-active-{run_id}.json"
+    encoded = (json.dumps({"run_id": run_id}, sort_keys=True, separators=(",", ":")) + "\n").encode(
+        "utf-8"
+    )
+    fd, temporary_name = tempfile.mkstemp(prefix=".market-evidence-pointer.", dir=state_dir)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(encoded)
+            handle.flush()
+            os.fsync(handle.fileno())
+        temporary.chmod(0o644)
+        temporary.replace(path)
+        directory_fd = os.open(state_dir, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+    return path
+
+
+def _select_market_evidence(deploy: Any, image: str) -> MarketEvidenceSelection:
+    preselection = _preselect(deploy, image)
+    if preselection["has_package"] is True:
+        return _verify_immutable_selection(deploy, image, preselection)
+    return _verify_active_selection(deploy, image, preselection)
 
 
 def _assert_tenant_authorized(deploy: Any) -> None:
@@ -350,9 +545,7 @@ def _group_add_present(args: list[str], group_id: str) -> bool:
 
 def _market_web_args(
     original: Any,
-    group_id: str,
-    run_id: str,
-    host_run_root: Path,
+    selection: MarketEvidenceSelection,
     image: str,
     name: str,
     *,
@@ -361,40 +554,74 @@ def _market_web_args(
     args = list(original(image, name, publish=publish))
     image_index = len(args) - 1
     additions: list[str] = []
-    if not _group_add_present(args, group_id):
-        additions.extend(["--group-add", group_id])
-    container_run_root = f"{MARKET_EVIDENCE_CONTAINER_ROOT}/{run_id}"
+    for group_id in dict.fromkeys(
+        [selection.group_id, *([selection.base_v1_group_id] if selection.base_v1_group_id else [])]
+    ):
+        if not _group_add_present(args, group_id):
+            additions.extend(["--group-add", group_id])
     additions.extend(
         [
             "--mount",
-            f"type=bind,src={host_run_root},dst={container_run_root},readonly",
+            (
+                f"type=bind,src={selection.host_run_root},"
+                f"dst={MARKET_EVIDENCE_CONTAINER_ROOT}/{selection.run_id},readonly"
+            ),
+        ]
+    )
+    if selection.base_v1_run_id and selection.base_v1_host_root:
+        additions.extend(
+            [
+                "--mount",
+                (
+                    f"type=bind,src={selection.base_v1_host_root},"
+                    f"dst={MARKET_EVIDENCE_CONTAINER_ROOT}/{selection.base_v1_run_id},readonly"
+                ),
+            ]
+        )
+    if selection.active_pointer_host:
+        additions.extend(
+            [
+                "--mount",
+                (
+                    f"type=bind,src={selection.active_pointer_host},"
+                    f"dst={MARKET_EVIDENCE_CONTAINER_ROOT}/{MARKET_EVIDENCE_ACTIVE_POINTER},readonly"
+                ),
+            ]
+        )
+    additions.extend(
+        [
             "--env",
             f"PORTAL_MARKET_EVIDENCE_DATA_ROOT={MARKET_EVIDENCE_CONTAINER_ROOT}",
             "--env",
             f"PORTAL_MARKET_EVIDENCE_TENANT_ID={MARKET_EVIDENCE_TENANT_ID}",
             "--env",
-            f"PORTAL_MARKET_EVIDENCE_RUN_ID={run_id}",
+            f"PORTAL_MARKET_EVIDENCE_RUN_ID={selection.run_id}",
             "--label",
             "ai.freqtrade.market-evidence=read-only",
             "--label",
-            f"ai.freqtrade.market-evidence-run={run_id}",
+            f"ai.freqtrade.market-evidence-run={selection.run_id}",
         ]
     )
+    if selection.base_v1_run_id:
+        additions.extend(
+            [
+                "--env",
+                f"PORTAL_MARKET_EVIDENCE_BASE_V1_RUN_ID={selection.base_v1_run_id}",
+                "--label",
+                f"ai.freqtrade.market-evidence-base-v1-run={selection.base_v1_run_id}",
+            ]
+        )
     return [*args[:image_index], *additions, *args[image_index:]]
 
 
-def _is_market_evidence_mount(value: Any, run_id: str) -> TypeGuard[dict[str, Any]]:
-    return isinstance(value, dict) and value.get("Destination") == (
-        f"{MARKET_EVIDENCE_CONTAINER_ROOT}/{run_id}"
+def _is_market_evidence_mount(value: Any) -> TypeGuard[dict[str, Any]]:
+    return isinstance(value, dict) and isinstance(value.get("Destination"), str) and (
+        value["Destination"] == MARKET_EVIDENCE_CONTAINER_ROOT
+        or value["Destination"].startswith(f"{MARKET_EVIDENCE_CONTAINER_ROOT}/")
     )
 
 
-def _verify_running_container(
-    deploy: Any,
-    group_id: str,
-    run_id: str,
-    host_run_root: Path,
-) -> None:
+def _verify_running_container(deploy: Any, selection: MarketEvidenceSelection) -> None:
     result = cast(
         subprocess.CompletedProcess[str],
         deploy._run(["docker", "inspect", deploy.PORTAL_CONTAINER], sensitive=True),
@@ -409,21 +636,35 @@ def _verify_running_container(
             "Market Evidence runtime verification returned invalid inspect data"
         ) from exc
 
+    expected_mounts = {
+        f"{MARKET_EVIDENCE_CONTAINER_ROOT}/{selection.run_id}": str(selection.host_run_root)
+    }
+    if selection.base_v1_run_id and selection.base_v1_host_root:
+        expected_mounts[f"{MARKET_EVIDENCE_CONTAINER_ROOT}/{selection.base_v1_run_id}"] = str(
+            selection.base_v1_host_root
+        )
+    if selection.active_pointer_host:
+        expected_mounts[f"{MARKET_EVIDENCE_CONTAINER_ROOT}/{MARKET_EVIDENCE_ACTIVE_POINTER}"] = str(
+            selection.active_pointer_host
+        )
+
     mounts = container.get("Mounts") or []
     if not isinstance(mounts, list):
         raise deploy.DeploymentError("Market Evidence runtime mount inventory is invalid")
-    expected_mounts = [mount for mount in mounts if _is_market_evidence_mount(mount, run_id)]
-    if len(expected_mounts) != 1:
-        raise deploy.DeploymentError("Market Evidence runtime mount is missing or ambiguous")
-    mount = expected_mounts[0]
-    if (
-        mount.get("Type") != "bind"
-        or mount.get("Source") != str(host_run_root)
-        or mount.get("RW") is not False
-    ):
-        raise deploy.DeploymentError(
-            "Market Evidence runtime mount is not the canonical read-only selected-run bind"
-        )
+    market_mounts = [mount for mount in mounts if _is_market_evidence_mount(mount)]
+    if len(market_mounts) != len(expected_mounts):
+        raise deploy.DeploymentError("Market Evidence runtime mount inventory is not pinned")
+    for mount in market_mounts:
+        destination = cast(str, mount["Destination"])
+        if (
+            destination not in expected_mounts
+            or mount.get("Type") != "bind"
+            or mount.get("Source") != expected_mounts[destination]
+            or mount.get("RW") is not False
+        ):
+            raise deploy.DeploymentError(
+                "Market Evidence runtime mount is not the canonical read-only pinned bind"
+            )
 
     config = container.get("Config") or {}
     if not isinstance(config, dict):
@@ -435,8 +676,12 @@ def _verify_running_container(
     required_env = {
         f"PORTAL_MARKET_EVIDENCE_DATA_ROOT={MARKET_EVIDENCE_CONTAINER_ROOT}",
         f"PORTAL_MARKET_EVIDENCE_TENANT_ID={MARKET_EVIDENCE_TENANT_ID}",
-        f"PORTAL_MARKET_EVIDENCE_RUN_ID={run_id}",
+        f"PORTAL_MARKET_EVIDENCE_RUN_ID={selection.run_id}",
     }
+    if selection.base_v1_run_id:
+        required_env.add(
+            f"PORTAL_MARKET_EVIDENCE_BASE_V1_RUN_ID={selection.base_v1_run_id}"
+        )
     if not required_env.issubset(env):
         raise deploy.DeploymentError("Market Evidence runtime environment is incomplete")
 
@@ -447,7 +692,10 @@ def _verify_running_container(
     if not isinstance(group_values, list):
         raise deploy.DeploymentError("Market Evidence runtime group inventory is invalid")
     groups = {str(value) for value in group_values}
-    if group_id not in groups:
+    required_groups = {selection.group_id}
+    if selection.base_v1_group_id:
+        required_groups.add(selection.base_v1_group_id)
+    if not required_groups.issubset(groups):
         raise deploy.DeploymentError("Market Evidence runtime supplementary group is missing")
 
 
@@ -456,15 +704,13 @@ def install(deploy: Any) -> None:
     original_web_run_args = deploy._web_run_args
 
     def deploy_web(image: str, suffix: str) -> tuple[str | None, str]:
-        run_id, group_id, host_run_root = _docker_host_group(deploy, image)
+        selection = _select_market_evidence(deploy, image)
         _assert_tenant_authorized(deploy)
 
         def web_run_args(selected_image: str, name: str, *, publish: bool) -> list[str]:
             return _market_web_args(
                 original_web_run_args,
-                group_id,
-                run_id,
-                host_run_root,
+                selection,
                 selected_image,
                 name,
                 publish=publish,
@@ -473,7 +719,7 @@ def install(deploy: Any) -> None:
         deploy._web_run_args = web_run_args
         try:
             result = cast(tuple[str | None, str], original_deploy_web(image, suffix))
-            _verify_running_container(deploy, group_id, run_id, host_run_root)
+            _verify_running_container(deploy, selection)
             return result
         finally:
             deploy._web_run_args = original_web_run_args

@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from docker_runtime_preflight import PreflightError, check_runtime
+
 
 AUTHENTIK_PROJECT = "portal-authentik-local-test"
 AUTHENTIK_STATE_DIR = Path("/var/lib/freqtrade-staging-state/portal-authentik-local-test")
@@ -119,6 +121,11 @@ def _helper_run_args(image: str) -> list[str]:
 
 
 def prepare(repo: Path) -> None:
+    try:
+        check_runtime()
+    except PreflightError as exc:
+        raise PreparationError(f"Synology Docker runtime preflight failed: {exc}") from exc
+
     compose = _compose_command(repo)
     server = _run([*compose, "ps", "-q", "server"]).stdout.strip()
     if not server:

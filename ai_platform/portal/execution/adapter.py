@@ -143,9 +143,7 @@ class FreqtradeExecutionAdapter:
             config_revision_id=artifacts.config_revision_id,
             config_revision=artifacts.config_revision,
             config_revision_digest=artifacts.config_revision_digest,
-            normalized_runtime_config_digest=(
-                artifacts.normalized_runtime_config_digest
-            ),
+            normalized_runtime_config_digest=(artifacts.normalized_runtime_config_digest),
             runtime_image_digest=artifacts.runtime_image_digest,
             strategy_artifact_digest=artifacts.strategy_artifact_digest,
             model_artifact_digest=artifacts.model_artifact_digest,
@@ -308,9 +306,9 @@ class FreqtradeExecutionAdapter:
         record = self._require_record(tenant_id, bot_id)
         collector = self._private_read_collector
         if collector is None:
-            reason_code = "PRIVATE_RUNTIME_COLLECTOR_NOT_CONFIGURED"
-            self._write_failure(record, context, reason_code)
-            return self._unavailable_snapshot(record, reason_code)
+            collector_reason_code = "PRIVATE_RUNTIME_COLLECTOR_NOT_CONFIGURED"
+            self._write_failure(record, context, collector_reason_code)
+            return self._unavailable_snapshot(record, collector_reason_code)
 
         reason_code = self._runtime_read_unavailable_reason(record, context)
         if reason_code is not None:
@@ -552,17 +550,13 @@ class FreqtradeExecutionAdapter:
         if (
             status.complete
             and status.freshness is RuntimeReadFreshness.CURRENT
-            and status.reconciliation_status
-            is RuntimeReadReconciliationStatus.SYNCED
+            and status.reconciliation_status is RuntimeReadReconciliationStatus.SYNCED
         ):
             self._write_success(record, context)
             return
         reason_code = status.reason_code or "RUNTIME_READ_NOT_AUTHORITATIVE"
         self._write_failure(record, context, reason_code)
-        if (
-            status.reconciliation_status
-            is RuntimeReadReconciliationStatus.SOURCE_UNAVAILABLE
-        ):
+        if status.reconciliation_status is RuntimeReadReconciliationStatus.SOURCE_UNAVAILABLE:
             raise RuntimeReadUnavailableError(reason_code)
         raise RuntimeReadIncompleteError(reason_code)
 
@@ -578,8 +572,7 @@ class FreqtradeExecutionAdapter:
             if (
                 not status.complete
                 or status.freshness is not RuntimeReadFreshness.CURRENT
-                or status.reconciliation_status
-                is not RuntimeReadReconciliationStatus.SYNCED
+                or status.reconciliation_status is not RuntimeReadReconciliationStatus.SYNCED
             ):
                 return status.reason_code or "RUNTIME_READ_NOT_AUTHORITATIVE"
         return None
@@ -591,9 +584,7 @@ class FreqtradeExecutionAdapter:
         bot_id: str,
     ) -> None:
         if record.tenant_id != tenant_id or record.bot_id != bot_id:
-            raise RuntimeNotProvisionedError(
-                "runtime identity does not match tenant and bot"
-            )
+            raise RuntimeNotProvisionedError("runtime identity does not match tenant and bot")
 
     @staticmethod
     def _require_generation(
@@ -625,8 +616,7 @@ class FreqtradeExecutionAdapter:
             or artifacts.generation_id != generation_id
         ):
             raise RuntimeRevisionConflictError(
-                "resolved runtime material does not match requested "
-                "RuntimeGeneration identity"
+                "resolved runtime material does not match requested RuntimeGeneration identity"
             )
 
     @staticmethod
@@ -634,9 +624,7 @@ class FreqtradeExecutionAdapter:
         artifacts: ResolvedRuntimeArtifacts,
     ) -> None:
         if artifacts.execution_mode is not ExecutionMode.DRY_RUN:
-            raise UnsupportedExecutionModeError(
-                "P3 only supports dry_run execution mode"
-            )
+            raise UnsupportedExecutionModeError("P3 only supports dry_run execution mode")
 
     @staticmethod
     def _require_exact_image_reference(
@@ -660,8 +648,7 @@ class FreqtradeExecutionAdapter:
             or record.config_revision_id != artifacts.config_revision_id
             or record.config_revision != artifacts.config_revision
             or record.config_revision_digest != artifacts.config_revision_digest
-            or record.normalized_runtime_config_digest
-            != artifacts.normalized_runtime_config_digest
+            or record.normalized_runtime_config_digest != artifacts.normalized_runtime_config_digest
             or record.runtime_image_digest != artifacts.runtime_image_digest
             or record.strategy_artifact_digest != artifacts.strategy_artifact_digest
             or record.model_artifact_digest != artifacts.model_artifact_digest
@@ -773,15 +760,9 @@ class FreqtradeExecutionAdapter:
     ) -> dict[str, str]:
         labels = {
             "ai.portal.runtime_id": runtime_id,
-            "ai.portal.tenant_hash": hashlib.sha256(
-                bot.tenant_id.encode()
-            ).hexdigest()[:16],
-            "ai.portal.bot_hash": hashlib.sha256(
-                bot.bot_id.encode()
-            ).hexdigest()[:16],
-            "ai.portal.generation_hash": hashlib.sha256(
-                generation_id.encode()
-            ).hexdigest()[:16],
+            "ai.portal.tenant_hash": hashlib.sha256(bot.tenant_id.encode()).hexdigest()[:16],
+            "ai.portal.bot_hash": hashlib.sha256(bot.bot_id.encode()).hexdigest()[:16],
+            "ai.portal.generation_hash": hashlib.sha256(generation_id.encode()).hexdigest()[:16],
             "ai.portal.config_revision": str(config_revision),
             "ai.portal.request_id": str(context.request_id),
             "ai.portal.correlation_id": str(context.correlation_id),

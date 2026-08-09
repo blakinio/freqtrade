@@ -21,6 +21,10 @@ SPEC.loader.exec_module(module)
 
 
 def deploy_module(tmp_path: Path, run):
+    def assert_database_name(name: str) -> None:
+        if not name.startswith("portal_candidate_"):
+            raise RuntimeError("invalid database")
+
     return SimpleNamespace(
         _run=run,
         DeploymentError=RuntimeError,
@@ -37,13 +41,13 @@ def deploy_module(tmp_path: Path, run):
         PORTAL_NETWORK="portal_oidc_public",
         PORTAL_UID=10001,
         PORTAL_GID=10001,
-        _assert_database_name=lambda name: None
-        if name.startswith("portal_candidate_")
-        else (_ for _ in ()).throw(RuntimeError("invalid database")),
+        _assert_database_name=assert_database_name,
     )
 
 
-def test_prepare_state_uses_docker_host_namespace_not_runner_volume1(tmp_path: Path) -> None:
+def test_prepare_state_uses_docker_host_namespace_not_runner_volume1(
+    tmp_path: Path,
+) -> None:
     calls: list[list[str]] = []
 
     def run(command: list[str], **_kwargs):
@@ -77,7 +81,8 @@ def test_prepare_state_uses_docker_host_namespace_not_runner_volume1(tmp_path: P
 
 
 def test_sqlite_snapshot_is_created_inside_docker_host_bind(
-    tmp_path: Path, monkeypatch
+    tmp_path: Path,
+    monkeypatch,
 ) -> None:
     monkeypatch.setattr(module.time, "time", lambda: 123456)
     sha = "a" * 40
@@ -87,7 +92,10 @@ def test_sqlite_snapshot_is_created_inside_docker_host_bind(
 
     def run(command: list[str], **kwargs):
         calls.append((command, kwargs))
-        payload = json.dumps({"filename": filename, "sha256": digest}, sort_keys=True)
+        payload = json.dumps(
+            {"filename": filename, "sha256": digest},
+            sort_keys=True,
+        )
         return subprocess.CompletedProcess(
             command,
             0,
@@ -122,7 +130,8 @@ def test_sqlite_snapshot_is_created_inside_docker_host_bind(
 
 
 def test_postgres_backup_is_written_to_docker_host_without_secret_cli_value(
-    tmp_path: Path, monkeypatch
+    tmp_path: Path,
+    monkeypatch,
 ) -> None:
     monkeypatch.setattr(module.time, "time", lambda: 654321)
     sha = "c" * 40
@@ -154,7 +163,8 @@ def test_postgres_backup_is_written_to_docker_host_without_secret_cli_value(
     assert command[command.index("--mount") + 1] == (
         "type=bind,src=/volume1/docker/freqtrade-portal-oidc/data,dst=/portal-state"
     )
-    assert command[command.index("--env-file") + 1] == str(deploy.PORTAL_POSTGRES_ENV)
+    env_file_index = command.index("--env-file")
+    assert command[env_file_index + 1] == str(deploy.PORTAL_POSTGRES_ENV)
     assert "do-not-place-on-cli" not in " ".join(command)
     assert f"TARGET_DATABASE={database}" in command
     assert f"BACKUP_NAME={filename}" in command
@@ -165,7 +175,8 @@ def test_postgres_backup_is_written_to_docker_host_without_secret_cli_value(
 
 
 def test_install_captures_exact_control_image_and_entrypoint_wires_bridge(
-    tmp_path: Path, monkeypatch
+    tmp_path: Path,
+    monkeypatch,
 ) -> None:
     monkeypatch.setattr(module.time, "time", lambda: 111)
     digest = "e" * 64
@@ -175,28 +186,38 @@ def test_install_captures_exact_control_image_and_entrypoint_wires_bridge(
     def run(command: list[str], **_kwargs):
         calls.append(command)
         if module.SQLITE_MARKER in command[-1]:
-            payload = json.dumps({"filename": filename, "sha256": digest}, sort_keys=True)
+            payload = json.dumps(
+                {"filename": filename, "sha256": digest},
+                sort_keys=True,
+            )
             stdout = f"{module.SQLITE_MARKER}{payload}\n"
         else:
             stdout = f"{module.PREPARE_MARKER}\n"
         return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
 
     deploy = deploy_module(tmp_path, run)
-    deploy._build_images = lambda _repo, _sha: (
-        "local/control:eeeeeeeeeeee",
-        "sha256:control",
-        "local/web:eeeeeeeeeeee",
-        "sha256:web",
-    )
-    deploy._snapshot_legacy_sqlite = lambda _sha: (_ for _ in ()).throw(
-        AssertionError("runner-filesystem snapshot must be replaced")
-    )
-    deploy._backup_postgres = lambda _db, _sha: (_ for _ in ()).throw(
-        AssertionError("runner-filesystem backup must be replaced")
-    )
-    deploy._prepare_host_state = lambda: (_ for _ in ()).throw(
-        AssertionError("runner-filesystem host prepare must be replaced")
-    )
+
+    def build_images(_repo: Path, _sha: str):
+        return (
+            "local/control:eeeeeeeeeeee",
+            "sha256:control",
+            "local/web:eeeeeeeeeeee",
+            "sha256:web",
+        )
+
+    def unexpected_snapshot(_sha: str):
+        raise AssertionError("runner-filesystem snapshot must be replaced")
+
+    def unexpected_backup(_db: str, _sha: str):
+        raise AssertionError("runner-filesystem backup must be replaced")
+
+    def unexpected_prepare() -> None:
+        raise AssertionError("runner-filesystem host prepare must be replaced")
+
+    deploy._build_images = build_images
+    deploy._snapshot_legacy_sqlite = unexpected_snapshot
+    deploy._backup_postgres = unexpected_backup
+    deploy._prepare_host_state = unexpected_prepare
 
     module.install(deploy)
     deploy._build_images(Path("/repo"), "e" * 40)

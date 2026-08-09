@@ -16,7 +16,7 @@ concurrency:
 
 env:
   REQUEST_PATH: deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260809-v5.json
-  DEPLOY_COMMIT: 8ef53efc133773e6245a86afa1b0f1914e2d8a55
+  DEPLOY_COMMIT: 90cfc5ded10b0c6cb6406d00042817aca611e900
   EXPECTED_COMPOSE_BLOB_SHA: 8e783dec49c3054c46db845e5c7a2deff3ab55bf
   RUNTIME_UID: "65531"
   RUNTIME_GID: "65531"
@@ -63,7 +63,7 @@ jobs:
           expected = {
               "schema_version": 1,
               "request_id": "wickhunter-wh09-production-research-deploy-retry-20260809-v5",
-              "deploy_commit": "8ef53efc133773e6245a86afa1b0f1914e2d8a55",
+              "deploy_commit": "90cfc5ded10b0c6cb6406d00042817aca611e900",
               "previous_run_id": 31303052040,
               "previous_job_id": 93218894845,
               "failure_class": "frozen_candidate_case_count_loader_rejected_integrity_valid_h900_package",

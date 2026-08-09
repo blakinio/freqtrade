@@ -89,6 +89,10 @@ class RuntimeGenerationRow(Base):
     risk_policy_version: Mapped[str] = mapped_column(String(255), nullable=False)
     risk_policy_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     execution_mode: Mapped[str] = mapped_column(String(32), nullable=False)
+    managed_mode: Mapped[str] = mapped_column(String(32), nullable=False)
+    managed_mode_request_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    managed_mode_resolution_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    paper_authorization_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
     exchange_mode: Mapped[str] = mapped_column(String(64), nullable=False)
     exchange_connection_revision: Mapped[str | None] = mapped_column(String(255), nullable=True)
     isolation_profile_version: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -103,6 +107,10 @@ class RuntimeGenerationRow(Base):
     causation_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
 
     __table_args__ = (
+        CheckConstraint(
+            "managed_mode IN ('shadow', 'paper')",
+            name="ck_portal_runtime_generation_managed_mode",
+        ),
         ForeignKeyConstraint(
             ["tenant_id", "bot_id"],
             ["portal_bots.tenant_id", "portal_bots.bot_id"],
@@ -265,6 +273,5 @@ class OutboxEventRow(Base):
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
-        Index("ix_portal_outbox_tenant_aggregate", "tenant_id", "aggregate_type", "aggregate_id"),
-        Index("ix_portal_outbox_unpublished", "published_at"),
+        Index("ix_portal_outbox_tenant_aggregate", "tenant_id", "resource_type", "resource_id"),
     )

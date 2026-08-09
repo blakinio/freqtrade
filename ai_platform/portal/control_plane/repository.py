@@ -266,6 +266,7 @@ class BotRepository:
                 causation_id=(str(generation.causation_id) if generation.causation_id else None),
             )
         )
+        session.flush()
 
     def get_runtime_generation(
         self,

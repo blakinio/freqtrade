@@ -5,7 +5,7 @@ name: Deploy WickHunter WH09 Production Research Runtime
     branches:
       - develop
     paths:
-      - deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260809-v5.json
+      - deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260809-v6.json
 
 permissions:
   contents: read
@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  REQUEST_PATH: deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260809-v5.json
+  REQUEST_PATH: deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260809-v6.json
   DEPLOY_COMMIT: 90cfc5ded10b0c6cb6406d00042817aca611e900
   EXPECTED_COMPOSE_BLOB_SHA: 8e783dec49c3054c46db845e5c7a2deff3ab55bf
   RUNTIME_UID: "65531"
@@ -61,11 +61,11 @@ jobs:
 
           expected = {
               "schema_version": 1,
-              "request_id": "wickhunter-wh09-production-research-deploy-retry-20260809-v5",
+              "request_id": "wickhunter-wh09-production-research-deploy-retry-20260809-v6",
               "deploy_commit": "90cfc5ded10b0c6cb6406d00042817aca611e900",
-              "previous_run_id": 31303052040,
-              "previous_job_id": 93218894845,
-              "failure_class": "frozen_candidate_case_count_loader_rejected_integrity_valid_h900_package",
+              "previous_run_id": 31326580829,
+              "previous_job_id": 93277819212,
+              "failure_class": "bash_case_pattern_parse_error_before_host_validation",
               "runtime_repair_authorized": True,
               "container_recreate_authorized": True,
               "replace_unsupported_pids_cgroup_with_nproc_rlimit": True,
@@ -80,9 +80,9 @@ jobs:
               "orders_submitted": 0,
               "live_capital_authorized": False,
           }
-          payload = json.loads(Path("deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260809-v5.json").read_text(encoding="utf-8"))
+          payload = json.loads(Path("deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260809-v6.json").read_text(encoding="utf-8"))
           if payload != expected:
-              raise SystemExit("WH09 retry v5 authorization contract mismatch")
+              raise SystemExit("WH09 retry v6 authorization contract mismatch")
           PY
 
       - name: Snapshot authorized Synology compose hardening
@@ -159,7 +159,7 @@ jobs:
             [[ "$existing" == "$previous_runtime_id" ]] && continue
             existing_user="$(docker inspect --format '{{.Config.User}}' "$existing" 2>/dev/null || true)"
             case "$existing_user" in
-              "$RUNTIME_UID"|"$RUNTIME_UID:"*|*":"$RUNTIME_GID")
+              "$RUNTIME_UID"|"$RUNTIME_UID":*|*:"$RUNTIME_GID")
                 echo "Dedicated WH09 runtime UID/GID is already used by another container" >&2
                 exit 1
                 ;;
@@ -272,7 +272,7 @@ jobs:
             [[ "$existing" == "${PREVIOUS_RUNTIME_CONTAINER_ID:-}" ]] && continue
             existing_user="$(docker inspect --format '{{.Config.User}}' "$existing" 2>/dev/null || true)"
             case "$existing_user" in
-              "$RUNTIME_UID"|"$RUNTIME_UID:"*|*":"$RUNTIME_GID")
+              "$RUNTIME_UID"|"$RUNTIME_UID":*|*:"$RUNTIME_GID")
                 echo "Dedicated WH09 runtime UID/GID appeared in another container before host probe" >&2
                 exit 1
                 ;;
@@ -501,7 +501,7 @@ jobs:
           report = {
               'schema_version': 1,
               'result': 'PASS',
-              'request_id': 'wickhunter-wh09-production-research-deploy-retry-20260809-v5',
+              'request_id': 'wickhunter-wh09-production-research-deploy-retry-20260809-v6',
               'deployment_commit': deploy_commit,
               'workflow_authorization_commit': os.environ['GITHUB_SHA'],
               'container_id': container_id,

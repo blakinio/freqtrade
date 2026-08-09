@@ -786,19 +786,24 @@ def _create_runtime_isolation_binding_revision(
         )
 
     connection.exec_driver_sql(
-        "ALTER TABLE portal_runtime_generations ADD COLUMN isolation_plan_digest VARCHAR(64) NOT NULL"
+        "ALTER TABLE portal_runtime_generations ADD COLUMN isolation_plan_digest "
+        "VARCHAR(64) NOT NULL"
     )
     connection.exec_driver_sql(
-        "ALTER TABLE portal_runtime_generations ADD COLUMN gateway_artifact_digest VARCHAR(64) NOT NULL"
+        "ALTER TABLE portal_runtime_generations ADD COLUMN gateway_artifact_digest "
+        "VARCHAR(64) NOT NULL"
     )
     connection.exec_driver_sql(
-        "ALTER TABLE portal_runtime_generations ADD COLUMN gateway_contract_digest VARCHAR(64) NOT NULL"
+        "ALTER TABLE portal_runtime_generations ADD COLUMN gateway_contract_digest "
+        "VARCHAR(64) NOT NULL"
     )
     connection.exec_driver_sql(
-        "ALTER TABLE portal_runtime_generations ADD COLUMN market_data_egress_policy_version VARCHAR(255) NOT NULL"
+        "ALTER TABLE portal_runtime_generations ADD COLUMN market_data_egress_policy_version "
+        "VARCHAR(255) NOT NULL"
     )
     connection.exec_driver_sql(
-        "ALTER TABLE portal_runtime_generations ADD COLUMN market_data_egress_policy_digest VARCHAR(64) NOT NULL"
+        "ALTER TABLE portal_runtime_generations ADD COLUMN market_data_egress_policy_digest "
+        "VARCHAR(64) NOT NULL"
     )
     _insert_revision(connection, revision=revision, applied_at=datetime.now(UTC))
 

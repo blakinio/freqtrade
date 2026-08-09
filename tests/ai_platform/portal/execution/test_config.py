@@ -18,6 +18,7 @@ def _artifacts(runtime_config: dict[str, Any]) -> ResolvedRuntimeArtifacts:
         tenant_id="tenant-a",
         bot_id="bot-1",
         generation_id="generation-1",
+        generation_ordinal=1,
         config_revision_id="revision-1",
         config_revision=1,
         config_revision_digest="0" * 64,

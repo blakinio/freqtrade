@@ -58,6 +58,17 @@ Promotion requires evidence appropriate to the stage. At minimum, before dry-run
 
 ## Development workflow
 
+### Temporary single-trunk policy
+
+Until the repository owner explicitly starts the production-branch split, `develop` is the single canonical integration trunk for the whole Quant Platform.
+
+- All task, feature, fix, audit, documentation, migration, runtime, portal, WickHunter, CI, and infrastructure PRs in this repository must target `develop`.
+- Dedicated short-lived task branches remain required for isolated work and review; they are merged into `develop` after their required gates pass.
+- Do not introduce a second long-lived integration stage such as `main`, `production`, `quant-platform`, or another programme-specific trunk.
+- Existing non-canonical long-lived or temporary branches do not become integration authority merely because they exist.
+- A future split of `develop` and production/release branches requires an explicit owner decision plus a repository-governance update before agents may route work differently.
+- This branch policy changes source-code integration only. It does not authorize production deployment, protected-environment changes, live trading, live capital, credentials, model promotion, or bypass of validation/merge gates.
+
 1. Read this file first.
 2. Read `docs/ai_platform/ARCHITECTURE.md` and `docs/ai_platform/ROADMAP.md` for AI-platform work.
 3. For AI Trading Portal/control-plane work, also read `docs/ai_platform/portal/README.md` and the task-relevant documents under `docs/ai_platform/portal/`; use `docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md` as the program boundary.
@@ -65,7 +76,7 @@ Promotion requires evidence appropriate to the stage. At minimum, before dry-run
 5. Work on a dedicated feature branch.
 6. Keep commits focused and reviewable.
 7. Run the narrowest relevant validation first, then broader tests if needed.
-8. Open a PR against `develop` unless the repository state explicitly indicates another base.
+8. Open every repository PR against `develop` while the temporary single-trunk policy is active.
 9. Record important architecture or workflow changes in repository documentation.
 
 ## Runtime and CI target

@@ -17,6 +17,7 @@ branch: repair/1089-portal-api-mode-deployment
 base_branch: develop
 base_head: b6f9e5a5b9ca90f01a216a6390012758c7ff62a7
 validated_product_head: 4a94ba3a0aa109254a8165dd026cf1331920c3b0
+post_archive_remediation_head: c6383d6891b68e605c4facb8d750747271ecf922
 pr: 1393
 claim_id: ftai-1089-20260808T194400Z-gpt56sol
 ownership_released_on_merge: true
@@ -38,6 +39,7 @@ Resolve #1089 by deploying the existing identity-enabled canonical Portal contro
 - `/healthz` is liveness-only and `/readyz` proves database connectivity, migration/schema revision and required product-router composition.
 - Synology deployment uses private digest-pinned PostgreSQL, explicit migrations, bounded legacy SQLite transfer and copy-on-write PostgreSQL upgrades with durable source/candidate recovery identity.
 - Candidate DB authority is journaled before exposure; rollback quiesces the candidate before authority restoration, and partial quiesce failure restores the previous public runtime.
+- If post-promotion web verification fails after the previous web has been renamed to a backup, the copy-on-write guard identifies and restores that exact new backup before propagating the failure, leaving it stopped until the outer authority rollback safely restores runtime state.
 - The public API remains unprivileged: no Docker socket, exchange execution credentials, Vault execution material, withdrawals or live-capital authority are introduced.
 - The production control-plane image includes pinned Strategy Lab numerical dependencies and exact-image validation executes a real research-only experiment.
 - Real Chromium API-mode validation uses HTTPS, persisted Portal identity/session + CSRF, backend-derived data and browser-originated dry-run mutation without request interception or fixture fallback.
@@ -52,18 +54,19 @@ The repair was repeatedly challenged after implementation. Material findings rep
 1. missing Strategy Lab production numerical dependencies and exact-image route coverage;
 2. incomplete PostgreSQL recovery identity and crash-safe authority journaling/rollback sequencing;
 3. partial quiesce recovery that could otherwise leave the public web container stopped;
-4. Strategy Lab and dashboard CSRF forwarding through the authenticated composition;
-5. incomplete/disabled-principal Market Evidence fail-closed behavior;
-6. immutable-package semantic verification, nested traversal permissions and selected-run pinning;
-7. v2 Market Evidence base-v1 visibility and active-v1 pointer preservation;
-8. truthful authority-journal evidence;
-9. numeric Market Evidence run ordering for multi-digit revisions.
+4. post-promotion verification recovery that could otherwise lose the previous web backup and leave the public Portal down;
+5. Strategy Lab and dashboard CSRF forwarding through the authenticated composition;
+6. incomplete/disabled-principal Market Evidence fail-closed behavior;
+7. immutable-package semantic verification, nested traversal permissions and selected-run pinning;
+8. v2 Market Evidence base-v1 visibility and active-v1 pointer preservation;
+9. truthful authority-journal evidence;
+10. numeric Market Evidence run ordering for multi-digit revisions.
 
-All inline review threads are resolved on the validated product head. The canonical Portal Completeness Audit and Universal Portal E2E are green as part of the Risk-aware component CI. No duplicate open implementation PR for #1089 exists and the branch was `behind_by: 0` before archival.
+All material inline review findings have an implementation and focused regression on the repair branch. The final post-archive remediation is `c6383d6891b68e605c4facb8d750747271ecf922` (`fix(portal): restore web backup after verification failure`). Terminal merge requires all review threads resolved and required CI green on the exact archive branch head containing this remediation.
 
-## Exact-head validation
+## Pre-archive exact-head validation
 
-Validated product head: `4a94ba3a0aa109254a8165dd026cf1331920c3b0`.
+Validated product head before task archival: `4a94ba3a0aa109254a8165dd026cf1331920c3b0`.
 
 ```yaml
 freqtrade_ci:
@@ -95,31 +98,31 @@ zizmor:
   result: PASS
 ```
 
-The real API-mode browser gate proves authenticated backend read, browser-originated dry-run mutation and persistence. Exact-image supply-chain validation proves production image build/smoke plus SBOM/provenance evidence. No protected Synology target was deployed by this task.
+The post-archive remediation is intentionally not inferred from those earlier runs. Its correctness is accepted only if required CI becomes terminal green on the final branch head that contains both the remediation and this archived record.
 
 ## Terminal checkpoint
 
 ```yaml
-checkpoint_version: 2
-updated_at: 2026-08-09T11:37:00+02:00
+checkpoint_version: 3
+updated_at: 2026-08-09T11:55:00+02:00
 validated_product_head: 4a94ba3a0aa109254a8165dd026cf1331920c3b0
+post_archive_remediation_head: c6383d6891b68e605c4facb8d750747271ecf922
 branch: repair/1089-portal-api-mode-deployment
 pr: 1393
 status: completed
 proven:
   - full authenticated canonical Portal control plane is deployable in strict API mode
   - production database authority is PostgreSQL-only with explicit migration and durable recovery
-  - exact-image and real Chromium API-mode acceptance pass
+  - pre-archive exact-image and real Chromium API-mode acceptance pass
   - Market Evidence deployment boundary is integrity-verified, tenant-gated, read-only and deterministically pinned
-  - all material review findings are remediated and review threads are resolved
-  - branch is synchronized with develop and #1393 is the sole open #1089 implementation PR
+  - post-promotion verification backup recovery has focused regression coverage on the branch
 derived:
-  - repository implementation for #1089 is complete
+  - repository implementation for #1089 is complete subject to final exact archive-head CI
 unknown:
   - protected Synology target acceptance, intentionally not claimed
 conflicts: []
 blockers: []
-next_action: Validate required CI on this exact archive head, squash-merge PR #1393, verify Issue #1089 closes, and confirm the archived task exists on develop.
+next_action: Require terminal green CI on the exact archive branch head containing c6383d6891b68e605c4facb8d750747271ecf922, zero unresolved review threads, develop synchronization and no duplicate #1089 PR; then squash-merge #1393, verify #1089 closure and confirm this archived record on develop.
 ```
 
 ## Safety / external acceptance

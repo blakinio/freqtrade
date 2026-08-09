@@ -445,6 +445,7 @@ def _bot(tenant_id: str = TENANT) -> BotInstance:
         ),
         desired_state=BotDesiredState.CREATED,
         observed_state=BotObservedState.CREATED,
+        desired_runtime_generation_id="generation-private-read",
     )
 
 

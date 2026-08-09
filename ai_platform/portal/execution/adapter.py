@@ -118,6 +118,7 @@ class FreqtradeExecutionAdapter:
             tenant_id=bot.tenant_id,
             bot_id=bot.bot_id,
             generation_id=generation_id,
+            generation_ordinal=artifacts.generation_ordinal,
             generation_spec_digest=artifacts.generation_spec_digest,
             config_revision_id=artifacts.config_revision_id,
             config_revision=artifacts.config_revision,
@@ -158,7 +159,10 @@ class FreqtradeExecutionAdapter:
             self._write_failure(record, context, exc.reason_code)
             return self._status(bot.tenant_id, bot.bot_id, runtime_id, BotObservedState.ERROR)
 
-        self._workspace_store.set_current_record(record)
+        try:
+            self._workspace_store.set_current_record(record)
+        except ValueError as exc:
+            raise RuntimeRevisionConflictError(str(exc)) from exc
         self._write_success(record, context)
         return self._status(bot.tenant_id, bot.bot_id, runtime_id, self._observed_state(state))
 
@@ -564,7 +568,8 @@ class FreqtradeExecutionAdapter:
         config_sha256: str,
     ) -> None:
         if (
-            record.generation_spec_digest != artifacts.generation_spec_digest
+            record.generation_ordinal != artifacts.generation_ordinal
+            or record.generation_spec_digest != artifacts.generation_spec_digest
             or record.config_revision_id != artifacts.config_revision_id
             or record.config_revision != artifacts.config_revision
             or record.config_revision_digest != artifacts.config_revision_digest

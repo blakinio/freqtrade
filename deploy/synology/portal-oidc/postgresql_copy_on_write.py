@@ -15,6 +15,7 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
     original_restore_previous_portal = deploy._restore_previous_portal
     original_drop_candidate_database = deploy._drop_candidate_database
     original_write_report = deploy._write_report
+    original_deploy_web = deploy._deploy_web
 
     state: dict[str, Any] = {
         "implementation_sha": None,
@@ -22,6 +23,7 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
         "candidate_database": None,
         "backup_sha256": None,
         "previous_runtime": {},
+        "previous_portal": {},
         "authority_switched": False,
         "authority_was_journaled": False,
         "authority_restore_failed": False,
@@ -37,6 +39,7 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
                 "candidate_database": None,
                 "backup_sha256": None,
                 "previous_runtime": {},
+                "previous_portal": {},
                 "authority_switched": False,
                 "authority_was_journaled": False,
                 "authority_restore_failed": False,
@@ -97,6 +100,7 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
                     "Portal quiesce failed and the previous runtime could not be restored"
                 ) from restore_exc
             raise
+        state["previous_portal"] = dict(previous)
 
         source_database = state["source_database"]
         candidate_database = state["candidate_database"]
@@ -153,6 +157,49 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
             original_restore_previous_portal(previous, None, None)
             raise
         return previous
+
+    def web_backup_names() -> set[str]:
+        result = deploy._run(["docker", "ps", "-a", "--format", "{{.Names}}"])
+        prefix = f"{deploy.PORTAL_CONTAINER}-backup-"
+        return {
+            line.strip()
+            for line in result.stdout.splitlines()
+            if line.strip().startswith(prefix)
+        }
+
+    def restore_new_web_backup(backup: str) -> None:
+        previous = state["previous_portal"]
+        if not isinstance(previous, dict) or not previous.get("web_exists"):
+            raise deploy.DeploymentError(
+                "Portal web backup appeared without a previous web runtime snapshot"
+            )
+        deploy._remove_container(deploy.PORTAL_CONTAINER)
+        if not deploy._container_exists(backup):
+            raise deploy.DeploymentError("Portal web backup disappeared before rollback")
+        deploy._run(["docker", "rename", backup, deploy.PORTAL_CONTAINER])
+        # Keep the restored web stopped. The outer rollback restores database/control-plane
+        # authority first and then starts it iff the pre-deployment runtime was running.
+
+    def deploy_web(image: str, suffix: str) -> tuple[str | None, str]:
+        backups_before = web_backup_names()
+        try:
+            return original_deploy_web(image, suffix)
+        except Exception:
+            backups_after = web_backup_names()
+            new_backups = backups_after - backups_before
+            if len(new_backups) > 1:
+                raise deploy.DeploymentError(
+                    "Portal web promotion failed with ambiguous new backup inventory"
+                )
+            if len(new_backups) == 1:
+                backup = next(iter(new_backups))
+                try:
+                    restore_new_web_backup(backup)
+                except Exception as restore_exc:
+                    raise deploy.DeploymentError(
+                        "Portal web post-promotion verification failed and backup restoration failed"
+                    ) from restore_exc
+            raise
 
     def activate_candidate_runtime() -> None:
         if state["authority_switched"]:
@@ -240,7 +287,9 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
                         "source_database": source_database,
                         "candidate_database": candidate_database,
                         "source_database_retained_for_rollback": True,
-                        "authority_journaled_before_promotion": state["authority_was_journaled"],
+                        "authority_journaled_before_promotion": state[
+                            "authority_was_journaled"
+                        ],
                         "candidate_quiesced_before_authority_restore": state[
                             "candidate_quiesced_before_authority_restore"
                         ],
@@ -255,6 +304,7 @@ def install(deploy: Any) -> None:  # noqa: C901 - deployment shim centralizes on
     deploy._current_database_mode = current_database_mode
     deploy._create_postgres_database = create_postgres_database
     deploy._quiesce_existing_portal = quiesce_existing_portal
+    deploy._deploy_web = deploy_web
     deploy._activate_candidate_runtime = activate_candidate_runtime
     deploy._promote_control = promote_control
     deploy._restore_previous_portal = restore_previous_portal

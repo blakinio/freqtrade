@@ -222,6 +222,24 @@ def _plan(
     report = DockerHostCapabilityProbe(external_attestor=attestor).probe(
         now=datetime.now(UTC)
     )
+    required = {
+        "readonly_root": report.supports_readonly_root,
+        "tmpfs": report.supports_tmpfs,
+        "no_new_privileges": report.supports_no_new_privileges,
+        "capability_drop": report.supports_capability_drop,
+        "seccomp": report.supports_required_seccomp,
+        "memory": report.supports_memory_hard_limit,
+        "swap": report.supports_swap_bound_or_disable,
+        "pids": report.supports_pid_hard_limit,
+        "cpu_cfs": report.supports_cpu_cfs,
+    }
+    missing = sorted(name for name, supported in required.items() if not supported)
+    assert report.cgroup_mode == "v2", f"unexpected cgroup mode: {report.cgroup_mode}"
+    assert not missing, (
+        "real Docker host lacks required isolation capabilities: "
+        + ", ".join(missing)
+        + f"; controllers={report.cgroup_controllers!r}"
+    )
     return RuntimeIsolationResolver().resolve(
         profile=profile,
         expected_profile_digest=profile.digest(),

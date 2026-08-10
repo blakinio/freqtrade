@@ -1,5 +1,6 @@
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 
 
@@ -34,12 +35,25 @@ CURRENT_AUTHORITY_MARKER = (
     "<!-- portal-current-status-authority: tools/portal_audit/ledger/index.json -->"
 )
 ALLOWED_CURRENT_AUTHORITY_CLAIM_PATHS = {
+    "docs/ai_platform/portal/DELIVERY_ROADMAP.md",
+    "docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.md",
     "docs/ai_platform/portal/IMPLEMENTATION_STATUS_AUTHORITY.md",
+    "docs/ai_platform/portal/README.md",
     "docs/ai_platform/portal/UI_DELIVERY_STATUS.md",
+}
+RECONCILED_LEGACY_CLAIM_PATHS = {
+    "docs/ai_platform/portal/DELIVERY_ROADMAP.md",
+    "docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.md",
+    "docs/ai_platform/portal/README.md",
 }
 CURRENT_AUTHORITY_CLAIM_PHRASES = (
     "current implementation authority",
+    "current implementation completeness is defined by",
+    "current implementation-completeness authority",
     "current status authority",
+    "current status is defined only by",
+    "completeness is defined only by",
+    "only active completeness-status authority",
     "sole current exact-head implementation inventory",
 )
 EXPECTED_AUTHORITY_GRANTS = {
@@ -71,6 +85,17 @@ def _text_files(root: Path) -> list[Path]:
         for path in root.rglob("*")
         if path.is_file() and path.suffix.lower() in {".json", ".md", ".txt", ".yaml", ".yml"}
     )
+
+
+def _tracked_json_files() -> list[Path]:
+    result = subprocess.run(
+        ["git", "ls-files", "*.json"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return [REPO_ROOT / line for line in result.stdout.splitlines() if line]
 
 
 def test_portal_status_authority_has_one_current_implementation_source() -> None:
@@ -107,7 +132,6 @@ def test_portal_status_authority_has_one_current_implementation_source() -> None
 
 def test_competing_current_authority_claims_are_discovered_fail_closed() -> None:
     marker_hits: list[tuple[str, str]] = []
-    status_authority_true_paths: list[str] = []
 
     for path in _text_files(REPO_ROOT / "docs"):
         relative = path.relative_to(REPO_ROOT).as_posix()
@@ -115,17 +139,20 @@ def test_competing_current_authority_claims_are_discovered_fail_closed() -> None
         for line in text.splitlines():
             if CURRENT_AUTHORITY_MARKER_PREFIX in line:
                 marker_hits.append((relative, line.strip()))
-        if path.suffix.lower() == ".json":
-            try:
-                payload = json.loads(text)
-            except json.JSONDecodeError:
-                continue
-            if isinstance(payload, dict) and payload.get("status_authority") is True:
-                status_authority_true_paths.append(relative)
 
     assert marker_hits == [
         ("docs/ai_platform/portal/UI_DELIVERY_STATUS.md", CURRENT_AUTHORITY_MARKER)
     ]
+
+    status_authority_true_paths: list[str] = []
+    for path in _tracked_json_files():
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict) and payload.get("status_authority") is True:
+            status_authority_true_paths.append(path.relative_to(REPO_ROOT).as_posix())
+
     assert status_authority_true_paths == [LEGACY_SNAPSHOT_PATH]
 
     claim_paths: set[str] = set()
@@ -137,6 +164,11 @@ def test_competing_current_authority_claims_are_discovered_fail_closed() -> None
 
     assert claim_paths
     assert claim_paths <= ALLOWED_CURRENT_AUTHORITY_CLAIM_PATHS
+    assert RECONCILED_LEGACY_CLAIM_PATHS <= claim_paths
+    for relative in RECONCILED_LEGACY_CLAIM_PATHS:
+        text = (REPO_ROOT / relative).read_text(encoding="utf-8")
+        assert LIVING_AUTHORITY_PATH in text
+        assert "compatibility metadata" in text
 
 
 def test_all_legacy_status_surfaces_are_classified_and_non_authoritative() -> None:

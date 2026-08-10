@@ -78,7 +78,7 @@ independent_review_findings:
 ## Proven state
 
 - #1356 remains the only Issue being repaired by PR #1447; do not create a duplicate delivery PR.
-- The guard enforces unique exact integer Issue IDs, unique finding IDs, resolved/open disjointness, domain index consistency, latest accepted ADR binding and historical review provenance separation.
+- The guard enforces unique exact integer Issue IDs, unique finding IDs, resolved/open separation, domain index consistency, latest accepted ADR binding and historical review provenance separation.
 - The successor isolation task owns the independent pinned terminal identity inventory and final parser-valid recovery repair.
 - Runtime/browser/deployment/trading E2E is `NOT_APPLICABLE` for this CI/governance package.
 - PAPER remains the only authorized operational mode; LIVE remains unreachable/fail-closed.

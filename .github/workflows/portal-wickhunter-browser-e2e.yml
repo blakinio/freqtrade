@@ -1,0 +1,377 @@
+name: Portal WickHunter Browser E2E
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/portal-wickhunter-browser-e2e.yml"
+      - "ai_platform/portal/**"
+      - "deploy/synology/portal/**"
+      - "deploy/synology/portal-oidc/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "portal-wickhunter-browser-e2e-${{ github.event.pull_request.number }}"
+  cancel-in-progress: true
+
+jobs:
+  wickhunter-browser:
+    name: Real Chromium WickHunter API-mode card
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: docker.io/library/postgres:16.13-alpine3.23@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+        env:
+          POSTGRES_DB: portal_wickhunter_browser
+          POSTGRES_USER: portal_wickhunter_browser
+          POSTGRES_PASSWORD: ci-only-wickhunter-browser-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U portal_wickhunter_browser -d portal_wickhunter_browser"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      PORTAL_DATABASE_URL: postgresql+psycopg://portal_wickhunter_browser:ci-only-wickhunter-browser-password@127.0.0.1:5432/portal_wickhunter_browser
+      PORTAL_ENVIRONMENT: production
+      PORTAL_IDENTITY_CLIENT_ID: synthetic-client
+      PORTAL_IDENTITY_CLIENT_SECRET: synthetic-client-secret
+      PORTAL_IDENTITY_FLOW_ENCRYPTION_KEY_B64: MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA
+      PORTAL_IDENTITY_ISSUER: https://issuer.example/application/o/portal/
+      PORTAL_IDENTITY_REDIRECT_URI: https://portal.example/api/identity/callback
+      PORTAL_IDENTITY_SESSION_HMAC_KEY_B64: MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE
+      PORTAL_IDENTITY_TRANSPORT_MODE: secure_https
+
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Build exact Portal images
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          docker build \
+            --pull=false \
+            --label "org.opencontainers.image.revision=${SOURCE_SHA}" \
+            --file deploy/synology/portal-oidc/Dockerfile.control-plane \
+            --tag "portal-wickhunter-control:${SOURCE_SHA}" \
+            .
+          docker build \
+            --pull=false \
+            --label "org.opencontainers.image.revision=${SOURCE_SHA}" \
+            --file deploy/synology/portal/Dockerfile \
+            --tag "portal-wickhunter-web:${SOURCE_SHA}" \
+            ai_platform/portal/web
+
+      - name: Migrate and seed tenant-local authenticated session
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            --env PORTAL_DATABASE_URL \
+            --entrypoint python \
+            "portal-wickhunter-control:${SOURCE_SHA}" \
+            -m ai_platform.portal.database.cli migrate
+          docker run --rm -i --network host \
+            --env PORTAL_DATABASE_URL \
+            --env PORTAL_IDENTITY_FLOW_ENCRYPTION_KEY_B64 \
+            --env PORTAL_IDENTITY_SESSION_HMAC_KEY_B64 \
+            --entrypoint python \
+            "portal-wickhunter-control:${SOURCE_SHA}" - <<'PY'
+          from datetime import UTC, datetime, timedelta
+          import os
+
+          from ai_platform.portal.contracts.identity import RoleName
+          from ai_platform.portal.control_plane.database import build_engine, build_session_factory
+          from ai_platform.portal.identity.crypto import IdentityCrypto, IdentitySecrets
+          from ai_platform.portal.identity.repository import IdentityRepository
+
+          token = "wickhunter-browser-session-" + "s" * 40
+          csrf = "wickhunter-browser-csrf-" + "c" * 40
+          crypto = IdentityCrypto(
+              IdentitySecrets(session_hmac_key=b"1" * 32, flow_encryption_key=b"0" * 32)
+          )
+          session_factory = build_session_factory(build_engine(os.environ["PORTAL_DATABASE_URL"]))
+          now = datetime.now(UTC)
+          with session_factory() as session:
+              repository = IdentityRepository(session)
+              principal = repository.create_principal(
+                  principal_id="wickhunter-browser-principal",
+                  issuer="https://issuer.example/application/o/portal/",
+                  subject="wickhunter-browser-subject",
+                  display_name="WickHunter Browser Operator",
+                  email=None,
+                  now=now,
+              )
+              membership = repository.create_membership(
+                  membership_id="wickhunter-browser-membership",
+                  principal_id=principal.principal_id,
+                  tenant_id="tenant-local",
+                  roles=(RoleName.TRADER,),
+                  valid_from=now,
+                  valid_until=None,
+                  now=now,
+              )
+              repository.create_session(
+                  session_id_hash=crypto.hash_token(token),
+                  csrf_token_hash=crypto.hash_token(csrf),
+                  principal_id=principal.principal_id,
+                  membership_id=membership.membership_id,
+                  membership_version=membership.membership_version,
+                  idp_session_id="wickhunter-browser-idp-session",
+                  authentication_time=now,
+                  mfa_satisfied=True,
+                  created_at=now,
+                  idle_expires_at=now + timedelta(minutes=30),
+                  absolute_expires_at=now + timedelta(hours=4),
+              )
+              session.commit()
+          PY
+
+      - name: Start deterministic read-only WH09 evidence source
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          docker run --rm --entrypoint python "portal-wickhunter-control:${SOURCE_SHA}" - <<'PY' > artifacts/wh09-evidence.json
+          from datetime import UTC, datetime
+          from decimal import Decimal
+          from ai_platform.portal.control_plane.wh09_runtime import (
+              WH09_EXPECTED_MANIFEST_SHA256,
+              WH09_EXPECTED_MODEL_ARTIFACT_SHA256,
+              WH09_EXPECTED_MODEL_HASH,
+              WH09_EXPECTED_PACKAGE_ID,
+              WH09_EXPECTED_PARAMETER_HASH,
+              Wh09RuntimeEvidence,
+          )
+          from ai_platform.wickhunter.contracts import BotMode
+
+          evidence = Wh09RuntimeEvidence(
+              run_id="1" * 64,
+              mode=BotMode.SHADOW,
+              health="HEALTHY",
+              source_checked_at=datetime.now(UTC),
+              source_runtime_generation=7,
+              package_id=WH09_EXPECTED_PACKAGE_ID,
+              package_manifest_sha256=WH09_EXPECTED_MANIFEST_SHA256,
+              model_version="wh09-h900-v1",
+              model_hash=WH09_EXPECTED_MODEL_HASH,
+              model_artifact_sha256=WH09_EXPECTED_MODEL_ARTIFACT_SHA256,
+              parameter_version="wh09-parameters-v1",
+              parameter_hash=WH09_EXPECTED_PARAMETER_HASH,
+              dataset_hash="2" * 64,
+              operator_commit="3" * 40,
+              no_trade_confidence=Decimal("0.60"),
+              outcome_horizon_ms=900000,
+              decision_count=11,
+              no_trade_count=11,
+              latest_decision=None,
+              health_sha256="6" * 64,
+              telemetry_sha256="7" * 64,
+              identity_sha256="8" * 64,
+          )
+          print(evidence.model_dump_json())
+          PY
+          cat > "$RUNNER_TEMP/wh09-observer.py" <<'PY'
+          import json
+          from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+          import pathlib
+          import sys
+
+          payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          body = json.dumps(payload, separators=(",", ":")).encode()
+
+          class Handler(BaseHTTPRequestHandler):
+              def do_GET(self):
+                  if self.path != "/evidence":
+                      self.send_response(404)
+                      self.end_headers()
+                      return
+                  self.send_response(200)
+                  self.send_header("content-type", "application/json")
+                  self.send_header("content-length", str(len(body)))
+                  self.end_headers()
+                  self.wfile.write(body)
+              def log_message(self, *_args):
+                  return
+
+          ThreadingHTTPServer(("127.0.0.1", 8080), Handler).serve_forever()
+          PY
+          python3 "$RUNNER_TEMP/wh09-observer.py" artifacts/wh09-evidence.json &
+          echo "WH09_OBSERVER_PID=$!" >> "$GITHUB_ENV"
+          for _ in $(seq 1 30); do
+            curl --fail --silent http://127.0.0.1:8080/evidence >/dev/null && break
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:8080/evidence >/dev/null
+
+      - name: Boot exact control-plane and adopt one synthetic external WH09 identity
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          control="portal-wickhunter-browser-control-${GITHUB_RUN_ID}"
+          echo "CONTROL_CONTAINER=$control" >> "$GITHUB_ENV"
+          docker run --detach --name "$control" --network host \
+            --add-host portal-wh09-runtime-observer:127.0.0.1 \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --env PORTAL_DATABASE_URL \
+            --env PORTAL_ENVIRONMENT \
+            --env PORTAL_IDENTITY_CLIENT_ID \
+            --env PORTAL_IDENTITY_CLIENT_SECRET \
+            --env PORTAL_IDENTITY_FLOW_ENCRYPTION_KEY_B64 \
+            --env PORTAL_IDENTITY_ISSUER \
+            --env PORTAL_IDENTITY_REDIRECT_URI \
+            --env PORTAL_IDENTITY_SESSION_HMAC_KEY_B64 \
+            --env PORTAL_IDENTITY_TRANSPORT_MODE \
+            "portal-wickhunter-control:${SOURCE_SHA}"
+          for _ in $(seq 1 60); do
+            curl --fail --silent http://127.0.0.1:8000/readyz >/dev/null && break
+            sleep 2
+          done
+          curl --fail --silent http://127.0.0.1:8000/readyz >/dev/null
+
+          cat > "$RUNNER_TEMP/wh09-descriptor.json" <<'JSON'
+          {
+            "tenant_id": "tenant-local",
+            "runtime_instance_id": "4444444444444444444444444444444444444444444444444444444444444444",
+            "runtime_image_digest": "5555555555555555555555555555555555555555555555555555555555555555",
+            "image_revision": "3333333333333333333333333333333333333333",
+            "compose_project": "wickhunter-production-research-runtime",
+            "compose_service": "wickhunter-production-research-runtime",
+            "runtime_user": "65531:65531",
+            "matching_container_count": 1,
+            "running": true,
+            "docker_health": "healthy",
+            "read_only_rootfs": true,
+            "privileged": false,
+            "cap_drop_all": true,
+            "no_new_privileges": true
+          }
+          JSON
+          docker exec -i "$control" python -m ai_platform.portal.control_plane.wh09_bootstrap \
+            < "$RUNNER_TEMP/wh09-descriptor.json" > artifacts/wh09-bootstrap.json
+          python3 - <<'PY'
+          import json
+          payload = json.load(open("artifacts/wh09-bootstrap.json", encoding="utf-8"))
+          assert payload["bot_id"] == "wickhunter"
+          assert payload["managed_mode"] == "shadow"
+          assert payload["health"] == "HEALTHY"
+          assert payload["desired_runtime_generation_id"] == payload["observed_runtime_generation_id"]
+          assert payload["execution_enabled"] is False
+          assert payload["orders_submitted"] == 0
+          PY
+
+      - name: Boot exact production API-mode web
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          web="portal-wickhunter-browser-web-${GITHUB_RUN_ID}"
+          echo "WEB_CONTAINER=$web" >> "$GITHUB_ENV"
+          docker run --detach --name "$web" --network host \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=32m \
+            --tmpfs /app/.next/cache:rw,noexec,nosuid,nodev,size=64m,uid=1000,gid=1000 \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --env PORTAL_WEB_DATA_MODE=api \
+            --env PORTAL_ENVIRONMENT=production \
+            --env PORTAL_IDENTITY_FIXTURE_MODE=disabled \
+            --env PORTAL_IDENTITY_TRANSPORT_MODE=https \
+            --env PORTAL_IDENTITY_ISSUER=https://issuer.example/application/o/portal/ \
+            --env PORTAL_CONTROL_PLANE_URL=http://127.0.0.1:8000 \
+            --env PORTAL_LIQUIDATIONS_DATA_ROOT=/tmp/no-liquidations \
+            "portal-wickhunter-web:${SOURCE_SHA}"
+          for _ in $(seq 1 60); do
+            status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$web")"
+            [[ "$status" == "healthy" ]] && break
+            [[ "$status" =~ ^(unhealthy|exited|dead)$ ]] && { docker logs "$web"; exit 1; }
+            sleep 2
+          done
+          [[ "$(docker inspect --format '{{.State.Health.Status}}' "$web")" == "healthy" ]]
+
+      - name: Run real Chromium against WickHunter card and persistence
+        working-directory: ai_platform/portal/web
+        run: |
+          set -euo pipefail
+          npm ci
+          npx playwright install --with-deps chromium
+          cat > "$RUNNER_TEMP/wickhunter-browser.mjs" <<'JS'
+          import { chromium } from "@playwright/test";
+
+          const origin = "http://127.0.0.1:3000";
+          const browser = await chromium.launch({ headless: true });
+          const context = await browser.newContext();
+          await context.addCookies([
+            {
+              name: "__Host-portal_session",
+              value: "wickhunter-browser-session-" + "s".repeat(40),
+              url: origin,
+              secure: false,
+              httpOnly: true,
+              sameSite: "Lax",
+            },
+            {
+              name: "__Host-portal_csrf",
+              value: "wickhunter-browser-csrf-" + "c".repeat(40),
+              url: origin,
+              secure: false,
+              httpOnly: false,
+              sameSite: "Lax",
+            },
+          ]);
+          const page = await context.newPage();
+          await page.goto(`${origin}/bots`, { waitUntil: "networkidle" });
+          const body = page.locator("body");
+          await page.getByText("WickHunter", { exact: true }).waitFor();
+          await page.getByText("wickhunter", { exact: true }).waitFor();
+          await page.getByText("SHADOW · H900", { exact: true }).waitFor();
+          await page.getByText("no_trade_confidence=0.60", { exact: true }).waitFor();
+          await page.getByText("PAPER: inactive · LIVE: BLOCKED", { exact: true }).waitFor();
+          await page.getByText("Credentials: absent", { exact: true }).waitFor();
+          await page.getByText("Order adapter: absent", { exact: true }).waitFor();
+          await page.getByText("Execution: disabled · Orders: 0", { exact: true }).waitFor();
+          await page.getByText("Live capital: false", { exact: true }).waitFor();
+          await page.getByText("Generation: desired = observed", { exact: true }).waitFor();
+          if (!(await body.innerText()).includes("HEALTHY")) throw new Error("HEALTHY not visible");
+
+          await page.reload({ waitUntil: "networkidle" });
+          await page.getByText("WickHunter", { exact: true }).waitFor();
+          await page.getByText("SHADOW · H900", { exact: true }).waitFor();
+          await page.getByText("Generation: desired = observed", { exact: true }).waitFor();
+          await browser.close();
+          JS
+          node "$RUNNER_TEMP/wickhunter-browser.mjs"
+
+      - name: Upload browser acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0 # v7.0.1
+        with:
+          name: portal-wickhunter-browser-e2e-${{ github.run_id }}
+          path: |
+            artifacts/wh09-evidence.json
+            artifacts/wh09-bootstrap.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker rm -f "${WEB_CONTAINER:-missing}" "${CONTROL_CONTAINER:-missing}" >/dev/null 2>&1 || true
+          if [[ -n "${WH09_OBSERVER_PID:-}" ]]; then kill "$WH09_OBSERVER_PID" >/dev/null 2>&1 || true; fi

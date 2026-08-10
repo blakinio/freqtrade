@@ -8,9 +8,9 @@ prompt_contract:
   changed_surfaces:
     - repository instructions: AGENTS.md
   objective: require bounded cleanup of task-owned temporary Docker resources and evidence-backed obsolete legacy resources without pruning shared services or deleting persistent data
-  baseline_version: develop@5a19ae32f1f71b112130ea66cb8d56d9a3e44049
+  baseline_version: develop@21427e6b7f1cbe5e5882a007101ce6fe0c2f5784
   eval_suite: docs/agents/evals/CONTAINER_LIFECYCLE_HYGIENE_V1.md
-  rollback_version: container-lifecycle-hygiene-0
+  rollback_version: develop@21427e6b7f1cbe5e5882a007101ce6fe0c2f5784
 minimum_trials: 3 when an agent runtime is evaluated nondeterministically
 deterministic_document_checks: 1
 safety_critical_maximum_regression: 0

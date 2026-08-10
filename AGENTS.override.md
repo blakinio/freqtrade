@@ -1,7 +1,7 @@
 # Mandatory Agent Bootstrap
 
 ```yaml
-agent_bootstrap_policy_revision: 2.4
+agent_bootstrap_policy_revision: 2.5
 ```
 
 This root bootstrap may be loaded automatically by Codex or another agent runtime. It supplements and never weakens system, developer, owner, repository-allowlist, safety, production, credential, data, payment, authentication, protocol, asset, live-capital, deployment, merge, or cross-repository restrictions.
@@ -53,7 +53,9 @@ Final required exact-head CI, branch-protection completion and the resulting mer
 
 Auto-merge availability is not required. When repository auto-merge is unavailable, the owner invocation may remain active under the same bounded exception and perform a direct squash merge only after every repository-required check passes on the exact unchanged head. Force, bypass and administrative override remain forbidden.
 
-The active task at invocation entry, or the first selected `READY` task when none is active, is the entry task. Required post-merge archive closeout and ownership release remain part of that same entry task. After it becomes fully terminal, at most one additional task may be started in the same invocation, and only when at least 30 minutes remains and no stall warning occurred.
+The active task at invocation entry, or the first selected `READY` task when none is active, is the entry task. Required post-merge archive closeout and ownership release remain part of that same entry task. By default, after it becomes fully terminal, at most one additional task may be started in the same invocation, and only when at least 30 minutes remains and no stall warning occurred.
+
+A trusted `continuous_program_execution` override from an explicit owner instruction or a programme contract already merged on the trusted base may replace only that fixed additional-task count. While such an override is active, the coordinator may rotate through dependency-safe, non-conflicting `READY` tasks within the same foreground runtime/no-progress budget. The override does not reset or enlarge any CI, unchanged-state, retry, repair, review, audit, E2E, merge, ownership, production, credential, protected-environment or live-capital boundary; writer concurrency remains one by default; and dependency, path and ownership preflight is mandatory before every task switch. An unmerged governance edit cannot grant itself this authority.
 
 Budget exhaustion, ordinary no-progress, retry-limit exhaustion, unchanged pending ordinary state, exhausted terminal-CI limits, or an unsafe context/tool limit is a real stop condition. Persist exact durable state and return the correct invocation result.
 
@@ -61,7 +63,7 @@ Budget exhaustion, ordinary no-progress, retry-limit exhaustion, unchanged pendi
 
 Before the first deliberate sleep, delayed recheck, terminal-CI wait, runner job, or long-running command, persist the recovery checkpoint required by `SESSION_RECOVERY_AND_ORPHANED_EXECUTION.md`.
 
-A replacement or continuation session must read that checkpoint first, verify live ownership and state, then immediately execute the recorded safe `next_action`. It must preserve the original wait start, deadline, check generation, run IDs, and counters instead of restarting the task or resetting budgets.
+A replacement or continuation session must read that checkpoint first, verify live ownership and state, then immediately execute the recorded safe `next_action`. It must preserve the original wait start, deadline, check generation, run IDs, and counters instead of restarting the task or resetting budgets. Ordinary CI/review observation counters remain keyed to the task and exact commit SHA across later owner invocations and same-SHA reruns or check generations; a new invocation does not create a fresh ordinary polling budget, and only a genuinely new exact commit SHA resets the ordinary per-head counter.
 
 For Chat replacement specifically, preserve only the compact durable working set needed by `CHAT_FIRST_EXECUTION.md`; do not replay the previous conversation, resolved hypotheses, obsolete heads, or large evidence when durable references are sufficient.
 

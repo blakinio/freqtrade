@@ -15,6 +15,7 @@ review:
   review_pr: 1255
   review_report: docs/ai_platform/reviews/2026-08-05-architecture-ci-review.md
   status: completed
+  lifecycle_reconciled_at: "2026-08-10"
   resolved_findings:
     - issue: 1251
       id: FTAI-ARCH-001
@@ -22,21 +23,30 @@ review:
     - issue: 1252
       id: FTAI-CI-001
       status: completed
+    - issue: 1353
+      id: FTAI-ARCH-RUNTIME-TRUSTED-STATE
+      status: completed
+      evidence_pr: 1425
+    - issue: 1357
+      id: FTAI-ARCH-BOT-REVISION-STATE
+      status: completed
+      evidence_pr: 1388
 
 latest_architecture_change:
   accepted_at: "2026-08-10"
-  base_sha: 978621fb358885dbf3c85d1bf837af9270678241
-  issue: 1438
-  task: FTAI-20260810-release-environment-mode-architecture-1438
-  decision: ADR-021
-  detail_document: docs/ai_platform/portal/RELEASE_ENVIRONMENT_AND_BOT_MODE_ARCHITECTURE.md
-  status: accepted_target_pending_migration
+  base_sha: 2a9bee4895981f0a2b7f7f08e0e1d2d2e2ad646a
+  task: FTAI-20260810-paper-first-platform-architecture
+  decision: ADR-022
+  detail_document: docs/ai_platform/portal/PAPER_FIRST_PLATFORM_ARCHITECTURE.md
+  status: accepted_target_pending_implementation
   affected_domains:
+    - research_and_strategy
     - portal_and_ux
     - execution_and_risk
+    - data_and_observability
     - deployment_and_operations
     - ci_and_quality
-  implementation_note: Owner acceptance defines the branch/release/environment target architecture. Exact repository metadata, rules, workflows and deployed-target evidence remain required before main or any production environment is claimed operational.
+  implementation_note: Owner acceptance makes PAPER the default and only currently authorized operational mode, makes SHADOW optional/purpose-bound and makes LIVE unreachable. Exact code, tests, CI, runtime and protected-target evidence remain required for implementation claims. The delivery task must verify whether `develop` advanced after the recorded architecture base before opening or merging its PR.
 
 classification_values:
   - canonical_registry
@@ -73,6 +83,8 @@ authority:
     - ADR-020 and its Runtime Isolation / Runtime Supervisor refinement supersede older target-state wording that conflicts with RuntimeGeneration, resolved isolation-plan identity, Runtime Supervisor, per-runtime Gateway, dry-run public-data connectivity, effective isolation attestation or generation-bound reconciliation/fencing.
     - ADR-021 separates source integration/release branches, deployment environments, release channels and bot operating modes; no branch/environment/release promotion supplies LIVE authority or deployment authorization.
     - ADR-021 supersedes the temporary 2026-08-09 single-develop branch target, while exact repository evidence remains authoritative for whether the physical main migration is complete.
+    - ADR-022 makes PAPER the default and only currently authorized operational mode, makes SHADOW optional and purpose-bound, and requires LIVE to remain unreachable/fail-closed until a separate explicit owner-approved architecture and implementation programme.
+    - ADR-022 supersedes legacy lifecycle wording that requires SHADOW before PAPER or exposes a current path through live-small/production.
 
 system_domains:
   research_and_strategy:
@@ -83,6 +95,7 @@ system_domains:
       - tests/ai_platform/
       - tests/ai_platform_integration/
     implementation_status: mixed
+    paper_mode_overlay: ADR-022
   portal_and_ux:
     code_roots:
       - ai_platform/portal/web/
@@ -93,6 +106,7 @@ system_domains:
     implementation_status: mixed
     accepted_decision_overlay: ADR-020
     release_environment_overlay: ADR-021
+    paper_mode_overlay: ADR-022
   identity_and_security:
     code_roots:
       - ai_platform/portal/identity/
@@ -103,6 +117,7 @@ system_domains:
       - tests/ai_platform/portal/security/
     implementation_status: mixed
     accepted_decision_overlay: ADR-020
+    paper_mode_overlay: ADR-022
   execution_and_risk:
     code_roots:
       - freqtrade/
@@ -114,7 +129,8 @@ system_domains:
     implementation_status: mixed
     accepted_decision_overlay: ADR-020
     release_environment_overlay: ADR-021
-    safety_note: Live-capital authority requires a separate explicit owner-approved lifecycle package.
+    paper_mode_overlay: ADR-022
+    safety_note: PAPER is the only currently authorized operational mode; SHADOW is optional validation-only and LIVE is unreachable until a separate explicit owner-approved programme.
   data_and_observability:
     code_roots:
       - ai_platform/portal/database/
@@ -125,6 +141,7 @@ system_domains:
       - tests/ai_platform/portal/telemetry/
     implementation_status: mixed
     accepted_decision_overlay: ADR-020
+    paper_mode_overlay: ADR-022
   deployment_and_operations:
     code_roots:
       - deploy/
@@ -136,6 +153,7 @@ system_domains:
     implementation_status: mixed
     accepted_decision_overlay: ADR-020
     release_environment_overlay: ADR-021
+    paper_mode_overlay: ADR-022
   ci_and_quality:
     code_roots:
       - .github/workflows/
@@ -145,6 +163,7 @@ system_domains:
       - tests/ci/
     implementation_status: partially_implemented
     release_branch_overlay: ADR-021
+    paper_mode_overlay: ADR-022
     open_findings:
       - issue: 1356
         id: FTAI-ARCH-REGISTRY-LIFECYCLE-GUARD
@@ -168,19 +187,51 @@ documents:
     implementation_status: mixed
     owner_role: architecture-owner
     last_reviewed_at: "2026-08-10"
-    latest_decision: ADR-021
-    latest_refinement: Release / Environment / Bot Mode Architecture
+    latest_decision: ADR-022
+    latest_refinement: PAPER-First Quant Platform Architecture
+
+  - path: docs/ai_platform/portal/PAPER_FIRST_PLATFORM_ARCHITECTURE.md
+    title: PAPER-first Quant Platform architecture
+    classification: domain_architecture
+    scope: PAPER-default operating authority, optional SHADOW validation, unreachable LIVE, eligibility, execution realism, reconciliation and first vertical-slice priorities
+    authority: binding_refinement_of_ADR-022
+    implementation_status: target_only
+    owner_role: architecture-owner
+    last_reviewed_at: "2026-08-10"
+    evidence_rule: Acceptance defines policy and target architecture only; exact code, tests, runtime E2E, CI and target-host evidence are required for implementation claims.
+    safety_note: PAPER is the only currently authorized operational mode; LIVE remains unreachable.
+
+  - path: docs/ai_platform/portal/PAPER_PLATFORM_IMPLEMENTATION_PLAN.md
+    title: PAPER Platform dependency-gated implementation plan
+    classification: governance_program
+    scope: ordered delivery gates from governance/runtime safety through one complete PAPER vertical slice, realism, portfolio risk and operations
+    authority: owner_requested_execution_plan_subject_to_live_state
+    implementation_status: target_only
+    owner_role: programme-owner
+    last_reviewed_at: "2026-08-10"
+    evidence_rule: Each gate requires its own exact task/Issue/PR, acceptance inventory, audit, E2E where applicable and exact-head CI.
+    safety_note: The plan grants no protected-target, credential, LIVE or real-capital authority.
+
+  - path: docs/ai_platform/reviews/2026-08-10-paper-first-platform-review.md
+    title: PAPER-first platform architecture and competitor-pattern review
+    classification: audit_evidence
+    scope: point-in-time whole-platform architecture, implementation-gap and competitor-pattern review
+    authority: evidence_at_recorded_date_only
+    implementation_status: not_applicable
+    owner_role: architecture-owner
+    last_reviewed_at: "2026-08-10"
+    evidence_rule: Current implementation status must be re-resolved from exact live code, ledger, Issues, PRs and CI before work.
 
   - path: docs/ai_platform/portal/RELEASE_ENVIRONMENT_AND_BOT_MODE_ARCHITECTURE.md
     title: Release, environment and bot operating-mode architecture
     classification: domain_architecture
     scope: repository integration/release branches, immutable release promotion, deployment environments and bot operating-mode separation
-    authority: binding_refinement_of_ADR-021
+    authority: binding_refinement_of_ADR-021_with_ADR-022_mode_overlay
     implementation_status: target_only
     owner_role: architecture-owner
     last_reviewed_at: "2026-08-10"
     evidence_rule: Exact branch metadata, rules, CI/release workflows and deployed-target evidence are required before the main migration or production release path is claimed implemented.
-    safety_note: Production environment and stable release status do not authorize LIVE trading or live capital.
+    safety_note: PAPER is the only currently authorized operational mode; production/stable never authorizes LIVE, which remains unreachable under ADR-022.
 
   - path: docs/ai_platform/portal/RUNTIME_ISOLATION_AND_SUPERVISOR_CONTRACT.md
     title: Runtime isolation profile and Runtime Supervisor contract
@@ -202,7 +253,7 @@ documents:
     owner_role: architecture-owner
     last_reviewed_at: "2026-08-08"
     evidence_rule: Each implementation claim requires exact code, test, workflow or deployed-target evidence.
-    supersession_note: Interpret execution/runtime topology through ADR-020 and RUNTIME_ISOLATION_AND_SUPERVISOR_CONTRACT.md; interpret branch/release/environment and bot-mode promotion terminology through ADR-021 where older wording conflicts.
+    supersession_note: Interpret execution/runtime topology through ADR-020 and RUNTIME_ISOLATION_AND_SUPERVISOR_CONTRACT.md; interpret branch/release/environment through ADR-021 and PAPER/SHADOW/LIVE lifecycle authority through ADR-022 where older wording conflicts.
 
   - path: docs/ai_platform/portal/BOT_MANAGEMENT_PRODUCT_ARCHITECTURE.md
     title: Bot management product architecture
@@ -212,7 +263,7 @@ documents:
     implementation_status: mixed
     owner_role: bot-management-domain-owner
     last_reviewed_at: "2026-08-05"
-    supersession_note: Config authoring/desired/observed runtime revision semantics are constrained by ADR-020; deployment environment or release status must not be treated as bot-mode authority under ADR-021.
+    supersession_note: Config authoring/desired/observed runtime revision semantics are constrained by ADR-020; deployment environment or release status must not be treated as bot-mode authority under ADR-021; PAPER is default, SHADOW optional and LIVE unreachable under ADR-022.
 
   - path: docs/ai_platform/portal/AI_ML_AND_LEARNING_ARCHITECTURE.md
     title: AI, ML and learning architecture
@@ -222,6 +273,7 @@ documents:
     implementation_status: mixed
     owner_role: ai-research-domain-owner
     last_reviewed_at: "2026-08-05"
+    supersession_note: Model/strategy lifecycle wording is constrained by ADR-022; SHADOW is optional validation-only, PAPER eligibility is exact-evidence-bound and no current LIVE transition exists.
 
   - path: docs/ai_platform/ARCHITECTURE.md
     title: Original AI trading platform architecture
@@ -276,21 +328,11 @@ open_architecture_findings:
     severity: critical
     status: open
     summary: Isolate container-engine authority behind the Runtime Supervisor boundary required by ADR-020.
-  - issue: 1353
-    id: FTAI-ARCH-RUNTIME-TRUSTED-STATE
-    severity: high
-    status: open
-    summary: Separate Portal-authoritative RuntimeGeneration/config evidence from runtime-writable Freqtrade state.
   - issue: 1354
     id: FTAI-ARCH-RUNTIME-ISOLATION
     severity: high
     status: open
     summary: Enforce the ADR-020 runtime isolation profile, resolved-plan identity, effective resource/network/storage/log bounds and attestation for every generation.
-  - issue: 1357
-    id: FTAI-ARCH-BOT-REVISION-STATE
-    severity: high
-    status: open
-    summary: Separate authored/draft, desired and observed active bot revision/runtime-generation state; executable generation conformance also requires the ADR-020 isolation-plan digest binding.
   - issue: 1356
     id: FTAI-ARCH-REGISTRY-LIFECYCLE-GUARD
     severity: medium

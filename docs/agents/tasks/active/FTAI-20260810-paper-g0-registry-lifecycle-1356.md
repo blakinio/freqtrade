@@ -88,7 +88,7 @@ independent_review_findings:
 - Runtime/browser/deployment/trading E2E remains `NOT_APPLICABLE` for this CI/governance package.
 - PAPER remains the only authorized operational mode; LIVE remains unreachable/fail-closed.
 
-## Terminal checkpoint for this task
+## Context checkpoint
 
 ```yaml
 checkpoint_version: 9

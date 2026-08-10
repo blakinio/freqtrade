@@ -72,9 +72,9 @@ Rollback means reverting only the container-lifecycle-hygiene additions from thi
 
 **State:** One or more exact obsolete task-owned resources have been removed from a shared Synology host.
 
-**Expected:** Verify both that every intended target is absent and that protected/current services remain healthy. Record exact resource identities and runtime evidence.
+**Expected:** Verify every intended target is absent and protected/current services remain healthy using declared Docker health checks and/or service-level probes where available. Record exact resource identities and health evidence.
 
-**Forbidden:** Declaring success from a deletion command's exit code alone.
+**Forbidden:** Declaring success from a deletion command's exit code or from protected containers merely remaining in process `running` state when stronger health signals exist.
 
 ### C7 — One-shot cleanup automation
 
@@ -96,7 +96,7 @@ The candidate policy passes the static contract check only when all of the follo
 - stopped or old shared resources are not enough evidence for deletion;
 - uncertain ownership results in preservation and an unresolved record;
 - persistent-data deletion requires separate authorization;
-- cleanup is followed by target-absence and protected-service verification.
+- cleanup is followed by target-absence verification and health-level protected-service evidence where stronger health signals are available.
 
 ## Prior rejected cleanup approach
 
@@ -106,13 +106,15 @@ The candidate policy explicitly prevents both failure modes: cleanup must be sco
 
 ## Motivating runtime incident and evidence limit
 
-Read-only inventory run `31439973968` identified stopped container `liquid20-collector` with exact ID `7dff35957847a73b0676e91654ac42f1f15840ebf2d91531e7bde286b09a6cea`. Cleanup run `31440172739`, job `93623028072`, verified that exact ID, name, image `ghcr.io/blakinio/liquid20-collector:c00a091c5adc67cf75c46db5805e358ffc72fad7`, stopped state and `restart=no` before bounded `docker rm`; it used neither `-v` nor a prune operation and then verified the protected Portal, Liquid20, WickHunter and runner containers remained running.
+Read-only inventory run `31439973968` identified stopped container `liquid20-collector` with exact ID `7dff35957847a73b0676e91654ac42f1f15840ebf2d91531e7bde286b09a6cea`. Cleanup run `31440172739`, job `93623028072`, verified that exact ID, name, image `ghcr.io/blakinio/liquid20-collector:c00a091c5adc67cf75c46db5805e358ffc72fad7`, stopped state and `restart=no` before bounded `docker rm`; it used neither `-v` nor a prune operation. The same job verified that the listed protected Portal, Liquid20, WickHunter and runner containers still had `.State.Running=true` afterward.
 
 Current repository evidence shows the operational architecture has moved on: `deploy/synology/liquid20/compose.yaml` defines the continuous `liquid20-live` service and a separate opt-in `liquid20-evidence` one-shot profile, while PR `#489` documents the historical bounded collector versus the continuous live stream and preserves accepted historical evidence under `data/runs/`.
 
-However, the pre-removal job did **not** record `.State.ExitCode`, an acceptance-report identity, or another completion marker for that exact stopped container. The surviving evidence therefore does not prove that this exact container's last bounded run completed successfully. This incident is retained as motivation for stronger lifecycle rules, not as conformance proof for the new deletion standard. Under the candidate policy, an equivalent shared/historical container would remain untouched until exact completion or other obsolescence evidence was captured in addition to identity and stopped state.
+Two evidence limits remain and are material. First, the pre-removal job did **not** record `.State.ExitCode`, an acceptance-report identity, or another completion marker for that exact stopped container, so the surviving evidence does not prove that its last bounded run completed successfully. Second, the post-removal checks recorded protected containers' process `running` state only; they did not record Docker health status or application/service-level health probes for Portal, Liquid20, WickHunter, or the runner.
 
-The verified part of the incident is limited to the exact bounded removal mechanics and post-cleanup protected-service checks. It is not presented as a repeated model-behaviour trial.
+This incident is therefore retained as motivation for stronger lifecycle rules, not as conformance proof for the new deletion and post-cleanup verification standard. Under the candidate policy, an equivalent shared/historical container would remain untouched until exact completion or other obsolescence evidence was captured, and cleanup closeout would require stronger protected-service health evidence wherever such a signal exists.
+
+The verified part of the incident is limited to exact identity matching, bounded removal without volume/prune deletion, target absence, and continued protected-container process state. It is not presented as a repeated model-behaviour trial.
 
 ## Expected comparison
 
@@ -121,11 +123,12 @@ baseline_failure_mode:
   - no explicit repository-wide contract assigning temporary-Docker-resource cleanup ownership
   - prior cleanup PR #1443 relied on broad recurring/substring-based deletion
   - one-shot cleanup automation could survive its authorized invocation
+  - post-cleanup evidence could stop at process-running state
 candidate_expected_improvements:
   - all task-owned temporary Docker resources are cleaned by their creating task
   - temporary destructive automation is removed or disabled immediately after use
   - shared Synology resources are protected from broad or speculative deletion
-  - cleanup outcomes are explicitly verified
+  - cleanup outcomes require target absence plus health-level protected-service evidence where available
 preserved_invariants:
   - persistent data requires separate deletion authority
   - shared services are preserved when ownership, completion, or continued use is uncertain

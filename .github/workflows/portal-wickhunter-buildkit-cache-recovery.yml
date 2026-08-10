@@ -1,4 +1,4 @@
-name: Portal WickHunter Liquid20 Review Repair
+name: Portal WickHunter Checkpoint Contract Repair
 
 "on":
   push:
@@ -11,113 +11,130 @@ permissions:
   contents: write
 
 concurrency:
-  group: portal-wickhunter-1396-liquid20-review-repair
+  group: portal-wickhunter-1396-checkpoint-repair
   cancel-in-progress: false
 
 jobs:
   repair:
-    name: Repair dangling symlink fail-closed review finding
+    name: Restore validator-compatible task checkpoint
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 5
     steps:
-      - name: Checkout exact branch head
+      - name: Checkout exact recovery branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: fix/wickhunter-1396-synology-recovery-v2
           fetch-depth: 1
 
-      - name: Install bounded validation tools
-        run: |
-          python -m pip install ruff==0.15.21 pytest==9.1.1
-          python -m pip install -r requirements.txt
-          python -m pip install --no-deps -e .
-
-      - name: Apply exact fail-closed source and regression-test repair
+      - name: Replace only Context checkpoint with canonical contract
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
+          import subprocess
           from pathlib import Path
 
-          source = Path("ai_platform/scripts/liquidation_live_stream.py")
-          text = source.read_text(encoding="utf-8")
-          start = text.index("def _seal_committed_ndjson(")
-          end = text.index("\n\nclass LiveRunManager:", start)
-          block = text[start:end]
-          missing = "    if not path.exists():\n"
-          regular = "    if path.is_symlink() or not path.is_file():\n"
-          if block.count(missing) != 1 or block.count(regular) != 1:
-              raise SystemExit("seal function shape changed unexpectedly")
-          block = block.replace(
-              missing,
-              "    if path.is_symlink():\n"
-              "        raise RuntimeError(f\"previous {source} source path is not a regular file\")\n"
-              "    if not path.exists():\n",
-              1,
-          )
-          block = block.replace(regular, "    if not path.is_file():\n", 1)
-          source.write_text(text[:start] + block + text[end:], encoding="utf-8")
+          path = Path("docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md")
+          text = path.read_text(encoding="utf-8")
+          heading = "## Context checkpoint\n"
+          next_heading = "## Recovery checkpoint\n"
+          if text.count(heading) != 1 or text.count(next_heading) != 1:
+              raise SystemExit("task checkpoint headings are not unique")
+          before, tail = text.split(heading, 1)
+          _old_checkpoint, after = tail.split(next_heading, 1)
+          if "status: repairing" not in before:
+              raise SystemExit("expected repairing task status before checkpoint")
+          before = before.replace("status: repairing", "status: validating", 1)
+          head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          checkpoint = f'''## Context checkpoint
 
-          test = Path("tests/ai_platform_integration/test_liquidation_live_restart_durability.py")
-          marker = "\n\ndef test_restart_fails_closed_when_committed_rows_are_missing(tmp_path: Path) -> None:\n"
-          addition = '''
+          ```yaml
+          checkpoint_version: 1
+          updated_at: 2026-08-10T22:16:00+02:00
+          head: {head}
+          branch: fix/wickhunter-1396-synology-recovery-v2
+          pr: 1450
+          status: validating
+          context_routes:
+            - docs/agents/PROMPTING_STANDARD.md
+            - docs/agents/PROMPTING_HANDOVER.md
+            - docs/agents/DELIVERY_COMPLETENESS_AND_CLOSEOUT.md
+            - docs/agents/ANTI_STALL_AND_EXECUTION_BUDGET.md
+            - ai_platform/scripts/liquidation_live_stream.py
+            - tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+            - Issue #1396 and PR #1450
+          owned_paths:
+            - ai_platform/scripts/liquidation_live_stream.py
+            - tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+            - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
+            - .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
+          proven:
+            - PRs 1397 1388 and 1436 are merged and PR 1443 remains closed unmerged
+            - WH09 remains the single expected H900 SHADOW container with zero trading authority
+            - WH09 exact cycle failure is Liquid20 source events binance-usdm contradicts events_written
+            - current Liquid20 active pointer sources and mount readability are fresh and internally consistent
+            - completed restart run liquid20-20260810T000000Z-1 is the only relevant row-count inconsistency isolated by the read-only audit
+            - binance-usdm has five durable rows beyond persisted events_written in that completed restart run
+            - bybit-linear has one durable row beyond persisted events_written in that completed restart run
+            - production restart finalization did not seal durable NDJSON suffixes to the persisted commit boundary
+            - producer repair seals to events_written before historical finalization and fails closed on missing committed rows
+            - dangling source symlinks are rejected before the zero-row missing-file shortcut
+            - focused restart durability regression coverage passes after the review repair
+          derived:
+            - after the permanent producer fix is integrated a guarded repair of only the already completed inconsistent history should allow WH09 to recover naturally without weakening fail-closed behavior
+          unknown:
+            - final exact-head PR 1450 standard CI result after temporary workflow removal
+            - canonical post-merge Liquid20 Synology deployment result
+            - guarded completed-history repair result on the Synology runtime
+            - whether WH09 returns healthy naturally with two consecutive successful generation advances after upstream repair
+            - whether the prior Portal BuildKit context failure recurs after WH09 recovery
+            - terminal Portal adoption API browser persistence and desired-observed generation result
+            - final independent audit exact-head CI archive and Issue closure result
+          conflicts: []
+          first_failure:
+            marker: LIQUID20_RESTART_COMMIT_BOUNDARY_MISMATCH
+            evidence: run 31425261462 exposed the exact WH09 error and run 31425883292 isolated the completed restart run with plus five Binance rows and plus one Bybit row beyond persisted commit counts
+          rejected_hypotheses:
+            - the current WH09 blocker is the earlier Portal BuildKit failure
+            - current Liquid20 pointer freshness or active run state is stale or inconsistent
+            - WH09 has stopped running or restarted
+            - weakening WH09 completed-history row-count validation is an acceptable repair
+          changed_paths:
+            - ai_platform/scripts/liquidation_live_stream.py
+            - tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+            - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
+            - .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
+          validation:
+            - command: Read-only WH09 root-cause diagnostic
+              result: PASS
+              evidence: GitHub Actions run 31425261462 job 93575331867
+            - command: Read-only Liquid20 integrity isolation
+              result: PASS
+              evidence: GitHub Actions run 31425883292 job 93577345378
+            - command: Focused restart durability pytest before review repair
+              result: PASS
+              evidence: run 31427098950 job 93581282842 reported two passing tests before the later lint-only failure
+            - command: Dangling symlink fail-closed review repair workflow
+              result: PASS
+              evidence: GitHub Actions run 31427855045 job 93583737395 completed source repair lint format and focused regression validation
+          blockers: []
+          next_action: Complete PR 1450 exact-head validation and review, remove the temporary recovery workflow, merge only when gates pass, then observe canonical Liquid20 deployment before applying the single guarded completed-history commit-boundary repair through the protected Synology environment.
+          ```
 
-          def test_restart_rejects_dangling_symlink_even_with_zero_committed_rows(
-              tmp_path: Path,
-          ) -> None:
-              old_run_id, old_run_root = _write_previous_active_run(
-                  tmp_path,
-                  committed_rows={BINANCE_SOURCE: 0, BYBIT_SOURCE: 0, OKX_SOURCE: 0},
-                  actual_rows={BINANCE_SOURCE: 0, BYBIT_SOURCE: 0, OKX_SOURCE: 0},
-              )
-              okx_path = old_run_root / f"{OKX_SOURCE}.ndjson"
-              okx_path.unlink()
-              okx_path.symlink_to(old_run_root / "missing-okx.ndjson")
-              manager = OkxLiveRunManager(
-                  data_root=tmp_path,
-                  collector_commit="4" * 40,
-                  host_id="synology-test",
-                  now_ms=lambda: 1_786_384_683_792,
-              )
-
-              with pytest.raises(RuntimeError, match="okx-swap source path is not a regular file"):
-                  asyncio.run(manager.start())
-
-              persisted = json.loads(
-                  (old_run_root / "run-state-v1.json").read_text(encoding="utf-8")
-              )
-              assert persisted["run_state"] == "active"
-              pointer = json.loads(
-                  (tmp_path / "live" / LIVE_STATE_FILE).read_text(encoding="utf-8")
-              )
-              assert pointer["active_run_id"] == old_run_id
-              assert sorted(path.name for path in (tmp_path / "live" / "runs").iterdir()) == [
-                  old_run_id
-              ]
           '''
-          text = test.read_text(encoding="utf-8")
-          if text.count(marker) != 1:
-              raise SystemExit("expected exactly one test insertion marker")
-          test.write_text(text.replace(marker, addition + marker), encoding="utf-8")
+          path.write_text(before + checkpoint + next_heading + after, encoding="utf-8")
           PY
-          ruff format ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
-          ruff check ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          python tools/agents/checkpoint.py docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md --require-checkpoint
           git diff --check
-          git diff -- ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          git diff -- docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
 
-      - name: Run focused regression suite
-        run: >-
-          python -m pytest -q -o addopts=''
-          --confcutdir=tests/ai_platform_integration
-          tests/ai_platform_integration/test_liquidation_live_restart_durability.py
-
-      - name: Commit review repair
+      - name: Commit validated checkpoint repair
         shell: bash
         run: |
           set -euo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          git add docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
           git diff --cached --quiet && exit 1
-          git commit -m "fix(liquidations): reject dangling restart source symlinks"
+          git commit -m "docs(wickhunter): restore canonical recovery checkpoint"
           git push origin HEAD:fix/wickhunter-1396-synology-recovery-v2

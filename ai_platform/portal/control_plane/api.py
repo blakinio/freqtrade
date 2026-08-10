@@ -9,6 +9,9 @@ from ai_platform.portal.control_plane.api_core import *  # noqa: F403
 from ai_platform.portal.control_plane.api_core import create_app as _create_core_app
 from ai_platform.portal.control_plane.context import RequestContext, identity_dependency
 from ai_platform.portal.control_plane.database import SessionFactory
+from ai_platform.portal.control_plane.runtime_adoption import (
+    build_router as build_runtime_adoption_router,
+)
 from ai_platform.portal.control_plane.runtime_generation_api import (
     build_router as build_runtime_generation_router,
 )
@@ -16,6 +19,7 @@ from ai_platform.portal.control_plane.service import (
     ControlPlaneService,
     GenerationMaterialResolver,
 )
+from ai_platform.portal.control_plane.wh09_runtime import build_router as build_wh09_runtime_router
 from ai_platform.portal.feature_registry.router import (
     build_router as build_feature_registry_router,
 )
@@ -66,4 +70,6 @@ def create_app(
             context_dependency,
         )
     )
+    app.include_router(build_runtime_adoption_router(session_factory, context_dependency))
+    app.include_router(build_wh09_runtime_router(session_factory, context_dependency))
     return app

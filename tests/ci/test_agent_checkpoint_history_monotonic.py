@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from tools.agents.validate_checkpoint_history import Snapshot, _assert_monotonic
+from tools.agents.validate_checkpoint_history import (
+    Snapshot,
+    _assert_monotonic,
+    _is_task_record_path,
+)
 
 
 SHA_A = "a" * 40
@@ -17,6 +21,13 @@ def _snapshot(
         checkpoint_version=2,
         observation_counters_by_sha=history,
     )
+
+
+def test_task_record_classifier_excludes_governance_template() -> None:
+    assert _is_task_record_path("docs/agents/tasks/active/task.md")
+    assert _is_task_record_path("docs/agents/tasks/archive/task.md")
+    assert not _is_task_record_path("docs/agents/tasks/TASK_TEMPLATE.md")
+    assert not _is_task_record_path("docs/agents/CONTEXT_HANDOFF.md")
 
 
 def test_monotonic_history_accepts_growth_and_new_sha() -> None:

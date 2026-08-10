@@ -10,6 +10,7 @@ from pathlib import Path
 
 
 CHECKPOINT_HEADING = "## Context checkpoint"
+OBSERVATION_HISTORY_KEY = "observation_counters_by_sha"
 LIST_KEYS = {
     "context_routes",
     "owned_paths",
@@ -31,12 +32,17 @@ PLACEHOLDER_NEXT_ACTIONS = {
     "todo",
     "later",
 }
+SHA_RE = re.compile(r"[0-9a-f]{40}")
 
 
 @dataclass(frozen=True)
 class Contract:
     version: str
+    accepted_versions: frozenset[str]
     required_fields: tuple[str, ...]
+    version_2_required_fields: tuple[str, ...]
+    observation_counter_keys: tuple[str, ...]
+    max_observation_heads: int
     allowed_statuses: frozenset[str]
     allowed_validation_results: frozenset[str]
     evidence_fields: tuple[str, ...]
@@ -53,6 +59,15 @@ def _string_items(value: object, label: str) -> tuple[str, ...]:
     return tuple(value)
 
 
+def _version_items(value: object, label: str) -> frozenset[str]:
+    if not isinstance(value, list) or not value:
+        raise ValueError(f"invalid {label} in governance contract")
+    versions = frozenset(str(item) for item in value)
+    if any(not version.isdigit() for version in versions):
+        raise ValueError(f"invalid {label} in governance contract")
+    return versions
+
+
 def load_contract() -> Contract:
     path = repository_root() / "docs/agents/GOVERNANCE_CONTRACT.json"
     raw = json.loads(path.read_text(encoding="utf-8"))
@@ -62,8 +77,11 @@ def load_contract() -> Contract:
 
     evidence_map = shared.get("evidence_state_fields")
     limits = shared.get("compactness_limits")
+    observation = shared.get("observation_counter_contract")
     if not isinstance(evidence_map, dict) or not isinstance(limits, dict):
         raise ValueError(f"{path}: invalid evidence or compactness contract")
+    if not isinstance(observation, dict):
+        raise ValueError(f"{path}: invalid observation counter contract")
     if not all(
         isinstance(key, str) and isinstance(value, str) for key, value in evidence_map.items()
     ):
@@ -74,9 +92,26 @@ def load_contract() -> Contract:
     ):
         raise ValueError(f"{path}: invalid compactness limits")
 
+    max_heads = observation.get("max_exact_heads")
+    if not isinstance(max_heads, int) or max_heads <= 0:
+        raise ValueError(f"{path}: invalid observation head limit")
+
+    version = str(shared.get("version", ""))
+    accepted_versions = _version_items(shared.get("accepted_versions"), "accepted_versions")
+    if version not in accepted_versions:
+        raise ValueError(f"{path}: current checkpoint version is not accepted")
+
     return Contract(
-        version=str(shared.get("version", "")),
+        version=version,
+        accepted_versions=accepted_versions,
         required_fields=_string_items(shared.get("required_fields"), "required_fields"),
+        version_2_required_fields=_string_items(
+            shared.get("version_2_required_fields"), "version_2_required_fields"
+        ),
+        observation_counter_keys=_string_items(
+            observation.get("required_counter_keys"), "required_counter_keys"
+        ),
+        max_observation_heads=max_heads,
         allowed_statuses=frozenset(
             _string_items(shared.get("allowed_statuses"), "allowed_statuses")
         ),
@@ -132,6 +167,12 @@ def _parse_top_level(data: dict[str, object], line: str, path: Path, line_number
         if value:
             raise ValueError(f"{path}:{line_number}: first_failure must be a mapping")
         data[key] = {}
+    elif key == OBSERVATION_HISTORY_KEY:
+        if value:
+            raise ValueError(
+                f"{path}:{line_number}: {OBSERVATION_HISTORY_KEY} must be a mapping"
+            )
+        data[key] = {}
     else:
         data[key] = scalar(value)
     return key
@@ -154,6 +195,39 @@ def _parse_failure_item(
         raise ValueError(f"{path}:{line_number}: invalid first_failure item")
     key, value = line.split(":", 1)
     mapping[key.strip()] = scalar(value)
+
+
+def _parse_observation_item(
+    data: dict[str, object],
+    current_sha: str | None,
+    line: str,
+    indent: int,
+    path: Path,
+    line_number: int,
+) -> str | None:
+    history = data.get(OBSERVATION_HISTORY_KEY)
+    if not isinstance(history, dict):
+        raise ValueError(f"{path}:{line_number}: invalid observation history container")
+
+    if indent == 2 and line.endswith(":"):
+        sha = line[:-1].strip()
+        if sha in history:
+            raise ValueError(f"{path}:{line_number}: duplicate observation SHA {sha}")
+        history[sha] = {}
+        return sha
+
+    if indent == 4 and current_sha is not None and ":" in line:
+        counters = history.get(current_sha)
+        if not isinstance(counters, dict):
+            raise ValueError(f"{path}:{line_number}: invalid observation counter entry")
+        key, value = line.split(":", 1)
+        key = key.strip()
+        if key in counters:
+            raise ValueError(f"{path}:{line_number}: duplicate observation counter {key}")
+        counters[key] = scalar(value)
+        return current_sha
+
+    raise ValueError(f"{path}:{line_number}: invalid observation history item")
 
 
 def _parse_validation_item(
@@ -187,6 +261,7 @@ def parse_checkpoint(path: Path) -> dict[str, object] | None:
     data: dict[str, object] = {}
     current_key: str | None = None
     current_validation: dict[str, str] | None = None
+    current_observation_sha: str | None = None
     for line_number, raw in enumerate(lines, start=1):
         if not raw.strip() or raw.lstrip().startswith("#"):
             continue
@@ -195,10 +270,20 @@ def parse_checkpoint(path: Path) -> dict[str, object] | None:
         if indent == 0:
             current_key = _parse_top_level(data, line, path, line_number)
             current_validation = None
+            current_observation_sha = None
         elif current_key in LIST_KEYS:
             _parse_list_item(data, current_key, line, indent, path, line_number)
         elif current_key == "first_failure":
             _parse_failure_item(data, line, indent, path, line_number)
+        elif current_key == OBSERVATION_HISTORY_KEY:
+            current_observation_sha = _parse_observation_item(
+                data,
+                current_observation_sha,
+                line,
+                indent,
+                path,
+                line_number,
+            )
         elif current_key == "validation":
             current_validation = _parse_validation_item(
                 data, current_validation, line, indent, path, line_number
@@ -218,12 +303,80 @@ def _validate_core(data: dict[str, object], contract: Contract, path: Path) -> l
         for key in contract.required_fields
         if key not in data
     ]
-    if str(data.get("checkpoint_version", "")) != contract.version:
-        errors.append(f"{path}: wrong checkpoint_version")
+    version = str(data.get("checkpoint_version", ""))
+    if version not in contract.accepted_versions:
+        errors.append(f"{path}: unsupported checkpoint_version")
+    if version == contract.version:
+        errors.extend(
+            f"{path}: missing checkpoint version {contract.version} field {key}"
+            for key in contract.version_2_required_fields
+            if key not in data
+        )
     if str(data.get("status", "")) not in contract.allowed_statuses:
         errors.append(f"{path}: unsupported status")
     if str(data.get("next_action", "")).strip().casefold() in PLACEHOLDER_NEXT_ACTIONS:
         errors.append(f"{path}: next_action must be concrete")
+    return errors
+
+
+def _nonnegative_int(value: object) -> int | None:
+    text = str(value).strip()
+    if not text.isdigit():
+        return None
+    return int(text)
+
+
+def _validate_observation_history(
+    data: dict[str, object], contract: Contract, path: Path
+) -> list[str]:
+    if str(data.get("checkpoint_version", "")) != contract.version:
+        return []
+
+    history = data.get(OBSERVATION_HISTORY_KEY)
+    if not isinstance(history, dict) or not history:
+        return [f"{path}: checkpoint version {contract.version} requires observation history"]
+
+    errors: list[str] = []
+    if len(history) > contract.max_observation_heads:
+        errors.append(
+            f"{path}: observation history has {len(history)} exact heads; "
+            f"limit is {contract.max_observation_heads}"
+        )
+
+    expected_keys = set(contract.observation_counter_keys)
+    for sha, counters in history.items():
+        if not isinstance(sha, str) or SHA_RE.fullmatch(sha) is None:
+            errors.append(f"{path}: invalid observation history SHA {sha}")
+            continue
+        if not isinstance(counters, dict) or set(counters) != expected_keys:
+            errors.append(f"{path}: invalid observation counters for {sha}")
+            continue
+        for counter_key in contract.observation_counter_keys:
+            if _nonnegative_int(counters.get(counter_key)) is None:
+                errors.append(f"{path}: invalid {counter_key} observation counter for {sha}")
+
+    head = str(data.get("head", ""))
+    if SHA_RE.fullmatch(head) is None:
+        errors.append(f"{path}: version {contract.version} head must be lowercase 40-hex SHA")
+        return errors
+    current = history.get(head)
+    if not isinstance(current, dict):
+        errors.append(f"{path}: observation history has no entry for current head {head}")
+        return errors
+
+    scalar_pairs = (
+        ("ci_checks_for_current_head", "ci"),
+        ("review_checks_for_current_head", "review"),
+    )
+    for scalar_key, history_key in scalar_pairs:
+        scalar_value = _nonnegative_int(data.get(scalar_key))
+        history_value = _nonnegative_int(current.get(history_key))
+        if scalar_value is None:
+            errors.append(f"{path}: invalid {scalar_key}")
+        elif history_value is not None and scalar_value != history_value:
+            errors.append(
+                f"{path}: {scalar_key} does not match observation history for {head}"
+            )
     return errors
 
 
@@ -286,6 +439,7 @@ def validate_checkpoint(data: dict[str, object], path: Path) -> list[str]:
     contract = load_contract()
     return [
         *_validate_core(data, contract, path),
+        *_validate_observation_history(data, contract, path),
         *_validate_failure_and_validation(data, contract, path),
         *_validate_compactness(data, contract, path),
         *_validate_evidence(data, contract, path),

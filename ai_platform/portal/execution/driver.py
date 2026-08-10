@@ -800,12 +800,27 @@ class DockerCliRuntimeDriver:
         self._released.add(runtime_id)
 
     def _cleanup_failed_runtime(self, runtime_id: str, network: str) -> None:
-        self._runner.run(("docker", "rm", "-f", runtime_id))
-        self._external.cleanup_network(network, runtime_id)
-        self._attested.discard(runtime_id)
-        self._released.discard(runtime_id)
-        self._fingerprints.pop(runtime_id, None)
-        self._networks.pop(runtime_id, None)
+        errors: list[str] = []
+        try:
+            remove = self._runner.run(("docker", "rm", "-f", runtime_id))
+            if remove.returncode != 0 and "no such" not in remove.stderr.lower():
+                errors.append(remove.stderr.strip() or "docker container cleanup failed")
+        except Exception as exc:  # pragma: no cover - defensive adapter boundary
+            errors.append(f"docker container cleanup raised {type(exc).__name__}: {exc}")
+        try:
+            self._external.cleanup_network(network, runtime_id)
+        except Exception as exc:  # pragma: no cover - concrete backends are unit-tested
+            errors.append(f"network cleanup raised {type(exc).__name__}: {exc}")
+        finally:
+            self._attested.discard(runtime_id)
+            self._released.discard(runtime_id)
+            self._fingerprints.pop(runtime_id, None)
+            self._networks.pop(runtime_id, None)
+        if errors:
+            raise RuntimeDriverError(
+                "RUNTIME_CLEANUP_FAILED",
+                "runtime cleanup was incomplete: " + "; ".join(errors),
+            )
 
     def _require_success(self, args: Sequence[str], reason_code: str) -> None:
         result = self._runner.run(args)

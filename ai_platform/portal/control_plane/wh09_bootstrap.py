@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import os
 import sys
-from datetime import UTC, datetime
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
@@ -27,6 +26,7 @@ from ai_platform.portal.control_plane.service import ControlPlaneService
 from ai_platform.portal.control_plane.wh09_runtime import (
     WH09_BOT_ID,
     Wh09RuntimeEvidence,
+    Wh09RuntimeEvidenceError,
     configured_wh09_source,
 )
 from ai_platform.wickhunter.canonical import canonical_sha256
@@ -229,10 +229,20 @@ def _observation(
     generation_spec_digest: str,
     normalized_runtime_config_digest: str,
 ) -> RuntimeGenerationObservation:
+    evidence_hash = canonical_sha256(
+        {
+            "health_sha256": evidence.health_sha256,
+            "telemetry_sha256": evidence.telemetry_sha256,
+            "identity_sha256": evidence.identity_sha256,
+            "runtime_instance_id": descriptor.runtime_instance_id,
+            "runtime_image_digest": descriptor.runtime_image_digest,
+            "generation_id": generation_id,
+        }
+    )
     observation_id = str(
         uuid5(
             NAMESPACE_URL,
-            f"freqtrade:wh09-adoption:{generation_id}:{descriptor.runtime_instance_id}:{evidence.run_id}",
+            f"freqtrade:wh09-adoption:{generation_id}:{descriptor.runtime_instance_id}:{evidence_hash}",
         )
     )
     return RuntimeGenerationObservation(
@@ -248,20 +258,11 @@ def _observation(
         source_sequence=evidence.source_runtime_generation,
         source_version=evidence.operator_commit,
         source_observed_at=evidence.source_checked_at,
-        reconciled_at=datetime.now(UTC),
+        reconciled_at=evidence.source_checked_at,
         identity_status=RuntimeIdentityStatus.MATCHED,
         freshness_status=ReconciliationFreshnessStatus.CURRENT,
         completeness_status=ReconciliationCompletenessStatus.COMPLETE,
-        evidence_hash=canonical_sha256(
-            {
-                "health_sha256": evidence.health_sha256,
-                "telemetry_sha256": evidence.telemetry_sha256,
-                "identity_sha256": evidence.identity_sha256,
-                "runtime_instance_id": descriptor.runtime_instance_id,
-                "runtime_image_digest": descriptor.runtime_image_digest,
-                "generation_id": generation_id,
-            }
-        ),
+        evidence_hash=evidence_hash,
         reason_code=None,
     )
 
@@ -299,7 +300,7 @@ def bootstrap_wh09(descriptor: Wh09HostRuntimeDescriptor) -> dict[str, object]:
     descriptor.validate_wh09()
     try:
         evidence = configured_wh09_source().read()
-    except Exception as exc:
+    except Wh09RuntimeEvidenceError as exc:
         raise Wh09BootstrapError("WH09 private runtime evidence is unavailable") from exc
     if evidence.health != "HEALTHY":
         raise Wh09BootstrapError(f"WH09 runtime evidence is not healthy/current: {evidence.health}")

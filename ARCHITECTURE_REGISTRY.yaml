@@ -2,6 +2,9 @@ schema_version: 1
 registry_id: ftai-platform-architecture
 repository: blakinio/freqtrade
 default_branch: develop
+integration_branch: develop
+target_release_branch: main
+branch_migration_status: accepted_target_not_implemented
 
 review:
   last_reviewed_at: "2026-08-06"
@@ -21,21 +24,19 @@ review:
       status: completed
 
 latest_architecture_change:
-  accepted_at: "2026-08-08"
-  base_sha: c64df386a4fa3ba739b6eaa1a223ca798a7bcae2
-  issue: 1358
-  task: FTAI-20260808-adr020-runtime-isolation-supervisor-refinement
-  decision: ADR-020
-  refinement: RuntimeIsolationProfile + Runtime Supervisor Contract
-  refinement_document: docs/ai_platform/portal/RUNTIME_ISOLATION_AND_SUPERVISOR_CONTRACT.md
-  status: accepted
+  accepted_at: "2026-08-10"
+  base_sha: 978621fb358885dbf3c85d1bf837af9270678241
+  issue: 1438
+  task: FTAI-20260810-release-environment-mode-architecture-1438
+  decision: ADR-021
+  detail_document: docs/ai_platform/portal/RELEASE_ENVIRONMENT_AND_BOT_MODE_ARCHITECTURE.md
+  status: accepted_target_pending_migration
   affected_domains:
     - portal_and_ux
-    - identity_and_security
     - execution_and_risk
-    - data_and_observability
     - deployment_and_operations
-  implementation_note: Owner acceptance defines target architecture only and becomes trusted-base authority after merge; implementation remains tracked by open Issues and exact code/test/deployment evidence.
+    - ci_and_quality
+  implementation_note: Owner acceptance defines the branch/release/environment target architecture. Exact repository metadata, rules, workflows and deployed-target evidence remain required before main or any production environment is claimed operational.
 
 classification_values:
   - canonical_registry
@@ -70,6 +71,8 @@ authority:
     - Historical baselines preserve context but do not override accepted decisions or current-state evidence.
     - Material architecture changes update this registry and the accepted decision log in the same change set.
     - ADR-020 and its Runtime Isolation / Runtime Supervisor refinement supersede older target-state wording that conflicts with RuntimeGeneration, resolved isolation-plan identity, Runtime Supervisor, per-runtime Gateway, dry-run public-data connectivity, effective isolation attestation or generation-bound reconciliation/fencing.
+    - ADR-021 separates source integration/release branches, deployment environments, release channels and bot operating modes; no branch/environment/release promotion supplies LIVE authority or deployment authorization.
+    - ADR-021 supersedes the temporary 2026-08-09 single-develop branch target, while exact repository evidence remains authoritative for whether the physical main migration is complete.
 
 system_domains:
   research_and_strategy:
@@ -89,6 +92,7 @@ system_domains:
       - ai_platform/portal/web/e2e/
     implementation_status: mixed
     accepted_decision_overlay: ADR-020
+    release_environment_overlay: ADR-021
   identity_and_security:
     code_roots:
       - ai_platform/portal/identity/
@@ -109,6 +113,7 @@ system_domains:
       - tests/ai_platform/portal/
     implementation_status: mixed
     accepted_decision_overlay: ADR-020
+    release_environment_overlay: ADR-021
     safety_note: Live-capital authority requires a separate explicit owner-approved lifecycle package.
   data_and_observability:
     code_roots:
@@ -130,6 +135,7 @@ system_domains:
       - artifacts/
     implementation_status: mixed
     accepted_decision_overlay: ADR-020
+    release_environment_overlay: ADR-021
   ci_and_quality:
     code_roots:
       - .github/workflows/
@@ -138,6 +144,7 @@ system_domains:
     evidence_roots:
       - tests/ci/
     implementation_status: partially_implemented
+    release_branch_overlay: ADR-021
     open_findings:
       - issue: 1356
         id: FTAI-ARCH-REGISTRY-LIFECYCLE-GUARD
@@ -151,7 +158,7 @@ documents:
     authority: canonical_index
     implementation_status: not_applicable
     owner_role: A3-architecture-ci-reviewer
-    last_reviewed_at: "2026-08-08"
+    last_reviewed_at: "2026-08-10"
 
   - path: docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md
     title: AI Trading Portal architecture decisions
@@ -160,9 +167,20 @@ documents:
     authority: binding_until_superseded
     implementation_status: mixed
     owner_role: architecture-owner
-    last_reviewed_at: "2026-08-08"
-    latest_decision: ADR-020
-    latest_refinement: RuntimeIsolationProfile + Runtime Supervisor Contract
+    last_reviewed_at: "2026-08-10"
+    latest_decision: ADR-021
+    latest_refinement: Release / Environment / Bot Mode Architecture
+
+  - path: docs/ai_platform/portal/RELEASE_ENVIRONMENT_AND_BOT_MODE_ARCHITECTURE.md
+    title: Release, environment and bot operating-mode architecture
+    classification: domain_architecture
+    scope: repository integration/release branches, immutable release promotion, deployment environments and bot operating-mode separation
+    authority: binding_refinement_of_ADR-021
+    implementation_status: target_only
+    owner_role: architecture-owner
+    last_reviewed_at: "2026-08-10"
+    evidence_rule: Exact branch metadata, rules, CI/release workflows and deployed-target evidence are required before the main migration or production release path is claimed implemented.
+    safety_note: Production environment and stable release status do not authorize LIVE trading or live capital.
 
   - path: docs/ai_platform/portal/RUNTIME_ISOLATION_AND_SUPERVISOR_CONTRACT.md
     title: Runtime isolation profile and Runtime Supervisor contract
@@ -184,7 +202,7 @@ documents:
     owner_role: architecture-owner
     last_reviewed_at: "2026-08-08"
     evidence_rule: Each implementation claim requires exact code, test, workflow or deployed-target evidence.
-    supersession_note: Interpret execution/runtime topology through ADR-020 and RUNTIME_ISOLATION_AND_SUPERVISOR_CONTRACT.md where older generic worker, direct private Freqtrade, runtime credential, runtime-identity or requested-isolation wording conflicts.
+    supersession_note: Interpret execution/runtime topology through ADR-020 and RUNTIME_ISOLATION_AND_SUPERVISOR_CONTRACT.md; interpret branch/release/environment and bot-mode promotion terminology through ADR-021 where older wording conflicts.
 
   - path: docs/ai_platform/portal/BOT_MANAGEMENT_PRODUCT_ARCHITECTURE.md
     title: Bot management product architecture
@@ -194,7 +212,7 @@ documents:
     implementation_status: mixed
     owner_role: bot-management-domain-owner
     last_reviewed_at: "2026-08-05"
-    supersession_note: Config authoring/desired/observed runtime revision semantics are constrained by ADR-020.
+    supersession_note: Config authoring/desired/observed runtime revision semantics are constrained by ADR-020; deployment environment or release status must not be treated as bot-mode authority under ADR-021.
 
   - path: docs/ai_platform/portal/AI_ML_AND_LEARNING_ARCHITECTURE.md
     title: AI, ML and learning architecture

@@ -58,16 +58,18 @@ Promotion requires evidence appropriate to the stage. At minimum, before dry-run
 
 ## Development workflow
 
-### Temporary single-trunk policy
+### Integration, release and environment policy
 
-Until the repository owner explicitly starts the production-branch split, `develop` is the single canonical integration trunk for the whole Quant Platform.
+ADR-021 and `docs/agents/BRANCH_POLICY.md` define repository routing. Source branches, deployment environments and bot operating modes are separate control dimensions.
 
-- All task, feature, fix, audit, documentation, migration, runtime, portal, WickHunter, CI, and infrastructure PRs in this repository must target `develop`.
-- Dedicated short-lived task branches remain required for isolated work and review; they are merged into `develop` after their required gates pass.
-- Do not introduce a second long-lived integration stage such as `main`, `production`, `quant-platform`, or another programme-specific trunk.
-- Existing non-canonical long-lived or temporary branches do not become integration authority merely because they exist.
-- A future split of `develop` and production/release branches requires an explicit owner decision plus a repository-governance update before agents may route work differently.
-- This branch policy changes source-code integration only. It does not authorize production deployment, protected-environment changes, live trading, live capital, credentials, model promotion, or bypass of validation/merge gates.
+- `develop` is the controlled integration branch and upstream-sync convergence point.
+- `main` is the accepted target release branch, but it becomes operational release authority only after the staged migration, protection and CI gates in ADR-021 are proven by exact repository evidence.
+- Ordinary task, feature, fix, audit, documentation, migration, runtime, portal, WickHunter, CI and infrastructure work integrates through `develop`.
+- After the physical `main` migration is complete, stable release promotion uses a dedicated reviewed `develop -> main` PR; ordinary feature PRs do not target `main`.
+- `develop` is not the staging environment and `main` is not the production environment. `dev | staging | production` are deployment environments.
+- `SHADOW | PAPER | LIVE` are bot operating modes. Production does not imply LIVE, and LIVE still requires a separate explicit live-capital work package.
+- `candidate | stable` are release channels. Deployment uses immutable artifact identity; merging a branch does not itself authorize deployment.
+- Until exact repository state proves `main` is created, protected and correctly wired, do not route work to it or claim the two-branch migration is implemented.
 
 1. Read this file first.
 2. Read `docs/ai_platform/ARCHITECTURE.md` and `docs/ai_platform/ROADMAP.md` for AI-platform work.
@@ -76,7 +78,7 @@ Until the repository owner explicitly starts the production-branch split, `devel
 5. Work on a dedicated feature branch.
 6. Keep commits focused and reviewable.
 7. Run the narrowest relevant validation first, then broader tests if needed.
-8. Open every repository PR against `develop` while the temporary single-trunk policy is active.
+8. Target ordinary repository PRs to `develop`; use `main` only for the dedicated stable release-promotion path after its physical migration is proven complete.
 9. Record important architecture or workflow changes in repository documentation.
 
 ## Runtime and CI target

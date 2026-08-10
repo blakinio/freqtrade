@@ -1,0 +1,128 @@
+name: Portal WickHunter Legacy Fixture Finalization
+
+"on":
+  push:
+    branches:
+      - fix/wickhunter-1396-synology-recovery-v2
+    paths:
+      - .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: portal-wickhunter-1396-legacy-fixture-finalization
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    name: Validate fixture repair, checkpoint, and self-clean
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout recovery branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: fix/wickhunter-1396-synology-recovery-v2
+          fetch-depth: 20
+
+      - name: Install focused validation dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check -r requirements.txt
+          python3 -m pip install --disable-pip-version-check pytest==9.1.1 ruff==0.15.21
+
+      - name: Validate restart and legacy migration contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pytest -q -o addopts='' \
+            --confcutdir=tests/ai_platform_integration \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py \
+            tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python3 -m ruff check \
+            ai_platform/scripts/liquidation_live_stream.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py \
+            tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python3 -m ruff format --check \
+            ai_platform/scripts/liquidation_live_stream.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py \
+            tests/ai_platform_integration/test_liquidation_okx_live_source.py
+
+      - name: Update canonical checkpoint and remove this workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import subprocess
+          from datetime import datetime
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+
+          path = Path("docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md")
+          text = path.read_text(encoding="utf-8")
+          head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          now = datetime.now(ZoneInfo("Europe/Warsaw")).replace(microsecond=0).isoformat()
+          run_id = os.environ["GITHUB_RUN_ID"]
+
+          def replace_once(old: str, new: str) -> None:
+              global text
+              if text.count(old) != 1:
+                  raise SystemExit(f"expected exactly one task target: {old[:100]}")
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              "updated_at: 2026-08-10T23:08:00+02:00\nhead: 2c3cb8387c22e3fb3864abeea312aa79476c84b1",
+              f"updated_at: {now}\nhead: {head}",
+          )
+          route = "  - tests/ai_platform_integration/test_liquidation_live_restart_durability.py\n"
+          replace_once(route, route + "  - tests/ai_platform_integration/test_liquidation_okx_live_source.py\n")
+          owned = "  - tests/ai_platform_integration/test_liquidation_live_restart_durability.py\n  - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md\n"
+          replace_once(
+              owned,
+              "  - tests/ai_platform_integration/test_liquidation_live_restart_durability.py\n"
+              "  - tests/ai_platform_integration/test_liquidation_okx_live_source.py\n"
+              "  - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md\n",
+          )
+          changed = "changed_paths:\n  - ai_platform/scripts/liquidation_live_stream.py\n  - tests/ai_platform_integration/test_liquidation_live_restart_durability.py\n  - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md\n"
+          replace_once(
+              changed,
+              "changed_paths:\n  - ai_platform/scripts/liquidation_live_stream.py\n"
+              "  - tests/ai_platform_integration/test_liquidation_live_restart_durability.py\n"
+              "  - tests/ai_platform_integration/test_liquidation_okx_live_source.py\n"
+              "  - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md\n",
+          )
+          proven = "  - exact focused validation passed on head 2c3cb8387c22e3fb3864abeea312aa79476c84b1 with seven restart-durability tests plus Ruff check format and producer-consumer contract assertions\nderived:"
+          replace_once(
+              proven,
+              "  - exact focused validation passed on head 2c3cb8387c22e3fb3864abeea312aa79476c84b1 with seven restart-durability tests plus Ruff check format and producer-consumer contract assertions\n"
+              "  - full ci:full compatibility testing exposed a stale legacy migration fixture that declared configured zero-row Bybit and Binance sources without their regular empty files; the fixture now models the valid historical contract without weakening production fail-closed behavior\n"
+              "derived:",
+          )
+          validation_anchor = "  - command: Exact focused durability validation after fsync-before-state and formatting repairs\n    result: PASS\n    evidence: GitHub Actions run 31433026457 job 93600693019 passed checkpoint durability markers py_compile seven focused pytest cases Ruff check Ruff format producer-consumer assertions and diff hygiene\n"
+          replace_once(
+              validation_anchor,
+              validation_anchor
+              + "  - command: Focused restart and legacy OKX migration fixture validation\n"
+              + "    result: PASS\n"
+              + f"    evidence: GitHub Actions run {run_id} passed both focused integration files plus Ruff check and format before self-cleanup\n",
+          )
+          replace_once("  generation: 6\n", "  generation: 7\n")
+          path.write_text(text, encoding="utf-8")
+          PY
+          python3 tools/agents/checkpoint.py docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md --require-checkpoint
+          git rm .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
+          git diff --check
+
+      - name: Commit validated final permanent diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
+          git commit -am "docs(wickhunter): record legacy migration fixture proof"
+          git pull --rebase origin fix/wickhunter-1396-synology-recovery-v2
+          git push origin HEAD:fix/wickhunter-1396-synology-recovery-v2

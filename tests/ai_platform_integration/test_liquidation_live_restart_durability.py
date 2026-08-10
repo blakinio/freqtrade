@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -313,6 +314,40 @@ def test_start_rejects_symlinked_runtime_root_before_any_write(
         asyncio.run(manager.start())
 
     assert list(external.iterdir()) == []
+
+
+def test_seal_anchors_source_to_open_run_directory_after_path_swap(tmp_path: Path) -> None:
+    run_root = tmp_path / "run"
+    run_root.mkdir()
+    source_path = run_root / f"{BINANCE_SOURCE}.ndjson"
+    source_path.write_text('{"row":1}\n{"row":2}\n', encoding="utf-8")
+    external_root = tmp_path / "external"
+    external_root.mkdir()
+    external_source = external_root / f"{BINANCE_SOURCE}.ndjson"
+    external_payload = b'{"external":1}\n{"external":2}\n'
+    external_source.write_bytes(external_payload)
+    run_root_fd = os.open(
+        run_root,
+        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+    )
+    archived_root = tmp_path / "archived-run"
+    try:
+        run_root.rename(archived_root)
+        run_root.symlink_to(external_root, target_is_directory=True)
+        _seal_committed_ndjson(
+            run_root / f"{BINANCE_SOURCE}.ndjson",
+            committed_rows=1,
+            source=BINANCE_SOURCE,
+            allow_missing=False,
+            directory_fd=run_root_fd,
+        )
+    finally:
+        os.close(run_root_fd)
+
+    assert external_source.read_bytes() == external_payload
+    assert (archived_root / f"{BINANCE_SOURCE}.ndjson").read_text(encoding="utf-8") == (
+        '{"row":1}\n'
+    )
 
 
 def test_restart_rejects_symlinked_run_root_without_mutating_external_target(

@@ -126,8 +126,144 @@ class AppendOnlyNdjsonWriter:
             self._handle.close()
 
 
+def _secure_directory_flags() -> int:
+    directory_flag = getattr(os, "O_DIRECTORY", None)
+    nofollow_flag = getattr(os, "O_NOFOLLOW", None)
+    if directory_flag is None or nofollow_flag is None:
+        raise RuntimeError("secure Liquid20 restart filesystem traversal is unsupported")
+    return os.O_RDONLY | directory_flag | nofollow_flag | getattr(os, "O_CLOEXEC", 0)
+
+
+def _open_restart_run_root_fd(data_root: Path, run_id: str) -> int | None:
+    flags = _secure_directory_flags()
+    opened: list[int] = []
+    try:
+        current_fd = os.open(data_root, flags)
+        opened.append(current_fd)
+        if not stat.S_ISDIR(os.fstat(current_fd).st_mode):
+            raise RuntimeError("Liquid20 data root is not a regular directory")
+        for component in ("live", "runs", run_id):
+            current_fd = os.open(component, flags, dir_fd=current_fd)
+            opened.append(current_fd)
+            if not stat.S_ISDIR(os.fstat(current_fd).st_mode):
+                raise RuntimeError("previous live run root is not a regular directory")
+        return opened.pop()
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise RuntimeError("previous live run root is not a regular directory") from exc
+    finally:
+        for descriptor in reversed(opened):
+            os.close(descriptor)
+
+
+def _read_json_regular_at(directory_fd: int, file_name: str) -> dict[str, object] | None:
+    nofollow_flag = getattr(os, "O_NOFOLLOW", None)
+    if nofollow_flag is None:
+        raise RuntimeError("secure Liquid20 restart file access is unsupported")
+    try:
+        descriptor = os.open(
+            file_name,
+            os.O_RDONLY | nofollow_flag | getattr(os, "O_CLOEXEC", 0),
+            dir_fd=directory_fd,
+        )
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise RuntimeError("previous live state path is not a regular file") from exc
+    item = os.fstat(descriptor)
+    if not stat.S_ISREG(item.st_mode):
+        os.close(descriptor)
+        raise RuntimeError("previous live state path is not a regular file")
+    with os.fdopen(descriptor, "r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    if not isinstance(payload, dict):
+        raise TypeError("previous live state is invalid")
+    return payload
+
+
+def _write_json_atomic_at(directory_fd: int, file_name: str, payload: dict[str, object]) -> None:
+    nofollow_flag = getattr(os, "O_NOFOLLOW", None)
+    if nofollow_flag is None:
+        raise RuntimeError("secure Liquid20 restart file access is unsupported")
+    temporary_name = f".{file_name}.{os.getpid()}.{time.time_ns()}.tmp"
+    descriptor = -1
+    try:
+        descriptor = os.open(
+            temporary_name,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow_flag | getattr(os, "O_CLOEXEC", 0),
+            0o600,
+            dir_fd=directory_fd,
+        )
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            descriptor = -1
+            json.dump(payload, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(
+            temporary_name,
+            file_name,
+            src_dir_fd=directory_fd,
+            dst_dir_fd=directory_fd,
+        )
+        os.fsync(directory_fd)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        try:
+            os.unlink(temporary_name, dir_fd=directory_fd)
+        except FileNotFoundError:
+            pass
+
+
+def _source_directory_fd(path: Path, directory_fd: int | None, source: str) -> tuple[int, bool]:
+    if directory_fd is not None:
+        return directory_fd, False
+    try:
+        return os.open(path.parent, _secure_directory_flags()), True
+    except OSError as exc:
+        raise RuntimeError(f"previous {source} source path is not a regular file") from exc
+
+
+def _open_committed_source_fd(
+    directory_fd: int,
+    file_name: str,
+    *,
+    committed_rows: int,
+    source: str,
+    allow_missing: bool,
+) -> int | None:
+    nofollow_flag = getattr(os, "O_NOFOLLOW", None)
+    if nofollow_flag is None:
+        raise RuntimeError("secure Liquid20 restart file access is unsupported")
+    try:
+        descriptor = os.open(
+            file_name,
+            os.O_RDWR | nofollow_flag | getattr(os, "O_CLOEXEC", 0),
+            dir_fd=directory_fd,
+        )
+    except FileNotFoundError:
+        if allow_missing and committed_rows == 0:
+            return None
+        if committed_rows == 0:
+            raise RuntimeError(f"previous {source} source file is missing")
+        raise RuntimeError(f"previous {source} source file is missing committed rows")
+    except OSError as exc:
+        raise RuntimeError(f"previous {source} source path is not a regular file") from exc
+    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        os.close(descriptor)
+        raise RuntimeError(f"previous {source} source path is not a regular file")
+    return descriptor
+
+
 def _seal_committed_ndjson(
-    path: Path, *, committed_rows: int, source: str, allow_missing: bool
+    path: Path,
+    *,
+    committed_rows: int,
+    source: str,
+    allow_missing: bool,
+    directory_fd: int | None = None,
 ) -> None:
     if (
         isinstance(committed_rows, bool)
@@ -135,41 +271,33 @@ def _seal_committed_ndjson(
         or committed_rows < 0
     ):
         raise RuntimeError(f"previous {source} events_written is invalid")
-    if path.is_symlink():
-        raise RuntimeError(f"previous {source} source path is not a regular file")
-    if not path.exists():
-        if allow_missing and committed_rows == 0:
-            return
-        if committed_rows == 0:
-            raise RuntimeError(f"previous {source} source file is missing")
-        raise RuntimeError(f"previous {source} source file is missing committed rows")
-    if not path.is_file():
-        raise RuntimeError(f"previous {source} source path is not a regular file")
-
-    with path.open("r+b") as handle:
-        committed_end = 0
-        for _ in range(committed_rows):
-            row = handle.readline()
-            if not row or not row.endswith(b"\n") or not row.strip():
-                raise RuntimeError(f"previous {source} source file has fewer rows than committed")
-            committed_end = handle.tell()
-        if handle.read(1):
-            handle.truncate(committed_end)
-        handle.flush()
-        os.fsync(handle.fileno())
-
-
-def _restart_run_root_missing(*, live_root: Path, runs_root: Path, run_root: Path) -> bool:
+    source_directory_fd, owned = _source_directory_fd(path, directory_fd, source)
     try:
-        live_root_stat = live_root.lstat()
-        runs_root_stat = runs_root.lstat()
-        run_root_stat = run_root.lstat()
-    except FileNotFoundError:
-        return True
-    for item in (live_root_stat, runs_root_stat, run_root_stat):
-        if not stat.S_ISDIR(item.st_mode) or stat.S_ISLNK(item.st_mode):
-            raise RuntimeError("previous live run root is not a regular directory")
-    return False
+        descriptor = _open_committed_source_fd(
+            source_directory_fd,
+            path.name,
+            committed_rows=committed_rows,
+            source=source,
+            allow_missing=allow_missing,
+        )
+        if descriptor is None:
+            return
+        with os.fdopen(descriptor, "r+b") as handle:
+            committed_end = 0
+            for _ in range(committed_rows):
+                row = handle.readline()
+                if not row or not row.endswith(b"\n") or not row.strip():
+                    raise RuntimeError(
+                        f"previous {source} source file has fewer rows than committed"
+                    )
+                committed_end = handle.tell()
+            if handle.read(1):
+                handle.truncate(committed_end)
+            handle.flush()
+            os.fsync(handle.fileno())
+    finally:
+        if owned:
+            os.close(source_directory_fd)
 
 
 def _prepare_live_roots(*, data_root: Path, live_root: Path, runs_root: Path) -> None:
@@ -348,42 +476,46 @@ class LiveRunManager:
             run_id = payload.get("active_run_id")
             if not isinstance(run_id, str) or not RUN_ID_PATTERN.fullmatch(run_id):
                 return
-            run_root = self.runs_root / run_id
-            if _restart_run_root_missing(
-                live_root=self.live_root, runs_root=self.runs_root, run_root=run_root
-            ):
-                return
-            state_path = run_root / RUN_STATE_FILE
-            if not state_path.is_file() or state_path.is_symlink():
-                return
-            state = json.loads(state_path.read_text(encoding="utf-8"))
         except (OSError, TypeError, ValueError, json.JSONDecodeError):
             return
-        if state.get("run_state") != "active":
+
+        run_root_fd = _open_restart_run_root_fd(self.data_root, run_id)
+        if run_root_fd is None:
             return
+        try:
+            try:
+                state = _read_json_regular_at(run_root_fd, RUN_STATE_FILE)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                return
+            if state is None or state.get("run_state") != "active":
+                return
 
-        sources = state.get("sources")
-        if not isinstance(sources, dict):
-            raise RuntimeError("previous live source state is invalid")
-        expected_sources = {BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE}
-        if set(sources) != expected_sources:
-            raise RuntimeError("previous live source set is invalid")
-        for source in (BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE):
-            committed_rows, allow_missing = _restart_source_commit_state(
-                sources[source], source=source
-            )
-            _seal_committed_ndjson(
-                run_root / f"{source}.ndjson",
-                committed_rows=committed_rows,
-                source=source,
-                allow_missing=allow_missing,
-            )
+            sources = state.get("sources")
+            if not isinstance(sources, dict):
+                raise RuntimeError("previous live source state is invalid")
+            expected_sources = {BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE}
+            if set(sources) != expected_sources:
+                raise RuntimeError("previous live source set is invalid")
+            run_root = self.runs_root / run_id
+            for source in (BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE):
+                committed_rows, allow_missing = _restart_source_commit_state(
+                    sources[source], source=source
+                )
+                _seal_committed_ndjson(
+                    run_root / f"{source}.ndjson",
+                    committed_rows=committed_rows,
+                    source=source,
+                    allow_missing=allow_missing,
+                    directory_fd=run_root_fd,
+                )
 
-        state["run_state"] = "completed"
-        state["data_mode"] = "historical"
-        state["completed_at_ms"] = self._now_ms()
-        state["completion_reason"] = "collector-restart"
-        write_json_atomic(state_path, state)
+            state["run_state"] = "completed"
+            state["data_mode"] = "historical"
+            state["completed_at_ms"] = self._now_ms()
+            state["completion_reason"] = "collector-restart"
+            _write_json_atomic_at(run_root_fd, RUN_STATE_FILE, state)
+        finally:
+            os.close(run_root_fd)
 
     def _start_new_run(self, now_ms: int) -> None:
         instant = datetime.fromtimestamp(now_ms / 1000, tz=UTC)

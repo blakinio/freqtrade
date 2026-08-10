@@ -155,6 +155,41 @@ def test_restart_rejects_missing_events_written_without_mutating_source(
     assert sorted(path.name for path in (tmp_path / "live" / "runs").iterdir()) == [old_run_id]
 
 
+@pytest.mark.parametrize("configured_value", ["__missing__", None, "false", 0])
+def test_restart_rejects_malformed_configured_without_mutating_source(
+    tmp_path: Path, configured_value: object
+) -> None:
+    old_run_id, old_run_root = _write_previous_active_run(
+        tmp_path,
+        committed_rows={BINANCE_SOURCE: 1, BYBIT_SOURCE: 0, OKX_SOURCE: 0},
+        actual_rows={BINANCE_SOURCE: 2, BYBIT_SOURCE: 0, OKX_SOURCE: 0},
+    )
+    state_path = old_run_root / "run-state-v1.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    if configured_value == "__missing__":
+        del state["sources"][BINANCE_SOURCE]["configured"]
+    else:
+        state["sources"][BINANCE_SOURCE]["configured"] = configured_value
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    source_path = old_run_root / f"{BINANCE_SOURCE}.ndjson"
+    original = source_path.read_bytes()
+    manager = OkxLiveRunManager(
+        data_root=tmp_path,
+        collector_commit="c" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+
+    with pytest.raises(RuntimeError, match="binance-usdm configured is invalid"):
+        asyncio.run(manager.start())
+
+    assert source_path.read_bytes() == original
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))
+    assert persisted["run_state"] == "active"
+    pointer = json.loads((tmp_path / "live" / LIVE_STATE_FILE).read_text(encoding="utf-8"))
+    assert pointer["active_run_id"] == old_run_id
+
+
 def test_restart_rejects_missing_configured_zero_row_source(tmp_path: Path) -> None:
     old_run_id, old_run_root = _write_previous_active_run(
         tmp_path,
@@ -232,6 +267,33 @@ def test_restart_rejects_incomplete_source_state_set(tmp_path: Path) -> None:
     assert persisted["run_state"] == "active"
     pointer = json.loads((tmp_path / "live" / LIVE_STATE_FILE).read_text(encoding="utf-8"))
     assert pointer["active_run_id"] == old_run_id
+
+
+@pytest.mark.parametrize("component", ["live", "runs"])
+def test_start_rejects_symlinked_runtime_root_before_any_write(
+    tmp_path: Path, component: str
+) -> None:
+    external = tmp_path / f"external-{component}"
+    external.mkdir()
+    if component == "live":
+        (tmp_path / "live").symlink_to(external, target_is_directory=True)
+        expected = "Liquid20 live root is not a regular directory"
+    else:
+        live_root = tmp_path / "live"
+        live_root.mkdir()
+        (live_root / "runs").symlink_to(external, target_is_directory=True)
+        expected = "Liquid20 runs root is not a regular directory"
+    manager = OkxLiveRunManager(
+        data_root=tmp_path,
+        collector_commit="b" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+
+    with pytest.raises(RuntimeError, match=expected):
+        asyncio.run(manager.start())
+
+    assert list(external.iterdir()) == []
 
 
 def test_restart_rejects_symlinked_run_root_without_mutating_external_target(

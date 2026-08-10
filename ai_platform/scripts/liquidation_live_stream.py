@@ -172,6 +172,36 @@ def _restart_run_root_missing(*, live_root: Path, runs_root: Path, run_root: Pat
     return False
 
 
+def _prepare_live_roots(*, data_root: Path, live_root: Path, runs_root: Path) -> None:
+    for path, label in (
+        (data_root, "Liquid20 data root"),
+        (live_root, "Liquid20 live root"),
+        (runs_root, "Liquid20 runs root"),
+    ):
+        try:
+            item = path.lstat()
+        except FileNotFoundError:
+            try:
+                path.mkdir(parents=False, exist_ok=False)
+            except FileExistsError:
+                pass
+            item = path.lstat()
+        if not stat.S_ISDIR(item.st_mode) or stat.S_ISLNK(item.st_mode):
+            raise RuntimeError(f"{label} is not a regular directory")
+
+
+def _restart_source_commit_state(source_state: object, *, source: str) -> tuple[int, bool]:
+    if not isinstance(source_state, dict):
+        raise RuntimeError(f"previous {source} source state is invalid")
+    if "events_written" not in source_state:
+        raise RuntimeError(f"previous {source} events_written is missing")
+    configured = source_state.get("configured")
+    if not isinstance(configured, bool):
+        raise RuntimeError(f"previous {source} configured is invalid")
+    allow_missing = configured is False and source_state.get("last_event_received_at_ms") is None
+    return source_state["events_written"], allow_missing
+
+
 class LiveRunManager:
     def __init__(
         self,
@@ -184,6 +214,7 @@ class LiveRunManager:
     ) -> None:
         if not re.fullmatch(r"[0-9a-fA-F]{40}", collector_commit):
             raise ValueError("collector_commit must be a 40-character Git SHA")
+        self.data_root = data_root
         self.live_root = data_root / "live"
         self.runs_root = self.live_root / "runs"
         self.collector_commit = collector_commit.lower()
@@ -221,7 +252,12 @@ class LiveRunManager:
 
     async def start(self) -> None:
         async with self._lock:
-            self.runs_root.mkdir(parents=True, exist_ok=True)
+            await asyncio.to_thread(
+                _prepare_live_roots,
+                data_root=self.data_root,
+                live_root=self.live_root,
+                runs_root=self.runs_root,
+            )
             await asyncio.to_thread(self._complete_previous_active_run)
             self._start_new_run(self._now_ms())
             await asyncio.to_thread(self._write_state)
@@ -333,15 +369,8 @@ class LiveRunManager:
         if set(sources) != expected_sources:
             raise RuntimeError("previous live source set is invalid")
         for source in (BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE):
-            source_state = sources[source]
-            if not isinstance(source_state, dict):
-                raise RuntimeError(f"previous {source} source state is invalid")
-            if "events_written" not in source_state:
-                raise RuntimeError(f"previous {source} events_written is missing")
-            committed_rows = source_state["events_written"]
-            allow_missing = (
-                source_state.get("configured") is not True
-                and source_state.get("last_event_received_at_ms") is None
+            committed_rows, allow_missing = _restart_source_commit_state(
+                sources[source], source=source
             )
             _seal_committed_ndjson(
                 run_root / f"{source}.ndjson",

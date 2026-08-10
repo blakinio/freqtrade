@@ -17,9 +17,9 @@ concurrency:
 
 jobs:
   diagnostic:
-    name: Inspect failed Portal migration state read-only
+    name: Isolate Portal migrate transfer and check on temporary database
     runs-on: [freqtrade-staging]
-    timeout-minutes: 8
+    timeout-minutes: 20
     steps:
       - name: Refuse trading credential environment
         shell: bash
@@ -29,56 +29,208 @@ jobs:
             test -z "${!name:-}" || { echo "recognized trading credential present: $name" >&2; exit 1; }
           done
 
-      - name: Collect secret-free Docker and PostgreSQL evidence
+      - name: Checkout exact deployed implementation
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: 21427e6b7f1cbe5e5882a007101ce6fe0c2f5784
+
+      - name: Run isolated database phases with split Docker lifecycle
         shell: bash
         env:
-          REPORT: ${{ runner.temp }}/synology-1089-post-deploy-failure.txt
+          REPORT: ${{ runner.temp }}/synology-1089-db-phase-isolation.txt
+          CONTROL_IMAGE: sha256:50f2230810559e16acbfe6a57ad5fe1fc8eb087bcb1dd38419129e99315c8cf9
+          EXPECTED_SNAPSHOT_SHA256: b75062d2879d07a5a55597ba102b58684a35c72edbf3d28e97699750f945405f
         run: |
-          set -u
-          set +e
-          : > "$REPORT"
-          echo '===== metadata =====' >> "$REPORT"
-          date -u '+utc=%Y-%m-%dT%H:%M:%SZ' >> "$REPORT"
-          timeout 30 docker version --format 'server={{.Server.Version}}' >> "$REPORT" 2>&1
-          echo "docker_version_rc=$?" >> "$REPORT"
-
-          echo '===== portal containers =====' >> "$REPORT"
-          for name in freqtrade-portal-postgresql freqtrade-portal-control-plane freqtrade-portal-staging; do
-            timeout 20 docker inspect --format 'name={{.Name}} status={{.State.Status}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} image={{.Config.Image}} restart={{.HostConfig.RestartPolicy.Name}}' "$name" >> "$REPORT" 2>&1
-            echo "inspect_${name}_rc=$?" >> "$REPORT"
-          done
-
-          echo '===== portal network members =====' >> "$REPORT"
-          timeout 20 docker network inspect portal_oidc_public --format '{{range .Containers}}{{.Name}}{{"\n"}}{{end}}' >> "$REPORT" 2>&1
-          echo "network_members_rc=$?" >> "$REPORT"
-
-          echo '===== portal databases =====' >> "$REPORT"
-          timeout 30 docker exec freqtrade-portal-postgresql psql -U portal -d portal_admin -Atc "SELECT datname FROM pg_database WHERE datname = 'portal_admin' OR datname LIKE 'portal_candidate_%' ORDER BY datname" >> "$REPORT" 2>&1
-          echo "database_inventory_rc=$?" >> "$REPORT"
-
-          echo '===== postgres error window =====' >> "$REPORT"
-          timeout 30 docker logs --since '2026-08-10T23:20:00Z' --timestamps freqtrade-portal-postgresql 2>&1 | grep -Ei 'ERROR|FATAL|PANIC|WARNING|database|role|connection|checkpoint|ready to accept' | tail -n 400 >> "$REPORT" || true
-
-          echo '===== exact approved control image =====' >> "$REPORT"
-          timeout 20 docker image inspect --format 'id={{.Id}} revision={{index .Config.Labels "org.opencontainers.image.revision"}}' sha256:50f2230810559e16acbfe6a57ad5fe1fc8eb087bcb1dd38419129e99315c8cf9 >> "$REPORT" 2>&1
-          echo "approved_control_image_rc=$?" >> "$REPORT"
-
+          set -euo pipefail
           python3 - "$REPORT" <<'PY'
-          import pathlib, re, sys
-          path = pathlib.Path(sys.argv[1])
-          text = path.read_text(encoding='utf-8', errors='replace')
-          text = re.sub(r'(?i)(password|passwd|secret|token|authorization|bearer|api[_-]?key)\s*[:=]\s*[^\s,;]+', r'\1=[REDACTED]', text)
-          text = re.sub(r'postgresql(?:\+psycopg)?://[^\s]+', '[REDACTED_DATABASE_URL]', text)
-          text = re.sub(r'\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b', '[REDACTED_JWT]', text)
-          path.write_text(text, encoding='utf-8')
+          import hashlib
+          import importlib.util
+          import json
+          import os
+          import pathlib
+          import re
+          import subprocess
+          import sys
+          import time
+
+          report_path = pathlib.Path(sys.argv[1])
+          repo = pathlib.Path(os.environ['GITHUB_WORKSPACE']).resolve()
+          image = os.environ['CONTROL_IMAGE']
+          expected_snapshot_digest = os.environ['EXPECTED_SNAPSHOT_SHA256']
+          run_id = re.sub(r'[^0-9]', '', os.environ['GITHUB_RUN_ID'])
+          database_name = f'portal_diag_1089_{run_id}'
+          candidate_env_path = pathlib.Path('/var/lib/freqtrade-staging-state/portal-oidc-public/runtime.candidate.env')
+          rows = []
+
+          spec = importlib.util.spec_from_file_location('portal_oidc_diag_deploy', repo / 'deploy/synology/portal-oidc/deploy.py')
+          if spec is None or spec.loader is None:
+              raise SystemExit('unable to load deploy module')
+          deploy = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(deploy)
+
+          def add(key, value):
+              rows.append(f'{key}={value}')
+
+          def run(command, timeout):
+              started = time.monotonic()
+              try:
+                  result = subprocess.run(command, text=True, capture_output=True, timeout=timeout, check=False)
+                  elapsed = round(time.monotonic() - started, 3)
+                  return result.returncode, elapsed, result.stdout, result.stderr
+              except subprocess.TimeoutExpired as exc:
+                  elapsed = round(time.monotonic() - started, 3)
+                  return 124, elapsed, exc.stdout or '', exc.stderr or ''
+
+          postgres_env = deploy._read_env(deploy.PORTAL_POSTGRES_ENV)
+          runtime_env = deploy._read_env(deploy.PORTAL_RUNTIME_ENV)
+          protected_values = {value for value in [*postgres_env.values(), *runtime_env.values()] if value}
+
+          def sanitize(text):
+              for value in sorted(protected_values, key=len, reverse=True):
+                  text = text.replace(value, '[REDACTED_PROTECTED_VALUE]')
+              text = re.sub(r'postgresql(?:\+psycopg)?://[^\s]+', '[REDACTED_DATABASE_URL]', text)
+              text = re.sub(r'\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b', '[REDACTED_JWT]', text)
+              return text[-6000:]
+
+          def digest(path):
+              h = hashlib.sha256()
+              with path.open('rb') as handle:
+                  for chunk in iter(lambda: handle.read(1024 * 1024), b''):
+                      h.update(chunk)
+              return h.hexdigest()
+
+          def stage(name, python_args, mount=None):
+              container = f'portal-oidc-dbdiag-{run_id}-{name}'
+              run(['docker', 'rm', '-f', container], 60)
+              command = [
+                  'docker', 'create', '--name', container,
+                  '--network', deploy.PORTAL_NETWORK,
+                  '--read-only', '--tmpfs', deploy.RUNTIME_TMPFS,
+                  '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true',
+                  '--pids-limit', '128', '--memory', '512m',
+                  '--user', f'{deploy.PORTAL_UID}:{deploy.PORTAL_GID}',
+                  '--env-file', str(candidate_env_path),
+              ]
+              if mount is not None:
+                  command += ['--mount', mount]
+              command += ['--entrypoint', 'python', image, *python_args]
+              create_rc, create_s, _, create_err = run(command, 240)
+              add(f'{name}_create_rc', create_rc)
+              add(f'{name}_create_seconds', create_s)
+              if create_rc != 0:
+                  add(f'{name}_create_detail', sanitize(str(create_err)).replace('\n', ' | '))
+                  run(['docker', 'rm', '-f', container], 120)
+                  return False
+              start_rc, start_s, _, start_err = run(['docker', 'start', container], 240)
+              add(f'{name}_start_rc', start_rc)
+              add(f'{name}_start_seconds', start_s)
+              if start_rc != 0:
+                  add(f'{name}_start_detail', sanitize(str(start_err)).replace('\n', ' | '))
+                  run(['docker', 'rm', '-f', container], 120)
+                  return False
+              wait_rc, wait_s, wait_out, wait_err = run(['docker', 'wait', container], 240)
+              add(f'{name}_wait_rc', wait_rc)
+              add(f'{name}_wait_seconds', wait_s)
+              process_exit = wait_out.strip() if wait_rc == 0 else 'unknown'
+              add(f'{name}_process_exit', process_exit)
+              logs_rc, _, logs_out, logs_err = run(['docker', 'logs', container], 60)
+              add(f'{name}_logs_rc', logs_rc)
+              detail = sanitize(f'{logs_out}\n{logs_err}\n{wait_err}').strip().replace('\n', ' | ')
+              if detail:
+                  add(f'{name}_detail', detail)
+              remove_rc, remove_s, _, remove_err = run(['docker', 'rm', '-f', container], 120)
+              add(f'{name}_remove_rc', remove_rc)
+              add(f'{name}_remove_seconds', remove_s)
+              if remove_rc != 0:
+                  add(f'{name}_remove_detail', sanitize(str(remove_err)).replace('\n', ' | '))
+              return wait_rc == 0 and process_exit == '0' and remove_rc == 0
+
+          cleanup_errors = []
+          try:
+              if candidate_env_path.exists():
+                  raise RuntimeError('candidate runtime env unexpectedly exists before diagnostic')
+              image_check = subprocess.run(
+                  ['docker', 'image', 'inspect', '--format', '{{.Id}}|{{ index .Config.Labels "org.opencontainers.image.revision" }}', image],
+                  text=True, capture_output=True, check=False, timeout=30,
+              )
+              add('image_check_rc', image_check.returncode)
+              add('image_check', image_check.stdout.strip())
+              if image_check.returncode != 0 or not image_check.stdout.startswith(image + '|21427e6b7f1cbe5e5882a007101ce6fe0c2f5784'):
+                  raise RuntimeError('approved control image verification failed')
+
+              if runtime_env.get('PORTAL_DATABASE_URL') != deploy.LEGACY_SQLITE_DATABASE_URL:
+                  raise RuntimeError('authoritative runtime is not the expected legacy SQLite topology')
+              if not postgres_env:
+                  raise RuntimeError('protected PostgreSQL env is missing')
+
+              deploy._drop_candidate_database(database_name)
+              deploy._create_postgres_database(database_name)
+              add('diagnostic_database_created', True)
+
+              candidate_values = dict(runtime_env)
+              candidate_values['PORTAL_DATABASE_URL'] = deploy._postgres_database_url(database_name, postgres_env)
+              deploy._write_env_atomic(candidate_env_path, candidate_values)
+              add('candidate_env_prepared', True)
+
+              snapshots = []
+              backup_root = pathlib.Path(deploy.PORTAL_LEGACY_BACKUP_DIR)
+              for path in backup_root.glob('portal-pre-postgresql-21427e6b7f1c-*.db'):
+                  if path.is_file() and not path.is_symlink() and digest(path) == expected_snapshot_digest:
+                      snapshots.append(path)
+              if len(snapshots) != 1:
+                  raise RuntimeError(f'expected exactly one matching protected snapshot, found {len(snapshots)}')
+              snapshot = snapshots[0]
+              add('snapshot_match', snapshot.name)
+
+              migrate_ok = stage('migrate', ['-m', 'ai_platform.portal.database.cli', 'migrate'])
+              add('migrate_ok', migrate_ok)
+              transfer_ok = False
+              check_ok = False
+              if migrate_ok:
+                  mount = f'type=bind,src={snapshot.parent},dst=/legacy,readonly'
+                  transfer_ok = stage(
+                      'transfer',
+                      ['-m', 'ai_platform.portal.database.transfer', '--source-sqlite', f'/legacy/{snapshot.name}'],
+                      mount=mount,
+                  )
+                  add('transfer_ok', transfer_ok)
+              if migrate_ok and transfer_ok:
+                  check_ok = stage('check', ['-m', 'ai_platform.portal.database.cli', 'check'])
+                  add('check_ok', check_ok)
+              add('diagnostic_result', 'success' if migrate_ok and transfer_ok and check_ok else 'failed')
+          except Exception as exc:
+              add('diagnostic_exception_type', type(exc).__name__)
+              add('diagnostic_exception', sanitize(str(exc)).replace('\n', ' | '))
+          finally:
+              for prefix in ('migrate', 'transfer', 'check'):
+                  container = f'portal-oidc-dbdiag-{run_id}-{prefix}'
+                  run(['docker', 'rm', '-f', container], 120)
+              try:
+                  deploy._drop_candidate_database(database_name)
+              except Exception as exc:
+                  cleanup_errors.append(f'database:{type(exc).__name__}')
+              try:
+                  candidate_env_path.unlink(missing_ok=True)
+              except Exception as exc:
+                  cleanup_errors.append(f'env:{type(exc).__name__}')
+              add('cleanup_errors', ','.join(cleanup_errors) if cleanup_errors else 'none')
+              add('candidate_env_exists_after', candidate_env_path.exists())
+              exists = deploy._postgres_database_exists(database_name)
+              add('diagnostic_database_exists_after', exists)
+
+          report_path.write_text('\n'.join(rows) + '\n', encoding='utf-8')
+          if cleanup_errors or candidate_env_path.exists() or exists:
+              raise SystemExit(2)
           PY
 
-      - name: Upload read-only failure evidence
+      - name: Upload isolated phase evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: synology-1089-post-deploy-failure-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/synology-1089-post-deploy-failure.txt
+          name: synology-1089-db-phase-isolation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/synology-1089-db-phase-isolation.txt
           if-no-files-found: error
           retention-days: 14
 
@@ -86,10 +238,10 @@ jobs:
         if: always()
         shell: bash
         env:
-          REPORT: ${{ runner.temp }}/synology-1089-post-deploy-failure.txt
+          REPORT: ${{ runner.temp }}/synology-1089-db-phase-isolation.txt
         run: |
           {
-            echo '## Synology #1089 failed deployment read-only diagnostic'
+            echo '## Synology #1089 isolated database phases'
             echo
             [[ -f "$REPORT" ]] && sed 's/^/- /' "$REPORT" || true
           } >> "$GITHUB_STEP_SUMMARY"
@@ -98,5 +250,5 @@ jobs:
         if: always()
         shell: bash
         env:
-          REPORT: ${{ runner.temp }}/synology-1089-post-deploy-failure.txt
+          REPORT: ${{ runner.temp }}/synology-1089-db-phase-isolation.txt
         run: rm -f -- "$REPORT"

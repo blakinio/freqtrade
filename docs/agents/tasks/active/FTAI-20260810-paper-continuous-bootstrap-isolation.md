@@ -20,36 +20,36 @@ parent_pr: 1448
 paper_gate: programme_governance
 live_capital_authorized: false
 protected_production_deployment_authorized: false
+repair_cycles_for_gate: 3
 ```
 
 ## Objective
 
-Isolate fresh P1 findings returned after parent PR #1448 exhausted its three repair cycles. Align the root bootstrap with the bounded trusted continuous-programme exception and make ordinary CI/review observation budgets durable per task + exact SHA across later invocations, same-SHA check generations and SHA A → B → A history.
-
-This task is coordination/governance only. PAPER remains the only authorized operational trading mode. LIVE remains unreachable/fail-closed.
+Close the bounded isolation created after parent PR #1448 exhausted its repair budget. The change may improve only continuous-programme coordination and durable checkpoint accounting. PAPER remains the only authorized operational trading mode; LIVE remains unreachable/fail-closed.
 
 ## Acceptance
 
-- Root `AGENTS.override.md` preserves the default one-additional-task cap when no trusted override exists.
-- Only explicit owner authority or a programme contract already merged on the trusted base may activate continuous rotation.
-- Continuous rotation changes task-count coordination only; one writer, dependency/path/ownership preflight and all safety/validation budgets remain intact.
-- Checkpoint v2 persists ordinary CI and review observations in `observation_counters_by_sha` keyed by exact lowercase 40-hex SHA.
-- Same-SHA reruns, new run IDs, later owner invocations and Chat replacement never reset an entry.
-- A genuinely new SHA creates a new entry; returning A → B → A reuses A's existing entry.
-- Current-head scalar counters must match the selected head's stored entry.
-- Legacy checkpoint v1 remains readable during migration.
-- PAPER executor and autonomous coordinator use the same durable-history rule.
-- Prompt/governance eval covers the cross-invocation and A → B → A failure modes.
-- Runtime/browser E2E is `NOT_APPLICABLE`: no runtime, browser, deployment or trading path changes.
+- root bootstrap recognizes a trusted continuous-programme exception without weakening the default cap;
+- CI/review observations are durable per task and exact SHA across later invocations, reruns and A→B→A history;
+- observation entries are monotonic and non-evicting across Git history;
+- every new or touched task record uses checkpoint v2 while untouched legacy v1 stays read-compatible;
+- coordinator and PAPER executor use the same durable-history rule;
+- manual prompt evaluation is labelled manual/static when no repeated-trial harness exists;
+- exact-head CI, fresh independent Codex review and zero unresolved material review threads are required before merge;
+- runtime/browser E2E is NOT_APPLICABLE because this is governance/checkpoint-only work.
 
 ## Repair history
 
-- Parent review P1 `PRRT_kwDOTdDTU86YBBiZ`: root bootstrap contradicted subordinate continuous-mode policy.
-- Parent review P1 `PRRT_kwDOTdDTU86YBBib`: later invocations could receive fresh same-SHA polling allowance.
-- Isolation repair cycle 1 aligned root bootstrap and anti-stall prose.
-- Fresh isolation review P1 `PRRT_kwDOUOD7us6YB0xE`: downstream autonomous/PAPER executors still allowed later-invocation renewal.
-- Fresh isolation review P1 `PRRT_kwDOUOD7us6YB0xK`: scalar-only current-head counters lost history through A → B → A.
-- Isolation repair cycle 2 introduces checkpoint contract v2, validator enforcement, deterministic A/B/A regression, synchronized coordinator/executor wording and updated prompt eval.
+1. Cycle 1 aligned root bootstrap and continuous-mode coordination.
+2. Cycle 2 introduced checkpoint v2 keyed CI/review history and A→B→A regression coverage.
+3. Cycle 3 adds Git-history monotonicity enforcement, touched-task v2 migration enforcement, non-evicting history semantics, updated task templates/handoff guidance and an honest manual/static prompt-eval record.
+
+Fresh cycle-2 Codex findings addressed by cycle 3:
+
+- `PRRT_kwDOTdDTU86YB0WL` — prevent rewriting prior-SHA counters;
+- `PRRT_kwDOTdDTU86YB0WQ` — restrict v1 compatibility to genuinely legacy untouched records;
+- `PRRT_kwDOTdDTU86YB0WU` — do not claim repeated prompt trials when no harness exists;
+- `PRRT_kwDOTdDTU86YB0WZ` — preserve observation history beyond the old 32-head ceiling.
 
 ## Prompt-as-code record
 
@@ -61,8 +61,8 @@ prompt_contract:
     - anti-stall continuation rule
     - autonomous programme coordinator contract
     - PAPER executor prompt
-    - durable checkpoint schema and validator
-  objective: continue dependency-safe PAPER work while external gates wait without renewing ordinary polling budgets across later invocations or prior-SHA returns
+    - durable checkpoint schema, validator and history workflow
+  objective: continue dependency-safe PAPER work during external waits without renewing ordinary polling budgets or losing prior-SHA history
   baseline_version: paper-continuous-execution-v1
   eval_suite: docs/agents/evals/PAPER_CONTINUOUS_EXECUTION_EVAL_20260810.md
   rollback_version: paper-continuous-execution-v1
@@ -72,14 +72,14 @@ prompt_contract:
 
 ```yaml
 checkpoint_version: 2
-updated_at: 2026-08-10T20:37:50Z
-head: 7b048f4fd01951893a5ff8ad0da0e6ebbc758517
+updated_at: 2026-08-10T21:07:00Z
+head: a17497b42a7d52122331440ae2ef56be27795085
 branch: fix/paper-continuous-bootstrap-isolation-20260810
 pr: 1451
 status: validating
-invocation_started_at: 2026-08-10T20:10:00Z
-last_progress_at: 2026-08-10T20:37:50Z
-ci_checks_for_current_head: 0
+invocation_started_at: 2026-08-10T21:07:00Z
+last_progress_at: 2026-08-10T21:07:00Z
+ci_checks_for_current_head: 1
 review_checks_for_current_head: 0
 observation_counters_by_sha:
   fe95d6d9ede5ab64bf964e2e36eff5d384ea1b8b:
@@ -88,81 +88,119 @@ observation_counters_by_sha:
   7b048f4fd01951893a5ff8ad0da0e6ebbc758517:
     ci: 0
     review: 0
+  b9549121fb43a3c2f9f370ac225c084f3af01c15:
+    ci: 1
+    review: 1
+  a17497b42a7d52122331440ae2ef56be27795085:
+    ci: 1
+    review: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 2
+repair_cycles_for_current_gate: 3
 context_reconstruction_attempts: 0
 stall_warnings: 0
 context_routes:
   - parent PR 1448 continuous programme governance
-  - root bootstrap task-count authority
-  - durable per-task exact-SHA CI and review observation history
-  - checkpoint v2 migration compatibility
-  - PAPER executor prompt eval
+  - root bootstrap authority ordering
+  - durable exact-SHA observation history
+  - checkpoint v2 migration and monotonicity
+  - PAPER executor prompt evaluation
 owned_paths:
   - AGENTS.override.md
   - docs/agents/ANTI_STALL_AND_EXECUTION_BUDGET.md
   - docs/agents/AUTONOMOUS_PROGRAM_CONTINUATION.md
   - docs/agents/GOVERNANCE_CONTRACT.json
+  - docs/agents/CONTEXT_HANDOFF.md
+  - docs/agents/tasks/TASK_TEMPLATE.md
   - docs/agents/evals/PAPER_CONTINUOUS_EXECUTION_EVAL_20260810.md
   - docs/agents/prompts/PAPER_PLATFORM_EXECUTOR.md
   - docs/agents/tasks/active/FTAI-20260810-paper-continuous-bootstrap-isolation.md
-  - tests/ci/test_agent_checkpoint_observation_history.py
   - tools/agents/checkpoint.py
+  - tools/agents/validate_checkpoint_history.py
+  - tests/ci/test_agent_checkpoint_observation_history.py
+  - tests/ci/test_agent_checkpoint_history_monotonic.py
+  - .github/workflows/agent-checkpoint-history.yml
 proven:
-  - Parent PR 1448 exact head 49332fadbffcda3c310b2a8031eb298413c1d65e had green Freqtrade, Risk-aware, CodeQL and zizmor CI before isolation.
-  - Parent task records three repair cycles, requiring this separate stacked isolation rather than a fourth parent repair.
-  - PR 1451 is stacked on the parent branch and cannot bypass parent validation.
-  - Root bootstrap now recognizes only trusted owner or already-merged base authority for continuous rotation while preserving the default cap otherwise.
-  - Checkpoint contract v2 defines observation_counters_by_sha with CI and review counters per exact SHA and v1 read compatibility.
-  - tools/agents/checkpoint.py enforces v2 history shape, current-head presence and scalar/history equality.
-  - The deterministic regression covers valid A/B/A reuse, rejected A reset and legacy v1 readability.
-  - Autonomous programme and PAPER executor contracts now inherit stored task/SHA history across later invocations and prior-SHA returns.
-  - Prompt eval v2 adds S15 later-invocation and S16 A/B/A safety cases plus deterministic regression inventory.
+  - Parent PR 1448 exhausted three repair cycles and PR 1451 is its existing bounded stacked isolation.
+  - Root bootstrap continuous authority is coordination-only and cannot self-grant from an unmerged edit.
+  - Checkpoint v2 stores CI and review counters by exact SHA.
+  - tools/agents/validate_checkpoint_history.py compares task checkpoints across the PR Git history and rejects removed or decreased prior-SHA counters.
+  - The dedicated Agent checkpoint history workflow uses full Git history and validates touched task migration plus deterministic regressions.
+  - New and touched task records are required to use v2; untouched v1 records remain read-compatible.
+  - Observation history is non-evicting; the parser bound is defensive only and no 32-head archival loss remains authorized.
+  - The prompt eval explicitly records that no nondeterministic repeated-trial harness is available and does not call the manual matrix an automated prompt pass.
+  - PAPER remains the only authorized operational mode and LIVE remains unreachable/fail-closed.
 derived:
-  - The two fresh isolation P1 findings are addressed by repair cycle 2 without expanding runtime, merge, safety or live-capital authority.
-  - Continuous execution remains coordination-only and one-writer by default.
+  - Cycle 3 addresses every currently known material Codex finding without expanding runtime, deployment, credential or live-capital authority.
+  - Any new material defect after cycle 3 must move to a fresh isolation rather than a fourth repair in this task.
 unknown:
-  - Exact-head CI result on the successor created by this checkpoint update.
-  - Fresh independent Codex disposition on the successor exact head.
+  - Terminal exact-head CI result on the checkpoint-successor head.
+  - Fresh independent Codex disposition on the checkpoint-successor head.
 conflicts: []
 first_failure:
-  marker: parent and first isolation candidate did not preserve ordinary observation budget through later invocations and prior-SHA returns
-  evidence: Codex threads PRRT_kwDOTdDTU86YBBiZ PRRT_kwDOTdDTU86YBBib PRRT_kwDOUOD7us6YB0xE PRRT_kwDOUOD7us6YB0xK
+  marker: cycle-2 review showed mutable/evictable observation history and unrestricted v1 write compatibility
+  evidence: PRRT_kwDOTdDTU86YB0WL PRRT_kwDOTdDTU86YB0WQ PRRT_kwDOTdDTU86YB0WU PRRT_kwDOTdDTU86YB0WZ
 rejected_hypotheses:
-  - Apply a fourth repair directly to parent task; rejected by the three-cycle parent limit.
-  - Reset counters per owner invocation; rejected because same-SHA polling would become unbounded.
-  - Keep only scalar current-head counters; rejected because A → B → A loses A history.
-  - Make checkpoint v2 immediately invalidate every v1 task; rejected in favor of bounded read compatibility.
+  - Reset counters per owner invocation; rejected because it permits unbounded same-SHA polling.
+  - Keep a 32-SHA eviction ceiling; rejected because returning to an evicted SHA would lose consumed budget.
+  - Treat all v1 checkpoints as valid new writes; rejected in favor of untouched-legacy read compatibility only.
+  - Claim repeated model trials without an available harness; rejected by evidence and PROMPT_EVAL_STANDARD.
 changed_paths:
+  - .github/workflows/agent-checkpoint-history.yml
   - AGENTS.override.md
   - docs/agents/ANTI_STALL_AND_EXECUTION_BUDGET.md
   - docs/agents/AUTONOMOUS_PROGRAM_CONTINUATION.md
+  - docs/agents/CONTEXT_HANDOFF.md
   - docs/agents/GOVERNANCE_CONTRACT.json
   - docs/agents/evals/PAPER_CONTINUOUS_EXECUTION_EVAL_20260810.md
   - docs/agents/prompts/PAPER_PLATFORM_EXECUTOR.md
+  - docs/agents/tasks/TASK_TEMPLATE.md
   - docs/agents/tasks/active/FTAI-20260810-paper-continuous-bootstrap-isolation.md
+  - tests/ci/test_agent_checkpoint_history_monotonic.py
   - tests/ci/test_agent_checkpoint_observation_history.py
   - tools/agents/checkpoint.py
+  - tools/agents/validate_checkpoint_history.py
 validation:
   - command: parent PR 1448 exact-head CI before isolation
     result: PASS
     evidence: Freqtrade 31426530949; Risk-aware 31426531704; CodeQL 31426530964; zizmor 31426531062
-  - command: isolation PR 1451 first aggregate CI observation on fe95d6d9ede5ab64bf964e2e36eff5d384ea1b8b
-    result: NOT_RUN
-    evidence: Freqtrade 31429305702 and Risk-aware 31429305890 were queued at the one recorded observation; no extra same-SHA polling performed
-  - command: fresh Codex review of fe95d6d9ede5ab64bf964e2e36eff5d384ea1b8b
+  - command: independent Codex review of cycle-2 head b9549121fb43a3c2f9f370ac225c084f3af01c15
     result: FAIL
-    evidence: P1 PRRT_kwDOUOD7us6YB0xE and P1 PRRT_kwDOUOD7us6YB0xK; addressed by repair cycle 2 successor
-  - command: manual prompt/governance scenario matrix
+    evidence: four open cycle-3 findings named in Repair history
+  - command: manual same-scenario prompt/governance matrix
     result: PASS
-    evidence: PAPER_CONTINUOUS_EXECUTION_EVAL_20260810.md; 17 same baseline/candidate scenarios, no safety regression in static review; no nondeterministic prompt harness available
-  - command: deterministic checkpoint observation-history regression
+    evidence: documented manual/static evaluation; no executable nondeterministic prompt harness available
+  - command: Agent checkpoint history plus Freqtrade/Risk-aware exact-head CI for pre-checkpoint a17497b42a7d52122331440ae2ef56be27795085
     result: NOT_RUN
-    evidence: tests/ci/test_agent_checkpoint_observation_history.py added; exact-head CI pending
+    evidence: runs 31432065543 31432065532 31432065752 were queued at first aggregate observation; checkpoint commit intentionally creates a successor generation
   - command: runtime/browser E2E
     result: NOT_APPLICABLE
-    evidence: governance/checkpoint-only isolation; no runtime, browser, deployment or trading behavior changes
+    evidence: governance/checkpoint/prompt coordination only; no runtime browser deployment or trading behavior changes
 blockers: []
-next_action: Resolve PR 1451 successor exact head, resolve the two cycle-2 review threads as remediated, request fresh Codex review and collect the first aggregate exact-head CI observation. If clear, archive this isolation task in the stacked PR and validate the archival successor before merging it into parent branch #1448.
+next_action: Resolve PR 1451 checkpoint-successor exact head, resolve the four cycle-3 review threads as remediated, request fresh Codex review, and validate exact-head CI. If clear, archive this task in the stacked PR, validate the archival successor, then merge PR 1451 into the parent branch and finish parent PR 1448 closeout.
+```
+
+## Recovery checkpoint
+
+```yaml
+recovery:
+  policy_version: 1
+  generation: 1
+  session_id: paper-20260810-2307
+  session_started_at: 2026-08-10T21:07:00Z
+  checkpointed_at: 2026-08-10T21:07:00Z
+  last_progress_at: 2026-08-10T21:07:00Z
+  phase: cycle_3_final_validation
+  exact_head: a17497b42a7d52122331440ae2ef56be27795085
+  pull_request: 1451
+  active_operation: resolve checkpoint-successor head then fresh Codex review and exact-head CI
+  external_run_ids: [31432065543, 31432065532, 31432065752]
+  operation_started_at: 2026-08-10T21:07:00Z
+  wait_deadline_at: 2026-08-10T21:52:00Z
+  check_generation: pre_checkpoint_cycle_3
+  checks_used: 1
+  status: ready
+  safe_to_resume: true
+  resume_condition: PR 1451 successor exact head exists after this checkpoint commit
+  next_action: Resolve the live PR 1451 head once, then request fresh Codex review and inspect the new exact-head CI generation.
 ```

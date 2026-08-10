@@ -1,4 +1,4 @@
-name: Portal WickHunter Recovery Checkpoint Update
+name: Portal WickHunter Recovery Checkpoint Update V2
 
 "on":
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: portal-wickhunter-1396-checkpoint-update
+  group: portal-wickhunter-1396-checkpoint-update-v2
   cancel-in-progress: false
 
 jobs:
@@ -26,106 +26,62 @@ jobs:
           ref: fix/wickhunter-1396-synology-recovery-v2
           fetch-depth: 1
 
-      - name: Replace Context checkpoint only
+      - name: Apply bounded checkpoint updates
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
-          import re
           from pathlib import Path
 
           path = Path("docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md")
           text = path.read_text(encoding="utf-8")
-          replacement = '''## Context checkpoint
 
-```yaml
-checkpoint_version: 1
-updated_at: 2026-08-10T22:42:00+02:00
-head: 7e17e50aebfab93c882c80aa0e62a6cd0cedb5b7
-branch: fix/wickhunter-1396-synology-recovery-v2
-pr: 1450
-status: validating
-context_routes:
-  - docs/agents/PROMPTING_STANDARD.md
-  - docs/agents/PROMPTING_HANDOVER.md
-  - docs/agents/GITHUB_ONLY_EXECUTION.md
-  - docs/agents/DELIVERY_COMPLETENESS_AND_CLOSEOUT.md
-  - docs/agents/ANTI_STALL_AND_EXECUTION_BUDGET.md
-  - ai_platform/scripts/liquidation_live_stream.py
-  - ai_platform/wickhunter/candidate_paper_runtime_operator.py
-  - Issue #1396 and PR #1450
-owned_paths:
-  - ai_platform/scripts/liquidation_live_stream.py
-  - tests/ai_platform_integration/test_liquidation_live_restart_durability.py
-  - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
-  - .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
-proven:
-  - PRs 1397 1388 and 1436 are merged and PR 1443 remains closed unmerged
-  - WH09 remains the single expected H900 SHADOW runtime with zero trading authority
-  - WH09 root cause is a completed Liquid20 restart run containing durable rows beyond persisted events_written
-  - run liquid20-20260810T000000Z-1 has five uncommitted Binance rows and one uncommitted Bybit row
-  - producer restart sealing now truncates only durable bytes after each persisted commit boundary and fsyncs the file
-  - configured sources with missing files fail closed even when events_written is zero
-  - dangling source symlinks fail closed before missing-file handling
-  - restart state must contain the exact historical-consumer source set
-  - missing files remain allowed only for unconfigured zero-row sources with no receipt timestamp
-  - focused restart durability regression coverage contains six restart boundary cases
-  - exact hardened focused validation passed on head 7e17e50aebfab93c882c80aa0e62a6cd0cedb5b7
-  - both prior Codex P1 and P2 findings are resolved with proving validation
-  - temporary recovery workflow must be removed before final exact-head merge validation
-derived:
-  - the hardened producer contract now matches the historical consumer missing-file and exact-source-set invariants
-  - after integration a single guarded repair of the already completed inconsistent run should be sufficient to restore readable history without weakening fail-closed validation
-unknown:
-  - final retained full CI result after temporary workflow removal
-  - fresh independent audit result on the final diff
-  - explicit authority for the merge-triggered Liquidations Live Synology deployment
-  - post-merge canonical Liquid20 deployment result
-  - guarded completed-history repair result on Synology
-  - whether WH09 naturally advances through two consecutive healthy generations after upstream repair
-  - terminal Portal adoption API browser persistence and desired-observed generation result
-conflicts: []
-first_failure:
-  marker: LIQUID20_RESTART_COMMIT_BOUNDARY_MISMATCH
-  evidence: run 31425261462 exposed the WH09 contradiction and run 31425883292 isolated plus five Binance and plus one Bybit durable rows beyond persisted commit counts
-rejected_hypotheses:
-  - the active Liquid20 pointer or current source freshness is the WH09 blocker
-  - weakening historical row-count validation is an acceptable recovery
-  - a missing configured zero-row source may be treated as equivalent to an unconfigured absent source
-  - an incomplete source-state set may be finalized as valid historical state
-changed_paths:
-  - ai_platform/scripts/liquidation_live_stream.py
-  - tests/ai_platform_integration/test_liquidation_live_restart_durability.py
-  - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
-  - .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
-validation:
-  - command: Read-only WH09 root-cause diagnostic
-    result: PASS
-    evidence: GitHub Actions run 31425261462 job 93575331867
-  - command: Read-only Liquid20 integrity isolation
-    result: PASS
-    evidence: GitHub Actions run 31425883292 job 93577345378
-  - command: Dangling symlink fail-closed repair and focused regression
-    result: PASS
-    evidence: GitHub Actions run 31427855045 job 93583737395
-  - command: Canonical checkpoint validator
-    result: PASS
-    evidence: GitHub Actions run 31428019847 job 93584284664
-  - command: Hardened producer exact-head focused tests lint format checkpoint and producer-consumer invariants
-    result: PASS
-    evidence: GitHub Actions run 31430073700 on head 7e17e50aebfab93c882c80aa0e62a6cd0cedb5b7
-blockers:
-  - merging ai_platform/scripts/liquidation_live_stream.py to develop triggers the protected Liquidations Live Synology deploy workflow; repository merge authority alone does not establish protected live-operation authority
-next_action: Remove the temporary recovery workflow, run retained full exact-head CI and fresh independent audit, then stop before merge unless explicit authority for the merge-triggered Liquidations Live Synology deployment is established.
-```
-'''
-          pattern = re.compile(
-              r"## Context checkpoint\n\n```(?:yaml|yml)\n.*?\n```(?=\n\n## Recovery checkpoint)",
-              re.DOTALL,
+          def replace_once(old: str, new: str) -> None:
+              global text
+              if text.count(old) != 1:
+                  raise SystemExit(f"expected exactly one checkpoint target: {old[:80]}")
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              "updated_at: 2026-08-10T22:16:00+02:00\nhead: 1bb288c9e7f4f8b858b5cdd3054f8d09b27ab61a",
+              "updated_at: 2026-08-10T22:44:00+02:00\nhead: 7e17e50aebfab93c882c80aa0e62a6cd0cedb5b7",
           )
-          if len(pattern.findall(text)) != 1:
-              raise SystemExit("expected exactly one replaceable Context checkpoint")
-          path.write_text(pattern.sub(replacement.rstrip(), text, count=1), encoding="utf-8")
+          replace_once(
+              "  - dangling source symlinks are rejected before the zero-row missing-file shortcut\n  - focused restart durability regression coverage passes after the review repair",
+              "  - dangling source symlinks are rejected before the zero-row missing-file shortcut\n"
+              "  - configured zero-row missing sources now fail closed while an unconfigured absent source is allowed only with no receipt timestamp\n"
+              "  - restart finalization now requires the exact historical-consumer source set\n"
+              "  - focused restart durability regression coverage passes after the review repair\n"
+              "  - exact hardened focused validation passed on head 7e17e50aebfab93c882c80aa0e62a6cd0cedb5b7",
+          )
+          replace_once(
+              "derived:\n  - after the permanent producer fix is integrated a guarded repair of only the already completed inconsistent history should allow WH09 to recover naturally without weakening fail-closed behavior",
+              "derived:\n"
+              "  - after the permanent producer fix is integrated a guarded repair of only the already completed inconsistent history should allow WH09 to recover naturally without weakening fail-closed behavior\n"
+              "  - the hardened producer missing-file and source-set rules now align with the historical consumer contract",
+          )
+          replace_once(
+              "  - final independent audit exact-head CI archive and Issue closure result\nconflicts: []",
+              "  - final independent audit exact-head CI archive and Issue closure result\n"
+              "  - explicit authority for the merge-triggered Liquidations Live Synology deployment\n"
+              "conflicts: []",
+          )
+          replace_once(
+              "  - command: Dangling symlink fail-closed review repair workflow\n    result: PASS\n    evidence: GitHub Actions run 31427855045 job 93583737395 completed source repair lint format and focused regression validation\nblockers: []",
+              "  - command: Dangling symlink fail-closed review repair workflow\n"
+              "    result: PASS\n"
+              "    evidence: GitHub Actions run 31427855045 job 93583737395 completed source repair lint format and focused regression validation\n"
+              "  - command: Hardened restart exact-head focused tests lint format checkpoint and producer-consumer invariants\n"
+              "    result: PASS\n"
+              "    evidence: GitHub Actions run 31430073700 on head 7e17e50aebfab93c882c80aa0e62a6cd0cedb5b7\n"
+              "blockers:\n"
+              "  - merging ai_platform/scripts/liquidation_live_stream.py to develop triggers Liquidations Live Synology deployment and repository merge authority alone does not establish protected live-operation authority",
+          )
+          replace_once(
+              "next_action: Complete PR 1450 exact-head validation and review, remove the temporary recovery workflow, merge only when gates pass, then observe canonical Liquid20 deployment before applying the single guarded completed-history commit-boundary repair through the protected Synology environment.",
+              "next_action: Remove the temporary recovery workflow, run retained full exact-head CI and fresh independent audit, then stop before merge unless explicit authority for the merge-triggered Liquidations Live Synology deployment is established.",
+          )
+          path.write_text(text, encoding="utf-8")
           PY
           python tools/agents/checkpoint.py \
             docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md \

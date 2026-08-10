@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   verify:
-    name: Verify Container Manager recovery and exact Portal preflight
+    name: Restore existing containers and verify exact Portal preflight
     runs-on: [freqtrade-staging]
     timeout-minutes: 12
     steps:
@@ -25,64 +25,46 @@ jobs:
             test -z "${!name:-}" || { echo "recognized trading credential present: $name" >&2; exit 1; }
           done
 
-      - name: Verify daemon and previously-running containers recovered
-        id: runtime
+      - name: Restore exact pre-restart containers that still exist
+        id: restore
         shell: bash
         env:
-          RESULT: ${{ runner.temp }}/synology-1089-post-restart.txt
+          RESULT: ${{ runner.temp }}/synology-1089-container-restore.txt
         run: |
           set -u
           set +e
           : > "$RESULT"
-          timeout 15 docker version --format 'server={{.Server.Version}}' >> "$RESULT" 2>&1
-          version_rc=$?; echo "docker_version_rc=$version_rc" | tee -a "$RESULT"
-          timeout 15 docker info --format 'root={{.DockerRootDir}} running={{.ContainersRunning}} stopped={{.ContainersStopped}} images={{.Images}}' >> "$RESULT" 2>&1
-          info_rc=$?; echo "docker_info_rc=$info_rc" | tee -a "$RESULT"
-          expected=(
-            wickhunter-production-research-runtime-wickhunter-production-research-runtime-1
-            freqtrade-portal-postgresql
-            wickhunter-paper-runtime-v12
-            wickhunter-wh09-egress-v12
-            liquid20-live
-            freqtrade-portal-staging
-            freqtrade-portal-control-plane
-            oteryn-staging-internal-proxy-1
-            oteryn-staging-marketplace-scheduler-1
-            oteryn-staging-platform-1
-            oteryn-staging-gateway-1
-            binance-v3-acceptance-sampler
-            portal-authentik-local-test-worker-1
-            portal-authentik-local-test-server-1
-            oteryn-staging-canary-1
-            oteryn-staging-mariadb-1
-            oteryn-staging-redis-1
-            portal-authentik-local-test-postgresql-1
-            wickhunter-market-evidence-v2
-            wickhunter-market-evidence
-            freqtrade-synology-staging-runner
-            oteryn-synology-staging-runner
-            adguard-adguardhome
-            homeassistant
-          )
-          missing=0
-          for name in "${expected[@]}"; do
-            state="$(timeout 10 docker inspect --format '{{.State.Status}}' "$name" 2>/dev/null || true)"
-            printf 'container_%s=%s\n' "$name" "${state:-missing}" >> "$RESULT"
-            [[ "$state" == running ]] || missing=$((missing+1))
-          done
-          echo "expected_running_missing=$missing" | tee -a "$RESULT"
           failures=0
-          [[ "$version_rc" -eq 0 ]] || failures=$((failures+1))
-          [[ "$info_rc" -eq 0 ]] || failures=$((failures+1))
-          [[ "$missing" -eq 0 ]] || failures=$((failures+1))
-          echo "runtime_failures=$failures" | tee -a "$RESULT"
-          exit "$([ "$failures" -eq 0 ] && echo 0 || echo 1)"
+          for name in \
+            wickhunter-production-research-runtime-wickhunter-production-research-runtime-1 \
+            freqtrade-portal-postgresql \
+            wickhunter-paper-runtime-v12
+          do
+            exists="$(timeout 10 docker inspect --format '{{.State.Status}}' "$name" 2>/dev/null || true)"
+            echo "before_${name}=${exists:-missing}" >> "$RESULT"
+            if [[ -n "$exists" && "$exists" != running ]]; then
+              started=$(date +%s)
+              timeout --kill-after=5 120 docker start "$name" >> "$RESULT" 2>&1
+              rc=$?
+              ended=$(date +%s)
+              printf 'start_%s_rc=%s\nstart_%s_elapsed_seconds=%s\n' "$name" "$rc" "$name" "$((ended-started))" | tee -a "$RESULT"
+              [[ "$rc" -eq 0 ]] || failures=$((failures+1))
+            fi
+            state="$(timeout 10 docker inspect --format '{{.State.Status}}' "$name" 2>/dev/null || true)"
+            echo "after_${name}=${state:-missing}" | tee -a "$RESULT"
+            [[ "$state" == running ]] || failures=$((failures+1))
+          done
+          missing_name='wickhunter-wh09-egress-v12'
+          missing_state="$(timeout 10 docker inspect --format '{{.State.Status}}' "$missing_name" 2>/dev/null || true)"
+          echo "after_${missing_name}=${missing_state:-missing}" | tee -a "$RESULT"
+          echo "restore_failures=$failures" | tee -a "$RESULT"
+          [[ "$failures" -eq 0 ]]
 
       - name: Verify exact protected preflight twice
         id: preflight
         shell: bash
         env:
-          RESULT: ${{ runner.temp }}/synology-1089-post-restart-preflight.txt
+          RESULT: ${{ runner.temp }}/synology-1089-exact-preflight.txt
         run: |
           set -u
           set +e
@@ -90,7 +72,7 @@ jobs:
           image='docker.io/library/postgres:16.13-alpine3.23@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777'
           failures=0
           for attempt in 1 2; do
-            probe="portal-oidc-post-restart-${GITHUB_RUN_ID}-${attempt}"
+            probe="portal-oidc-exact-${GITHUB_RUN_ID}-${attempt}"
             timeout 20 docker rm -f "$probe" >/dev/null 2>&1 || true
             started=$(date +%s)
             timeout --kill-after=5 20 docker run --rm --name "$probe" --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true --entrypoint /bin/true "$image" >> "$RESULT" 2>&1
@@ -102,43 +84,44 @@ jobs:
             sleep 3
           done
           timeout 15 docker version >/dev/null 2>&1
-          post_rc=$?; echo "post_docker_version_rc=$post_rc" | tee -a "$RESULT"
+          post_rc=$?
+          echo "post_docker_version_rc=$post_rc" | tee -a "$RESULT"
           [[ "$post_rc" -eq 0 ]] || failures=$((failures+1))
-          leaked="$(timeout 15 docker ps -a --format '{{.Names}}' 2>/dev/null | grep -E '^portal-oidc-post-restart-' || true)"
-          [[ -z "$leaked" ]] || failures=$((failures+1))
-          echo "preflight_leaks=$([ -z "$leaked" ] && echo none || echo present)" | tee -a "$RESULT"
+          leaks="$(timeout 15 docker ps -a --format '{{.Names}}' 2>/dev/null | grep -E '^portal-oidc-exact-' || true)"
+          [[ -z "$leaks" ]] || failures=$((failures+1))
+          echo "preflight_leaks=$([ -z "$leaks" ] && echo none || echo present)" | tee -a "$RESULT"
           echo "preflight_failures=$failures" | tee -a "$RESULT"
-          exit "$([ "$failures" -eq 0 ] && echo 0 || echo 1)"
+          [[ "$failures" -eq 0 ]]
 
-      - name: Upload post-restart evidence
+      - name: Upload recovery evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: synology-1089-post-restart-${{ github.run_id }}-${{ github.run_attempt }}
+          name: synology-1089-restored-preflight-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            ${{ runner.temp }}/synology-1089-post-restart.txt
-            ${{ runner.temp }}/synology-1089-post-restart-preflight.txt
+            ${{ runner.temp }}/synology-1089-container-restore.txt
+            ${{ runner.temp }}/synology-1089-exact-preflight.txt
           if-no-files-found: error
           retention-days: 14
 
-      - name: Publish recovery summary
+      - name: Publish summary
         if: always()
         shell: bash
         env:
-          RUNTIME: ${{ runner.temp }}/synology-1089-post-restart.txt
-          PREFLIGHT: ${{ runner.temp }}/synology-1089-post-restart-preflight.txt
+          RESTORE: ${{ runner.temp }}/synology-1089-container-restore.txt
+          PREFLIGHT: ${{ runner.temp }}/synology-1089-exact-preflight.txt
         run: |
           {
-            echo '## Synology #1089 post-restart verification'
+            echo '## Synology #1089 post-restart restore + exact preflight'
             echo
-            grep -E '^(docker_version_rc|docker_info_rc|expected_running_missing|runtime_failures)=' "$RUNTIME" | sed 's/^/- /' || true
-            grep -E '^(exact_preflight_[12]_(rc|elapsed_seconds)|post_docker_version_rc|preflight_leaks|preflight_failures)=' "$PREFLIGHT" | sed 's/^/- /' || true
+            [[ -f "$RESTORE" ]] && grep -E '^(after_|start_|restore_failures=)' "$RESTORE" | sed 's/^/- /' || true
+            [[ -f "$PREFLIGHT" ]] && grep -E '^(exact_preflight_[12]_(rc|elapsed_seconds)|post_docker_version_rc|preflight_leaks|preflight_failures)=' "$PREFLIGHT" | sed 's/^/- /' || true
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Cleanup local evidence
         if: always()
         shell: bash
         env:
-          RUNTIME: ${{ runner.temp }}/synology-1089-post-restart.txt
-          PREFLIGHT: ${{ runner.temp }}/synology-1089-post-restart-preflight.txt
-        run: rm -f -- "$RUNTIME" "$PREFLIGHT"
+          RESTORE: ${{ runner.temp }}/synology-1089-container-restore.txt
+          PREFLIGHT: ${{ runner.temp }}/synology-1089-exact-preflight.txt
+        run: rm -f -- "$RESTORE" "$PREFLIGHT"

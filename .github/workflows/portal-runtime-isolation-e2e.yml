@@ -1,0 +1,166 @@
+name: Portal Runtime Isolation E2E
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/portal-runtime-isolation-e2e.yml"
+      - "ai_platform/portal/execution/driver.py"
+      - "ai_platform/portal/execution/host_isolation.py"
+      - "ai_platform/portal/execution/isolation.py"
+      - "ai_platform/portal/execution/runtime_image/**"
+      - "tests/ai_platform/portal/execution/test_driver.py"
+      - "tests/ai_platform/portal/execution/test_host_isolation.py"
+      - "tests/ai_platform/portal/execution/test_isolation.py"
+      - "tests/ai_platform/portal/execution/test_runtime_image.py"
+      - "tests/ai_platform/portal/execution/test_runtime_isolation_e2e.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portal-runtime-isolation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  runtime-isolation-e2e:
+    name: Real Docker driver and hardened runtime image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      PORTAL_RUNTIME_ISOLATION_E2E: "true"
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install focused test runner
+        run: python -m pip install --disable-pip-version-check pytest==9.1.1
+
+      - name: Exercise real Docker driver quarantine and hard bounds
+        run: >-
+          python -m pytest -q -o addopts=''
+          --confcutdir=tests/ai_platform
+          tests/ai_platform/portal/execution/test_runtime_isolation_e2e.py
+
+      - name: Resolve validation base to an immutable digest
+        id: base
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull --quiet freqtradeorg/freqtrade:stable >/dev/null
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import subprocess
+
+          result = subprocess.run(
+              [
+                  "docker",
+                  "image",
+                  "inspect",
+                  "--format",
+                  "{{json .RepoDigests}}",
+                  "freqtradeorg/freqtrade:stable",
+              ],
+              check=True,
+              capture_output=True,
+              text=True,
+          )
+          digests = json.loads(result.stdout)
+          exact = next(
+              value
+              for value in digests
+              if isinstance(value, str)
+              and value.startswith("freqtradeorg/freqtrade@sha256:")
+          )
+          print(f"image={exact}")
+          print(f"digest={exact.rsplit('@sha256:', 1)[1]}")
+          PY
+
+      - name: Build hardened runtime image from exact base
+        shell: bash
+        env:
+          BASE_IMAGE: ${{ steps.base.outputs.image }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          import subprocess
+          from pathlib import Path
+
+          from ai_platform.portal.execution.runtime_image.build import build_command
+
+          command = build_command(
+              base_image=os.environ["BASE_IMAGE"],
+              target_tag="portal/freqtrade-runtime:e2e",
+              repository_root=Path.cwd(),
+          )
+          subprocess.run(command, check=True)
+          PY
+
+      - name: Attest hardened runtime image behavior
+        shell: bash
+        env:
+          BASE_IMAGE: ${{ steps.base.outputs.image }}
+        run: |
+          set -euo pipefail
+          image="portal/freqtrade-runtime:e2e"
+          test "$(docker image inspect --format '{{.Config.User}}' "$image")" = "ftuser"
+          test "$(docker image inspect --format '{{json .Config.Entrypoint}}' "$image")" = '["freqtrade"]'
+          test "$(docker image inspect --format '{{json .Config.Cmd}}' "$image")" = '["trade"]'
+          docker run --rm \
+            --network none \
+            --read-only \
+            --cap-drop ALL \
+            --security-opt no-new-privileges=true \
+            --entrypoint /bin/sh \
+            "$image" \
+            -ec 'test "$(id -u)" != 0; ! command -v sudo; test ! -e /usr/bin/sudo; test ! -e /bin/sudo; ! id -Gn | tr " " "\n" | grep -Fx sudo'
+
+          mkdir -p artifacts/portal-runtime-isolation
+          python - "$image" "$BASE_IMAGE" <<'PY'
+          import json
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          image, base = sys.argv[1:]
+          payload = json.loads(
+              subprocess.run(
+                  ["docker", "image", "inspect", image],
+                  check=True,
+                  capture_output=True,
+                  text=True,
+              ).stdout
+          )[0]
+          evidence = {
+              "base_image": base,
+              "image_id": payload["Id"],
+              "user": payload["Config"]["User"],
+              "entrypoint": payload["Config"]["Entrypoint"],
+              "cmd": payload["Config"]["Cmd"],
+          }
+          Path("artifacts/portal-runtime-isolation/runtime-image.json").write_text(
+              json.dumps(evidence, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          sha256sum ai_platform/portal/execution/runtime_image/Dockerfile \
+            > artifacts/portal-runtime-isolation/Dockerfile.sha256
+
+      - name: Upload runtime isolation evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: portal-runtime-isolation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/portal-runtime-isolation
+          if-no-files-found: error
+          retention-days: 14

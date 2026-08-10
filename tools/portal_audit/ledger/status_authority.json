@@ -1,0 +1,70 @@
+{
+  "schema_version": "portal-status-authority-v1",
+  "architecture_authority": {
+    "path": "ARCHITECTURE_REGISTRY.yaml",
+    "role": "architecture_and_document_authority"
+  },
+  "implementation_authority": {
+    "path": "tools/portal_audit/ledger/index.json",
+    "schema_version": "portal-completeness-ledger-v2",
+    "mode": "living_exact_head_gate",
+    "role": "exact_head_implementation_inventory"
+  },
+  "issue_role": "work_ownership_and_acceptance_unit_not_standalone_implementation_truth",
+  "legacy_surfaces": [
+    {
+      "path": "docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.json",
+      "role": "historical_snapshot",
+      "snapshot_sha": "b39b29c3e831ba491aa3376e5de86a8c09e2b537",
+      "legacy_embedded_status_authority_flag": true,
+      "superseded_by": "tools/portal_audit/ledger/index.json"
+    },
+    {
+      "path": "docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.md",
+      "role": "historical_human_projection",
+      "superseded_by": "tools/portal_audit/ledger/index.json"
+    },
+    {
+      "path": "docs/ai_platform/portal/UI_DELIVERY_STATUS.md",
+      "role": "validated_rollup",
+      "superseded_by": "tools/portal_audit/ledger/index.json"
+    },
+    {
+      "path": "docs/ai_platform/portal/README.md",
+      "role": "historical_or_navigation_rollup",
+      "superseded_by": "tools/portal_audit/ledger/index.json"
+    },
+    {
+      "path": "docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md",
+      "role": "historical_backlog_evidence",
+      "superseded_by": "tools/portal_audit/ledger/index.json"
+    },
+    {
+      "path": "docs/ai_platform/portal/NEXT_WORK_AND_REPAIR_PLAN.md",
+      "role": "historical_planning_evidence",
+      "superseded_by": "tools/portal_audit/ledger/index.json"
+    },
+    {
+      "path": "docs/ai_platform/portal/DELIVERY_ROADMAP.md",
+      "role": "historical_roadmap_evidence",
+      "superseded_by": "tools/portal_audit/ledger/index.json"
+    },
+    {
+      "path": "docs/agents/programs/FTAI_PORTAL_REMEDIATION_PROGRAM.md",
+      "role": "work_ownership_rollup",
+      "superseded_by": "tools/portal_audit/ledger/index.json"
+    },
+    {
+      "path": "docs/ai_platform/portal/PAPER_PLATFORM_IMPLEMENTATION_PLAN.md",
+      "role": "dependency_plan_not_status_authority",
+      "superseded_by": "tools/portal_audit/ledger/index.json"
+    }
+  ],
+  "rules": [
+    "Architecture decisions and document lifecycle are read from ARCHITECTURE_REGISTRY.yaml and accepted ADRs, not inferred from implementation rollups.",
+    "Current implementation completeness is read from the living exact-head portal audit ledger only after its exact-head validation passes.",
+    "Legacy status documents and the feature-completeness v1 snapshot are historical or validated rollups and cannot override the living exact-head ledger.",
+    "GitHub Issues express work ownership and acceptance state but cannot independently prove implementation completeness.",
+    "No status source grants LIVE, real-capital, credential, protected-environment or deployment authority."
+  ]
+}

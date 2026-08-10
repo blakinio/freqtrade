@@ -288,8 +288,15 @@ class LinuxNftablesBtrfsIsolationAttestor:
                 "drop",
             )
             self.attest_network(plan, network_name, runtime_id)
-        except Exception:
-            self.cleanup_network(network_name, runtime_id)
+        except Exception as primary:
+            try:
+                self.cleanup_network(network_name, runtime_id)
+            except Exception as cleanup_error:
+                raise RuntimeDriverError(
+                    "HOST_NETWORK_CLEANUP_FAILED",
+                    "network isolation preparation failed and cleanup was incomplete: "
+                    f"primary={primary}; cleanup={cleanup_error}",
+                ) from cleanup_error
             raise
 
     def attest_storage(self, plan: RuntimeIsolationPlan, state_path: Path) -> None:
@@ -372,8 +379,18 @@ class LinuxNftablesBtrfsIsolationAttestor:
     def cleanup_network(self, network_name: str, runtime_id: str) -> None:
         del runtime_id
         table = self._table_name(network_name)
-        self._runner.run(("nft", "delete", "table", "inet", table))
-        self._runner.run(("docker", "network", "rm", network_name))
+        errors: list[str] = []
+        nft_result = self._runner.run(("nft", "delete", "table", "inet", table))
+        if nft_result.returncode != 0 and not self._cleanup_target_absent(nft_result):
+            errors.append(nft_result.stderr.strip() or "nftables table cleanup failed")
+        network_result = self._runner.run(("docker", "network", "rm", network_name))
+        if network_result.returncode != 0 and not self._cleanup_target_absent(network_result):
+            errors.append(network_result.stderr.strip() or "Docker network cleanup failed")
+        if errors:
+            raise RuntimeDriverError(
+                "HOST_NETWORK_CLEANUP_FAILED",
+                "generation network cleanup was incomplete: " + "; ".join(errors),
+            )
 
     def _storage_capability(self) -> StorageIsolationBackend | None:
         if not self._command_available("btrfs"):
@@ -501,6 +518,19 @@ class LinuxNftablesBtrfsIsolationAttestor:
     def _table_name(network_name: str) -> str:
         digest = hashlib.sha256(network_name.encode()).hexdigest()[:20]
         return f"portal_{digest}"
+
+    @staticmethod
+    def _cleanup_target_absent(result: CommandResult) -> bool:
+        evidence = f"{result.stdout}\n{result.stderr}".lower()
+        return any(
+            marker in evidence
+            for marker in (
+                "no such file or directory",
+                "no such network",
+                "network not found",
+                "not found",
+            )
+        )
 
     def _delete_table_if_present(self, table: str) -> None:
         present = self._runner.run(("nft", "list", "table", "inet", table))

@@ -1,10 +1,13 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import surfaceAvailability from "@/lib/surface-availability.json";
 import { portalEnvironment } from "@/lib/portal-api";
 import { BfcacheRevalidation } from "./bfcache-revalidation";
 import { EnvironmentBadge } from "./environment-badge";
 import { SessionControls } from "./session-controls";
+
+const hiddenNavigationPaths = new Set(surfaceAvailability.hidden_navigation_paths);
 
 const navigationGroups = [
   {
@@ -94,18 +97,24 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
         <nav className="primary-nav" aria-label="Primary navigation" style={navigationStyle}>
-          {navigationGroups.map((group) => (
-            <div className="nav-group" key={group.label}>
-              <span className="nav-group-title">{group.label}</span>
-              <div className="nav-group-links">
-                {group.items.map((item) => (
-                  <Link key={item.href} href={item.href}>
-                    {item.label}
-                  </Link>
-                ))}
+          {navigationGroups.map((group) => {
+            const visibleItems = group.items.filter(
+              (item) => !hiddenNavigationPaths.has(item.href),
+            );
+            if (visibleItems.length === 0) return null;
+            return (
+              <div className="nav-group" key={group.label}>
+                <span className="nav-group-title">{group.label}</span>
+                <div className="nav-group-links">
+                  {visibleItems.map((item) => (
+                    <Link key={item.href} href={item.href}>
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </nav>
         <div className="sidebar-note">
           <strong>Private execution boundary</strong>

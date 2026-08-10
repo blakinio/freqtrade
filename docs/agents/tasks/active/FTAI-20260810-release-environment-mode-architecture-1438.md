@@ -63,17 +63,18 @@ Record the owner's 2026-08-10 acceptance of a two-branch release/integration arc
 - [x] Root `AGENTS.md` routes ordinary integration and release-promotion PRs according to ADR-021 without pretending `main` already exists.
 - [x] Prompt/governance regression matrix records candidate, baseline and rollback contract.
 - [x] Fresh PR diff audit confirms documentation/governance-only scope, preserves LIVE fail-closed authority and separates branch/release/environment/mode semantics.
+- [x] Architecture Markdown end-of-file hygiene repaired before final validation.
 - [ ] Applicable exact-head CI passes.
 - [ ] PR merges through repository rules without bypass.
 - [x] Physical `main` migration remains a separately evidenced post-merge operational consequence rather than being falsely claimed complete by documentation.
 
 ## Fresh diff audit
 
-PR #1439 contains only seven architecture/governance/task/eval files. No `ai_platform/**` runtime source, `freqtrade/**`, deployment workflow, secret, credential, runtime configuration or protected-target file is changed.
+PR #1439 changes only architecture/governance/task/eval files. No Portal/Freqtrade runtime source, deployment workflow, secret, credential, runtime configuration or protected-target behavior is changed.
 
 No material authority expansion was found: production environment and stable release remain explicitly insufficient for LIVE; deployment remains protected and artifact-pinned; physical `main` creation/default-branch migration is deferred until post-merge protection/CI prerequisites are proven.
 
-One formatting follow-up remains before terminal validation: ensure final newline hygiene on newly/updated architecture Markdown before relying on exact-head CI.
+End-of-file hygiene for the new detailed architecture document and the accepted decision log was repaired on the PR branch before this final validation checkpoint.
 
 ## Safety boundary
 
@@ -82,8 +83,8 @@ Documentation/governance only. No product/runtime code, deployment, protected-ho
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 2
-updated_at: 2026-08-10T14:22:00+02:00
+checkpoint_version: 3
+updated_at: 2026-08-10T14:25:00+02:00
 status: validating
 phase: exact_head_validation
 base_head: 978621fb358885dbf3c85d1bf837af9270678241
@@ -92,5 +93,5 @@ branch: docs/adr-021-release-environment-mode-1438
 pull_request: 1439
 safe_to_resume: true
 resume_condition: continue only on exact PR #1439 state or if develop advances on owned architecture/governance paths
-next_action: repair final newline hygiene, then inspect exact-head CI and mergeability without bypass
+next_action: require exact-head CI and mergeability, then merge without bypass and perform terminal task closeout
 ```

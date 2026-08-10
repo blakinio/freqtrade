@@ -109,7 +109,9 @@ def test_restart_fails_closed_when_committed_rows_are_missing(tmp_path: Path) ->
         now_ms=lambda: 1_786_384_683_792,
     )
 
-    with pytest.raises(RuntimeError, match="binance-usdm source file has fewer rows than committed"):
+    with pytest.raises(
+        RuntimeError, match="binance-usdm source file has fewer rows than committed"
+    ):
         asyncio.run(manager.start())
 
     persisted = json.loads((old_run_root / "run-state-v1.json").read_text(encoding="utf-8"))

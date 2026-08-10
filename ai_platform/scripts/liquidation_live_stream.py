@@ -122,7 +122,11 @@ class AppendOnlyNdjsonWriter:
 
 
 def _seal_committed_ndjson(path: Path, *, committed_rows: int, source: str) -> None:
-    if isinstance(committed_rows, bool) or not isinstance(committed_rows, int) or committed_rows < 0:
+    if (
+        isinstance(committed_rows, bool)
+        or not isinstance(committed_rows, int)
+        or committed_rows < 0
+    ):
         raise RuntimeError(f"previous {source} events_written is invalid")
     if not path.exists():
         if committed_rows == 0:

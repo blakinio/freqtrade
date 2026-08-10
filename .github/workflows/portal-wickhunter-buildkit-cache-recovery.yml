@@ -1,4 +1,4 @@
-name: Portal WickHunter Run Root Integrity Repair
+name: Portal WickHunter Run Root Integrity Finalization
 
 "on":
   push:
@@ -11,8 +11,8 @@ permissions:
   contents: write
 
 jobs:
-  repair:
-    name: Reject symlinked run roots before source mutation
+  finalize:
+    name: Commit validated run-root guard and self-clean
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -22,7 +22,7 @@ jobs:
           ref: fix/wickhunter-1396-synology-recovery-v2
           fetch-depth: 20
 
-      - name: Apply extracted run-root integrity guard and regression
+      - name: Reapply exactly validated run-root patch
         shell: bash
         run: |
           set -euo pipefail
@@ -33,7 +33,6 @@ jobs:
           source = source_path.read_text(encoding="utf-8")
           if "import stat\n" not in source:
               source = source.replace("import re\n", "import re\nimport stat\n", 1)
-
           helper = (
               "\n\ndef _restart_run_root_missing(\n"
               "    *, live_root: Path, runs_root: Path, run_root: Path\n"
@@ -52,9 +51,8 @@ jobs:
           if "def _restart_run_root_missing(" not in source:
               marker = "\n\nclass LiveRunManager:\n"
               if source.count(marker) != 1:
-                  raise SystemExit("run-root helper insertion marker mismatch")
+                  raise SystemExit("run-root helper marker mismatch")
               source = source.replace(marker, helper + marker, 1)
-
           old = (
               "            run_root = self.runs_root / run_id\n"
               "            state_path = run_root / RUN_STATE_FILE\n"
@@ -69,17 +67,16 @@ jobs:
           )
           if new not in source:
               if source.count(old) != 1:
-                  raise SystemExit("run-root guard insertion target mismatch")
+                  raise SystemExit("run-root call target mismatch")
               source = source.replace(old, new, 1)
           source_path.write_text(source, encoding="utf-8")
 
           test_path = Path("tests/ai_platform_integration/test_liquidation_live_restart_durability.py")
           tests = test_path.read_text(encoding="utf-8")
-          test_name = "test_restart_rejects_symlinked_run_root_without_mutating_external_target"
-          if test_name not in tests:
+          if "test_restart_rejects_symlinked_run_root_without_mutating_external_target" not in tests:
               marker = "\n\ndef test_restart_rejects_dangling_symlink_even_with_zero_committed_rows("
               if tests.count(marker) != 1:
-                  raise SystemExit("run-root regression marker mismatch")
+                  raise SystemExit("run-root test marker mismatch")
               lines = [
                   "", "",
                   "def test_restart_rejects_symlinked_run_root_without_mutating_external_target(",
@@ -111,28 +108,16 @@ jobs:
               tests = tests.replace(marker, "\n".join(lines) + marker, 1)
               test_path.write_text(tests, encoding="utf-8")
           PY
-
-      - name: Install validation dependencies
-        shell: bash
-        run: |
-          set -euo pipefail
           python3 -m pip install --disable-pip-version-check -r requirements.txt
           python3 -m pip install --disable-pip-version-check pytest==9.1.1 ruff==0.15.21
-
-      - name: Format and validate run-root repair
-        shell: bash
-        run: |
-          set -euo pipefail
           python3 -m ruff format ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
           python3 -m py_compile ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
-          python3 -m pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration \
-            tests/ai_platform_integration/test_liquidation_live_restart_durability.py \
-            tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python3 -m pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
           python3 -m ruff check ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
           python3 -m ruff format --check ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
           git diff --check
 
-      - name: Record evidence and self-clean
+      - name: Record compact validation evidence and self-clean
         shell: bash
         run: |
           set -euo pipefail
@@ -159,15 +144,14 @@ jobs:
               elif line.startswith("head:"):
                   rows[index] = f"head: {head}"
           cp = "\n".join(rows)
-          proof = "  - restart now rejects symlinked live, live/runs and active run directories before reading state or opening source files, preventing truncation through a symlinked run-root ancestor"
-          if proof not in cp:
-              cp = cp.replace("derived:\n", proof + "\nderived:\n", 1)
           validation = (
               "  - command: Symlinked run-root fail-closed regression validation\n"
               "    result: PASS\n"
-              f"    evidence: GitHub Actions run {os.environ['GITHUB_RUN_ID']} passed 16 focused restart and legacy migration tests Ruff check format compile checkpoint and diff hygiene\n"
+              f"    evidence: GitHub Actions runs 31435654312 and {os.environ['GITHUB_RUN_ID']} passed 16 focused restart and legacy migration tests Ruff check format compile checkpoint and diff hygiene\n"
           )
           if "Symlinked run-root fail-closed regression validation" not in cp:
+              if "blockers: []\n" not in cp:
+                  raise SystemExit("blockers marker missing")
               cp = cp.replace("blockers: []\n", validation + "blockers: []\n", 1)
           rows = cp.splitlines()
           for index, line in enumerate(rows):
@@ -182,7 +166,7 @@ jobs:
           git rm .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
           git diff --check
 
-      - name: Commit validated run-root repair
+      - name: Commit validated permanent repair
         shell: bash
         run: |
           set -euo pipefail

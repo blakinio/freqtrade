@@ -7,12 +7,14 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import yaml
 
 
-TASK_ROOT_PREFIX = "docs/agents/tasks/"
+TASK_RECORD_PREFIXES = (
+    "docs/agents/tasks/active/",
+    "docs/agents/tasks/archive/",
+)
 CHECKPOINT_HEADING = "## Context checkpoint"
 TASK_ID_RE = re.compile(r"(?m)^task_id:\s*([^\s#]+)\s*$")
 CHECKPOINT_RE = re.compile(
@@ -41,11 +43,15 @@ def _git(*args: str) -> str:
     return completed.stdout
 
 
+def _is_task_record_path(path: str) -> bool:
+    return path.endswith(".md") and path.startswith(TASK_RECORD_PREFIXES)
+
+
 def _task_paths_between(base: str, head: str) -> tuple[str, ...]:
     paths: set[str] = set()
     for commit in _git("rev-list", "--reverse", f"{base}..{head}").splitlines():
         for path in _git("diff-tree", "--no-commit-id", "--name-only", "-r", commit).splitlines():
-            if path.startswith(TASK_ROOT_PREFIX) and path.endswith(".md"):
+            if _is_task_record_path(path):
                 paths.add(path)
     return tuple(sorted(paths))
 
@@ -151,8 +157,9 @@ def validate_history(base: str, head: str) -> list[str]:
                     errors.extend(_assert_monotonic(previous, current))
             previous_by_task[task_id] = current
 
-    # Migration discriminator: every task record touched by this PR and still present
-    # at the final head must be v2. Untouched legacy v1 records remain readable.
+    # Migration discriminator: every real task record touched by this PR and still
+    # present at the final head must be v2. Templates and governance examples are
+    # deliberately outside active/archive task-record namespaces.
     for path in paths:
         text = _show(head, path)
         if text is None:

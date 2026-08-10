@@ -296,6 +296,8 @@ def test_openapi_surface_contains_only_control_plane_business_routes(
         "/v1/bots/{bot_id}/revisions",
         "/v1/bots/{bot_id}/desired-state",
         "/v1/bots/{bot_id}/runtime-truth",
+        "/v1/bots/{bot_id}/runtime-observations/latest",
+        "/v1/bots/{bot_id}/wickhunter-runtime-evidence",
         "/v1/bots/{bot_id}/revisions/{revision_id}/promote",
         "/v1/bots/{bot_id}/revisions/{revision_id}/deprecate",
         "/v1/bots/{bot_id}/apply",

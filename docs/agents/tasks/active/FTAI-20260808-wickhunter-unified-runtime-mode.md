@@ -198,8 +198,8 @@ The already-completed historical run `liquid20-20260810T000000Z-1` still require
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-10T22:50:00+02:00
-head: 91a96ce32c9e9e7e7fd64c05d890dc860572f210
+updated_at: 2026-08-10T22:56:00+02:00
+head: 7163c7517f4acee91242068073c414814e8eb036
 branch: fix/wickhunter-1396-synology-recovery-v2
 pr: 1450
 status: waiting
@@ -232,7 +232,6 @@ proven:
 derived:
   - after the permanent producer fix is integrated a guarded repair of only the already completed inconsistent history should allow WH09 to recover naturally without weakening fail-closed behavior
 unknown:
-  - terminal result and pushed commit from durability repair run 31430668536
   - final exact-head PR 1450 standard CI result after temporary workflow removal
   - canonical post-merge Liquid20 Synology deployment result
   - guarded completed-history repair result on the Synology runtime
@@ -268,7 +267,7 @@ validation:
     result: PASS
     evidence: GitHub Actions run 31427855045 job 93583737395 completed source repair lint format and focused regression validation
 blockers: []
-next_action: Inspect durability repair run 31430668536 once when terminal; on PASS verify its pushed code commit and run exact focused validation, otherwise inspect only its first actionable failure.
+next_action: Inspect the repo-only durability repair execution once terminal and repair only its first actionable failure; do not proceed to final CI until source and regression markers are present.
 ```
 
 ## Recovery checkpoint

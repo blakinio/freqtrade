@@ -296,7 +296,9 @@ def _generation_matches(
     )
 
 
-def bootstrap_wh09(descriptor: Wh09HostRuntimeDescriptor) -> dict[str, object]:
+def bootstrap_wh09(  # noqa: C901 - adoption preflight intentionally fails closed at each boundary
+    descriptor: Wh09HostRuntimeDescriptor,
+) -> dict[str, object]:
     descriptor.validate_wh09()
     try:
         evidence = configured_wh09_source().read()
@@ -328,7 +330,9 @@ def bootstrap_wh09(descriptor: Wh09HostRuntimeDescriptor) -> dict[str, object]:
         created_bot = True
 
     if bot.name != WH09_BOT_NAME or bot.spec != spec:
-        raise Wh09BootstrapError("existing WickHunter BotInstance differs from canonical WH09 adoption spec")
+        raise Wh09BootstrapError(
+            "existing WickHunter BotInstance differs from canonical WH09 adoption spec"
+        )
     if bot.latest_authored_revision_id is None:
         raise Wh09BootstrapError("canonical WickHunter BotInstance has no authored revision")
 

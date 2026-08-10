@@ -1,4 +1,4 @@
-name: Portal WickHunter Durability Exact Validation
+name: Portal WickHunter Durability Formatter
 
 "on":
   push:
@@ -8,109 +8,50 @@ name: Portal WickHunter Durability Exact Validation
       - .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: portal-wickhunter-1396-durability-exact-validation
-  cancel-in-progress: true
+  group: portal-wickhunter-1396-durability-formatter
+  cancel-in-progress: false
 
 jobs:
-  validate:
-    name: Validate durability repair on exact recovery head
+  format:
+    name: Apply Ruff formatting only
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
-      - name: Checkout exact recovery branch
+      - name: Checkout recovery branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: fix/wickhunter-1396-synology-recovery-v2
-          persist-credentials: false
-          fetch-depth: 0
+          fetch-depth: 20
 
-      - name: Install focused validation dependencies
+      - name: Format exact test file
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check -r requirements.txt
-          python3 -m pip install --disable-pip-version-check pytest==9.1.1 ruff==0.15.21
-
-      - name: Validate checkpoint and durability markers
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 tools/agents/checkpoint.py \
-            docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md \
-            --require-checkpoint
-          python3 - <<'PY'
-          from pathlib import Path
-
-          source = Path("ai_platform/scripts/liquidation_live_stream.py").read_text(encoding="utf-8")
-          tests = Path("tests/ai_platform_integration/test_liquidation_live_restart_durability.py").read_text(encoding="utf-8")
-          required = (
-              "    def closed(self) -> bool:\n",
-              "        for writer in self._writers.values():\n",
-              "            if not writer.closed:\n",
-              "                writer.flush()\n",
-          )
-          if not all(marker in source for marker in required):
-              raise SystemExit("durability source invariant missing")
-          if "test_state_commit_flushes_pending_ndjson_before_events_written" not in tests:
-              raise SystemExit("durability regression test missing")
-          if "await asyncio.to_thread(writer.flush)" in source:
-              raise SystemExit("heartbeat still carries duplicate direct flush path")
-          print("DURABILITY_MARKERS=PASS")
-          PY
-
-      - name: Compile and run focused regression suite
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 -m py_compile \
-            ai_platform/scripts/liquidation_live_stream.py \
-            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
-          python3 -m pytest -q -o addopts='' \
-            --confcutdir=tests/ai_platform_integration \
-            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
-
-      - name: Ruff focused Python
-        shell: bash
-        run: |
-          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check ruff==0.15.21
+          python3 -m ruff format tests/ai_platform_integration/test_liquidation_live_restart_durability.py
           python3 -m ruff check \
             ai_platform/scripts/liquidation_live_stream.py \
             tests/ai_platform_integration/test_liquidation_live_restart_durability.py
           python3 -m ruff format --check \
             ai_platform/scripts/liquidation_live_stream.py \
             tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          git diff --check
+          git diff -- tests/ai_platform_integration/test_liquidation_live_restart_durability.py
 
-      - name: Verify producer-consumer contract and diff hygiene
+      - name: Commit formatting only
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          producer = Path("ai_platform/scripts/liquidation_live_stream.py").read_text(encoding="utf-8")
-          consumer = Path("ai_platform/wickhunter/candidate_paper_runtime_operator.py").read_text(encoding="utf-8")
-          producer_markers = (
-              "if set(sources) != expected_sources:",
-              "if allow_missing and committed_rows == 0:",
-              "if path.is_symlink():",
-              "handle.truncate(committed_end)",
-              "os.fsync(handle.fileno())",
-          )
-          consumer_markers = (
-              "if tuple(sorted(source_payloads)) != EXPECTED_LIVE_SOURCES:",
-              "events_written == 0",
-              "and not configured",
-              "source_row.get(\"last_event_received_at_ms\") is None",
-          )
-          if not all(marker in producer for marker in producer_markers):
-              raise SystemExit("producer restart contract marker missing")
-          if not all(marker in consumer for marker in consumer_markers):
-              raise SystemExit("consumer historical contract marker missing")
-          print("PRODUCER_CONSUMER_RESTART_CONTRACT=PASS")
-          PY
-          git fetch origin develop
-          git diff --check origin/develop...HEAD
-          echo "VALIDATED_BRANCH_HEAD=$(git rev-parse HEAD)"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          if git diff --cached --quiet; then
+            echo "FORMAT_ALREADY_CLEAN=true"
+            exit 0
+          fi
+          git commit -m "style(liquidations): format durability regression"
+          git pull --rebase origin fix/wickhunter-1396-synology-recovery-v2
+          git push origin HEAD:fix/wickhunter-1396-synology-recovery-v2

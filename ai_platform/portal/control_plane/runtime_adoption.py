@@ -7,6 +7,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict, StrictBool
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from ai_platform.portal.contracts.audit import AuditAction, AuditEvent, AuditResult
 from ai_platform.portal.contracts.bots import BotInstance, BotObservedState
@@ -83,7 +84,7 @@ def _observation_from_row(row: RuntimeGenerationObservationRow) -> RuntimeGenera
     )
 
 
-def _add_observation(session: object, observation: RuntimeGenerationObservation) -> None:
+def _add_observation(session: Session, observation: RuntimeGenerationObservation) -> None:
     session.add(
         RuntimeGenerationObservationRow(
             observation_id=observation.observation_id,

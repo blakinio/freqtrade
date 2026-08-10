@@ -313,13 +313,12 @@ def latest_runtime_observation(
         bot = repository.get_bot(session, context.tenant_id, bot_id)
         if bot is None:
             raise BotNotFoundError("bot not found")
-        if bot.observed_runtime_generation_id is None:
+        observed_generation_id = bot.observed_runtime_generation_id
+        if observed_generation_id is None:
             return None
         row = session.scalar(
             select(RuntimeGenerationObservationRow)
-            .where(  # noqa: E501 - Ruff formatter keeps this expression on one line
-                RuntimeGenerationObservationRow.generation_id == bot.observed_runtime_generation_id
-            )
+            .where(RuntimeGenerationObservationRow.generation_id == observed_generation_id)
             .order_by(
                 RuntimeGenerationObservationRow.reconciled_at.desc(),
                 RuntimeGenerationObservationRow.observation_id.desc(),

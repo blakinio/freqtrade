@@ -33,9 +33,13 @@ WH09_TELEMETRY_SCHEMA = "wickhunter-production-research-telemetry-v1"
 WH09_HEALTH_SCHEMA = "wickhunter-production-research-runtime-health-v1"
 WH09_DECISION_SCHEMA = "wickhunter-production-research-decision-v1"
 WH09_EXPECTED_BOT_INSTANCE = "wickhunter-wh09-production-research"
-WH09_EXPECTED_PACKAGE_ID = "wickhunter-wh09-candidate-materialization-20260808-r1-h900s-7b23a958fd4d"
+WH09_EXPECTED_PACKAGE_ID = (
+    "wickhunter-wh09-candidate-materialization-20260808-r1-h900s-7b23a958fd4d"
+)
 WH09_EXPECTED_MANIFEST_SHA256 = "9f5ba852e33915678ca085c2eeafbf526457a079ba8f6f2fb7c1097f1d20ab79"
-WH09_EXPECTED_MODEL_ARTIFACT_SHA256 = "0488eaea68a316e3659e3b9e2fcea667eb57de87a22888ce396d112a5c075d2e"
+WH09_EXPECTED_MODEL_ARTIFACT_SHA256 = (
+    "0488eaea68a316e3659e3b9e2fcea667eb57de87a22888ce396d112a5c075d2e"
+)
 WH09_EXPECTED_MODEL_HASH = "eddd12e3d0c5922547df89d9fa3d8556b8131a62c3cb8057c5a20c66747a240b"
 WH09_EXPECTED_PARAMETER_HASH = "014b471b9ccc663c3551a151353ae7cd932bd43ed48b9fbf239baad3483e2c11"
 WH09_FROZEN_NO_TRADE_CONFIDENCE = Decimal("0.60")
@@ -74,7 +78,9 @@ class Wh09LatestDecision(ContractModel):
 
 
 class Wh09RuntimeEvidence(ContractModel):
-    evidence_source: Literal["synology_read_only_runtime_files"] = "synology_read_only_runtime_files"
+    evidence_source: Literal["synology_read_only_runtime_files"] = (
+        "synology_read_only_runtime_files"
+    )
     candidate_identity: Literal["H900"] = "H900"
     run_id: Sha256Hex
     mode: BotMode
@@ -216,19 +222,28 @@ class Wh09RuntimeEvidenceReader:
     def root(self) -> Path:
         return self._root
 
-    def read(self) -> Wh09RuntimeEvidence:
+    def read(self) -> Wh09RuntimeEvidence:  # noqa: C901 - evidence checks are fail-closed
         if self._root.is_symlink() or not self._root.is_dir():
             raise Wh09RuntimeEvidenceError("WH09 runtime evidence root is unavailable")
         journal = self._root / "journal"
         operator = self._root / "operator"
-        if journal.is_symlink() or operator.is_symlink() or not journal.is_dir() or not operator.is_dir():
+        if (
+            journal.is_symlink()
+            or operator.is_symlink()
+            or not journal.is_dir()
+            or not operator.is_dir()
+        ):
             raise Wh09RuntimeEvidenceError("WH09 journal/operator evidence roots are invalid")
 
         identity = _load_object(journal / "identity.json", label="WH09 identity")
         telemetry = _load_object(journal / "telemetry.json", label="WH09 telemetry")
         health = _load_object(operator / "health.json", label="WH09 health")
-        identity_hash = _verify_hash(identity, hash_field="identity_sha256", label="WH09 identity")
-        telemetry_hash = _verify_hash(telemetry, hash_field="telemetry_sha256", label="WH09 telemetry")
+        identity_hash = _verify_hash(
+            identity, hash_field="identity_sha256", label="WH09 identity"
+        )
+        telemetry_hash = _verify_hash(
+            telemetry, hash_field="telemetry_sha256", label="WH09 telemetry"
+        )
         health_hash = _verify_hash(health, hash_field="health_sha256", label="WH09 health")
 
         if identity.get("schema_version") != WH09_IDENTITY_SCHEMA:
@@ -273,13 +288,17 @@ class Wh09RuntimeEvidenceReader:
         for field in shared_fields:
             value = identity.get(field)
             if telemetry.get(field) != value or health.get(field) != value:
-                raise Wh09RuntimeEvidenceError(f"WH09 identity/telemetry/health mismatch: {field}")
+                raise Wh09RuntimeEvidenceError(
+                    f"WH09 identity/telemetry/health mismatch: {field}"
+                )
         if health.get("telemetry_sha256") != telemetry_hash:
             raise Wh09RuntimeEvidenceError("WH09 health does not bind current telemetry")
         if telemetry.get("operator_commit") != health.get("operator_commit"):
             raise Wh09RuntimeEvidenceError("WH09 operator commit differs across evidence")
         if telemetry.get("runtime_generation") != health.get("generation"):
-            raise Wh09RuntimeEvidenceError("WH09 source generation differs across telemetry/health")
+            raise Wh09RuntimeEvidenceError(
+                "WH09 source generation differs across telemetry/health"
+            )
 
         checked_at = _millis_to_datetime(health.get("checked_at_ms"), field="checked_at_ms")
         age_seconds = (self._clock() - checked_at).total_seconds()
@@ -338,7 +357,9 @@ class Wh09RuntimeEvidenceReader:
                 identity_sha256=identity_hash,
             )
         except ValueError as exc:
-            raise Wh09RuntimeEvidenceError("WH09 evidence failed frozen contract validation") from exc
+            raise Wh09RuntimeEvidenceError(
+                "WH09 evidence failed frozen contract validation"
+            ) from exc
 
     def _latest_decision(
         self,
@@ -360,7 +381,9 @@ class Wh09RuntimeEvidenceReader:
             if payload.get("schema_version") != WH09_DECISION_SCHEMA:
                 raise Wh09RuntimeEvidenceError("WH09 decision schema mismatch")
             _require_zero_authority(payload, label="WH09 decision")
-            record_hash = _verify_hash(payload, hash_field="record_sha256", label="WH09 decision")
+            record_hash = _verify_hash(
+                payload, hash_field="record_sha256", label="WH09 decision"
+            )
             if payload.get("run_id") != identity.get("run_id"):
                 raise Wh09RuntimeEvidenceError("WH09 decision run identity mismatch")
             observed_at_ms = payload.get("observed_at_ms")
@@ -399,9 +422,13 @@ class Wh09RuntimeEvidenceHttpClient:
         self._endpoint = endpoint
 
     def read(self) -> Wh09RuntimeEvidence:
-        request = Request(self._endpoint, headers={"accept": "application/json"}, method="GET")
+        request = Request(  # noqa: S310 - endpoint is fixed to canonical private observer
+            self._endpoint,
+            headers={"accept": "application/json"},
+            method="GET",
+        )
         try:
-            with urlopen(request, timeout=5) as response:  # noqa: S310 - exact private endpoint above
+            with urlopen(request, timeout=5) as response:  # noqa: S310 - fixed endpoint above
                 body = response.read(WH09_MAX_OBSERVER_RESPONSE_BYTES + 1)
         except (HTTPError, URLError, TimeoutError) as exc:
             raise Wh09RuntimeEvidenceError("WH09 private observer is unavailable") from exc
@@ -439,7 +466,10 @@ def build_router(
         require_permission(context.permissions, Permission.BOT_READ)
         bot = service.get_bot(context, bot_id)
         if bot.bot_id != WH09_BOT_ID:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not a WickHunter WH09 bot")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="not a WickHunter WH09 bot",
+            )
         if (
             bot.desired_runtime_generation_id is None
             or bot.observed_runtime_generation_id is None

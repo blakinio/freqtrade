@@ -60,6 +60,11 @@ export interface WickHunterPortalRuntimeView {
   runtime: WickHunterRuntimeEvidence;
 }
 
+export type WickHunterRuntimeResult =
+  | { state: "AVAILABLE"; view: WickHunterPortalRuntimeView }
+  | { state: "UNAVAILABLE" }
+  | { state: "NOT_WICKHUNTER" };
+
 function controlPlaneUrl(): string {
   const value = process.env.PORTAL_CONTROL_PLANE_URL;
   if (!value) throw new Error("PORTAL_CONTROL_PLANE_URL is required in API mode");
@@ -73,8 +78,8 @@ function controlPlaneUrl(): string {
 export async function getWickHunterRuntime(
   botId: string,
   cookieHeader?: string | null,
-): Promise<WickHunterPortalRuntimeView | null> {
-  if (process.env.PORTAL_WEB_DATA_MODE === "fixture") return null;
+): Promise<WickHunterRuntimeResult> {
+  if (process.env.PORTAL_WEB_DATA_MODE === "fixture") return { state: "NOT_WICKHUNTER" };
   const response = await fetch(
     `${controlPlaneUrl()}/v1/bots/${encodeURIComponent(botId)}/wickhunter-runtime-evidence`,
     {
@@ -85,7 +90,8 @@ export async function getWickHunterRuntime(
       },
     },
   );
-  if (response.status === 404 || response.status === 503) return null;
+  if (response.status === 404) return { state: "NOT_WICKHUNTER" };
+  if (response.status === 503) return { state: "UNAVAILABLE" };
   if (!response.ok) throw new Error(`WickHunter runtime API failed with status ${response.status}`);
-  return (await response.json()) as WickHunterPortalRuntimeView;
+  return { state: "AVAILABLE", view: (await response.json()) as WickHunterPortalRuntimeView };
 }

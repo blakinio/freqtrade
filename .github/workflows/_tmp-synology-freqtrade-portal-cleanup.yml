@@ -1,0 +1,86 @@
+name: Temporary Synology Freqtrade Portal Docker Cleanup
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    name: Clean unused Freqtrade Portal Docker state
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 20
+    steps:
+      - name: Inspect Docker state before cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== docker version ==='
+          docker version --format '{{.Server.Version}}'
+          echo '=== docker system df BEFORE ==='
+          docker system df -v || docker system df
+          echo '=== all containers BEFORE ==='
+          docker ps -a --format 'table {{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}'
+
+      - name: Remove stopped Freqtrade Portal bot containers only
+        shell: bash
+        run: |
+          set -euo pipefail
+          removed=0
+          while IFS=$'\t' read -r cid name image status; do
+            [[ -n "${cid:-}" ]] || continue
+            if printf '%s\n%s\n' "$name" "$image" | grep -Eiq 'freqtrade|portal|wickhunter|(^|[-_.])bot([-_.]|$)|trading|quant'; then
+              echo "Removing stopped project container: $cid $name ($image)"
+              docker rm "$cid"
+              removed=$((removed + 1))
+            fi
+          done < <(docker ps -a --filter status=exited --format '{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}')
+          echo "Stopped project containers removed: $removed"
+
+      - name: Remove dangling images
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker image prune -f
+
+      - name: Remove unused Freqtrade Portal bot images
+        shell: bash
+        run: |
+          set -euo pipefail
+          removed=0
+          while IFS=$'\t' read -r image_id repository tag; do
+            [[ -n "${image_id:-}" ]] || continue
+            if printf '%s\n' "$repository" | grep -Eiq 'freqtrade|portal|wickhunter|(^|[-_.])bot([-_.]|$)|trading|quant'; then
+              if docker ps -a --no-trunc --format '{{.Image}}' | grep -Fqx "$image_id"; then
+                continue
+              fi
+              echo "Removing unused project image: $image_id $repository:$tag"
+              if docker image rm "$image_id"; then
+                removed=$((removed + 1))
+              else
+                echo "Image still referenced or otherwise protected: $image_id"
+              fi
+            fi
+          done < <(docker image ls --no-trunc --format '{{.ID}}\t{{.Repository}}\t{{.Tag}}')
+          echo "Unused project images removed: $removed"
+
+      - name: Clear unused BuildKit/Docker build cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker builder prune --all --force
+
+      - name: Verify Docker state after cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== docker system df AFTER ==='
+          docker system df -v || docker system df
+          echo '=== remaining project containers ==='
+          docker ps -a --format '{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}' | grep -Ei 'freqtrade|portal|wickhunter|(^|[-_.])bot([-_.]|$)|trading|quant' || true
+          echo '=== minimal runtime test ==='
+          docker run --rm --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,nodev,size=8m --pids-limit 16 --memory 32m alpine:3.23 true

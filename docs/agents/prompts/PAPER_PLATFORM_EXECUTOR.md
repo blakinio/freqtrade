@@ -99,6 +99,7 @@ Read completely before mutation:
 - `docs/agents/AGENTS.md` and nearer governing `AGENTS.md` files;
 - `docs/agents/PROMPTING_STANDARD.md`;
 - `docs/agents/PROMPTING_HANDOVER.md`;
+- `docs/agents/PROMPT_EVAL_STANDARD.md` before changing prompts, routing rules, tool contracts or agent-governance behaviour;
 - `docs/agents/DELIVERY_COMPLETENESS_AND_CLOSEOUT.md`;
 - `docs/agents/ANTI_STALL_AND_EXECUTION_BUDGET.md`;
 - `docs/agents/GITHUB_ONLY_EXECUTION.md` when local/Codex execution is unavailable;
@@ -110,6 +111,8 @@ Read completely before mutation:
 - ADR-020 runtime isolation/Supervisor contracts and task-relevant security/deployment/domain docs.
 
 Claim only the paths necessary for the selected gate and verify no conflicting owner exists.
+
+When the selected package changes a material prompt, short-command route, agent policy or harness contract, define the baseline and candidate against the same representative scenario suite and satisfy `PROMPT_EVAL_STANDARD.md` before activation. If no approved automated harness exists, use the permitted documented manual scenario matrix, state that automation was unavailable and never describe it as an automated pass.
 
 ## 7. Policy and feature scope
 

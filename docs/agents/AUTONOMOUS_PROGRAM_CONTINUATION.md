@@ -81,7 +81,7 @@ Repeat while a safe action is available and the execution budget permits:
 13. **Close PRs and reviews** — make every related PR intentionally terminal and resolve review threads.
 14. **Finalize task** — write terminal evidence, set `status: completed`, archive or terminally close the task, and release ownership or leases.
 15. **Review barrier** — refresh dependencies, programme state, and stale related work.
-16. **Continue programme** — in default mode start at most one additional `READY` task after the terminal entry task when the anti-stall contract permits it. When a trusted continuous-programme override is active, checkpoint any externally waiting task and rotate to the next dependency-safe, non-conflicting `READY` task without using rotation to evade per-head/per-gate limits.
+16. **Continue programme** — in default mode start at most one additional `READY` task after the terminal entry task when the anti-stall contract permits it. When a trusted continuous-programme override is active, checkpoint any externally waiting task and rotate to the next dependency-safe, non-conflicting `READY` task without using rotation, same-SHA workflow reruns, or check-generation changes to evade exact-head/per-gate limits.
 
 Do not return merely because one phase or the entry task completed. The default mode still prohibits a second additional task. A trusted continuous-programme override replaces only that fixed task-count rule; it does not enlarge runtime, repair, CI, safety, ownership or authority budgets.
 
@@ -184,7 +184,7 @@ Do not keep a worker active merely to wait for CI, another task, deployment, an 
 
 Persist exact `status: waiting` evidence and one `next_action`, release the worker or lease where appropriate, and execute other independent work already inside the same task. In default mode, start an additional task only under the fixed anti-stall gate. Under a trusted continuous-programme override, the coordinator may instead select another dependency-safe, non-conflicting `READY` task even while the prior task remains waiting.
 
-Never revisit a waiting task merely because time passed. Revisit only after a material external-state change, new exact-head/check generation, or later invocation, preserving that task's counters. Return when every authorized path is waiting or blocked, or another real stop condition applies.
+Never revisit a waiting task merely because time passed. Within one owner invocation, ordinary CI/review polling remains keyed to the exact commit SHA: a same-SHA rerun, new workflow run ID, replacement check suite, or draft/ready transition does not reset the observation budget. Revisit by polling again only after a new exact head SHA or in a later invocation. If a terminal state is surfaced incidentally by another already-authorized operation, consume it without issuing an extra status query. Return when every authorized path is waiting or blocked, or another real stop condition applies.
 
 Repeated status polling is not useful work.
 
@@ -240,5 +240,5 @@ Do not:
 - leave completed tasks falsely active or ownership claimed;
 - poll indefinitely instead of doing safe work;
 - in default mode, start more than one additional task after the entry task;
-- in continuous mode, use task switching to reset counters, bypass dependencies, exceed writer limits or manufacture activity;
+- in continuous mode, use task switching, same-SHA reruns/check generations, dependency bypass or writer multiplication to reset counters or manufacture activity;
 - silently broaden authorization or bypass safety or merge gates.

@@ -146,7 +146,7 @@ class RuntimeAdoptionService:
         self._session_factory = session_factory
         self._repository = BotRepository()
 
-    def adopt_external_runtime(
+    def adopt_external_runtime(  # noqa: C901 - explicit fail-closed checks stay visible
         self,
         context: RequestContext,
         bot_id: str,

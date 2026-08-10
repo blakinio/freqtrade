@@ -1,0 +1,23 @@
+{
+  "schema_version": "portal-surface-availability-v1",
+  "source": "tools/portal_audit/ledger/navigation.json",
+  "unavailable_statuses": ["DISCONNECTED", "MISSING"],
+  "hidden_navigation_paths": [
+    "/performance",
+    "/positions",
+    "/terminal",
+    "/orders",
+    "/trades",
+    "/bots/new",
+    "/bots/signals",
+    "/bots/strategies",
+    "/bots/grid",
+    "/ai",
+    "/ai/trade-analysis",
+    "/ai/insights",
+    "/ai/learning",
+    "/operations/execution-logs",
+    "/operations/runtime-health",
+    "/platform/exchanges"
+  ]
+}

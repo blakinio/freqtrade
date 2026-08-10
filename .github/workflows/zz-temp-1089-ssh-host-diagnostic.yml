@@ -11,93 +11,66 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: zz-temp-1089-synology-ssh-host-diagnostic
-  cancel-in-progress: false
-
 jobs:
-  verify:
-    name: Verify exact Portal runtime preflight after scrub drain
+  inspect:
+    name: Snapshot running-container restart policies before daemon repair
     runs-on: [freqtrade-staging]
-    timeout-minutes: 8
+    timeout-minutes: 5
     steps:
       - name: Refuse trading credential environment
         shell: bash
         run: |
           set -euo pipefail
-          for name in \
-            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
-            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
-            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
-            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
-          do
+          for name in OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET FT_EXCHANGE_KEY FT_EXCHANGE_SECRET FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET; do
             test -z "${!name:-}" || { echo "recognized trading credential present: $name" >&2; exit 1; }
           done
 
-      - name: Verify scrubs remain paused and host pressure drained
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo 'host_load:'
-          cat /proc/loadavg
-          if command -v iostat >/dev/null 2>&1; then timeout 15 iostat -xz 1 2; fi
-
-      - name: Run two exact protected preflight probes
-        id: probe
+      - name: Snapshot restart policies
+        id: snapshot
         shell: bash
         env:
-          RESULT: ${{ runner.temp }}/synology-1089-exact-preflight-repeat.txt
+          REPORT: ${{ runner.temp }}/synology-1089-restart-policies.txt
         run: |
-          set -u
-          set +e
-          : > "$RESULT"
-          image='docker.io/library/postgres:16.13-alpine3.23@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777'
-          failures=0
-          timeout 10 docker info --format 'ServerVersion={{.ServerVersion}} DockerRootDir={{.DockerRootDir}}' >> "$RESULT" 2>&1
-          info_rc=$?; echo "docker_info_rc=$info_rc" | tee -a "$RESULT"
-          [ "$info_rc" -eq 0 ] || failures=$((failures+1))
-          for attempt in 1 2; do
-            probe="portal-oidc-runtime-preflight-repeat-${GITHUB_RUN_ID}-${attempt}"
-            timeout 15 docker rm -f "$probe" >/dev/null 2>&1 || true
-            started=$(date +%s)
-            timeout --kill-after=5 20 docker run --rm --name "$probe" --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true --entrypoint /bin/true "$image" >> "$RESULT" 2>&1
-            rc=$?
-            ended=$(date +%s)
-            printf 'exact_preflight_%s_rc=%s\nexact_preflight_%s_elapsed_seconds=%s\n' "$attempt" "$rc" "$attempt" "$((ended-started))" | tee -a "$RESULT"
-            [ "$rc" -eq 0 ] || failures=$((failures+1))
-            timeout 20 docker rm -f "$probe" >/dev/null 2>&1 || true
-            sleep 5
-          done
-          timeout 10 docker version >/dev/null 2>&1
-          post_rc=$?; echo "post_docker_version_rc=$post_rc" | tee -a "$RESULT"
-          [ "$post_rc" -eq 0 ] || failures=$((failures+1))
-          echo "probe_failures=$failures" | tee -a "$RESULT"
-          exit "$([ "$failures" -eq 0 ] && echo 0 || echo 1)"
+          set -euo pipefail
+          : > "$REPORT"
+          docker version --format 'docker_server={{.Server.Version}}' | tee -a "$REPORT"
+          while read -r cid; do
+            docker inspect --format '{{.Id}}\t{{.Name}}\tstatus={{.State.Status}}\trestart={{.HostConfig.RestartPolicy.Name}}\thealth={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$cid" >> "$REPORT"
+          done < <(docker ps -q)
+          runner_policy="$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' freqtrade-synology-staging-runner 2>/dev/null || true)"
+          echo "runner_restart_policy=$runner_policy" | tee -a "$REPORT"
+          running_no_restart="$(grep -F '\tstatus=running\trestart=no\t' "$REPORT" || true)"
+          if [[ -n "$running_no_restart" ]]; then
+            echo 'running_restart_no_present=true' | tee -a "$REPORT"
+          else
+            echo 'running_restart_no_present=false' | tee -a "$REPORT"
+          fi
+          [[ "$runner_policy" == always || "$runner_policy" == unless-stopped ]]
 
-      - name: Upload exact-preflight evidence
+      - name: Upload restart-policy snapshot
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: synology-1089-exact-preflight-repeat-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/synology-1089-exact-preflight-repeat.txt
+          name: synology-1089-restart-policy-snapshot-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/synology-1089-restart-policies.txt
           if-no-files-found: error
           retention-days: 14
 
-      - name: Publish exact-preflight summary
+      - name: Publish summary
         if: always()
         shell: bash
         env:
-          RESULT: ${{ runner.temp }}/synology-1089-exact-preflight-repeat.txt
+          REPORT: ${{ runner.temp }}/synology-1089-restart-policies.txt
         run: |
           {
-            echo '## Synology #1089 exact protected preflight repeat'
+            echo '## Synology #1089 restart-policy snapshot'
             echo
-            grep -E '^(docker_info_rc|exact_preflight_[12]_(rc|elapsed_seconds)|post_docker_version_rc|probe_failures)=' "$RESULT" | sed 's/^/- /' || true
+            grep -E '^runner_restart_policy=|^running_restart_no_present=' "$REPORT" | sed 's/^/- /' || true
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Remove local evidence
+      - name: Cleanup
         if: always()
         shell: bash
         env:
-          RESULT: ${{ runner.temp }}/synology-1089-exact-preflight-repeat.txt
-        run: rm -f -- "$RESULT"
+          REPORT: ${{ runner.temp }}/synology-1089-restart-policies.txt
+        run: rm -f -- "$REPORT"

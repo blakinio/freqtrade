@@ -78,7 +78,7 @@ def test_runtime_preflight_fails_closed_when_container_start_times_out(
 
     monkeypatch.setattr(module, "_run", fake_run)
 
-    with pytest.raises(module.PreflightError, match="cannot start.*bounded timeout"):
+    with pytest.raises(module.PreflightError, match=r"cannot start.*bounded timeout"):
         module.check_runtime()
 
 

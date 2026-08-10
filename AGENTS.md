@@ -35,18 +35,27 @@ The repository, current Git state, active pull requests, CI results, and files i
 ## Safety rules
 
 - Never commit exchange API keys, secrets, tokens, wallet credentials, or private endpoints.
-- New trading configurations must default to `dry_run: true`.
+- New trading configurations must default to `dry_run: true`; in Quant Platform terminology, a managed Freqtrade dry-run generation is `PAPER` unless a bounded validation package explicitly selects `SHADOW`.
+- `PAPER` is the normal and only currently authorized operational trading mode.
+- `SHADOW` is optional and temporary. Use it only when research, training, diagnostics, runtime/integration validation, or replay-to-runtime comparison specifically requires observation without simulated order submission.
+- `LIVE` must remain unavailable and fail closed in UI, API, configuration generation, runtime materialization, and promotion logic until the owner explicitly approves a separate LIVE architecture and implementation programme.
+- No merge, release, deployment, model promotion, strategy promotion, or environment change may implicitly enable `LIVE`.
 - Do not enable withdrawals in exchange API credentials.
-- Do not promote an experimental strategy directly to live trading.
-- Any live-capital change requires an explicit, separately reviewed work package.
+- Any future live-capital change requires an explicit, separately reviewed owner-approved work package and does not inherit authority from PAPER work.
 
 ## Strategy lifecycle
 
-Strategies move through these states:
+Strategies use the PAPER-first lifecycle:
 
-`experiment -> candidate -> validated -> dry-run -> shadow -> live-small -> production -> retired`
+`experiment -> candidate -> validated -> paper-eligible -> paper -> paper-suspended | retired`
 
-Promotion requires evidence appropriate to the stage. At minimum, before dry-run promotion:
+An optional validation side lane may be used when specifically required:
+
+`candidate | validated -> shadow-validation -> validated`
+
+`SHADOW` is not a mandatory promotion stage. There is no reachable `LIVE` transition in the currently authorized lifecycle.
+
+Promotion requires evidence appropriate to the stage. At minimum, before `paper-eligible` promotion:
 
 - reproducible backtest inputs;
 - out-of-sample evaluation;
@@ -67,7 +76,7 @@ ADR-021 and `docs/agents/BRANCH_POLICY.md` define repository routing. Source bra
 - Ordinary task, feature, fix, audit, documentation, migration, runtime, portal, WickHunter, CI and infrastructure work integrates through `develop`.
 - After the physical `main` migration is complete, stable release promotion uses a dedicated reviewed `develop -> main` PR; ordinary feature PRs do not target `main`.
 - `develop` is not the staging environment and `main` is not the production environment. `dev | staging | production` are deployment environments.
-- `SHADOW | PAPER | LIVE` are bot operating modes. Production does not imply LIVE, and LIVE still requires a separate explicit live-capital work package.
+- `SHADOW | PAPER | LIVE` are bot-mode vocabulary under ADR-021/ADR-022. `PAPER` is the default and only currently authorized operational mode, `SHADOW` is optional validation-only, and `LIVE` is reserved but unreachable until a separate explicit owner decision and programme.
 - `candidate | stable` are release channels. Deployment uses immutable artifact identity; merging a branch does not itself authorize deployment.
 - Until exact repository state proves `main` is created, protected and correctly wired, do not route work to it or claim the two-branch migration is implemented.
 
@@ -128,7 +137,7 @@ A successful backtest alone is not sufficient evidence of a robust strategy.
 
 ## Initial baseline
 
-The first baseline lives under `ai_platform/` and is intentionally research-only. It must remain `dry_run` until the validation pipeline defined in the roadmap is implemented and passed.
+The first baseline lives under `ai_platform/` and is intentionally research-only. It may use bounded `SHADOW` validation when technically necessary, but it must not become `PAPER_ELIGIBLE` or run as a managed PAPER generation until the validation pipeline defined in the roadmap is implemented and passed. It has no reachable LIVE path.
 
 ## GitHub connector routing — mandatory
 

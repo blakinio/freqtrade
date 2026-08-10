@@ -19,7 +19,7 @@ jobs:
         with:
           ref: fix/wickhunter-1396-synology-recovery-v2
           fetch-depth: 20
-      - name: Normalize generator delimiters and apply patch
+      - name: Normalize generator and apply patch
         shell: bash
         run: |
           set -euo pipefail
@@ -39,6 +39,10 @@ jobs:
               else:
                   lines[i] = re.sub(r"^([A-Za-z_][A-Za-z0-9_]* = )''(?=\s)", r"\1'''", line)
           payload = '\n'.join(lines) + '\n'
+          payload = payload.replace(
+              'marker = "\\n\\ndef test_start_rejects_symlinked_runtime_root_before_any_write("',
+              'marker = "\\n\\ndef test_restart_rejects_symlinked_run_root_without_mutating_external_target("',
+          )
           compile(payload, '/tmp/patch-retained-fd.py', 'exec')
           Path('/tmp/patch-retained-fd.py').write_text(payload, encoding='utf-8')
           PY

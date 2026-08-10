@@ -121,6 +121,29 @@ class AppendOnlyNdjsonWriter:
             self._handle.close()
 
 
+def _seal_committed_ndjson(path: Path, *, committed_rows: int, source: str) -> None:
+    if isinstance(committed_rows, bool) or not isinstance(committed_rows, int) or committed_rows < 0:
+        raise RuntimeError(f"previous {source} events_written is invalid")
+    if not path.exists():
+        if committed_rows == 0:
+            return
+        raise RuntimeError(f"previous {source} source file is missing committed rows")
+    if path.is_symlink() or not path.is_file():
+        raise RuntimeError(f"previous {source} source path is not a regular file")
+
+    with path.open("r+b") as handle:
+        committed_end = 0
+        for _ in range(committed_rows):
+            row = handle.readline()
+            if not row or not row.endswith(b"\n") or not row.strip():
+                raise RuntimeError(f"previous {source} source file has fewer rows than committed")
+            committed_end = handle.tell()
+        if handle.read(1):
+            handle.truncate(committed_end)
+            handle.flush()
+            os.fsync(handle.fileno())
+
+
 class LiveRunManager:
     def __init__(
         self,
@@ -268,15 +291,32 @@ class LiveRunManager:
             if not state_path.is_file() or state_path.is_symlink():
                 return
             state = json.loads(state_path.read_text(encoding="utf-8"))
-            if state.get("run_state") != "active":
-                return
-            state["run_state"] = "completed"
-            state["data_mode"] = "historical"
-            state["completed_at_ms"] = self._now_ms()
-            state["completion_reason"] = "collector-restart"
-            write_json_atomic(state_path, state)
         except (OSError, TypeError, ValueError, json.JSONDecodeError):
             return
+        if state.get("run_state") != "active":
+            return
+
+        sources = state.get("sources")
+        if not isinstance(sources, dict):
+            raise RuntimeError("previous live source state is invalid")
+        for source in (BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE):
+            source_state = sources.get(source)
+            if source_state is None:
+                continue
+            if not isinstance(source_state, dict):
+                raise RuntimeError(f"previous {source} source state is invalid")
+            committed_rows = source_state.get("events_written", 0)
+            _seal_committed_ndjson(
+                run_root / f"{source}.ndjson",
+                committed_rows=committed_rows,
+                source=source,
+            )
+
+        state["run_state"] = "completed"
+        state["data_mode"] = "historical"
+        state["completed_at_ms"] = self._now_ms()
+        state["completion_reason"] = "collector-restart"
+        write_json_atomic(state_path, state)
 
     def _start_new_run(self, now_ms: int) -> None:
         instant = datetime.fromtimestamp(now_ms / 1000, tz=UTC)

@@ -192,7 +192,7 @@ The already-completed historical run `liquid20-20260810T000000Z-1` still require
 
 ## Temporary workflow
 
-`.github/workflows/portal-wickhunter-buildkit-cache-recovery.yml` was used only for bounded recovery diagnostics and focused repository validation. Exact focused validation passed in run `31433026457` / job `93600693019` after the final durability and formatting repairs. The workflow is now scheduled for deletion before retained exact-head CI and cannot serve as final merge evidence.
+`.github/workflows/portal-wickhunter-buildkit-cache-recovery.yml` was used only for bounded recovery diagnostics and focused repository validation. Exact focused validation passed in run `31433026457` / job `93600693019` after the final durability and formatting repairs. The temporary workflow is intentionally absent from the permanent merge diff and cannot serve as final merge evidence.
 
 ## Context checkpoint
 
@@ -215,7 +215,6 @@ owned_paths:
   - ai_platform/scripts/liquidation_live_stream.py
   - tests/ai_platform_integration/test_liquidation_live_restart_durability.py
   - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
-  - .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
 proven:
   - PRs 1397 1388 and 1436 are merged and PR 1443 remains closed unmerged
   - WH09 remains the single expected H900 SHADOW container with zero trading authority
@@ -254,7 +253,6 @@ changed_paths:
   - ai_platform/scripts/liquidation_live_stream.py
   - tests/ai_platform_integration/test_liquidation_live_restart_durability.py
   - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
-  - .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
 validation:
   - command: Read-only WH09 root-cause diagnostic
     result: PASS

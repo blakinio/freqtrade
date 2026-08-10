@@ -1,7 +1,7 @@
 # Anti-Stall and Execution Budget Contract
 
 ```yaml
-anti_stall_policy_version: 3
+anti_stall_policy_version: 3.1
 ```
 
 ## Purpose
@@ -88,7 +88,7 @@ context_reconstruction_attempts: 0
 stall_warnings: 0
 ```
 
-Reset a counter only after the underlying exact head, failure signature, hypothesis, or external state materially changes. For `ci_checks_for_current_head`, **only a new exact commit SHA resets the per-head counter inside the same invocation**. A workflow rerun, new run ID, draft/ready transition, replacement check suite, or other same-SHA check generation does not create a fresh ordinary polling budget.
+Reset a counter only after the underlying exact head, failure signature, hypothesis, or external state materially changes. For `ci_checks_for_current_head`, **only a new exact commit SHA resets the per-head counter**. That rule survives owner, replacement, recovery and continuation invocations. A workflow rerun, new run ID, draft/ready transition, replacement check suite, new chat/session or other same-SHA check generation does not create a fresh ordinary polling budget.
 
 ## CI and external waiting
 
@@ -100,7 +100,7 @@ For one exact head:
 4. persist exact head, run IDs, pending checks, `status: waiting`, and one `next_action`;
 5. end or rotate the invocation, execute genuinely independent work already inside the same declared task, or use a trusted continuous-programme override when one is active and remaining budget permits.
 
-Never perform a third CI state check for the same exact head in one invocation. This cap applies across all workflow run IDs and same-SHA reruns/check generations. Do not keep a worker active merely to wait for CI, reviews, deployment, scheduled jobs, dependencies, observation windows, or an owner reply.
+Never perform a third ordinary CI state check for the same exact head. This cap applies across owner/replacement invocations, all workflow run IDs and same-SHA reruns/check generations because the durable task/head counters are inherited. Do not keep a worker active merely to wait for CI, reviews, deployment, scheduled jobs, dependencies, observation windows, or an owner reply.
 
 ## Failure and repair limits
 
@@ -147,9 +147,9 @@ This is a **coordination override, not a safety or budget override**. When it is
 - the fixed `max_additional_tasks_after_terminal_entry_task` count does not apply while this trusted override is active; progress is instead bounded by the foreground runtime/no-progress budgets and real stop conditions;
 - writer concurrency remains one unless stricter repository concurrency policy explicitly allows otherwise; switching tasks is preferred over multiplying writers;
 - dependency, ownership and path-conflict preflight is required before every task switch; work that depends on the waiting task must remain blocked;
-- CI/review observation counters stay attached to their task and exact commit SHA. Switching tasks, rerunning workflows, replacing check suites, or draft/ready transitions on the same SHA never reset them;
-- after the ordinary per-head observation cap is reached, a waiting task may be polled again in the same invocation only after its exact head SHA changes. A same-SHA rerun or new check generation does not reopen polling. If a terminal state is surfaced incidentally by another already-authorized operation, it may be consumed, but do not issue an extra status query to discover it;
-- a later owner invocation may inspect the preserved waiting state under that invocation's own bounded counters;
+- CI/review observation counters stay attached to their task and exact commit SHA. Switching tasks, rerunning workflows, replacing check suites, draft/ready transitions, owner continuations and replacement sessions on the same SHA never reset them;
+- after the ordinary per-head observation cap is reached, a waiting task may be polled again only after its exact head SHA changes. A same-SHA rerun, new check generation, elapsed time, or later owner invocation does not reopen ordinary polling. If a terminal state is surfaced incidentally by another already-authorized operation, it may be consumed, but do not issue an extra status query to discover it;
+- a later owner/replacement invocation must inherit the waiting task's recorded per-SHA observation, retry, repair and wait state. The later invocation receives its own foreground wall-clock budget, but that new invocation budget cannot reset task/head counters;
 - no task, branch, commit or PR may be created solely to consume time or keep the invocation alive;
 - the invocation ends only when budget/context limits apply or every authorized path is terminal, waiting, blocked, conflicting, or unsafe.
 
@@ -201,7 +201,7 @@ Do not:
 - create extra tasks, commits, branches, or PRs solely to extend execution;
 - interpret silence, pending status, or waiting as productive work;
 - write `ROTATE` as a checkpoint task status;
-- use continuous task rotation, same-SHA reruns or check-generation changes to reset per-head/per-gate counters or bypass dependency order;
+- use continuous task rotation, same-SHA reruns, owner/session replacement or check-generation changes to reset per-head/per-gate counters or bypass dependency order;
 - claim autonomous execution justifies production, data, payment, authentication, protocol, asset, live-capital, or protected-configuration mutation without authority;
 - hide budget exhaustion by resetting counters or changing labels without a material state change.
 

@@ -1,4 +1,4 @@
-name: Portal WickHunter Liquid20 Missing Source Repair V2
+name: Portal WickHunter Liquid20 Hardened Restart Validation
 
 "on":
   push:
@@ -6,221 +6,52 @@ name: Portal WickHunter Liquid20 Missing Source Repair V2
       - fix/wickhunter-1396-synology-recovery-v2
     paths:
       - .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
+      - ai_platform/scripts/liquidation_live_stream.py
+      - tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+      - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: portal-wickhunter-1396-liquid20-missing-source-repair-v2
-  cancel-in-progress: false
+  group: portal-wickhunter-1396-liquid20-hardened-validation
+  cancel-in-progress: true
 
 jobs:
-  repair:
-    name: Harden restart sealing to historical consumer contract
+  validate:
+    name: Validate exact hardened restart contract
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
-      - name: Checkout exact recovery branch
+      - name: Checkout exact branch head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: fix/wickhunter-1396-synology-recovery-v2
-          fetch-depth: 1
+          persist-credentials: false
+          fetch-depth: 2
 
-      - name: Install bounded validation tools
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          enable-cache: false
+          python-version: "3.12"
+
+      - name: Install bounded dependencies
         run: |
-          python -m pip install ruff==0.15.21 pytest==9.1.1
-          python -m pip install -r requirements.txt
-          python -m pip install --no-deps -e .
+          uv pip install -r requirements.txt
+          uv pip install pytest==9.1.1 ruff==0.15.21
+          uv pip install --no-deps -e .
 
-      - name: Apply exact fail-closed repair
-        shell: bash
+      - name: Validate canonical recovery checkpoint
+        run: >-
+          python tools/agents/checkpoint.py
+          docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
+          --require-checkpoint
+
+      - name: Compile touched Python
         run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-          from textwrap import dedent
-
-          source = Path("ai_platform/scripts/liquidation_live_stream.py")
-          text = source.read_text(encoding="utf-8")
-
-          old_signature = "def _seal_committed_ndjson(path: Path, *, committed_rows: int, source: str) -> None:\n"
-          new_signature = (
-              "def _seal_committed_ndjson(\n"
-              "    path: Path, *, committed_rows: int, source: str, allow_missing: bool\n"
-              ") -> None:\n"
-          )
-          if text.count(old_signature) != 1:
-              raise SystemExit("unexpected seal helper signature")
-          text = text.replace(old_signature, new_signature, 1)
-
-          old_missing = "\n".join(
-              [
-                  "    if not path.exists():",
-                  "        if committed_rows == 0:",
-                  "            return",
-                  '        raise RuntimeError(f"previous {source} source file is missing committed rows")',
-              ]
-          )
-          new_missing = "\n".join(
-              [
-                  "    if not path.exists():",
-                  "        if allow_missing and committed_rows == 0:",
-                  "            return",
-                  "        if committed_rows == 0:",
-                  '            raise RuntimeError(f"previous {source} source file is missing")',
-                  '        raise RuntimeError(f"previous {source} source file is missing committed rows")',
-              ]
-          )
-          if text.count(old_missing) != 1:
-              raise SystemExit("unexpected missing-source block")
-          text = text.replace(old_missing, new_missing, 1)
-
-          old_loop = "\n".join(
-              [
-                  "        for source in (BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE):",
-                  "            source_state = sources.get(source)",
-                  "            if source_state is None:",
-                  "                continue",
-                  "            if not isinstance(source_state, dict):",
-                  '                raise RuntimeError(f"previous {source} source state is invalid")',
-                  '            committed_rows = source_state.get("events_written", 0)',
-                  "            _seal_committed_ndjson(",
-                  '                run_root / f"{source}.ndjson",',
-                  "                committed_rows=committed_rows,",
-                  "                source=source,",
-                  "            )",
-              ]
-          )
-          new_loop = "\n".join(
-              [
-                  "        expected_sources = {BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE}",
-                  "        if set(sources) != expected_sources:",
-                  '            raise RuntimeError("previous live source set is invalid")',
-                  "        for source in (BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE):",
-                  "            source_state = sources[source]",
-                  "            if not isinstance(source_state, dict):",
-                  '                raise RuntimeError(f"previous {source} source state is invalid")',
-                  '            committed_rows = source_state.get("events_written", 0)',
-                  "            allow_missing = (",
-                  '                source_state.get("configured") is not True',
-                  '                and source_state.get("last_event_received_at_ms") is None',
-                  "            )",
-                  "            _seal_committed_ndjson(",
-                  '                run_root / f"{source}.ndjson",',
-                  "                committed_rows=committed_rows,",
-                  "                source=source,",
-                  "                allow_missing=allow_missing,",
-                  "            )",
-              ]
-          )
-          if text.count(old_loop) != 1:
-              raise SystemExit("unexpected source sealing loop")
-          source.write_text(text.replace(old_loop, new_loop, 1), encoding="utf-8")
-
-          test = Path("tests/ai_platform_integration/test_liquidation_live_restart_durability.py")
-          text = test.read_text(encoding="utf-8")
-          old_import = "    OKX_SOURCE,\n)"
-          new_import = "    OKX_SOURCE,\n    LiveRunManager,\n)"
-          if text.count(old_import) != 1:
-              raise SystemExit("unexpected test import block")
-          text = text.replace(old_import, new_import, 1)
-
-          marker = "\n\ndef test_restart_rejects_dangling_symlink_even_with_zero_committed_rows("
-          if text.count(marker) != 1:
-              raise SystemExit("unexpected test insertion marker")
-          addition = dedent(
-              '''
-
-              def test_restart_rejects_missing_configured_zero_row_source(tmp_path: Path) -> None:
-                  old_run_id, old_run_root = _write_previous_active_run(
-                      tmp_path,
-                      committed_rows={BINANCE_SOURCE: 0, BYBIT_SOURCE: 0, OKX_SOURCE: 0},
-                      actual_rows={BINANCE_SOURCE: 0, BYBIT_SOURCE: 0, OKX_SOURCE: 0},
-                  )
-                  (old_run_root / f"{OKX_SOURCE}.ndjson").unlink()
-                  manager = OkxLiveRunManager(
-                      data_root=tmp_path,
-                      collector_commit="5" * 40,
-                      host_id="synology-test",
-                      now_ms=lambda: 1_786_384_683_792,
-                  )
-
-                  with pytest.raises(RuntimeError, match="okx-swap source file is missing"):
-                      asyncio.run(manager.start())
-
-                  persisted = json.loads(
-                      (old_run_root / "run-state-v1.json").read_text(encoding="utf-8")
-                  )
-                  assert persisted["run_state"] == "active"
-                  pointer = json.loads(
-                      (tmp_path / "live" / LIVE_STATE_FILE).read_text(encoding="utf-8")
-                  )
-                  assert pointer["active_run_id"] == old_run_id
-
-
-              def test_restart_allows_missing_unconfigured_zero_row_source(tmp_path: Path) -> None:
-                  old_run_id, old_run_root = _write_previous_active_run(
-                      tmp_path,
-                      committed_rows={BINANCE_SOURCE: 0, BYBIT_SOURCE: 0, OKX_SOURCE: 0},
-                      actual_rows={BINANCE_SOURCE: 0, BYBIT_SOURCE: 0, OKX_SOURCE: 0},
-                  )
-                  (old_run_root / f"{OKX_SOURCE}.ndjson").unlink()
-                  state_path = old_run_root / "run-state-v1.json"
-                  state = json.loads(state_path.read_text(encoding="utf-8"))
-                  state["sources"][OKX_SOURCE]["configured"] = False
-                  state["sources"][OKX_SOURCE]["connected"] = False
-                  state_path.write_text(json.dumps(state), encoding="utf-8")
-                  manager = LiveRunManager(
-                      data_root=tmp_path,
-                      collector_commit="6" * 40,
-                      host_id="synology-test",
-                      now_ms=lambda: 1_786_384_683_792,
-                  )
-
-                  async def scenario() -> None:
-                      await manager.start()
-                      assert manager.run_id != old_run_id
-                      await manager.stop()
-
-                  asyncio.run(scenario())
-                  completed = json.loads(state_path.read_text(encoding="utf-8"))
-                  assert completed["run_state"] == "completed"
-                  assert completed["completion_reason"] == "collector-restart"
-
-
-              def test_restart_rejects_incomplete_source_state_set(tmp_path: Path) -> None:
-                  old_run_id, old_run_root = _write_previous_active_run(
-                      tmp_path,
-                      committed_rows={BINANCE_SOURCE: 0, BYBIT_SOURCE: 0, OKX_SOURCE: 0},
-                      actual_rows={BINANCE_SOURCE: 0, BYBIT_SOURCE: 0, OKX_SOURCE: 0},
-                  )
-                  state_path = old_run_root / "run-state-v1.json"
-                  state = json.loads(state_path.read_text(encoding="utf-8"))
-                  del state["sources"][OKX_SOURCE]
-                  state_path.write_text(json.dumps(state), encoding="utf-8")
-                  manager = OkxLiveRunManager(
-                      data_root=tmp_path,
-                      collector_commit="7" * 40,
-                      host_id="synology-test",
-                      now_ms=lambda: 1_786_384_683_792,
-                  )
-
-                  with pytest.raises(RuntimeError, match="previous live source set is invalid"):
-                      asyncio.run(manager.start())
-
-                  persisted = json.loads(state_path.read_text(encoding="utf-8"))
-                  assert persisted["run_state"] == "active"
-                  pointer = json.loads(
-                      (tmp_path / "live" / LIVE_STATE_FILE).read_text(encoding="utf-8")
-                  )
-                  assert pointer["active_run_id"] == old_run_id
-              '''
-          )
-          test.write_text(text.replace(marker, addition + marker, 1), encoding="utf-8")
-          PY
-          ruff format ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
-          ruff check ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
-          git diff --check
+          python -m py_compile ai_platform/scripts/liquidation_live_stream.py
+          python -m py_compile tests/ai_platform_integration/test_liquidation_live_restart_durability.py
 
       - name: Run focused restart durability suite
         run: >-
@@ -228,13 +59,52 @@ jobs:
           --confcutdir=tests/ai_platform_integration
           tests/ai_platform_integration/test_liquidation_live_restart_durability.py
 
-      - name: Commit hardened restart contract
+      - name: Ruff touched Python
+        run: >-
+          ruff check
+          ai_platform/scripts/liquidation_live_stream.py
+          tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+
+      - name: Ruff format touched Python
+        run: >-
+          ruff format --check
+          ai_platform/scripts/liquidation_live_stream.py
+          tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+
+      - name: Verify producer-consumer restart invariants
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
-          git diff --cached --quiet && exit 1
-          git commit -m "fix(liquidations): reject invalid restart source state"
-          git push origin HEAD:fix/wickhunter-1396-synology-recovery-v2
+          python - <<'PY'
+          from pathlib import Path
+
+          producer = Path("ai_platform/scripts/liquidation_live_stream.py").read_text(encoding="utf-8")
+          consumer = Path("ai_platform/wickhunter/candidate_paper_runtime_operator.py").read_text(encoding="utf-8")
+          required_producer = [
+              "if set(sources) != expected_sources:",
+              "if allow_missing and committed_rows == 0:",
+              "if path.is_symlink():",
+              "handle.truncate(committed_end)",
+              "os.fsync(handle.fileno())",
+          ]
+          required_consumer = [
+              "if tuple(sorted(source_payloads)) != EXPECTED_LIVE_SOURCES:",
+              "events_written == 0",
+              "and not configured",
+              "source_row.get(\"last_event_received_at_ms\") is None",
+          ]
+          for marker in required_producer:
+              if marker not in producer:
+                  raise SystemExit(f"missing producer invariant: {marker}")
+          for marker in required_consumer:
+              if marker not in consumer:
+                  raise SystemExit(f"missing consumer invariant: {marker}")
+          print("PRODUCER_CONSUMER_RESTART_CONTRACT=PASS")
+          PY
+
+      - name: Validate diff hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check HEAD^ HEAD
+          echo "VALIDATED_HEAD=$GITHUB_SHA"

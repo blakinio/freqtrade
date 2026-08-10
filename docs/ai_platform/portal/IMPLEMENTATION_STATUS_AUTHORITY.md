@@ -32,7 +32,7 @@ status_authority: tools/portal_audit/ledger/status_authority.json
 
 Inventory drift, composition drift or an invalid status contract must fail closed rather than falling back to an older status document.
 
-The reserved `portal-current-status-authority` marker is the machine-discoverable human roll-up pointer to this authority. Its reserved prefix is scanned across the complete documentation tree independently of the target value; there must be exactly one occurrence, in `UI_DELIVERY_STATUS.md`, pointing to `tools/portal_audit/ledger/index.json`. Explicit prose claims in the Portal's status-bearing product documentation are restricted to this contract and that validated UI roll-up. Agent task/governance records may quote acceptance language as evidence, but they are not product status surfaces and cannot carry the reserved marker.
+The reserved `portal-current-status-authority` marker is the machine-discoverable human roll-up pointer to this authority. Its reserved prefix is scanned across the complete documentation tree independently of the target value; there must be exactly one occurrence, in `UI_DELIVERY_STATUS.md`, pointing to `tools/portal_audit/ledger/index.json`. Explicit current-authority prose in Portal status-bearing documentation is bounded to the implementation-status contract, the validated UI roll-up and reconciled historical surfaces that explicitly point to the living inventory while marking their old authority markers as compatibility metadata. Agent task/governance records may quote acceptance language as evidence, but they are not product status surfaces and cannot carry the reserved marker.
 
 ### 3. Historical and derived status surfaces
 
@@ -71,16 +71,17 @@ A closed Issue does not by itself prove current runtime composition, API-mode E2
 - a missing or redirected current implementation authority;
 - a living ledger whose schema/mode no longer matches the authority contract;
 - any second use of the reserved current-authority marker prefix anywhere in documentation, including a marker that points to a different target;
-- an unclassified explicit current-authority claim in the Portal status-bearing documentation;
-- any additional documentation JSON object carrying top-level `status_authority: true` outside the pinned #1101 snapshot;
+- an unclassified explicit current-authority claim in Portal status-bearing documentation;
+- any additional tracked repository JSON object carrying top-level `status_authority: true` outside the pinned #1101 snapshot;
+- a reconciled README, roadmap or historical feature-ledger projection that no longer points to the living exact-head inventory or loses its compatibility-metadata disclaimer;
 - a missing or duplicate legacy-surface classification;
-- any rewrite of the #1101 snapshot by checking both its fixed `as_of_sha` and independently computed Git blob SHA;
+- any rewrite of the #1101 JSON snapshot by checking both its fixed `as_of_sha` and independently computed Git blob SHA;
 - an implicit second current implementation authority;
 - loss of the explicit compatibility-only treatment of the old `status_authority: true` flag;
 - loss of the current-authority declaration from the UI status roll-up;
 - any structured authority grant for LIVE, real capital, withdrawals, private trading credentials, model/strategy promotion, protected-environment mutation or production deployment.
 
-The existing #1101 compatibility validator remains valid for its historical snapshot. This contract supersedes only its claim to be the *current* status authority; it does not rewrite its evidence.
+The existing #1101 compatibility validator remains valid for its historical JSON snapshot. This contract supersedes only its claim to be the *current* status authority; it does not rewrite that pinned JSON evidence. Human projections and roll-ups may be reconciled to point at the living authority without changing the immutable JSON snapshot.
 
 ## Safety boundary
 

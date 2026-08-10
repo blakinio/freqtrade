@@ -1,4 +1,4 @@
-name: Portal WickHunter Durability Exact Validation
+name: Portal WickHunter Final Focused Checkpoint
 
 "on":
   push:
@@ -8,97 +8,85 @@ name: Portal WickHunter Durability Exact Validation
       - .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: portal-wickhunter-1396-durability-exact-validation
-  cancel-in-progress: true
+  group: portal-wickhunter-1396-final-focused-checkpoint
+  cancel-in-progress: false
 
 jobs:
-  validate:
-    name: Validate durability repair on exact recovery head
+  checkpoint:
+    name: Persist final focused validation evidence
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
-      - name: Checkout exact recovery branch
+      - name: Checkout recovery branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: fix/wickhunter-1396-synology-recovery-v2
-          persist-credentials: false
-          fetch-depth: 0
+          fetch-depth: 20
 
-      - name: Install focused validation dependencies
+      - name: Update canonical task checkpoint
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check -r requirements.txt
-          python3 -m pip install --disable-pip-version-check pytest==9.1.1 ruff==0.15.21
+          python3 - <<'PY'
+          from pathlib import Path
 
-      - name: Validate checkpoint and durability markers
-        shell: bash
-        run: |
-          set -euo pipefail
+          path = Path("docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md")
+          text = path.read_text(encoding="utf-8")
+
+          def replace_once(old: str, new: str) -> None:
+              global text
+              if text.count(old) != 1:
+                  raise SystemExit(f"expected exactly one checkpoint target: {old[:100]}")
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              ".github/workflows/portal-wickhunter-buildkit-cache-recovery.yml` is temporary recovery instrumentation only. It currently contains the bounded read-only integrity diagnostic used for run `31425883292`. It must be removed before final merge/closeout and cannot serve as exact-head final CI after removal.",
+              ".github/workflows/portal-wickhunter-buildkit-cache-recovery.yml` was used only for bounded recovery diagnostics and focused repository validation. Exact focused validation passed in run `31433026457` / job `93600693019` after the final durability and formatting repairs. The workflow is now scheduled for deletion before retained exact-head CI and cannot serve as final merge evidence.",
+          )
+          replace_once(
+              "updated_at: 2026-08-10T22:56:00+02:00\nhead: 7163c7517f4acee91242068073c414814e8eb036\nbranch: fix/wickhunter-1396-synology-recovery-v2\npr: 1450\nstatus: waiting",
+              "updated_at: 2026-08-10T23:08:00+02:00\nhead: 2c3cb8387c22e3fb3864abeea312aa79476c84b1\nbranch: fix/wickhunter-1396-synology-recovery-v2\npr: 1450\nstatus: validating",
+          )
+          replace_once(
+              "  - static durability audit proved state-writing paths can persist events_written while NDJSON writes are still pending because _write_state does not centrally flush writers\nderived:",
+              "  - static durability audit proved state-writing paths can persist events_written while NDJSON writes are still pending because _write_state does not centrally flush writers\n"
+              "  - durable-state repair now flushes and fsyncs every open NDJSON writer before persisting state containing events_written and safely skips closed writers during stop and rotation\n"
+              "  - exact focused validation passed on head 2c3cb8387c22e3fb3864abeea312aa79476c84b1 with seven restart-durability tests plus Ruff check format and producer-consumer contract assertions\n"
+              "derived:",
+          )
+          replace_once(
+              "  - command: Dangling symlink fail-closed review repair workflow\n    result: PASS\n    evidence: GitHub Actions run 31427855045 job 93583737395 completed source repair lint format and focused regression validation\nblockers:",
+              "  - command: Dangling symlink fail-closed review repair workflow\n    result: PASS\n    evidence: GitHub Actions run 31427855045 job 93583737395 completed source repair lint format and focused regression validation\n"
+              "  - command: Exact focused durability validation after fsync-before-state and formatting repairs\n    result: PASS\n    evidence: GitHub Actions run 31433026457 job 93600693019 passed checkpoint durability markers py_compile seven focused pytest cases Ruff check Ruff format producer-consumer assertions and diff hygiene\n"
+              "blockers:",
+          )
+          replace_once(
+              "next_action: Inspect the repo-only durability repair execution once terminal and repair only its first actionable failure; do not proceed to final CI until source and regression markers are present.",
+              "next_action: Remove the temporary recovery workflow, require ci:full retained exact-head CI and a fresh independent Codex review on the final three-path diff, then squash-merge PR 1450 and continue the authorized protected Liquid20 recovery chain.",
+          )
+          replace_once("  generation: 5\n", "  generation: 6\n")
+          replace_once("  checkpointed_at: 2026-08-10T22:02:00+02:00\n  last_progress_at: 2026-08-10T22:02:00+02:00\n  phase: liquid20_restart_durability_repair_validation\n  exact_head_before_checkpoint_commit: bf9927579032538a5b53bb09fde8332207b96d35\n  pull_request: none\n  active_operation: permanent producer repair validation",
+              "  checkpointed_at: 2026-08-10T23:08:00+02:00\n  last_progress_at: 2026-08-10T23:08:00+02:00\n  phase: pr1450_final_validation\n  exact_head_before_checkpoint_commit: 2c3cb8387c22e3fb3864abeea312aa79476c84b1\n  pull_request: 1450\n  active_operation: final retained CI and independent review")
+          replace_once(
+              "  next_action: Run focused validation for the Liquid20 restart-sealing repair, then open the task repair PR against current develop.",
+              "  next_action: Delete the temporary recovery workflow, complete retained exact-head CI plus fresh Codex review, merge PR 1450, then continue canonical Liquid20 deployment and exact historical repair.",
+          )
+          path.write_text(text, encoding="utf-8")
+          PY
           python3 tools/agents/checkpoint.py docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md --require-checkpoint
-          python3 - <<'PY'
-          from pathlib import Path
-          source = Path("ai_platform/scripts/liquidation_live_stream.py").read_text(encoding="utf-8")
-          tests = Path("tests/ai_platform_integration/test_liquidation_live_restart_durability.py").read_text(encoding="utf-8")
-          required = (
-              "    def closed(self) -> bool:\n",
-              "        for writer in self._writers.values():\n",
-              "            if not writer.closed:\n",
-              "                writer.flush()\n",
-          )
-          if not all(marker in source for marker in required):
-              raise SystemExit("durability source invariant missing")
-          if "test_state_commit_flushes_pending_ndjson_before_events_written" not in tests:
-              raise SystemExit("durability regression test missing")
-          if "await asyncio.to_thread(writer.flush)" in source:
-              raise SystemExit("heartbeat still carries duplicate direct flush path")
-          print("DURABILITY_MARKERS=PASS")
-          PY
+          git diff --check
 
-      - name: Compile and run focused regression suite
+      - name: Commit checkpoint only
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m py_compile ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
-          python3 -m pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration tests/ai_platform_integration/test_liquidation_live_restart_durability.py
-
-      - name: Ruff focused Python
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 -m ruff check ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
-          python3 -m ruff format --check ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
-
-      - name: Verify producer-consumer contract and diff hygiene
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          producer = Path("ai_platform/scripts/liquidation_live_stream.py").read_text(encoding="utf-8")
-          consumer = Path("ai_platform/wickhunter/candidate_paper_runtime_operator.py").read_text(encoding="utf-8")
-          producer_markers = (
-              "if set(sources) != expected_sources:",
-              "if allow_missing and committed_rows == 0:",
-              "if path.is_symlink():",
-              "handle.truncate(committed_end)",
-              "os.fsync(handle.fileno())",
-          )
-          consumer_markers = (
-              "if tuple(sorted(source_payloads)) != EXPECTED_LIVE_SOURCES:",
-              "events_written == 0",
-              "and not configured",
-              "source_row.get(\"last_event_received_at_ms\") is None",
-          )
-          if not all(marker in producer for marker in producer_markers):
-              raise SystemExit("producer restart contract marker missing")
-          if not all(marker in consumer for marker in consumer_markers):
-              raise SystemExit("consumer historical contract marker missing")
-          print("PRODUCER_CONSUMER_RESTART_CONTRACT=PASS")
-          PY
-          git fetch origin develop
-          git diff --check origin/develop...HEAD
-          echo "VALIDATED_BRANCH_HEAD=$(git rev-parse HEAD)"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
+          git diff --cached --quiet && exit 1
+          git commit -m "docs(wickhunter): record final focused durability proof"
+          git pull --rebase origin fix/wickhunter-1396-synology-recovery-v2
+          git push origin HEAD:fix/wickhunter-1396-synology-recovery-v2

@@ -1,0 +1,45 @@
+name: Synology Container Hygiene Task
+
+on:
+  push:
+    branches:
+      - chore/synology-container-hygiene-20260811
+    paths:
+      - ".github/workflows/synology-container-hygiene-task.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: synology-container-hygiene-task
+  cancel-in-progress: false
+
+jobs:
+  inventory:
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 5
+    steps:
+      - name: Inventory Docker containers safely
+        run: |
+          set -euo pipefail
+          docker version >/dev/null
+
+          echo "=== CONTAINERS ==="
+          ids="$(docker ps -aq)"
+          if [[ -z "$ids" ]]; then
+            echo "NO_CONTAINERS"
+          else
+            while IFS= read -r id; do
+              docker inspect --format 'CONTAINER|{{.Id}}|{{.Name}}|{{.Config.Image}}|{{.State.Status}}|running={{.State.Running}}|created={{.Created}}|finished={{.State.FinishedAt}}|restart={{.HostConfig.RestartPolicy.Name}}|project={{ index .Config.Labels "com.docker.compose.project" }}|service={{ index .Config.Labels "com.docker.compose.service" }}|oneoff={{ index .Config.Labels "com.docker.compose.oneoff" }}' "$id"
+            done <<< "$ids"
+          fi
+
+          echo "=== COMPOSE PROJECTS ==="
+          docker compose ls --all --format json 2>/dev/null || true
+
+          echo "=== SUMMARY ==="
+          echo "all=$(docker ps -aq | wc -l | tr -d ' ')"
+          echo "running=$(docker ps -q | wc -l | tr -d ' ')"
+          echo "exited=$(docker ps -aq --filter status=exited | wc -l | tr -d ' ')"
+          echo "created=$(docker ps -aq --filter status=created | wc -l | tr -d ' ')"
+          echo "dead=$(docker ps -aq --filter status=dead | wc -l | tr -d ' ')"

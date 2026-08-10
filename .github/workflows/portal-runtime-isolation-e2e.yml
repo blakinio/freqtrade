@@ -43,8 +43,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install focused test runner
-        run: python -m pip install --disable-pip-version-check pytest==9.1.1
+      - name: Install focused validation dependencies
+        run: >-
+          python -m pip install --disable-pip-version-check
+          pytest==9.1.1 jsonschema "pydantic>=2.2" "SQLAlchemy>=2.0.6"
+          "httpx>=0.24.1" fastapi pyjwt cryptography "PyYAML>=6.0"
 
       - name: Exercise real Docker driver quarantine and hard bounds
         run: >-

@@ -1,7 +1,7 @@
 # Quant Platform Owner Short Commands
 
 ```yaml
-short_command_registry_version: 2
+short_command_registry_version: 3
 status: active-after-merge
 ```
 
@@ -180,7 +180,38 @@ This command authorizes documentation/architecture recording only. It does not a
 
 ---
 
-# 4. WickHunter
+# 4. PAPER Platform implementation
+
+## `WDROŻENIE PAPER`
+
+Run the role defined in:
+
+```text
+docs/agents/prompts/PAPER_PLATFORM_EXECUTOR.md
+```
+
+Interpretation:
+
+- resolve current `develop` head, live Issues/PRs/tasks/CI and the first dependency-safe READY gate in `docs/ai_platform/portal/PAPER_PLATFORM_IMPLEMENTATION_PLAN.md`;
+- resume valid existing work before creating a new task, branch, Issue or PR;
+- implement one bounded, complete vertical package at a time and continue through required tests, audit, real E2E where applicable, exact-head CI, PR closeout and durable checkpointing;
+- keep `PAPER` as the default and only authorized operational mode;
+- use `SHADOW` only when the package explicitly needs training, diagnostics, observation-only validation or replay/runtime parity evidence;
+- keep `LIVE` unreachable and fail closed.
+
+This command authorizes repository implementation within the PAPER plan. It does **not** authorize protected-environment mutation, Synology deployment, production secrets, private exchange trading credentials, real orders, withdrawals, live capital, or a LIVE architecture/state transition.
+
+## `WDROŻENIE PAPER dalej`
+
+Resume the existing PAPER implementation programme from its exact durable `next_action`. Do not start duplicate work or skip a dependency gate because a later feature appears easier.
+
+## `WDROŻENIE PAPER status`
+
+Read-only. Report the current gate, completed evidence, active task/branch/PR, dependency blockers, PAPER safety status, remaining critical path and exactly one safe next action.
+
+---
+
+# 5. WickHunter
 
 ## `WICKHUNTER`
 
@@ -254,6 +285,12 @@ ARCHITEKTURA PLATFORMY dalej
 or:
 
 ```text
+WDROŻENIE PAPER
+```
+
+or:
+
+```text
 WICKHUNTER
 ```
 
@@ -288,6 +325,10 @@ Input: `ARCHITEKTURA PLATFORMY dalej`
 
 Expected: load `PLATFORM_ARCHITECT.md`, inspect live ADR/implementation state, and continue architecture analysis without runtime mutation.
 
+Input: `WDROŻENIE PAPER`
+
+Expected: load `PAPER_PLATFORM_EXECUTOR.md`, inspect the live dependency graph, resume existing valid work or select the first safe READY gate, and implement one bounded PAPER package through full closeout without enabling LIVE.
+
 Input: `WICKHUNTER WH-09`
 
 Expected: resolve WH-09 through `WICKHUNTER_SHORT_INVOCATIONS.md` and the live task checkpoint; do not assume phase 19/20/21 from memory.
@@ -306,6 +347,10 @@ Input: `NAPRAWA PLATFORMY` with no verified claim or with a stale/duplicate find
 
 Forbidden: editing runtime/product code before claim validation or implementing obsolete scope merely because the Issue is open.
 
+Input: `WDROŻENIE PAPER`.
+
+Forbidden: enabling LIVE, adding a reachable LIVE transition, activating production exchange credentials, mutating a protected environment, or skipping Supervisor/isolation/reconciliation dependencies to expose a disconnected UI feature.
+
 ### Boundary
 
 Input: `WICKHUNTER status`
@@ -319,3 +364,7 @@ Expected: deduplicate/resume existing durable work rather than create another Is
 Input: `NAPRAWA PLATFORMY status`
 
 Expected: read-only queue/claim report; do not claim or mutate an Issue.
+
+Input: `WDROŻENIE PAPER status`
+
+Expected: read-only programme status; do not claim, implement, deploy or mutate runtime state.

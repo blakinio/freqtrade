@@ -4,7 +4,7 @@ Status: `accepted target architecture`
 
 Owner acceptance: `2026-08-10`
 
-Binding decision: `ADR-021`
+Binding decisions: `ADR-021`, `ADR-022`
 
 Issue: `#1438`
 
@@ -46,13 +46,13 @@ LIVE
 
 Mode answers **what execution authority a bot generation has**.
 
-- `SHADOW` observes real/current market inputs and produces decisions/evidence without submitted exchange orders or live capital.
-- `PAPER` uses approved simulation/paper execution and remains zero-live-capital authority.
-- `LIVE` is real exchange execution and is unavailable/fail-closed until a separate explicit live-capital, credential, execution and risk-acceptance package authorizes it.
+- `PAPER` uses approved simulation/paper execution and is the default and only currently authorized operational trading mode. It remains zero-live-capital authority.
+- `SHADOW` observes real/current or replayed inputs and produces decisions/evidence without simulated order submission. Under ADR-022 it is optional, temporary and allowed only for a bounded test, training, research, diagnostic or parity-validation purpose.
+- `LIVE` is reserved vocabulary for real exchange execution. It is unreachable and must be omitted/rejected/fail-closed in current UI, API, configuration, promotion and runtime materialization until a separate explicit owner-approved LIVE architecture and implementation programme exists.
 
-A production deployment may run `SHADOW` or `PAPER`. `environment=production` never implies `mode=LIVE`.
+A production deployment may run `PAPER` or a specifically justified SHADOW package. `environment=production` never implies `mode=LIVE`.
 
-Operating mode is immutable generation material under ADR-020 and the canonical bot lifecycle contracts. A mode change is a new/apply rollout, not an in-place mutation of a running generation.
+Operating mode is immutable generation material under ADR-020 and the canonical bot lifecycle contracts. A mode change is a new/apply rollout, not an in-place mutation of a running generation. SHADOW is not a mandatory stage before PAPER.
 
 ### 1.3 Release channel
 
@@ -177,18 +177,18 @@ Promotion is artifact promotion, not database/state promotion. Any data migratio
 
 ## 6. Bot-mode safety across environments
 
-Valid examples include:
+Normal and bounded examples include:
 
 ```text
-environment=staging     release=candidate mode=SHADOW
 environment=staging     release=candidate mode=PAPER
-environment=production  release=stable    mode=SHADOW
 environment=production  release=stable    mode=PAPER
+environment=staging     release=candidate mode=SHADOW  # bounded validation only
+environment=production  release=stable    mode=SHADOW  # bounded validation only
 ```
 
-`environment=production release=stable mode=LIVE` is structurally representable but remains unauthorized until a separate accepted LIVE lifecycle package exists. Current behavior must therefore remain fail-closed for LIVE.
+`environment=production release=stable mode=LIVE` may remain representable in a forward-compatible schema, but it has no reachable current transition and must be rejected by operational UI/API/promotion/runtime boundaries.
 
-No environment/release promotion may implicitly promote a bot from SHADOW to PAPER or LIVE. Bot-mode promotion follows its own immutable generation and eligibility policy.
+No environment/release promotion may implicitly change bot mode. PAPER eligibility follows its own immutable evidence policy. SHADOW is selected only when explicitly justified; it is not a promotion prerequisite. No current promotion path targets LIVE.
 
 ## 7. Terminology rule
 
@@ -197,8 +197,8 @@ New architecture, task, PR and operational evidence should identify the relevant
 Prefer:
 
 ```text
-production environment + stable release + SHADOW mode
-staging environment + candidate release + PAPER mode
+production environment + stable release + PAPER mode
+staging environment + candidate release + SHADOW mode (bounded validation)
 ```
 
 Avoid using phrases such as “production bot”, “test branch” or “production research/shadow runtime” when they obscure which dimension is meant.
@@ -237,7 +237,8 @@ A production-critical hotfix may use a narrowly authorized release repair path, 
 
 - ADR-019 remains authoritative for architecture registry and exact implementation evidence.
 - ADR-020 remains authoritative for RuntimeGeneration, Runtime Supervisor, Gateway and execution isolation. ADR-021 adds release/environment semantics and does not weaken ADR-020.
-- Existing SHADOW/PAPER lifecycle work remains mode authority; ADR-021 prevents deployment environment from being mistaken for that authority.
+- ADR-022 makes PAPER the default/only currently authorized operational mode, makes SHADOW optional and purpose-bound, and removes every reachable current LIVE transition.
+- Existing historical SHADOW/PAPER evidence remains valid evidence; new lifecycle and product wording follows ADR-022.
 - ADR-018 remains the target production portal hostname. A production hostname does not itself prove an active production deployment.
 
 ## 11. Non-authority statement

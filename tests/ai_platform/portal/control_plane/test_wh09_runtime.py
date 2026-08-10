@@ -18,13 +18,21 @@ from ai_platform.portal.control_plane.wh09_runtime import (
     Wh09RuntimeEvidenceReader,
 )
 from ai_platform.wickhunter.canonical import canonical_sha256
-from ai_platform.wickhunter.production_research_runtime import ZERO_AUTHORITY
 
 
 NOW = datetime(2026, 8, 10, 7, 0, tzinfo=UTC)
 RUN_ID = "1" * 64
 DATASET_HASH = "2" * 64
 OPERATOR_COMMIT = "3" * 40
+ZERO_AUTHORITY_EVIDENCE = {
+    "protected_holdout_accessed": False,
+    "automatic_promotion_enabled": False,
+    "trading_credentials_present": False,
+    "order_adapter_present": False,
+    "execution_enabled": False,
+    "orders_submitted": 0,
+    "live_capital_authorized": False,
+}
 
 
 def _hashed(payload: dict[str, object], field: str) -> dict[str, object]:
@@ -56,7 +64,7 @@ def _evidence_root(root: Path, *, checked_at: datetime = NOW) -> Path:
             "model_source_commit": OPERATOR_COMMIT,
             "no_trade_confidence": "0.60",
             "outcome_horizon_ms": 900000,
-            **ZERO_AUTHORITY,
+            **ZERO_AUTHORITY_EVIDENCE,
         },
         "identity_sha256",
     )
@@ -77,7 +85,7 @@ def _evidence_root(root: Path, *, checked_at: datetime = NOW) -> Path:
             "runtime_generation": 7,
             "decision_count": 11,
             "no_trade_count": 11,
-            **ZERO_AUTHORITY,
+            **ZERO_AUTHORITY_EVIDENCE,
         },
         "telemetry_sha256",
     )
@@ -106,7 +114,7 @@ def _evidence_root(root: Path, *, checked_at: datetime = NOW) -> Path:
             "no_trade_confidence": "0.60",
             "outcome_horizon_ms": 900000,
             "telemetry_sha256": telemetry["telemetry_sha256"],
-            **ZERO_AUTHORITY,
+            **ZERO_AUTHORITY_EVIDENCE,
         },
         "health_sha256",
     )
@@ -122,7 +130,7 @@ def _evidence_root(root: Path, *, checked_at: datetime = NOW) -> Path:
             "calibrated_confidence": "0.55",
             "no_trade_confidence": "0.60",
             "observed_at_ms": int(checked_at.timestamp() * 1000),
-            **ZERO_AUTHORITY,
+            **ZERO_AUTHORITY_EVIDENCE,
         },
         "record_sha256",
     )

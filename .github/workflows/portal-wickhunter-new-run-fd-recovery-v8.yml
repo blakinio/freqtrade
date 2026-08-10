@@ -12,7 +12,8 @@ permissions:
 
 jobs:
   repair:
-    runs-on: ubuntu-24.04
+    runs-on:
+      - freqtrade-staging
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
@@ -46,8 +47,7 @@ jobs:
               'marker = "\\n\\ndef test_restart_rejects_symlinked_run_root_without_mutating_external_target("',
           )
           compile(payload, '/tmp/patch-retained-fd.py', 'exec')
-          patch_path = Path('/tmp/patch-retained-fd.py')
-          patch_path.write_text(payload, encoding='utf-8')
+          Path('/tmp/patch-retained-fd.py').write_text(payload, encoding='utf-8')
           PY
           python3 /tmp/patch-retained-fd.py
           python3 - <<'PY'
@@ -55,74 +55,61 @@ jobs:
 
           path = Path('ai_platform/scripts/liquidation_live_stream.py')
           text = path.read_text(encoding='utf-8')
-          old_sig = '''    def __init__(
-                  self,
-                  path: Path,
-                  *,
-                  flush_interval_seconds: float = 1.0,
-                  flush_event_count: int = 100,
-              ) -> None:
-          '''.replace('              ', '')
-          new_sig = '''    def __init__(
-                  self,
-                  path: Path,
-                  *,
-                  flush_interval_seconds: float = 1.0,
-                  flush_event_count: int = 100,
-                  directory_fd: int | None = None,
-              ) -> None:
-          '''.replace('              ', '')
-          if 'class AppendOnlyNdjsonWriter:' not in text:
-              raise SystemExit('writer class missing')
           writer_start = text.index('class AppendOnlyNdjsonWriter:')
           writer_end = text.index('\n\ndef _secure_directory_flags()', writer_start)
           writer = text[writer_start:writer_end]
           if 'directory_fd: int | None = None' not in writer:
-              if writer.count(old_sig) != 1:
+              old = '        flush_event_count: int = 100,\n    ) -> None:\n'
+              new = '        flush_event_count: int = 100,\n        directory_fd: int | None = None,\n    ) -> None:\n'
+              if writer.count(old) != 1:
                   raise SystemExit('writer signature target mismatch')
-              writer = writer.replace(old_sig, new_sig, 1)
-
-          old_open = '''        path.parent.mkdir(parents=True, exist_ok=True)
-                  self.path = path
-                  self._handle = path.open("a", encoding="utf-8")
-          '''.replace('              ', '')
-          new_open = '''        self.path = path
-                  if directory_fd is None:
-                      path.parent.mkdir(parents=True, exist_ok=True)
-                      self._handle = path.open("a", encoding="utf-8")
-                  else:
-                      nofollow_flag = getattr(os, "O_NOFOLLOW", None)
-                      if nofollow_flag is None:
-                          raise RuntimeError("secure Liquid20 writer file access is unsupported")
-                      descriptor = os.open(
-                          path.name,
-                          os.O_WRONLY
-                          | os.O_CREAT
-                          | os.O_APPEND
-                          | nofollow_flag
-                          | getattr(os, "O_CLOEXEC", 0),
-                          0o600,
-                          dir_fd=directory_fd,
-                      )
-                      if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-                          os.close(descriptor)
-                          raise RuntimeError("Liquid20 writer target is not a regular file")
-                      self._handle = os.fdopen(descriptor, "a", encoding="utf-8")
-          '''.replace('              ', '')
+              writer = writer.replace(old, new, 1)
           if 'secure Liquid20 writer file access is unsupported' not in writer:
-              if writer.count(old_open) != 1:
+              old = '        path.parent.mkdir(parents=True, exist_ok=True)\n        self.path = path\n        self._handle = path.open("a", encoding="utf-8")\n'
+              new = '''        self.path = path
+          if directory_fd is None:
+              path.parent.mkdir(parents=True, exist_ok=True)
+              self._handle = path.open("a", encoding="utf-8")
+          else:
+              nofollow_flag = getattr(os, "O_NOFOLLOW", None)
+              if nofollow_flag is None:
+                  raise RuntimeError("secure Liquid20 writer file access is unsupported")
+              descriptor = os.open(
+                  path.name,
+                  os.O_WRONLY
+                  | os.O_CREAT
+                  | os.O_APPEND
+                  | nofollow_flag
+                  | getattr(os, "O_CLOEXEC", 0),
+                  0o600,
+                  dir_fd=directory_fd,
+              )
+              if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                  os.close(descriptor)
+                  raise RuntimeError("Liquid20 writer target is not a regular file")
+              self._handle = os.fdopen(descriptor, "a", encoding="utf-8")
+          '''
+              new = '\n'.join(line[10:] if line.startswith('          ') else line for line in new.splitlines()) + '\n'
+              if writer.count(old) != 1:
                   raise SystemExit('writer open target mismatch')
-              writer = writer.replace(old_open, new_open, 1)
+              writer = writer.replace(old, new, 1)
           text = text[:writer_start] + writer + text[writer_end:]
           path.write_text(text, encoding='utf-8')
           PY
 
-      - name: Install validation dependencies
+      - name: Install isolated validation dependencies
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check -r requirements.txt
-          python3 -m pip install --disable-pip-version-check pytest==9.1.1 ruff==0.15.21
+          deps="$RUNNER_TEMP/wickhunter-retained-fd-v8"
+          rm -rf "$deps"
+          mkdir -p "$deps"
+          curl -fsSL https://bootstrap.pypa.io/get-pip.py -o "$RUNNER_TEMP/get-pip.py"
+          python3 "$RUNNER_TEMP/get-pip.py" --target "$deps"
+          PYTHONPATH="$deps" python3 -m pip install --disable-pip-version-check --target "$deps" -r requirements.txt
+          PYTHONPATH="$deps" python3 -m pip install --disable-pip-version-check --target "$deps" pytest==9.1.1 ruff==0.15.21
+          echo "PYTHONPATH=$deps${PYTHONPATH:+:$PYTHONPATH}" >> "$GITHUB_ENV"
+          echo "PATH=$deps/bin:$PATH" >> "$GITHUB_ENV"
 
       - name: Validate semantic repair
         shell: bash

@@ -33,12 +33,21 @@ def test_architecture_registry_resolved_findings_are_not_open() -> None:
     assert isinstance(resolved, list)
     assert isinstance(open_findings, list)
 
-    resolved_identities = {_finding_identity(finding) for finding in resolved}
-    open_identities = {_finding_identity(finding) for finding in open_findings}
+    resolved_identities = [_finding_identity(finding) for finding in resolved]
+    open_identities = [_finding_identity(finding) for finding in open_findings]
+    resolved_issues = {issue for issue, _ in resolved_identities}
+    open_issues = {issue for issue, _ in open_identities}
+    resolved_finding_ids = {finding_id for _, finding_id in resolved_identities}
+    open_finding_ids = {finding_id for _, finding_id in open_identities}
 
-    assert len(resolved_identities) == len(resolved)
-    assert len(open_identities) == len(open_findings)
-    assert resolved_identities.isdisjoint(open_identities)
+    assert len(set(resolved_identities)) == len(resolved)
+    assert len(set(open_identities)) == len(open_findings)
+    assert len(resolved_issues) == len(resolved)
+    assert len(open_issues) == len(open_findings)
+    assert len(resolved_finding_ids) == len(resolved)
+    assert len(open_finding_ids) == len(open_findings)
+    assert resolved_issues.isdisjoint(open_issues)
+    assert resolved_finding_ids.isdisjoint(open_finding_ids)
     assert all(
         isinstance(finding, dict) and finding.get("status") == "open" for finding in open_findings
     )

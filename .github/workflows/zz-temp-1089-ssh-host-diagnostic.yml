@@ -45,9 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - "$REPORT" <<'PY'
-          import hashlib
           import importlib.util
-          import json
           import os
           import pathlib
           import re
@@ -62,6 +60,7 @@ jobs:
           run_id = re.sub(r'[^0-9]', '', os.environ['GITHUB_RUN_ID'])
           database_name = f'portal_diag_1089_{run_id}'
           candidate_env_path = pathlib.Path('/var/lib/freqtrade-staging-state/portal-oidc-public/runtime.candidate.env')
+          host_backup_dir = '/volume1/docker/freqtrade-portal-oidc/data/legacy-backups'
           rows = []
 
           spec = importlib.util.spec_from_file_location('portal_oidc_diag_deploy', repo / 'deploy/synology/portal-oidc/deploy.py')
@@ -81,7 +80,9 @@ jobs:
                   return result.returncode, elapsed, result.stdout, result.stderr
               except subprocess.TimeoutExpired as exc:
                   elapsed = round(time.monotonic() - started, 3)
-                  return 124, elapsed, exc.stdout or '', exc.stderr or ''
+                  stdout = exc.stdout.decode(errors='replace') if isinstance(exc.stdout, bytes) else (exc.stdout or '')
+                  stderr = exc.stderr.decode(errors='replace') if isinstance(exc.stderr, bytes) else (exc.stderr or '')
+                  return 124, elapsed, stdout, stderr
 
           postgres_env = deploy._read_env(deploy.PORTAL_POSTGRES_ENV)
           runtime_env = deploy._read_env(deploy.PORTAL_RUNTIME_ENV)
@@ -94,18 +95,85 @@ jobs:
               text = re.sub(r'\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b', '[REDACTED_JWT]', text)
               return text[-6000:]
 
-          def digest(path):
-              h = hashlib.sha256()
+          def split_container(name, create_args, *, create_timeout=240, start_timeout=240, wait_timeout=240):
+              run(['docker', 'rm', '-f', name], 120)
+              create_rc, create_s, create_out, create_err = run(['docker', 'create', '--name', name, *create_args], create_timeout)
+              add(f'{name}_create_rc', create_rc)
+              add(f'{name}_create_seconds', create_s)
+              if create_rc != 0:
+                  add(f'{name}_create_detail', sanitize(create_out + '\n' + create_err).strip().replace('\n', ' | '))
+                  run(['docker', 'rm', '-f', name], 120)
+                  return False, '', ''
+              start_rc, start_s, start_out, start_err = run(['docker', 'start', name], start_timeout)
+              add(f'{name}_start_rc', start_rc)
+              add(f'{name}_start_seconds', start_s)
+              if start_rc != 0:
+                  add(f'{name}_start_detail', sanitize(start_out + '\n' + start_err).strip().replace('\n', ' | '))
+                  run(['docker', 'rm', '-f', name], 120)
+                  return False, '', ''
+              wait_rc, wait_s, wait_out, wait_err = run(['docker', 'wait', name], wait_timeout)
+              add(f'{name}_wait_rc', wait_rc)
+              add(f'{name}_wait_seconds', wait_s)
+              process_exit = wait_out.strip() if wait_rc == 0 else 'unknown'
+              add(f'{name}_process_exit', process_exit)
+              logs_rc, _, logs_out, logs_err = run(['docker', 'logs', name], 90)
+              add(f'{name}_logs_rc', logs_rc)
+              detail = sanitize(f'{logs_out}\n{logs_err}\n{wait_err}').strip().replace('\n', ' | ')
+              if detail:
+                  add(f'{name}_detail', detail)
+              remove_rc, remove_s, _, remove_err = run(['docker', 'rm', '-f', name], 120)
+              add(f'{name}_remove_rc', remove_rc)
+              add(f'{name}_remove_seconds', remove_s)
+              if remove_rc != 0:
+                  add(f'{name}_remove_detail', sanitize(remove_err).replace('\n', ' | '))
+              ok = wait_rc == 0 and process_exit == '0' and remove_rc == 0
+              return ok, logs_out, logs_err
+
+          def discover_snapshot():
+              helper = f'portal-oidc-dbdiag-{run_id}-snapshot'
+              script = r'''
+          import hashlib
+          import os
+          from pathlib import Path
+          root = Path('/legacy')
+          expected = os.environ['EXPECTED_SNAPSHOT_SHA256']
+          matches = []
+          for path in sorted(root.glob('portal-pre-postgresql-21427e6b7f1c-*.db')):
+              if path.is_symlink() or not path.is_file():
+                  continue
+              digest = hashlib.sha256()
               with path.open('rb') as handle:
                   for chunk in iter(lambda: handle.read(1024 * 1024), b''):
-                      h.update(chunk)
-              return h.hexdigest()
+                      digest.update(chunk)
+              if digest.hexdigest() == expected:
+                  matches.append(path.name)
+          if not matches:
+              raise SystemExit(3)
+          print('__SNAPSHOT__' + matches[-1])
+          print('__SNAPSHOT_COUNT__' + str(len(matches)))
+          '''.strip()
+              args = [
+                  '--network', 'none', '--read-only', '--tmpfs', deploy.RUNTIME_TMPFS,
+                  '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true',
+                  '--pids-limit', '64', '--memory', '256m', '--user', f'{deploy.PORTAL_UID}:{deploy.PORTAL_GID}',
+                  '--mount', f'type=bind,src={host_backup_dir},dst=/legacy,readonly',
+                  '--env', f'EXPECTED_SNAPSHOT_SHA256={expected_snapshot_digest}',
+                  '--entrypoint', 'python', image, '-c', script,
+              ]
+              ok, stdout, _ = split_container(helper, args)
+              if not ok:
+                  raise RuntimeError('snapshot discovery helper failed')
+              filename = next((line.removeprefix('__SNAPSHOT__') for line in stdout.splitlines() if line.startswith('__SNAPSHOT__')), None)
+              count = next((line.removeprefix('__SNAPSHOT_COUNT__') for line in stdout.splitlines() if line.startswith('__SNAPSHOT_COUNT__')), None)
+              if not filename or not re.fullmatch(r'portal-pre-postgresql-21427e6b7f1c-\d+\.db', filename):
+                  raise RuntimeError('snapshot discovery returned invalid filename')
+              add('snapshot_match_count', count or 'unknown')
+              add('snapshot_match', filename)
+              return filename
 
-          def stage(name, python_args, mount=None):
-              container = f'portal-oidc-dbdiag-{run_id}-{name}'
-              run(['docker', 'rm', '-f', container], 60)
-              command = [
-                  'docker', 'create', '--name', container,
+          def application_stage(stage_name, python_args, mount=None):
+              container = f'portal-oidc-dbdiag-{run_id}-{stage_name}'
+              args = [
                   '--network', deploy.PORTAL_NETWORK,
                   '--read-only', '--tmpfs', deploy.RUNTIME_TMPFS,
                   '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true',
@@ -114,40 +182,14 @@ jobs:
                   '--env-file', str(candidate_env_path),
               ]
               if mount is not None:
-                  command += ['--mount', mount]
-              command += ['--entrypoint', 'python', image, *python_args]
-              create_rc, create_s, _, create_err = run(command, 240)
-              add(f'{name}_create_rc', create_rc)
-              add(f'{name}_create_seconds', create_s)
-              if create_rc != 0:
-                  add(f'{name}_create_detail', sanitize(str(create_err)).replace('\n', ' | '))
-                  run(['docker', 'rm', '-f', container], 120)
-                  return False
-              start_rc, start_s, _, start_err = run(['docker', 'start', container], 240)
-              add(f'{name}_start_rc', start_rc)
-              add(f'{name}_start_seconds', start_s)
-              if start_rc != 0:
-                  add(f'{name}_start_detail', sanitize(str(start_err)).replace('\n', ' | '))
-                  run(['docker', 'rm', '-f', container], 120)
-                  return False
-              wait_rc, wait_s, wait_out, wait_err = run(['docker', 'wait', container], 240)
-              add(f'{name}_wait_rc', wait_rc)
-              add(f'{name}_wait_seconds', wait_s)
-              process_exit = wait_out.strip() if wait_rc == 0 else 'unknown'
-              add(f'{name}_process_exit', process_exit)
-              logs_rc, _, logs_out, logs_err = run(['docker', 'logs', container], 60)
-              add(f'{name}_logs_rc', logs_rc)
-              detail = sanitize(f'{logs_out}\n{logs_err}\n{wait_err}').strip().replace('\n', ' | ')
-              if detail:
-                  add(f'{name}_detail', detail)
-              remove_rc, remove_s, _, remove_err = run(['docker', 'rm', '-f', container], 120)
-              add(f'{name}_remove_rc', remove_rc)
-              add(f'{name}_remove_seconds', remove_s)
-              if remove_rc != 0:
-                  add(f'{name}_remove_detail', sanitize(str(remove_err)).replace('\n', ' | '))
-              return wait_rc == 0 and process_exit == '0' and remove_rc == 0
+                  args += ['--mount', mount]
+              args += ['--entrypoint', 'python', image, *python_args]
+              ok, _, _ = split_container(container, args)
+              add(f'{stage_name}_ok', ok)
+              return ok
 
           cleanup_errors = []
+          exists = True
           try:
               if candidate_env_path.exists():
                   raise RuntimeError('candidate runtime env unexpectedly exists before diagnostic')
@@ -159,11 +201,12 @@ jobs:
               add('image_check', image_check.stdout.strip())
               if image_check.returncode != 0 or not image_check.stdout.startswith(image + '|21427e6b7f1cbe5e5882a007101ce6fe0c2f5784'):
                   raise RuntimeError('approved control image verification failed')
-
               if runtime_env.get('PORTAL_DATABASE_URL') != deploy.LEGACY_SQLITE_DATABASE_URL:
                   raise RuntimeError('authoritative runtime is not the expected legacy SQLite topology')
               if not postgres_env:
                   raise RuntimeError('protected PostgreSQL env is missing')
+
+              snapshot_name = discover_snapshot()
 
               deploy._drop_candidate_database(database_name)
               deploy._create_postgres_database(database_name)
@@ -174,39 +217,24 @@ jobs:
               deploy._write_env_atomic(candidate_env_path, candidate_values)
               add('candidate_env_prepared', True)
 
-              snapshots = []
-              backup_root = pathlib.Path(deploy.PORTAL_LEGACY_BACKUP_DIR)
-              for path in backup_root.glob('portal-pre-postgresql-21427e6b7f1c-*.db'):
-                  if path.is_file() and not path.is_symlink() and digest(path) == expected_snapshot_digest:
-                      snapshots.append(path)
-              if len(snapshots) != 1:
-                  raise RuntimeError(f'expected exactly one matching protected snapshot, found {len(snapshots)}')
-              snapshot = snapshots[0]
-              add('snapshot_match', snapshot.name)
-
-              migrate_ok = stage('migrate', ['-m', 'ai_platform.portal.database.cli', 'migrate'])
-              add('migrate_ok', migrate_ok)
+              migrate_ok = application_stage('migrate', ['-m', 'ai_platform.portal.database.cli', 'migrate'])
               transfer_ok = False
               check_ok = False
               if migrate_ok:
-                  mount = f'type=bind,src={snapshot.parent},dst=/legacy,readonly'
-                  transfer_ok = stage(
+                  transfer_ok = application_stage(
                       'transfer',
-                      ['-m', 'ai_platform.portal.database.transfer', '--source-sqlite', f'/legacy/{snapshot.name}'],
-                      mount=mount,
+                      ['-m', 'ai_platform.portal.database.transfer', '--source-sqlite', f'/legacy/{snapshot_name}'],
+                      mount=f'type=bind,src={host_backup_dir},dst=/legacy,readonly',
                   )
-                  add('transfer_ok', transfer_ok)
               if migrate_ok and transfer_ok:
-                  check_ok = stage('check', ['-m', 'ai_platform.portal.database.cli', 'check'])
-                  add('check_ok', check_ok)
+                  check_ok = application_stage('check', ['-m', 'ai_platform.portal.database.cli', 'check'])
               add('diagnostic_result', 'success' if migrate_ok and transfer_ok and check_ok else 'failed')
           except Exception as exc:
               add('diagnostic_exception_type', type(exc).__name__)
               add('diagnostic_exception', sanitize(str(exc)).replace('\n', ' | '))
           finally:
-              for prefix in ('migrate', 'transfer', 'check'):
-                  container = f'portal-oidc-dbdiag-{run_id}-{prefix}'
-                  run(['docker', 'rm', '-f', container], 120)
+              for suffix in ('snapshot', 'migrate', 'transfer', 'check'):
+                  run(['docker', 'rm', '-f', f'portal-oidc-dbdiag-{run_id}-{suffix}'], 120)
               try:
                   deploy._drop_candidate_database(database_name)
               except Exception as exc:
@@ -217,7 +245,11 @@ jobs:
                   cleanup_errors.append(f'env:{type(exc).__name__}')
               add('cleanup_errors', ','.join(cleanup_errors) if cleanup_errors else 'none')
               add('candidate_env_exists_after', candidate_env_path.exists())
-              exists = deploy._postgres_database_exists(database_name)
+              try:
+                  exists = deploy._postgres_database_exists(database_name)
+              except Exception as exc:
+                  exists = True
+                  cleanup_errors.append(f'verify_database:{type(exc).__name__}')
               add('diagnostic_database_exists_after', exists)
 
           report_path.write_text('\n'.join(rows) + '\n', encoding='utf-8')

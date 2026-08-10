@@ -20,7 +20,7 @@ run_scope: autonomous_program
 continuation_policy: continue_until_real_stop
 task_completion_policy: finalize_archive_and_continue
 implementation_authorized: true
-status: validating
+status: waiting
 base_branch: develop
 trusted_base_sha: 2a9bee4895981f0a2b7f7f08e0e1d2d2e2ad646a
 branch: fix/wickhunter-1396-synology-recovery-v2
@@ -46,6 +46,7 @@ Terminally close Issue #1396 by proving the already-merged unified WickHunter ru
 - `LIVE_BLOCKED`: non-executable under current authority.
 - Mode is immutable RuntimeGeneration/config material; transitions require explicit generation rollout/reconciliation.
 - The accepted WH09 H900 runtime remains SHADOW with `no_trade_confidence=0.60` until a separate PAPER eligibility gate exists.
+- ADR-022, merged after this invocation's trusted base, makes PAPER the normal operational target and SHADOW optional/purpose-bound; it does not invalidate this existing bounded SHADOW runtime/integration-validation closeout and does not authorize changing WH09 mode in this task.
 
 ## Acceptance inventory
 
@@ -110,16 +111,18 @@ The only authorized recovery mutation before another adoption retry is a bounded
 5. removes only the disposable probe image;
 6. re-verifies the same WH09 container remains healthy and unchanged.
 
+Recovery run `31420369456` failed before any mutation because the original exact-WH09 assertion did not identify which invariant failed. No prune or build was executed. Recovery generation 2 therefore adds read-only diagnostics for exact container count, ID, status, health, labels, revision and user plus a bounded health observation before any mutation.
+
 After recovery PASS, rerun the original authorized post-merge adoption workflow `31386104997`. Do not create or deploy a replacement WH09 runtime.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-10T20:41:00+02:00
-status: validating
+updated_at: 2026-08-10T20:48:00+02:00
+status: waiting
 branch: fix/wickhunter-1396-synology-recovery-v2
-head_at_recovery_start: ab5bc86489d82a4d7ae798b097c6b747277b30e6
+recovery_workflow_head: cc5903c65c089499f1f8bec72afc7527ffb5e300
 issue: 1396
 related_prs:
   - 1397: merged
@@ -136,29 +139,63 @@ context_routes:
   - docs/agents/ANTI_STALL_AND_EXECUTION_BUDGET.md
   - docs/agents/GITHUB_ONLY_EXECUTION.md
   - docs/agents/AUTONOMOUS_PROGRAM_CONTINUATION.md
+  - docs/agents/SESSION_RECOVERY_AND_ORPHANED_EXECUTION.md
+  - docs/agents/TERMINAL_CI_AND_COMMUNICATION_OVERRIDE.md
 proven:
   - producer PR 1397 merged
   - canonical RuntimeGeneration PR 1388 merged
   - Portal adoption PR 1436 merged
   - premerge exact-head CI and authenticated browser E2E passed
-  - WH09 remained exactly one healthy container through both failed postmerge attempts
+  - WH09 remained exactly one healthy container through both failed postmerge adoption attempts
   - WH09 container identity before recovery is ebb3bc5151c6041cc557395f77b3001230f881bc39c2e9a5c4789fcd920e3b37
   - second adoption attempt passed Docker runtime preflight and failed specifically in BuildKit control-plane image build
   - no Portal deployment or WH09 adoption occurred after that build failure
+  - recovery run 31420369456 failed before cache prune or build and therefore made no Docker mutation
 unknown:
+  - exact current WH09 state that caused first recovery assertion to fail
   - whether bounded BuildKit cache recovery will restore context transfer
   - terminal postmerge Portal deployment/adoption/API persistence result
 conflicts: []
 validation:
   - run: 31420369456
     workflow: Portal WickHunter BuildKit Cache Recovery
+    result: FAILURE_BEFORE_MUTATION
+  - run: 31420701120
+    workflow: Portal WickHunter BuildKit Cache Recovery
     result: IN_PROGRESS
 counters:
-  repair_cycles_for_current_gate: 1
+  repair_cycles_for_current_gate: 2
   identical_failure_retries: 0
-  unchanged_state_checks: 0
-blockers: []
-next_action: When BuildKit recovery run 31420369456 reaches a terminal state, inspect it once; on PASS rerun failed adoption workflow run 31386104997, otherwise isolate the first new failure before any further heavy retry.
+  unchanged_state_checks: 2
+blockers:
+  - external recovery run 31420701120 is still executing its read-only WH09 diagnostic/verification gate
+next_action: Inspect recovery run 31420701120 once after it becomes terminal; on PASS rerun failed adoption workflow run 31386104997, otherwise isolate its first new failure before any further heavy retry.
+```
+
+## Recovery checkpoint
+
+```yaml
+recovery:
+  policy_version: 1
+  generation: 2
+  session_id: 2026-08-10T20:33+02:00
+  session_started_at: 2026-08-10T20:33:00+02:00
+  checkpointed_at: 2026-08-10T20:48:00+02:00
+  last_progress_at: 2026-08-10T20:45:34+02:00
+  phase: synology_buildkit_recovery_diagnostics
+  exact_head: cc5903c65c089499f1f8bec72afc7527ffb5e300
+  pull_request: none
+  active_operation: Portal WickHunter BuildKit Cache Recovery
+  external_run_ids:
+    - 31420701120
+  operation_started_at: 2026-08-10T20:45:38+02:00
+  wait_deadline_at: 2026-08-10T21:00:38+02:00
+  check_generation: buildkit-recovery-v2
+  checks_used: 2
+  status: waiting
+  safe_to_resume: true
+  resume_condition: workflow run 31420701120 is terminal
+  next_action: Inspect run 31420701120 exactly once when terminal; on PASS rerun adoption run 31386104997, otherwise inspect the first failed step/log and form one new bounded hypothesis.
 ```
 
 ## Terminal closeout requirements

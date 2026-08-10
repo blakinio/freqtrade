@@ -6,8 +6,8 @@ programme_id: FTAI-PAPER-PLATFORM
 repository: blakinio/freqtrade
 project_lane: agent-governance
 task_kind: repair_isolation
-phase: implementing
-status: implementing
+phase: validation
+status: validating
 priority: high
 execution_mode: github_only
 run_scope: autonomous_program
@@ -52,22 +52,36 @@ shared_read_only:
   - docs/agents/prompts/PAPER_PLATFORM_EXECUTOR.md
 ```
 
+## Repair evidence
+
+```yaml
+repair_cycles_for_current_gate: 1
+remediated_threads:
+  - PRRT_kwDOTdDTU86YBBiZ
+  - PRRT_kwDOTdDTU86YBBib
+changes:
+  - root AGENTS.override.md now preserves the default task cap while explicitly delegating to trusted continuous_program_execution
+  - anti-stall policy now keys ordinary CI/unchanged-state counters to task plus exact SHA across later owner replacement and recovery invocations
+  - fresh invocation wall-clock budget is explicitly separated from inherited same-SHA task counters
+  - manual eval now includes S15 root-bootstrap precedence and S16 cross-invocation same-SHA continuation
+```
+
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-10T20:37:00Z
-head: 49332fadbffcda3c310b2a8031eb298413c1d65e
+updated_at: 2026-08-10T20:45:00Z
+head: b6bd44ea988540e2dd1c162394a168986366409e
 branch: docs/paper-continuous-program-execution-20260810
 pr: 1448
-status: implementing
+status: validating
 invocation_started_at: 2026-08-10T20:37:00Z
-last_progress_at: 2026-08-10T20:37:00Z
+last_progress_at: 2026-08-10T20:45:00Z
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 review_checks_for_current_head: 1
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 0
+repair_cycles_for_current_gate: 1
 context_reconstruction_attempts: 0
 stall_warnings: 0
 context_routes:
@@ -81,15 +95,17 @@ owned_paths:
   - docs/agents/tasks/active/FTAI-20260810-paper-continuous-program-execution.md
   - docs/agents/tasks/active/FTAI-20260810-paper-continuous-bootstrap-counter-isolation.md
 proven:
-  - Parent task exhausted three repair cycles and may not absorb these fresh material findings.
-  - PR 1448 is the sole delivery PR and remains mergeable.
-  - Current exact head 49332fadbffcda3c310b2a8031eb298413c1d65e has green Freqtrade CI, Risk-aware CI, CodeQL and zizmor.
-  - Fresh Codex review on that head opened P1 threads PRRT_kwDOTdDTU86YBBiZ and PRRT_kwDOTdDTU86YBBib.
+  - Parent task exhausted three repair cycles and transferred ownership here.
+  - PR 1448 remains the sole delivery PR.
+  - Root bootstrap now recognizes the same bounded trusted continuous override as scoped governance.
+  - Same-SHA ordinary CI/unchanged-state counters persist across later owner replacement recovery and continuation invocations.
+  - Only a genuinely new exact commit SHA reopens ordinary per-head observation counters; fresh invocation runtime does not reset task/head counters.
+  - Eval S15 and S16 cover both fresh P1 findings.
   - PAPER remains the only authorized operational mode; LIVE remains unreachable/fail-closed.
 derived:
-  - Both fresh findings can be repaired in governance/eval/task records without runtime or trading changes.
+  - Both fresh Codex P1 findings are addressed without widening runtime or trading authority.
 unknown:
-  - Final Codex disposition and exact-head CI after isolation repair.
+  - Fresh Codex disposition and exact-head CI on the checkpoint successor head.
 conflicts:
   - none
 first_failure:
@@ -99,12 +115,16 @@ rejected_hypotheses:
   - Patch the exhausted parent as a fourth repair cycle; rejected by anti-stall repair cap.
   - Treat a later owner invocation as permission to reset same-SHA polling counters; rejected because durable continuation must inherit task/head state.
 changed_paths:
+  - AGENTS.override.md
+  - docs/agents/ANTI_STALL_AND_EXECUTION_BUDGET.md
+  - docs/agents/evals/PAPER_CONTINUOUS_EXECUTION_EVAL_20260810.md
+  - docs/agents/tasks/active/FTAI-20260810-paper-continuous-program-execution.md
   - docs/agents/tasks/active/FTAI-20260810-paper-continuous-bootstrap-counter-isolation.md
 validation:
   - command: runtime/browser E2E
     result: NOT_APPLICABLE
     evidence: agent-governance only
 blockers:
-  - none
-next_action: Repair AGENTS.override.md and anti-stall same-SHA continuation semantics, extend the same-scenario eval, transfer parent ownership to this isolation task, then request fresh Codex review and exact-head CI.
+  - none before fresh exact-head CI and independent Codex review
+next_action: Resolve live PR 1448 successor head, resolve the two remediated threads, request fresh Codex review, and inspect the new exact-head CI generation once.
 ```

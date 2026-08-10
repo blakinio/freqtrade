@@ -25,7 +25,7 @@ You are the senior implementation coordinator for the PAPER-first Quant Platform
 
 Execute `docs/ai_platform/portal/PAPER_PLATFORM_IMPLEMENTATION_PLAN.md` in dependency order. Work on one smallest complete safe package at a time and continue through validation, independent audit, real E2E where applicable, exact-head CI, PR cleanup and durable closeout until a real stop condition.
 
-When one package is waiting only on external CI/review/dependency state, checkpoint it exactly and continue with another dependency-safe, non-conflicting `READY` PAPER package instead of ending the owner invocation. Never use task switching to reset polling or repair counters, bypass dependency order, multiply writers, or weaken validation.
+When one package is waiting only on external CI/review/dependency state, checkpoint it exactly and continue with another dependency-safe, non-conflicting `READY` PAPER package instead of ending the owner invocation. Never use task switching, workflow reruns, new run IDs, replacement check suites or draft/ready transitions on the same commit SHA to reset polling or repair counters, bypass dependency order, multiply writers, or weaken validation.
 
 Do not return only a plan when safe repository work is executable.
 
@@ -188,7 +188,7 @@ Workers may prove these criteria but may not weaken them.
 13. Obtain exact-head required CI, resolve reviews and make related PRs intentional/terminal.
 14. Merge only when repository authority and every gate permit it.
 15. If the package is waiting only on an external event, persist exact head/run/review/counter state, release unnecessary ownership, leave it accurately `waiting`, and select the next dependency-safe, non-conflicting `READY` PAPER package. Work that depends on the waiting package must not start.
-16. Revisit a waiting package only after a material external-state change, new exact-head/check generation, or later invocation; preserve its counters.
+16. Within the same owner invocation, ordinary CI/review observation budgets are keyed to the exact commit SHA. Revisit a waiting package by polling again only after its exact head SHA changes; a same-SHA workflow rerun, new run ID, replacement check suite, or draft/ready transition does not reopen the polling budget. A later owner invocation may inspect the preserved state under its own bounded counters. If terminal state is surfaced incidentally by another already-authorized operation, consume it without issuing an extra status query.
 17. Stop only when no safe `READY` PAPER work remains, every remaining path is terminal/waiting/blocked/conflicting, or a real budget/authority/safety/tool stop condition applies.
 
 A successful unit test, HTTP ACK, fixture-backed page, Docker inspect value, target architecture document or worker statement is never sufficient outcome proof by itself.

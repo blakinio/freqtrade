@@ -12,9 +12,9 @@ permissions:
   contents: read
 
 jobs:
-  probe:
-    name: Verify GitHub-hosted SSH control path to Synology
-    runs-on: ubuntu-latest
+  restart:
+    name: Schedule controlled Container Manager restart
+    runs-on: [freqtrade-staging]
     timeout-minutes: 5
     steps:
       - name: Refuse trading credential environment
@@ -34,6 +34,7 @@ jobs:
           SSH_PRIVATE_KEY: ${{ secrets.SYNOLOGY_SSH_PRIVATE_KEY }}
           SSH_KNOWN_HOSTS: ${{ secrets.SYNOLOGY_SSH_KNOWN_HOSTS }}
           SSH_DIR: ${{ runner.temp }}/ssh-1089
+          REPORT: ${{ runner.temp }}/synology-1089-restart-scheduled.txt
         run: |
           set -euo pipefail
           for name in SSH_HOST SSH_PORT SSH_USER SSH_PRIVATE_KEY SSH_KNOWN_HOSTS; do test -n "${!name:-}" || exit 2; done
@@ -42,11 +43,24 @@ jobs:
           printf '%s\n' "$SSH_PRIVATE_KEY" > "$SSH_DIR/id"
           printf '%s\n' "$SSH_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"
           chmod 0600 "$SSH_DIR/id" "$SSH_DIR/known_hosts"
-          timeout 20 ssh -i "$SSH_DIR/id" -p "$SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$SSH_DIR/known_hosts" -o ConnectTimeout=10 -o LogLevel=ERROR "$SSH_USER@$SSH_HOST" 'id >/dev/null && sudo -n /usr/syno/bin/synosystemctl get-active-status pkgctl-ContainerManager'
+          ssh_opts=(-i "$SSH_DIR/id" -p "$SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$SSH_DIR/known_hosts" -o ConnectTimeout=10 -o LogLevel=ERROR)
+          timeout 20 ssh "${ssh_opts[@]}" "$SSH_USER@$SSH_HOST" 'sudo -n /usr/syno/bin/synosystemctl get-active-status pkgctl-ContainerManager' | tee "$REPORT"
+          timeout 20 ssh "${ssh_opts[@]}" "$SSH_USER@$SSH_HOST" "rm -f /tmp/ft1089-container-manager-restart.log; nohup sh -c 'sleep 8; sudo -n /usr/syno/bin/synopkg restart ContainerManager > /tmp/ft1089-container-manager-restart.log 2>&1' </dev/null >/dev/null 2>&1 & echo restart_scheduled=true" | tee -a "$REPORT"
 
-      - name: Cleanup
+      - name: Upload restart scheduling evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: synology-1089-container-manager-restart-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/synology-1089-restart-scheduled.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Cleanup local SSH material
         if: always()
         shell: bash
         env:
           SSH_DIR: ${{ runner.temp }}/ssh-1089
-        run: rm -rf -- "$SSH_DIR"
+          REPORT: ${{ runner.temp }}/synology-1089-restart-scheduled.txt
+        run: |
+          rm -rf -- "$SSH_DIR"
+          rm -f -- "$REPORT"

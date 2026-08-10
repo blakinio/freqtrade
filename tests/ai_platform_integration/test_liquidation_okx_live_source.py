@@ -181,6 +181,8 @@ def test_old_disabled_okx_live_state_migrates_to_new_active_run(tmp_path: Path) 
     old_run_id = "liquid20-20260729T000000Z-0"
     old_root = tmp_path / "live" / "runs" / old_run_id
     old_root.mkdir(parents=True)
+    (old_root / f"{BYBIT_SOURCE}.ndjson").write_text("", encoding="utf-8")
+    (old_root / f"{BINANCE_SOURCE}.ndjson").write_text("", encoding="utf-8")
     old_state = {
         "schema_version": 1,
         "contract": "liquidation-live-state-v1",

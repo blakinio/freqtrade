@@ -25,7 +25,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          for run_id in 31390818737 31391014027; do
+          for run_id in 31390818737 31391014027 31391091659; do
             code="$(curl --silent --show-error \
               --output /tmp/cancel-response \
               --write-out '%{http_code}' \
@@ -43,7 +43,7 @@ jobs:
     name: Clean project Docker garbage and retry Portal OIDC
     needs: cancel-stale
     runs-on: [freqtrade-staging]
-    timeout-minutes: 20
+    timeout-minutes: 15
     permissions:
       actions: write
       contents: read
@@ -90,29 +90,42 @@ jobs:
           set -euo pipefail
           timeout 120 docker image prune -f
 
-      - name: Remove unused project images
-        shell: bash
-        run: |
-          set -euo pipefail
-          removed=0
-          while IFS=$'\t' read -r image_id repository tag; do
-            [[ -n "${image_id:-}" ]] || continue
-            if printf '%s\n' "$repository" | grep -Eiq 'freqtrade|portal|wickhunter|(^|[-_.])bot([-_.]|$)|trading|quant'; then
-              echo "Attempting removal of unused project image: $image_id $repository:$tag"
-              if timeout 30 docker image rm "$image_id"; then
-                removed=$((removed + 1))
-              else
-                echo "Image retained because Docker reports it is still referenced/protected or removal timed out: $image_id"
-              fi
-            fi
-          done < <(timeout 20 docker image ls --no-trunc --format '{{.ID}}\t{{.Repository}}\t{{.Tag}}')
-          echo "unused_project_images_removed=$removed"
-
-      - name: Clear Docker build cache
+      - name: Clear Docker build cache first
         shell: bash
         run: |
           set -euo pipefail
           timeout 300 docker builder prune --all --force
+
+      - name: Remove unreferenced project images in one batch
+        shell: bash
+        run: |
+          set -euo pipefail
+          declare -A used=()
+          while read -r cid; do
+            [[ -n "$cid" ]] || continue
+            iid="$(timeout 10 docker inspect --format '{{.Image}}' "$cid" 2>/dev/null || true)"
+            [[ -n "$iid" ]] && used["$iid"]=1
+          done < <(timeout 20 docker ps -a -q)
+
+          candidates=()
+          declare -A seen=()
+          while IFS=$'\t' read -r image_id repository tag; do
+            [[ -n "${image_id:-}" ]] || continue
+            if ! printf '%s\n' "$repository" | grep -Eiq 'freqtrade|portal|wickhunter|(^|[-_.])bot([-_.]|$)|trading|quant'; then
+              continue
+            fi
+            if [[ -n "${used[$image_id]+x}" || -n "${seen[$image_id]+x}" ]]; then
+              continue
+            fi
+            seen["$image_id"]=1
+            candidates+=("$image_id")
+            echo "Unused project image candidate: $image_id $repository:$tag"
+          done < <(timeout 20 docker image ls --no-trunc --format '{{.ID}}\t{{.Repository}}\t{{.Tag}}')
+
+          echo "unused_project_image_candidates=${#candidates[@]}"
+          if (( ${#candidates[@]} > 0 )); then
+            timeout 240 docker image rm "${candidates[@]}" || echo 'Some unused project images could not be removed within the bounded cleanup'
+          fi
 
       - name: Verify Docker runtime after cleanup
         shell: bash

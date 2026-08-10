@@ -4,27 +4,16 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-AUTHORITY_PATH = (
-    REPO_ROOT / "tools" / "portal_audit" / "ledger" / "status_authority.json"
-)
+AUTHORITY_PATH = REPO_ROOT / "tools" / "portal_audit" / "ledger" / "status_authority.json"
 LIVING_INDEX_PATH = REPO_ROOT / "tools" / "portal_audit" / "ledger" / "index.json"
 LEGACY_LEDGER_PATH = (
-    REPO_ROOT
-    / "docs"
-    / "ai_platform"
-    / "portal"
-    / "FEATURE_COMPLETENESS_LEDGER.json"
+    REPO_ROOT / "docs" / "ai_platform" / "portal" / "FEATURE_COMPLETENESS_LEDGER.json"
 )
 AUTHORITY_DOC_PATH = (
-    REPO_ROOT
-    / "docs"
-    / "ai_platform"
-    / "portal"
-    / "IMPLEMENTATION_STATUS_AUTHORITY.md"
+    REPO_ROOT / "docs" / "ai_platform" / "portal" / "IMPLEMENTATION_STATUS_AUTHORITY.md"
 )
-UI_STATUS_PATH = (
-    REPO_ROOT / "docs" / "ai_platform" / "portal" / "UI_DELIVERY_STATUS.md"
-)
+UI_STATUS_PATH = REPO_ROOT / "docs" / "ai_platform" / "portal" / "UI_DELIVERY_STATUS.md"
+PORTAL_DOC_ROOT = REPO_ROOT / "docs" / "ai_platform" / "portal"
 
 EXPECTED_LEGACY_STATUS_PATHS = {
     "docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.json",
@@ -40,6 +29,7 @@ AUTHORITY_CONTRACT_PATH = "tools/portal_audit/ledger/status_authority.json"
 LEGACY_SNAPSHOT_PATH = "docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.json"
 EXPECTED_LEGACY_AS_OF_SHA = "b39b29c3e831ba491aa3376e5de86a8c09e2b537"
 EXPECTED_LEGACY_GIT_BLOB_SHA = "4893b73ef020621529612192ff942fef79fb3cfc"
+CURRENT_AUTHORITY_MARKER_PREFIX = "<!-- portal-current-status-authority:"
 CURRENT_AUTHORITY_MARKER = (
     "<!-- portal-current-status-authority: tools/portal_audit/ledger/index.json -->"
 )
@@ -75,10 +65,10 @@ def _git_blob_sha(path: Path) -> str:
     return hashlib.sha1(header + content, usedforsecurity=False).hexdigest()
 
 
-def _docs_text_files() -> list[Path]:
+def _text_files(root: Path) -> list[Path]:
     return sorted(
         path
-        for path in (REPO_ROOT / "docs").rglob("*")
+        for path in root.rglob("*")
         if path.is_file() and path.suffix.lower() in {".json", ".md", ".txt", ".yaml", ".yml"}
     )
 
@@ -115,19 +105,16 @@ def test_portal_status_authority_has_one_current_implementation_source() -> None
     assert sections.get("status_authority") == AUTHORITY_CONTRACT_PATH
 
 
-def test_competing_current_authority_claims_are_discovered_repo_wide() -> None:
-    marker_hits: list[str] = []
-    claim_paths: set[str] = set()
+def test_competing_current_authority_claims_are_discovered_fail_closed() -> None:
+    marker_hits: list[tuple[str, str]] = []
     status_authority_true_paths: list[str] = []
 
-    for path in _docs_text_files():
+    for path in _text_files(REPO_ROOT / "docs"):
         relative = path.relative_to(REPO_ROOT).as_posix()
         text = path.read_text(encoding="utf-8")
-        if CURRENT_AUTHORITY_MARKER in text:
-            marker_hits.extend([relative] * text.count(CURRENT_AUTHORITY_MARKER))
-        lowered = text.lower()
-        if any(phrase in lowered for phrase in CURRENT_AUTHORITY_CLAIM_PHRASES):
-            claim_paths.add(relative)
+        for line in text.splitlines():
+            if CURRENT_AUTHORITY_MARKER_PREFIX in line:
+                marker_hits.append((relative, line.strip()))
         if path.suffix.lower() == ".json":
             try:
                 payload = json.loads(text)
@@ -136,10 +123,20 @@ def test_competing_current_authority_claims_are_discovered_repo_wide() -> None:
             if isinstance(payload, dict) and payload.get("status_authority") is True:
                 status_authority_true_paths.append(relative)
 
-    assert marker_hits == ["docs/ai_platform/portal/UI_DELIVERY_STATUS.md"]
+    assert marker_hits == [
+        ("docs/ai_platform/portal/UI_DELIVERY_STATUS.md", CURRENT_AUTHORITY_MARKER)
+    ]
+    assert status_authority_true_paths == [LEGACY_SNAPSHOT_PATH]
+
+    claim_paths: set[str] = set()
+    for path in _text_files(PORTAL_DOC_ROOT):
+        relative = path.relative_to(REPO_ROOT).as_posix()
+        lowered = path.read_text(encoding="utf-8").lower()
+        if any(phrase in lowered for phrase in CURRENT_AUTHORITY_CLAIM_PHRASES):
+            claim_paths.add(relative)
+
     assert claim_paths
     assert claim_paths <= ALLOWED_CURRENT_AUTHORITY_CLAIM_PATHS
-    assert status_authority_true_paths == [LEGACY_SNAPSHOT_PATH]
 
 
 def test_all_legacy_status_surfaces_are_classified_and_non_authoritative() -> None:
@@ -153,13 +150,9 @@ def test_all_legacy_status_surfaces_are_classified_and_non_authoritative() -> No
     assert EXPECTED_LEGACY_STATUS_PATHS.issubset(entries)
     assert LIVING_AUTHORITY_PATH not in entries
     assert all(
-        entry.get("role") != "exact_head_implementation_inventory"
-        for entry in entries.values()
+        entry.get("role") != "exact_head_implementation_inventory" for entry in entries.values()
     )
-    assert all(
-        entry.get("superseded_by") == LIVING_AUTHORITY_PATH
-        for entry in entries.values()
-    )
+    assert all(entry.get("superseded_by") == LIVING_AUTHORITY_PATH for entry in entries.values())
     assert all((REPO_ROOT / path).exists() for path in entries)
 
 
@@ -203,10 +196,7 @@ def test_human_status_contract_declares_supersession_and_safety_boundary() -> No
     ):
         assert marker in authority_doc
 
-    assert (
-        "<!-- portal-status-authority: FEATURE_COMPLETENESS_LEDGER.json -->"
-        in ui_status
-    )
+    assert "<!-- portal-status-authority: FEATURE_COMPLETENESS_LEDGER.json -->" in ui_status
     assert CURRENT_AUTHORITY_MARKER in ui_status
     assert AUTHORITY_CONTRACT_PATH in ui_status
     assert "does not make that snapshot the current implementation authority" in ui_status

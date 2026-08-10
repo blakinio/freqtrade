@@ -43,6 +43,8 @@ def _run(*args: str, timeout: int = 60) -> subprocess.CompletedProcess[str]:
 
 
 def _require_e2e_host() -> None:
+    if os.environ.get("PORTAL_RUNTIME_ISOLATION_E2E") != "true":
+        pytest.skip("real Docker isolation E2E runs only in its dedicated workflow")
     if shutil.which("docker") is None:
         if os.environ.get("CI") == "true":
             pytest.fail("Docker is required for Portal runtime isolation E2E in CI")

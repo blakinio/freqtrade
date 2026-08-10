@@ -29,7 +29,7 @@ ownership_transferred_to_successor: true
 
 ## Objective
 
-Close PAPER implementation gate G0 finding #1356 by delivering a bounded automated architecture-registry lifecycle guard together with the registry reconciliation. This task reached the anti-stall repair-cycle limit before terminal validation; its remaining narrow defect is transferred to the fresh isolation successor named above. PR #1447 remains the authoritative delivery vehicle and must not be duplicated.
+Close PAPER implementation gate G0 finding #1356 by delivering a bounded automated architecture-registry lifecycle guard together with the registry reconciliation. This task reached the anti-stall repair-cycle limit before terminal validation; its remaining narrow defect was transferred to the fresh isolation successor named above. PR #1447 remains the authoritative delivery vehicle and must not be duplicated.
 
 ## Acceptance inventory
 
@@ -64,38 +64,62 @@ independent_review_findings:
   - reviewed_head: 48c177b299c848da18d031ca41aa03ff5db689b5
     severity: P2
     thread: PRRT_kwDOTdDTU86X_6vx
-    summary: synchronized_base_sha not required to remain distinct from latest architecture base
     disposition: remediated
-    remediation_head: 4d4a2f8961af81b75b3ffaf3cb0bfd2aff6bc282
   - reviewed_head: 4d4a2f8961af81b75b3ffaf3cb0bfd2aff6bc282
     severity: P2
     thread: PRRT_kwDOTdDTU86YABz6
-    summary: YAML boolean Issue identifiers accepted as integers
     disposition: remediated
-    remediation_head: 93eaf7630a69d62f2da90f8f6d504d76aafb08f9
   - reviewed_head: 5d2e65944c0a2a2d07f88ab403e9bd75b2b14e3f
     severity: P2
     thread: PRRT_kwDOTdDTU86YAPja
-    summary: registry open/resolved sets share one editable source so a terminal Issue could remain open if its resolved record is omitted
     disposition: transferred_to_fresh_isolation_task
 ```
 
 ## Proven state
 
 - #1356 remains the only Issue being repaired by PR #1447; do not create a duplicate delivery PR.
-- The existing guard already enforces unique exact integer Issue IDs, unique finding IDs, resolved/open disjointness, domain index consistency, latest accepted ADR binding and historical review provenance separation.
-- The remaining defect is narrow: terminal lifecycle truth needs an independent pinned terminal identity inventory (or equivalent independent source) so known terminal findings cannot be silently left only in the open set.
-- Runtime/browser/deployment/trading E2E remains `NOT_APPLICABLE` for this CI/governance package.
+- The guard enforces unique exact integer Issue IDs, unique finding IDs, resolved/open disjointness, domain index consistency, latest accepted ADR binding and historical review provenance separation.
+- The successor isolation task owns the independent pinned terminal identity inventory and final parser-valid recovery repair.
+- Runtime/browser/deployment/trading E2E is `NOT_APPLICABLE` for this CI/governance package.
 - PAPER remains the only authorized operational mode; LIVE remains unreachable/fail-closed.
 
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 9
-updated_at: 2026-08-10T21:25:00+02:00
-last_progress_at: 2026-08-10T21:25:00+02:00
+checkpoint_version: 1
+updated_at: 2026-08-10T19:54:00Z
+head: 08b16c822e61e78671c1725c710a9a21e13dda4c
+branch: fix/architecture-registry-lifecycle-1356
+pr: 1447
 status: blocked
-blocker: anti_stall max_repair_cycles_per_gate reached after the final-head Codex review exposed a third material P2
-successor_task: FTAI-20260810-paper-g0-registry-terminal-inventory-isolation-1356
-next_action: The fresh isolation successor must reuse PR #1447, add an independent pinned terminal finding identity invariant, obtain fresh independent review and exact-head CI, then close/archive both task records in the same delivery PR before merge.
+context_routes:
+  - PAPER G0 architecture registry lifecycle
+  - repair isolation handoff
+owned_paths: []
+proven:
+  - Parent task exhausted its three repair cycles and transferred ownership to FTAI-20260810-paper-g0-registry-terminal-inventory-isolation-1356.
+  - PR 1447 is the authoritative delivery vehicle for Issue 1356.
+  - The parent task must not resume implementation or create a replacement PR.
+derived:
+  - Final validation and closeout belong to the successor isolation task.
+unknown:
+  - Terminal result of PR 1447 after successor repairs and final exact-head validation.
+conflicts:
+  - none
+first_failure:
+  marker: parent repair budget exhausted
+  evidence: three bounded repair cycles recorded above
+rejected_hypotheses:
+  - Continue repairing under the exhausted parent task; rejected by anti-stall max_repair_cycles_per_gate.
+changed_paths:
+  - ARCHITECTURE_REGISTRY.yaml
+  - tests/ci/test_architecture_registry.py
+  - docs/agents/tasks/active/FTAI-20260810-paper-g0-registry-lifecycle-1356.md
+validation:
+  - command: runtime/browser E2E
+    result: NOT_APPLICABLE
+    evidence: CI/governance-only lifecycle guard
+blockers:
+  - Parent repair budget exhausted; successor task owns remaining validation and closeout.
+next_action: Resume only through FTAI-20260810-paper-g0-registry-terminal-inventory-isolation-1356 on PR 1447; do not mutate from this parent task.
 ```

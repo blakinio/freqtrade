@@ -12,10 +12,10 @@ permissions:
   contents: read
 
 jobs:
-  restart:
-    name: Schedule controlled Container Manager restart
+  verify:
+    name: Verify Container Manager recovery and exact Portal preflight
     runs-on: [freqtrade-staging]
-    timeout-minutes: 5
+    timeout-minutes: 12
     steps:
       - name: Refuse trading credential environment
         shell: bash
@@ -25,42 +25,120 @@ jobs:
             test -z "${!name:-}" || { echo "recognized trading credential present: $name" >&2; exit 1; }
           done
 
-      - name: Prepare SSH client
+      - name: Verify daemon and previously-running containers recovered
+        id: runtime
         shell: bash
         env:
-          SSH_HOST: ${{ secrets.SYNOLOGY_SSH_HOST }}
-          SSH_PORT: ${{ secrets.SYNOLOGY_SSH_PORT }}
-          SSH_USER: ${{ secrets.SYNOLOGY_SSH_USER || vars.SYNOLOGY_SSH_USER }}
-          SSH_PRIVATE_KEY: ${{ secrets.SYNOLOGY_SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.SYNOLOGY_SSH_KNOWN_HOSTS }}
-          SSH_DIR: ${{ runner.temp }}/ssh-1089
-          REPORT: ${{ runner.temp }}/synology-1089-restart-scheduled.txt
+          RESULT: ${{ runner.temp }}/synology-1089-post-restart.txt
         run: |
-          set -euo pipefail
-          for name in SSH_HOST SSH_PORT SSH_USER SSH_PRIVATE_KEY SSH_KNOWN_HOSTS; do test -n "${!name:-}" || exit 2; done
-          install -d -m 0700 "$SSH_DIR"
-          umask 077
-          printf '%s\n' "$SSH_PRIVATE_KEY" > "$SSH_DIR/id"
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"
-          chmod 0600 "$SSH_DIR/id" "$SSH_DIR/known_hosts"
-          ssh_opts=(-i "$SSH_DIR/id" -p "$SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$SSH_DIR/known_hosts" -o ConnectTimeout=10 -o LogLevel=ERROR)
-          timeout 20 ssh "${ssh_opts[@]}" "$SSH_USER@$SSH_HOST" 'sudo -n /usr/syno/bin/synosystemctl get-active-status pkgctl-ContainerManager' | tee "$REPORT"
-          timeout 20 ssh "${ssh_opts[@]}" "$SSH_USER@$SSH_HOST" "rm -f /tmp/ft1089-container-manager-restart.log; nohup sh -c 'sleep 8; sudo -n /usr/syno/bin/synopkg restart ContainerManager > /tmp/ft1089-container-manager-restart.log 2>&1' </dev/null >/dev/null 2>&1 & echo restart_scheduled=true" | tee -a "$REPORT"
+          set -u
+          set +e
+          : > "$RESULT"
+          timeout 15 docker version --format 'server={{.Server.Version}}' >> "$RESULT" 2>&1
+          version_rc=$?; echo "docker_version_rc=$version_rc" | tee -a "$RESULT"
+          timeout 15 docker info --format 'root={{.DockerRootDir}} running={{.ContainersRunning}} stopped={{.ContainersStopped}} images={{.Images}}' >> "$RESULT" 2>&1
+          info_rc=$?; echo "docker_info_rc=$info_rc" | tee -a "$RESULT"
+          expected=(
+            wickhunter-production-research-runtime-wickhunter-production-research-runtime-1
+            freqtrade-portal-postgresql
+            wickhunter-paper-runtime-v12
+            wickhunter-wh09-egress-v12
+            liquid20-live
+            freqtrade-portal-staging
+            freqtrade-portal-control-plane
+            oteryn-staging-internal-proxy-1
+            oteryn-staging-marketplace-scheduler-1
+            oteryn-staging-platform-1
+            oteryn-staging-gateway-1
+            binance-v3-acceptance-sampler
+            portal-authentik-local-test-worker-1
+            portal-authentik-local-test-server-1
+            oteryn-staging-canary-1
+            oteryn-staging-mariadb-1
+            oteryn-staging-redis-1
+            portal-authentik-local-test-postgresql-1
+            wickhunter-market-evidence-v2
+            wickhunter-market-evidence
+            freqtrade-synology-staging-runner
+            oteryn-synology-staging-runner
+            adguard-adguardhome
+            homeassistant
+          )
+          missing=0
+          for name in "${expected[@]}"; do
+            state="$(timeout 10 docker inspect --format '{{.State.Status}}' "$name" 2>/dev/null || true)"
+            printf 'container_%s=%s\n' "$name" "${state:-missing}" >> "$RESULT"
+            [[ "$state" == running ]] || missing=$((missing+1))
+          done
+          echo "expected_running_missing=$missing" | tee -a "$RESULT"
+          failures=0
+          [[ "$version_rc" -eq 0 ]] || failures=$((failures+1))
+          [[ "$info_rc" -eq 0 ]] || failures=$((failures+1))
+          [[ "$missing" -eq 0 ]] || failures=$((failures+1))
+          echo "runtime_failures=$failures" | tee -a "$RESULT"
+          exit "$([ "$failures" -eq 0 ] && echo 0 || echo 1)"
 
-      - name: Upload restart scheduling evidence
+      - name: Verify exact protected preflight twice
+        id: preflight
+        shell: bash
+        env:
+          RESULT: ${{ runner.temp }}/synology-1089-post-restart-preflight.txt
+        run: |
+          set -u
+          set +e
+          : > "$RESULT"
+          image='docker.io/library/postgres:16.13-alpine3.23@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777'
+          failures=0
+          for attempt in 1 2; do
+            probe="portal-oidc-post-restart-${GITHUB_RUN_ID}-${attempt}"
+            timeout 20 docker rm -f "$probe" >/dev/null 2>&1 || true
+            started=$(date +%s)
+            timeout --kill-after=5 20 docker run --rm --name "$probe" --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true --entrypoint /bin/true "$image" >> "$RESULT" 2>&1
+            rc=$?
+            ended=$(date +%s)
+            printf 'exact_preflight_%s_rc=%s\nexact_preflight_%s_elapsed_seconds=%s\n' "$attempt" "$rc" "$attempt" "$((ended-started))" | tee -a "$RESULT"
+            [[ "$rc" -eq 0 ]] || failures=$((failures+1))
+            timeout 20 docker rm -f "$probe" >/dev/null 2>&1 || true
+            sleep 3
+          done
+          timeout 15 docker version >/dev/null 2>&1
+          post_rc=$?; echo "post_docker_version_rc=$post_rc" | tee -a "$RESULT"
+          [[ "$post_rc" -eq 0 ]] || failures=$((failures+1))
+          leaked="$(timeout 15 docker ps -a --format '{{.Names}}' 2>/dev/null | grep -E '^portal-oidc-post-restart-' || true)"
+          [[ -z "$leaked" ]] || failures=$((failures+1))
+          echo "preflight_leaks=$([ -z "$leaked" ] && echo none || echo present)" | tee -a "$RESULT"
+          echo "preflight_failures=$failures" | tee -a "$RESULT"
+          exit "$([ "$failures" -eq 0 ] && echo 0 || echo 1)"
+
+      - name: Upload post-restart evidence
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: synology-1089-container-manager-restart-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/synology-1089-restart-scheduled.txt
+          name: synology-1089-post-restart-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/synology-1089-post-restart.txt
+            ${{ runner.temp }}/synology-1089-post-restart-preflight.txt
           if-no-files-found: error
           retention-days: 14
 
-      - name: Cleanup local SSH material
+      - name: Publish recovery summary
         if: always()
         shell: bash
         env:
-          SSH_DIR: ${{ runner.temp }}/ssh-1089
-          REPORT: ${{ runner.temp }}/synology-1089-restart-scheduled.txt
+          RUNTIME: ${{ runner.temp }}/synology-1089-post-restart.txt
+          PREFLIGHT: ${{ runner.temp }}/synology-1089-post-restart-preflight.txt
         run: |
-          rm -rf -- "$SSH_DIR"
-          rm -f -- "$REPORT"
+          {
+            echo '## Synology #1089 post-restart verification'
+            echo
+            grep -E '^(docker_version_rc|docker_info_rc|expected_running_missing|runtime_failures)=' "$RUNTIME" | sed 's/^/- /' || true
+            grep -E '^(exact_preflight_[12]_(rc|elapsed_seconds)|post_docker_version_rc|preflight_leaks|preflight_failures)=' "$PREFLIGHT" | sed 's/^/- /' || true
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Cleanup local evidence
+        if: always()
+        shell: bash
+        env:
+          RUNTIME: ${{ runner.temp }}/synology-1089-post-restart.txt
+          PREFLIGHT: ${{ runner.temp }}/synology-1089-post-restart-preflight.txt
+        run: rm -f -- "$RUNTIME" "$PREFLIGHT"

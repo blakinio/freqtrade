@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 import pytest
 from sqlalchemy import func, select
@@ -103,7 +104,7 @@ def _descriptor(**updates: object) -> Wh09HostRuntimeDescriptor:
     return Wh09HostRuntimeDescriptor.model_validate(payload)
 
 
-def _count(engine, model: object) -> int:
+def _count(engine, model: Any) -> int:
     with engine.connect() as connection:
         value = connection.scalar(select(func.count()).select_from(model))
     return int(value or 0)

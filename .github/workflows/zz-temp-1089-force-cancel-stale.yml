@@ -1,0 +1,39 @@
+name: Temporary 1089 force cancel stale Synology runs
+
+on:
+  push:
+    branches:
+      - ops/1089-synology-cleanup-20260810
+    paths:
+      - ".github/workflows/zz-temp-1089-force-cancel-stale.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  force-cancel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Force-cancel stale runs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for run_id in 31390818737 31391014027; do
+            code="$(curl --silent --show-error \
+              --output /tmp/force-response \
+              --write-out '%{http_code}' \
+              --request POST \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$run_id/force-cancel" || true)"
+            echo "force-cancel run=$run_id http=$code"
+            cat /tmp/force-response || true
+            echo
+          done

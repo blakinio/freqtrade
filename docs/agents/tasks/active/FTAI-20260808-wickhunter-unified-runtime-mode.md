@@ -20,7 +20,7 @@ run_scope: autonomous_program
 continuation_policy: continue_until_real_stop
 task_completion_policy: finalize_archive_and_continue
 implementation_authorized: true
-status: investigating
+status: repairing
 base_branch: develop
 trusted_base_sha: 5a19ae32f1f71b112130ea66cb8d56d9a3e44049
 branch: fix/wickhunter-1396-synology-recovery-v2
@@ -37,7 +37,9 @@ wh09_redeploy_authorized: false
 
 ## Objective
 
-Terminally close Issue #1396 by proving the already-merged unified WickHunter runtime-mode implementation through the real Synology Portal adoption path, without replacing or restarting WH09 and without expanding trading authority.
+Terminally close Issue #1396 by recovering the existing WH09 runtime from its proven upstream Liquid20 integrity fault, then proving the already-merged unified WickHunter runtime-mode implementation through the real Synology Portal adoption path without replacing or restarting WH09 and without expanding trading authority.
+
+ADR-022 on the current trusted `develop` makes PAPER the only authorized operational trading mode and permits SHADOW only as bounded validation. This task's frozen WH09 SHADOW runtime is an existing validation runtime; it is not a new promotion stage and this recovery does not authorize LIVE.
 
 ## Frozen runtime identity and safety
 
@@ -57,7 +59,7 @@ live_capital_authorized: false
 automatic_promotion_enabled: false
 ```
 
-Do not create a second runtime, activate PAPER, authorize LIVE, add credentials or a real order adapter, submit exchange orders, weaken fail-closed behavior, perform broad Docker cleanup, or restart/recreate/redeploy WH09 unless a proven cause and trusted repository authority explicitly require that exact operation.
+Do not create a second runtime, activate PAPER for WH09, authorize LIVE, add credentials or a real order adapter, submit exchange orders, weaken fail-closed behavior, perform broad Docker cleanup, or restart/recreate/redeploy WH09 unless a proven cause and trusted repository authority explicitly require that exact operation.
 
 ## Acceptance inventory
 
@@ -80,7 +82,7 @@ Do not create a second runtime, activate PAPER, authorize LIVE, add credentials 
 - PR #1443 is closed/unmerged and remains obsolete because its broad cleanup path is not an accepted recovery.
 - Issue #1396 remains open because the required real post-merge Synology adoption E2E has not passed.
 
-## Post-merge runtime evidence
+## Runtime failure evidence
 
 ```yaml
 portal_adoption:
@@ -111,47 +113,95 @@ diagnostic_3:
   wh09_running: true
   wh09_restart_count: 0
   wh09_health: unhealthy
-  manual_healthcheck_rc: 1
-  manual_healthcheck_output: research operator is fail-closed
   generation: 645
   last_observation_age_seconds: 8023.462
   telemetry_age_seconds: 8023.462
   process_alive: true
   zero_authority: true
   wh09_mutation: false
+root_cause_diagnostic:
+  run: 31425261462
+  job: 93575331867
+  result: PASS_READ_ONLY
+  wh09_error_code: CandidatePaperRuntimeOperatorError
+  wh09_error_message: Liquid20 source events binance-usdm contradicts events_written
+  liquid20_container_running: true
+  liquid20_restart_count: 0
+  liquid20_revision: 416223a803c6eb803e09429b3368488276a112e9
+  liquid20_pointer_fresh: true
+  active_run: liquid20-20260810T000000Z-3
+  active_run_state: active
+  pointer_persisted_state_equal: true
+  current_sources_connected_and_fresh: true
+  zero_authority: true
+  wh09_supervisor_advancing_health_timestamp: true
+  wh09_generation_still_blocked: 645
+  wh09_mutation: false
+integrity_isolation:
+  run: 31425883292
+  job: 93577345378
+  result: PASS_READ_ONLY
+  corrupt_completed_run: liquid20-20260810T000000Z-1
+  completion_reason: collector-restart
+  binance_usdm:
+    events_written: 7878
+    durable_rows: 7883
+    uncommitted_suffix_rows: 5
+  bybit_linear:
+    events_written: 3513
+    durable_rows: 3514
+    uncommitted_suffix_rows: 1
+  okx_swap:
+    events_written: 3068
+    durable_rows: 3068
+    uncommitted_suffix_rows: 0
+  all_other_relevant_runs_exact: true
+  active_run_exact: true
+  loader_reproduced_same_error: true
+  wh09_mutation: false
 ```
 
-The diagnostic-3 failure did not prove BuildKit is still the active cause. It proved that WH09's supervisor remains alive and refreshes fail-closed health while no successful runtime observation/telemetry has advanced for over two hours. The exact exception was not included in that run's safe health projection and the Liquid20 portion never executed because its shell heredoc terminator was malformed.
+## Proven root cause
 
-Repository code at accepted deployment revision proves `run_forever()` catches each cycle exception, publishes `error_code`/`error_message` into `/runtime/operator/health.json`, sleeps and retries. Therefore a fresh health file with stale generation/telemetry is consistent with repeated per-cycle failures rather than a dead main process.
+`FACT`: `liquid20-20260810T000000Z-1` was finalized as `completed` with `completion_reason=collector-restart` while Binance and Bybit NDJSON contained a small durable suffix beyond the last committed `events_written` boundary. WH09 intentionally requires an exact row count for completed historical runs and therefore correctly fails closed.
 
-## Current bounded root-cause diagnostic
+`FACT`: production Liquid20 revision `416223a803c6eb803e09429b3368488276a112e9` writes NDJSON independently from state persistence and `_complete_previous_active_run()` previously changed an old `active` run to `completed` without sealing its files to the persisted commit boundary. This permits a process interruption after NDJSON flush but before the next state commit to turn an uncommitted suffix into an apparently committed historical file.
 
-Workflow `.github/workflows/portal-wickhunter-buildkit-cache-recovery.yml` was repaired at exact diagnostic head `f42e909c5a87ae89a627eaeae7b1b7e3cd613c3c`. It is read-only and collects:
+`FACT`: the current active Liquid20 run is healthy, fresh and exact. The fault is historical restart durability, not source freshness, mount access, pointer/run-state inconsistency, model binding, WH09 process death, or the previously observed Portal BuildKit failure.
 
-- exact WH09 identity/image/revision/running/health and Docker health history;
-- safe health fields including `error_code`, `error_message`, breaker reasons and zero-authority fields;
-- telemetry freshness, bounded journal metadata and bounded error-oriented WH09 logs;
-- WH09 process state and read-only Liquid20 mount readability;
-- Liquid20 pointer schema/contract/active run/run_state/heartbeat/authority/source freshness;
-- equality of the live pointer state and persisted `run-state-v1.json`;
-- whether the active run is the newest regular run;
-- an exact `load_liquid20_snapshot()` read using the production 300-second freshness contract;
-- a public Binance USD-M read-only market probe only if the Liquid20 snapshot is valid;
-- `liquid20-live` container running/health/restart/process/log state;
-- one 70-second WH09 supervisor interval to prove whether health timestamps and generation advance;
-- final proof that WH09 identity/image/revision/running state was not mutated.
+## Permanent repair
 
-No prune, build, stop, restart, remove, recreate, deployment, credential access, PAPER activation or LIVE action is performed.
+Working branch was reconciled with trusted `develop@5a19ae32f1f71b112130ea66cb8d56d9a3e44049` by merge commit `bf9927579032538a5b53bb09fde8332207b96d35`; it is no longer behind the trusted base.
+
+Permanent producer repair:
+
+- commit `4fb2b70b609e5d263d4c76489f0f6cf82905e9fe` adds restart sealing to `ai_platform/scripts/liquidation_live_stream.py`;
+- the persisted `events_written` value is treated as the committed row boundary;
+- on collector restart, each previous active source file is verified to contain at least the committed rows;
+- bytes after the committed row boundary are truncated and fsynced before the run can be finalized as historical;
+- missing committed rows, malformed state, symlinks or non-regular files fail closed rather than creating a new run;
+- no WH09 contract or fail-closed threshold is weakened.
+
+Focused regression coverage:
+
+- commit `0480412ac5c1f59e5ce99fdb95a6a996b49ae27c` adds `tests/ai_platform_integration/test_liquidation_live_restart_durability.py`;
+- one test proves only the uncommitted suffix is removed and the old run is then completed;
+- one test proves missing committed rows block restart and preserve the old active pointer without creating a new run.
+
+The already-completed historical run `liquid20-20260810T000000Z-1` still requires one separately guarded, exact-data repair after the permanent fix is validated and integrated: verify the exact known counts/run identity, truncate only Binance's 5-row and Bybit's 1-row uncommitted suffix to their persisted commit boundaries, fsync, re-count exact equality, and leave state metadata unchanged. No broad data cleanup is permitted.
+
+## Temporary workflow
+
+`.github/workflows/portal-wickhunter-buildkit-cache-recovery.yml` is temporary recovery instrumentation only. It currently contains the bounded read-only integrity diagnostic used for run `31425883292`. It must be removed before final merge/closeout and cannot serve as exact-head final CI after removal.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-10T21:41:00+02:00
-status: investigating
+updated_at: 2026-08-10T22:02:00+02:00
+status: repairing
 branch: fix/wickhunter-1396-synology-recovery-v2
-diagnostic_head: f42e909c5a87ae89a627eaeae7b1b7e3cd613c3c
+exact_head_before_this_checkpoint: bf9927579032538a5b53bb09fde8332207b96d35
 issue: 1396
 related_prs:
   - 1397: merged
@@ -159,36 +209,37 @@ related_prs:
   - 1436: merged
   - 1443: closed_unmerged_obsolete_broad_cleanup
 proven:
-  - all three implementation/consumer PRs are merged
-  - exactly one expected WH09 existed at diagnostic-3 and was running without restart
-  - WH09 was fail-closed with generation 645 and stale successful observation/telemetry
-  - WH09 zero-authority invariants remained intact
-  - diagnostic-3 mutated no WH09 runtime state
-  - the supervisor process remained alive
-  - accepted operator code publishes the exact caught exception to health error_code/error_message each failed cycle
+  - all three WickHunter implementation/consumer PRs are merged
+  - exactly one expected WH09 exists, remains running and was not restarted by diagnostics
+  - WH09 zero-authority invariants remain intact
+  - WH09 fails closed on an exact Liquid20 completed-history row-count contradiction
+  - Liquid20 current active pointer, source freshness, mount readability and zero-authority state are healthy
+  - only completed restart run liquid20-20260810T000000Z-1 is inconsistent in the relevant history window
+  - binance-usdm has exactly 5 durable rows beyond committed events_written
+  - bybit-linear has exactly 1 durable row beyond committed events_written
+  - production restart finalization did not seal uncommitted NDJSON suffixes to the persisted boundary
+  - permanent producer repair and focused regression tests are committed on the recovery branch
 unknown:
-  - first exact current WH09 cycle exception
-  - whether liquid20-live is currently running and fresh
-  - whether pointer and persisted active run state agree
-  - whether source freshness, mount access, public market access, model binding, journal state or another exact cause is responsible
-  - whether WH09 will naturally recover after any upstream repair
-  - whether the Portal BuildKit failure remains after WH09 recovery
+  - focused CI result for the permanent producer repair
+  - PR/final CI/audit result for the repair
+  - post-merge canonical Liquid20 deployment result
+  - guarded repair result for the already-completed historical run
+  - whether WH09 naturally returns healthy after the upstream data repair
+  - whether Portal BuildKit failure remains after WH09 recovery
   - terminal post-merge Portal adoption/API/browser result
 conflicts: []
 validation:
-  - run: 31422691173
-    result: FAILURE_WITH_USEFUL_WH09_EVIDENCE_AND_NO_MUTATION
   - run: 31425261462
-    head: f42e909c5a87ae89a627eaeae7b1b7e3cd613c3c
-    workflow: Portal WickHunter WH09 Root Cause Diagnostic
-    result: QUEUED_AT_CHECKPOINT
+    job: 93575331867
+    result: PASS_READ_ONLY_ROOT_CAUSE
+  - run: 31425883292
+    job: 93577345378
+    result: PASS_READ_ONLY_INTEGRITY_ISOLATION
 counters:
-  repair_cycles_for_current_gate: 2
+  repair_cycles_for_current_gate: 1
   identical_failure_retries: 0
   unchanged_state_checks: 0
-blockers:
-  - root cause remains UNKNOWN until diagnostic run 31425261462 is terminal and its primary evidence is classified
-next_action: Inspect terminal run 31425261462 once, classify the first proven cause, and perform only the smallest authorized repair that addresses that cause.
+next_action: Validate the permanent Liquid20 restart-sealing repair and focused regression tests on the exact branch head, then open/reconcile the repair PR before any live data mutation.
 ```
 
 ## Recovery checkpoint
@@ -196,25 +247,23 @@ next_action: Inspect terminal run 31425261462 once, classify the first proven ca
 ```yaml
 recovery:
   policy_version: 1
-  generation: 4
+  generation: 5
   session_id: 2026-08-10T21:37+02:00
   session_started_at: 2026-08-10T21:37:00+02:00
-  checkpointed_at: 2026-08-10T21:41:00+02:00
-  last_progress_at: 2026-08-10T21:40:35+02:00
-  phase: wh09_liquid20_root_cause_diagnostic
-  exact_head: f42e909c5a87ae89a627eaeae7b1b7e3cd613c3c
+  checkpointed_at: 2026-08-10T22:02:00+02:00
+  last_progress_at: 2026-08-10T22:02:00+02:00
+  phase: liquid20_restart_durability_repair_validation
+  exact_head_before_checkpoint_commit: bf9927579032538a5b53bb09fde8332207b96d35
   pull_request: none
-  active_operation: Portal WickHunter WH09 Root Cause Diagnostic
+  active_operation: permanent producer repair validation
   external_run_ids:
     - 31425261462
-  operation_started_at: 2026-08-10T21:40:35+02:00
-  wait_deadline_at: 2026-08-10T21:50:35+02:00
-  check_generation: wh09-root-cause-diagnostic-v4
-  checks_used: 1
+    - 31425883292
+  checks_used: 0
   status: active
   safe_to_resume: true
-  resume_condition: workflow run 31425261462 is terminal
-  next_action: Inspect run 31425261462 once when terminal and classify the first proven root cause without mutating WH09.
+  resume_condition: permanent repair and focused tests validated
+  next_action: Run focused validation for the Liquid20 restart-sealing repair, then open the task repair PR against current develop.
 ```
 
 ## Terminal closeout requirements

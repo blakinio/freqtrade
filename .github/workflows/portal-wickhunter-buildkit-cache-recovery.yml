@@ -1,0 +1,161 @@
+name: Portal WickHunter Exact Source Fsync Repair
+
+"on":
+  push:
+    branches:
+      - fix/wickhunter-1396-synology-recovery-v2
+    paths:
+      - .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    name: Fsync every validated recovered source before completion
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout recovery branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: fix/wickhunter-1396-synology-recovery-v2
+          fetch-depth: 20
+
+      - name: Apply exact-source fsync repair and regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source_path = Path("ai_platform/scripts/liquidation_live_stream.py")
+          source = source_path.read_text(encoding="utf-8")
+          old = (
+              "        if handle.read(1):\n"
+              "            handle.truncate(committed_end)\n"
+              "            handle.flush()\n"
+              "            os.fsync(handle.fileno())\n"
+          )
+          new = (
+              "        if handle.read(1):\n"
+              "            handle.truncate(committed_end)\n"
+              "        handle.flush()\n"
+              "        os.fsync(handle.fileno())\n"
+          )
+          if new not in source:
+              if source.count(old) != 1:
+                  raise SystemExit("exact-source fsync target mismatch")
+              source = source.replace(old, new, 1)
+          source_path.write_text(source, encoding="utf-8")
+
+          test_path = Path("tests/ai_platform_integration/test_liquidation_live_restart_durability.py")
+          tests = test_path.read_text(encoding="utf-8")
+          if "test_seal_fsyncs_exact_committed_file_without_truncation" not in tests:
+              import_anchor = "    _seal_committed_ndjson,\n"
+              if import_anchor not in tests:
+                  old_import = "    OkxLiveRunManager,\n"
+                  if tests.count(old_import) != 1:
+                      raise SystemExit("seal helper import target mismatch")
+                  tests = tests.replace(old_import, old_import + import_anchor, 1)
+              marker = "\n\ndef test_state_commit_flushes_pending_ndjson_before_events_written("
+              if tests.count(marker) != 1:
+                  raise SystemExit("exact-source fsync test marker mismatch")
+              lines = [
+                  "", "",
+                  "def test_seal_fsyncs_exact_committed_file_without_truncation(",
+                  "    tmp_path: Path, monkeypatch: pytest.MonkeyPatch",
+                  ") -> None:",
+                  "    path = tmp_path / f\"{BINANCE_SOURCE}.ndjson\"",
+                  "    payload = b\"{}\\n\"",
+                  "    path.write_bytes(payload)",
+                  "    fsync_calls: list[int] = []",
+                  "    monkeypatch.setattr(",
+                  "        \"ai_platform.scripts.liquidation_live_stream.os.fsync\",",
+                  "        lambda fd: fsync_calls.append(fd),",
+                  "    )", "",
+                  "    _seal_committed_ndjson(",
+                  "        path, committed_rows=1, source=BINANCE_SOURCE, allow_missing=False",
+                  "    )", "",
+                  "    assert fsync_calls",
+                  "    assert path.read_bytes() == payload",
+              ]
+              tests = tests.replace(marker, "\n".join(lines) + marker, 1)
+              test_path.write_text(tests, encoding="utf-8")
+          PY
+
+      - name: Install validation dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check -r requirements.txt
+          python3 -m pip install --disable-pip-version-check pytest==9.1.1 ruff==0.15.21
+
+      - name: Format and validate repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m ruff format ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          python3 -m py_compile ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python3 -m pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python3 -m ruff check ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python3 -m ruff format --check ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          git diff --check
+
+      - name: Record compact evidence and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import subprocess
+          from datetime import datetime
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+
+          task = Path("docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md")
+          text = task.read_text(encoding="utf-8")
+          prefix = "## Context checkpoint\n\n```yaml\n"
+          suffix = "\n```\n\n## Recovery checkpoint"
+          start = text.index(prefix) + len(prefix)
+          end = text.index(suffix, start)
+          cp = text[start:end]
+          head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          now = datetime.now(ZoneInfo("Europe/Warsaw")).replace(microsecond=0).isoformat()
+          rows = cp.splitlines()
+          for index, line in enumerate(rows):
+              if line.startswith("updated_at:"):
+                  rows[index] = f"updated_at: {now}"
+              elif line.startswith("head:"):
+                  rows[index] = f"head: {head}"
+          cp = "\n".join(rows)
+          validation = (
+              "  - command: Exact recovered source fsync regression validation\n"
+              "    result: PASS\n"
+              f"    evidence: GitHub Actions run {os.environ['GITHUB_RUN_ID']} passed focused restart and legacy migration tests Ruff check format compile checkpoint and diff hygiene\n"
+          )
+          if "Exact recovered source fsync regression validation" not in cp:
+              cp = cp.replace("blockers: []\n", validation + "blockers: []\n", 1)
+          rows = cp.splitlines()
+          for index, line in enumerate(rows):
+              if line.startswith("next_action:"):
+                  rows[index] = "next_action: Run retained ci:full exact-head CI plus fresh independent Codex review with zero material findings, then squash-merge PR 1450 and continue protected Liquid20 recovery."
+                  break
+          text = text[:start] + "\n".join(rows) + text[end:]
+          text = text.replace("  generation: 10\n", "  generation: 11\n", 1)
+          task.write_text(text, encoding="utf-8")
+          PY
+          python3 tools/agents/checkpoint.py docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md --require-checkpoint
+          git rm .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
+          git diff --check
+
+      - name: Commit validated permanent repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "fix(liquidations): fsync exact recovered source files"
+          git pull --rebase origin fix/wickhunter-1396-synology-recovery-v2
+          git push origin HEAD:fix/wickhunter-1396-synology-recovery-v2

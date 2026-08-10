@@ -33,33 +33,34 @@ Implement G0 work item 5 from `PAPER_PLATFORM_IMPLEMENTATION_PLAN.md`: establish
 - `S4`: `UI_DELIVERY_STATUS.md` and programme/roadmap status views are classified as validated roll-up, work-ownership roll-up, dependency plan or historical evidence rather than standalone implementation truth.
 - `S5`: GitHub Issues are work ownership/acceptance units, never standalone implementation truth.
 - `S6`: one machine-readable status-authority contract is referenced from the living ledger package.
-- `S7`: deterministic network-free CI rejects missing authority paths, mismatched living-ledger schema/mode, unclassified legacy status surfaces, historical snapshot rewrite, duplicate current-authority markers/claims, an implicit second current implementation authority, or any structured LIVE/protected/deployment authority grant.
+- `S7`: deterministic network-free CI rejects missing authority paths, mismatched living-ledger schema/mode, unclassified legacy status surfaces, historical snapshot rewrite, every second reserved current-authority marker regardless of target, competing current-authority claims in Portal status-bearing documentation, or any structured LIVE/protected/deployment authority grant.
 - `S8`: existing #1101 historical compatibility markers remain intact; historical evidence is not rewritten.
 - `S9`: runtime/browser E2E is `NOT_APPLICABLE` because this package changes status/governance truth only.
 - `S10`: fresh independent review, exact-head CI and zero unresolved review threads are required before merge.
 
 ## Repair history
 
-- Initial exact-head CI on `96c753d4e38195ef77182924be4c26b9a382e1e7` failed because `tests/ci/test_portal_status_authority.py` was not ruff-formatted. This is an owned formatting defect.
-- Independent Codex review on the same head found P1 `PRRT_kwDOTdDTU86YA3Gc`: competing status authorities were trusted from the sidecar allowlist instead of discovered; P1 `PRRT_kwDOTdDTU86YA3Gh`: #1101 identity compared two editable values instead of immutable content; and P2 `PRRT_kwDOTdDTU86YA3Gn`: human denial wording did not structurally prohibit authority grants.
-- Repair cycle 1 addresses the full finding set together: repo-wide documentation discovery for the reserved current-authority marker/explicit claims and top-level `status_authority: true`; fixed #1101 `as_of_sha` plus independently computed Git blob SHA `4893b73ef020621529612192ff942fef79fb3cfc`; exact structured false-valued LIVE/real-capital/credential/promotion/protected/deployment grants; and formatter-compliant test layout.
+- Initial exact-head CI on `96c753d4e38195ef77182924be4c26b9a382e1e7` failed because `tests/ci/test_portal_status_authority.py` was not ruff-formatted.
+- Initial Codex review found P1 `PRRT_kwDOTdDTU86YA3Gc` for sidecar-only competing-authority discovery, P1 `PRRT_kwDOTdDTU86YA3Gh` for mutable #1101 identity comparison, and P2 `PRRT_kwDOTdDTU86YA3Gn` for prose-only safety denial. Repair cycle 1 added documentation discovery, fixed `as_of_sha` plus independently computed Git blob SHA `4893b73ef020621529612192ff942fef79fb3cfc`, and structured false-valued authority grants.
+- Fresh Codex review of `cdcf9937aca79d9d79bc6ee63285230ecf5c4fa4` found P1 `PRRT_kwDOTdDTU86YBYXo`: scanning agent task records as product authority prose made the test self-fail; P1 `PRRT_kwDOTdDTU86YBYXq`: discovery matched only the expected complete marker instead of the reserved prefix; and P1 `PRRT_kwDOTdDTU86YBYXt`: ruff formatting was still not applied. CI independently confirmed the formatter failure in Freqtrade run `31428452203` / lightweight job `93585799918`, while the pre-commit job emitted the exact formatter diff.
+- Repair cycle 2 applies the exact ruff layout from the pre-commit diff, scans the reserved marker prefix across all documentation independently of target, scans explicit authority prose only within Portal status-bearing documentation, keeps agent task/governance records non-authoritative, and preserves repo-wide JSON detection of any additional top-level `status_authority: true`.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-10T20:15:45Z
-head: 9bc4bc61e13c87bbe628ee67b96b44bf10bd7c8d
+updated_at: 2026-08-10T20:24:25Z
+head: b7e423765567c2b1dc64227ba83c68fcc356bb0f
 branch: feat/paper-g0-status-authority-20260810
 pr: 1449
 status: validating
 invocation_started_at: 2026-08-10T20:10:00Z
-last_progress_at: 2026-08-10T20:15:45Z
+last_progress_at: 2026-08-10T20:24:25Z
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 review_checks_for_current_head: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 1
+repair_cycles_for_current_gate: 2
 context_reconstruction_attempts: 0
 stall_warnings: 0
 context_routes:
@@ -79,27 +80,27 @@ proven:
   - PR 1150 already delivered tools/portal_audit/ledger/index.json as a living exact-head gate.
   - The older FEATURE_COMPLETENESS_LEDGER snapshot remains at fixed as_of_sha b39b29c3e831ba491aa3376e5de86a8c09e2b537 and Git blob SHA 4893b73ef020621529612192ff942fef79fb3cfc.
   - The living index points to tools/portal_audit/ledger/status_authority.json.
-  - The authority sidecar classifies architecture, living implementation truth, GitHub Issue ownership and every legacy #1101 status surface separately.
-  - The sidecar now carries explicit false authority grants for LIVE trading, real capital, withdrawals, private trading credentials, model or strategy promotion, protected-environment mutation and production deployment.
-  - UI_DELIVERY_STATUS retains its legacy marker for #1101 compatibility and one reserved living-ledger current-authority marker.
-  - The CI guard discovers duplicate current-authority markers/explicit current-authority claims across docs, detects any additional documentation JSON top-level status_authority true, pins the #1101 content by Git blob identity, and validates structured safety grants.
+  - The authority sidecar carries explicit false authority grants for LIVE trading, real capital, withdrawals, private trading credentials, model or strategy promotion, protected-environment mutation and production deployment.
+  - The CI guard now detects the reserved current-authority prefix across the full docs tree independently of its target, detects any additional documentation JSON top-level status_authority true, and limits plain-language current-authority claims to actual Portal status-bearing product documentation so task evidence cannot self-trigger.
+  - The formatter changes applied in repair cycle 2 are copied from the exact pre-commit diff emitted by run 31428452203.
   - PR 1449 remains the single delivery PR for this bounded G0 package and contains the same six declared changed paths.
 derived:
-  - The repair closes all three first-review findings without changing runtime, browser, deployment or trading behavior.
+  - Repair cycle 2 addresses all fresh review findings without changing runtime, browser, deployment or trading behavior.
   - PAPER remains the only authorized operational mode and LIVE remains unreachable/fail-closed.
 unknown:
   - Exact-head CI result on the successor created by this checkpoint update.
   - Fresh independent Codex disposition on that successor exact head.
 conflicts:
-  - none found with PR 1447 or the stacked isolation required by PR 1448
+  - none found with PR 1447 or PR 1451 stacked isolation for PR 1448
 first_failure:
-  marker: first candidate was formatter-invalid and did not independently discover competing authority or immutably pin #1101
-  evidence: Freqtrade CI 31425929193 plus Codex threads PRRT_kwDOTdDTU86YA3Gc PRRT_kwDOTdDTU86YA3Gh PRRT_kwDOTdDTU86YA3Gn
+  marker: first two candidate generations did not make discovery both fail-closed and non-self-triggering, and the repair retained formatter-invalid layout
+  evidence: Freqtrade CI 31425929193 and 31428452203; Codex threads PRRT_kwDOTdDTU86YA3Gc PRRT_kwDOTdDTU86YA3Gh PRRT_kwDOTdDTU86YA3Gn PRRT_kwDOTdDTU86YBYXo PRRT_kwDOTdDTU86YBYXq PRRT_kwDOTdDTU86YBYXt
 rejected_hypotheses:
   - Reopen Issue 1101; rejected because it is completed and this is a later G0 authority migration over PR 1150.
   - Rewrite the historical feature ledger snapshot to the current head; rejected because that would falsify historical evidence.
   - Compare only snapshot metadata fields; rejected because two repository-controlled values can drift together.
   - Rely only on denial prose for LIVE/protected authority; rejected in favor of exact structured false-valued grants.
+  - Treat agent task records as product status surfaces; rejected because they quote acceptance/evidence and cannot independently grant implementation authority.
 changed_paths:
   - docs/ai_platform/portal/IMPLEMENTATION_STATUS_AUTHORITY.md
   - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
@@ -110,14 +111,20 @@ changed_paths:
 validation:
   - command: initial exact-head CI on 96c753d4e38195ef77182924be4c26b9a382e1e7
     result: FAIL
-    evidence: Freqtrade CI 31425929193; ruff format would reformat tests/ci/test_portal_status_authority.py; Risk-aware CI 31425929404 PASS; CodeQL 31425929192 PASS; zizmor 31425929249 PASS
+    evidence: Freqtrade CI 31425929193 formatter failure; Risk-aware CI 31425929404 PASS; CodeQL 31425929192 PASS; zizmor 31425929249 PASS
   - command: independent Codex review of 96c753d4e38195ef77182924be4c26b9a382e1e7
     result: FAIL
-    evidence: P1 PRRT_kwDOTdDTU86YA3Gc; P1 PRRT_kwDOTdDTU86YA3Gh; P2 PRRT_kwDOTdDTU86YA3Gn; all addressed by repair cycle 1 successor
+    evidence: P1 PRRT_kwDOTdDTU86YA3Gc; P1 PRRT_kwDOTdDTU86YA3Gh; P2 PRRT_kwDOTdDTU86YA3Gn; addressed by repair cycle 1
+  - command: exact-head lightweight/pre-commit checks on cdcf9937aca79d9d79bc6ee63285230ecf5c4fa4
+    result: FAIL
+    evidence: Freqtrade CI 31428452203; lightweight job 93585799918 and pre-commit formatter diff
+  - command: independent Codex review of cdcf9937aca79d9d79bc6ee63285230ecf5c4fa4
+    result: FAIL
+    evidence: P1 PRRT_kwDOTdDTU86YBYXo; P1 PRRT_kwDOTdDTU86YBYXq; P1 PRRT_kwDOTdDTU86YBYXt; addressed by repair cycle 2 successor
   - command: runtime/browser E2E
     result: NOT_APPLICABLE
     evidence: status/governance-only package; no product runtime or browser behavior changes
 blockers:
   - none before fresh exact-head CI and independent review of the successor created by this checkpoint update
-next_action: Resolve live PR 1449 successor head, resolve the three reviewed threads as remediated, request fresh Codex review, and collect the first bounded exact-head CI observation. Remediate only a new material owned finding; if all gates are clear, archive the task in the same PR and validate the final archival successor before merge.
+next_action: Resolve live PR 1449 successor exact head, resolve the three repair-cycle-2 review threads as remediated, request fresh Codex review, and collect the first bounded exact-head CI observation. A third repair cycle is the final allowed cycle for this gate; if the successor is clear, archive this task in the same PR and validate the archival successor before merge.
 ```

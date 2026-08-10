@@ -317,7 +317,9 @@ def latest_runtime_observation(
             return None
         row = session.scalar(
             select(RuntimeGenerationObservationRow)
-            .where(RuntimeGenerationObservationRow.generation_id == bot.observed_runtime_generation_id)
+            .where(  # noqa: E501 - Ruff formatter keeps this expression on one line
+                RuntimeGenerationObservationRow.generation_id == bot.observed_runtime_generation_id
+            )
             .order_by(
                 RuntimeGenerationObservationRow.reconciled_at.desc(),
                 RuntimeGenerationObservationRow.observation_id.desc(),

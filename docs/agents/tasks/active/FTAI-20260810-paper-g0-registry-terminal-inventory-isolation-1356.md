@@ -6,8 +6,8 @@ programme_id: FTAI-PAPER-PLATFORM
 repository: blakinio/freqtrade
 project_lane: freqtrade-portal
 task_kind: repair_isolation
-phase: implementation
-status: implementing
+phase: validation
+status: validating
 priority: high
 execution_mode: github_only
 run_scope: autonomous_program
@@ -32,9 +32,9 @@ Reuse authoritative PR #1447 and close the single remaining lifecycle-guard defe
 
 - `I1`: preserve all already-proven #1356 guard invariants.
 - `I2`: maintain a pinned set of known terminal `(issue, finding_id)` identities outside the registry payload.
-- `I3`: require registry `review.resolved_findings` to contain every pinned terminal identity.
+- `I3`: require registry `review.resolved_findings` to match the pinned terminal identity inventory, forcing future terminal-set changes to update both sources intentionally.
 - `I4`: require pinned terminal Issues and finding IDs to be disjoint from canonical top-level open findings.
-- `I5`: the pinned inventory covers the current terminal findings #1251, #1252, #1353, #1357 and candidate terminal #1356 with their exact stable finding IDs.
+- `I5`: the pinned inventory covers current terminal findings #1251, #1252, #1353, #1357 and candidate terminal #1356 with their exact stable finding IDs.
 - `I6`: do not add network-dependent GitHub API calls to unit/CI tests; the pinned inventory is the bounded independent source accepted for this guard.
 - `I7`: independent Codex review must verify the third P2 is closed and introduce no new material finding.
 - `I8`: exact-head routed CI, CodeQL/zizmor as applicable and zero unresolved review threads are required before merge.
@@ -61,15 +61,33 @@ severity: P2
 thread: PRRT_kwDOTdDTU86YAPja
 summary: both open and resolved identity sets come from the same editable registry, so a terminal Issue can stay only in the open set unless an independent terminal-state source is checked
 selected_remediation: pinned terminal identity inventory in the validator
+remediation_head: b10426611f9a910fa035d371e788a8307326d849
+```
+
+## Implementation evidence
+
+```yaml
+pinned_terminal_findings:
+  - [1251, FTAI-ARCH-001]
+  - [1252, FTAI-CI-001]
+  - [1353, FTAI-ARCH-RUNTIME-TRUSTED-STATE]
+  - [1356, FTAI-ARCH-REGISTRY-LIFECYCLE-GUARD]
+  - [1357, FTAI-ARCH-BOT-REVISION-STATE]
+validator_invariants:
+  - registry resolved identity set equals the pinned terminal identity set
+  - pinned terminal Issue IDs are disjoint from top-level open Issue IDs
+  - pinned terminal finding IDs are disjoint from top-level open finding IDs
+  - existing exact-integer identity, uniqueness, domain-index, ADR-binding and provenance guards remain intact
+network_dependency_added: false
+repair_cycles_for_current_isolation: 1
 ```
 
 ## Checkpoint
 
 ```yaml
-checkpoint_version: 1
-updated_at: 2026-08-10T21:26:00+02:00
-last_progress_at: 2026-08-10T21:26:00+02:00
-repair_cycles_for_current_isolation: 0
-status: implementing
-next_action: Add the pinned terminal identity inventory and assertions to tests/ci/test_architecture_registry.py, then request fresh Codex review on PR #1447 and run exact-head validation.
+checkpoint_version: 2
+updated_at: 2026-08-10T21:26:29+02:00
+last_progress_at: 2026-08-10T21:26:29+02:00
+status: validating
+next_action: Resolve the P2 review thread as remediated, request a fresh Codex review of the current PR head, inspect exact changed paths and exact-head CI once, then prepare same-PR task archival only after the independent review is materially clear.
 ```

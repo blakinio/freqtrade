@@ -43,6 +43,16 @@ The repository, current Git state, active pull requests, CI results, and files i
 - Do not enable withdrawals in exchange API credentials.
 - Any future live-capital change requires an explicit, separately reviewed owner-approved work package and does not inherit authority from PAPER work.
 
+### Container lifecycle hygiene
+
+- Any temporary container or other Docker resource created by an agent or task must be uniquely attributable to that task through a deterministic name and/or ownership labels.
+- The task that creates a temporary container owns its cleanup. Remove task-owned temporary containers as soon as they are no longer required, including failure and cancellation paths when automation supports unconditional cleanup such as `if: always()` or shell traps.
+- Cleanup must be bounded to resources proven to belong to the current task. Never use broad destructive cleanup such as `docker system prune`, `docker container prune`, or equivalent host-wide pruning on shared Synology, CI, staging, or production hosts.
+- Do not remove persistent/shared deployment containers, databases, runners, portal/control-plane services, bot runtimes, evidence stores, volumes, images, or networks merely because they are stopped or old. Removal requires explicit task scope plus evidence that the exact resource is obsolete.
+- If ownership or continued use is uncertain, leave the resource in place and record it as unresolved instead of deleting it.
+- Container removal must not implicitly remove persistent data. Do not use volume-removing flags unless persistent-data deletion is explicitly authorized and separately verified.
+- After cleanup, verify both that the intended task-owned resource is gone and that protected/current services remain healthy. Record exact container names/IDs or equivalent runtime evidence in the task closeout.
+
 ## Strategy lifecycle
 
 Strategies use the PAPER-first lifecycle:

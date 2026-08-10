@@ -1,0 +1,64 @@
+name: Portal WickHunter New Run FD Read Only Validation
+
+"on":
+  push:
+    branches:
+      - fix/wickhunter-1396-synology-recovery-v2
+    paths:
+      - .github/workflows/portal-wickhunter-new-run-fd-validate.yml
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: fix/wickhunter-1396-synology-recovery-v2
+          persist-credentials: false
+      - name: Apply corrected retained-FD patch in workspace only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64
+          import re
+          from pathlib import Path
+          source = Path('.github/workflows/portal-wickhunter-new-run-fd-recovery-v2.yml').read_text(encoding='utf-8')
+          match = re.search(r"printf '%s' '([^']+)' \| base64 -d", source, re.S)
+          if match is None:
+              raise SystemExit('payload not found')
+          payload = base64.b64decode(''.join(match.group(1).split()), validate=True).decode('utf-8')
+          lines = payload.splitlines()
+          init_index = next(i for i, line in enumerate(lines) if line.startswith("init_new = '''"))
+          for i in range(init_index + 1, min(init_index + 20, len(lines))):
+              if lines[i] == "''":
+                  lines[i] = "'''"
+                  break
+          else:
+              raise SystemExit('malformed terminator not found')
+          payload = '\n'.join(lines) + '\n'
+          compile(payload, '/tmp/patch-retained-fd.py', 'exec')
+          Path('/tmp/patch-retained-fd.py').write_text(payload, encoding='utf-8')
+          PY
+          python3 /tmp/patch-retained-fd.py
+      - name: Install bounded validation dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check -r requirements.txt
+          python3 -m pip install --disable-pip-version-check pytest==9.1.1 ruff==0.15.21
+      - name: Validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m ruff format ai_platform/scripts/liquidation_live_stream.py ai_platform/scripts/liquidation_live_stream_okx.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python3 -m py_compile ai_platform/scripts/liquidation_live_stream.py ai_platform/scripts/liquidation_live_stream_okx.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python3 -m pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python3 -m ruff check ai_platform/scripts/liquidation_live_stream.py ai_platform/scripts/liquidation_live_stream_okx.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python3 -m ruff format --check ai_platform/scripts/liquidation_live_stream.py ai_platform/scripts/liquidation_live_stream_okx.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          git diff --check
+          git diff --stat

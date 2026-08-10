@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -85,7 +86,7 @@ def _evidence_root(root: Path, *, checked_at: datetime = NOW) -> Path:
             "schema_version": "wickhunter-production-research-runtime-health-v1",
             "status": "healthy",
             "checked_at_ms": int(checked_at.timestamp() * 1000),
-            "last_success_ms": int(checked_at.timestamp() * 1000),
+            "last_success_at_ms": int(checked_at.timestamp() * 1000),
             "operator_commit": OPERATOR_COMMIT,
             "run_id": RUN_ID,
             "mode": "shadow",
@@ -109,9 +110,11 @@ def _evidence_root(root: Path, *, checked_at: datetime = NOW) -> Path:
         },
         "health_sha256",
     )
+    decision_id = "4" * 64
     decision = _hashed(
         {
             "schema_version": "wickhunter-production-research-decision-v1",
+            "decision_id": decision_id,
             "run_id": RUN_ID,
             "final_decision": "NO_TRADE",
             "status": "abstained",
@@ -125,7 +128,7 @@ def _evidence_root(root: Path, *, checked_at: datetime = NOW) -> Path:
     )
     _write(root / "journal" / "identity.json", identity)
     _write(root / "journal" / "telemetry.json", telemetry)
-    _write(root / "journal" / "decisions" / "latest.json", decision)
+    _write(root / "journal" / "decisions" / f"{decision_id}.json", decision)
     _write(root / "operator" / "health.json", health)
     return root
 
@@ -138,7 +141,7 @@ def test_reader_exposes_truthful_h900_shadow_zero_authority(tmp_path: Path) -> N
     assert evidence.candidate_identity == "H900"
     assert evidence.mode.value == "shadow"
     assert evidence.health == "HEALTHY"
-    assert evidence.no_trade_confidence == 0.60
+    assert evidence.no_trade_confidence == Decimal("0.60")
     assert evidence.outcome_horizon_ms == 900000
     assert evidence.decision_count == 11
     assert evidence.no_trade_count == 11

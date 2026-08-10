@@ -1,4 +1,4 @@
-name: Portal WickHunter Repo-Only Durability Repair
+name: Portal WickHunter Post-Repair Checkpoint
 
 "on":
   push:
@@ -11,12 +11,12 @@ permissions:
   contents: write
 
 concurrency:
-  group: portal-wickhunter-1396-repo-only-durability-repair
+  group: portal-wickhunter-1396-post-repair-checkpoint
   cancel-in-progress: false
 
 jobs:
-  repair:
-    name: Patch repository durability invariant only
+  checkpoint:
+    name: Persist exact post-repair durable state
     runs-on:
       - freqtrade-staging
     timeout-minutes: 8
@@ -27,147 +27,92 @@ jobs:
           ref: fix/wickhunter-1396-synology-recovery-v2
           fetch-depth: 20
 
-      - name: Apply idempotent repository-only patch
+      - name: Verify repair markers and update checkpoint
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
+          import re
+          import subprocess
           from pathlib import Path
-          from textwrap import dedent
 
-          source = Path("ai_platform/scripts/liquidation_live_stream.py")
-          text = source.read_text(encoding="utf-8")
-          changed = False
+          task = Path("docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md")
+          source = Path("ai_platform/scripts/liquidation_live_stream.py").read_text(encoding="utf-8")
+          tests = Path("tests/ai_platform_integration/test_liquidation_live_restart_durability.py").read_text(encoding="utf-8")
+          text = task.read_text(encoding="utf-8")
+          head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
 
-          if "    def closed(self) -> bool:\n" not in text:
-              old_close = dedent('''
-                  def close(self) -> None:
-                      if not self._handle.closed:
-                          self.flush()
-                          self._handle.close()
-              ''').strip("\n")
-              new_close = dedent('''
-                  @property
-                  def closed(self) -> bool:
-                      return self._handle.closed
+          repair_present = all(
+              marker in source
+              for marker in (
+                  "    def closed(self) -> bool:\n",
+                  "        if not writer.closed:\n",
+                  "            writer.flush()\n",
+              )
+          ) and "test_state_commit_flushes_pending_ndjson_before_events_written" in tests
 
-                  def close(self) -> None:
-                      if not self.closed:
-                          self.flush()
-                          self._handle.close()
-              ''').strip("\n")
-              if text.count(old_close) != 1:
-                  raise SystemExit("unexpected writer close block")
-              text = text.replace(old_close, new_close, 1)
-              changed = True
-
-          old_heartbeat = dedent('''
-                  async with self._lock:
-                      self._rotate_if_needed(self._now_ms())
-                      for writer in self._writers.values():
-                          await asyncio.to_thread(writer.flush)
-                      await asyncio.to_thread(self._write_state)
-          ''').strip("\n")
-          new_heartbeat = dedent('''
-                  async with self._lock:
-                      self._rotate_if_needed(self._now_ms())
-                      await asyncio.to_thread(self._write_state)
-          ''').strip("\n")
-          if old_heartbeat in text:
-              if text.count(old_heartbeat) != 1:
-                  raise SystemExit("unexpected heartbeat flush block")
-              text = text.replace(old_heartbeat, new_heartbeat, 1)
-              changed = True
-
-          old_write_state = dedent('''
-              def _write_state(self) -> None:
-                  payload = self._state_payload()
-          ''').strip("\n")
-          new_write_state = dedent('''
-              def _write_state(self) -> None:
-                  for writer in self._writers.values():
-                      if not writer.closed:
-                          writer.flush()
-                  payload = self._state_payload()
-          ''').strip("\n")
-          if old_write_state in text:
-              if text.count(old_write_state) != 1:
-                  raise SystemExit("unexpected state writer block")
-              text = text.replace(old_write_state, new_write_state, 1)
-              changed = True
-
-          required = (
-              "    def closed(self) -> bool:\n",
-              "        if not writer.closed:\n",
-              "            writer.flush()\n",
+          match = re.search(
+              r"(?ms)^## Context checkpoint\s*$.*?^```(?:yaml|yml)\s*$\n(.*?)^```\s*$",
+              text,
           )
-          if not all(marker in text for marker in required):
-              raise SystemExit("durable-state invariant is incomplete")
-          source.write_text(text, encoding="utf-8")
+          if match is None:
+              raise SystemExit("canonical Context checkpoint not found")
+          block = match.group(1)
 
-          test = Path("tests/ai_platform_integration/test_liquidation_live_restart_durability.py")
-          test_text = test.read_text(encoding="utf-8")
-          test_name = "test_state_commit_flushes_pending_ndjson_before_events_written"
-          if test_name not in test_text:
-              marker = "\n\ndef test_restart_truncates_only_uncommitted_suffix_before_completion("
-              if test_text.count(marker) != 1:
-                  raise SystemExit("unexpected durability test marker")
-              addition = dedent('''
+          block = re.sub(r"(?m)^updated_at: .*?$", "updated_at: 2026-08-10T22:56:00+02:00", block, count=1)
+          block = re.sub(r"(?m)^head: .*?$", f"head: {head}", block, count=1)
+          block = re.sub(
+              r"(?m)^status: .*?$",
+              "status: ready" if repair_present else "status: waiting",
+              block,
+              count=1,
+          )
 
-                  def test_state_commit_flushes_pending_ndjson_before_events_written(tmp_path: Path) -> None:
-                      manager = OkxLiveRunManager(
-                          data_root=tmp_path,
-                          collector_commit="8" * 40,
-                          host_id="synology-test",
-                          now_ms=lambda: 1_786_384_683_792,
-                          flush_interval_seconds=3600.0,
-                      )
-                      asyncio.run(manager.start())
-                      writer = manager._writers[BINANCE_SOURCE]
-                      writer._handle.write("{}\\n")
-                      writer._pending = 1
-                      manager.sources[BINANCE_SOURCE].events_written = 1
+          old_unknown = "  - terminal result and pushed commit from durability repair run 31430668536\n"
+          if old_unknown in block:
+              block = block.replace(old_unknown, "", 1)
 
-                      manager._write_state()
+          proof = (
+              "  - durability repair is present in source and regression test on the exact pre-checkpoint head\n"
+          )
+          anchor = (
+              "  - static durability audit proved state-writing paths can persist events_written while NDJSON writes are still pending because _write_state does not centrally flush writers\n"
+          )
+          if repair_present and proof not in block:
+              if anchor not in block:
+                  raise SystemExit("durability audit anchor missing")
+              block = block.replace(anchor, anchor + proof, 1)
 
-                      assert writer._pending == 0
-                      assert (manager.run_root / f"{BINANCE_SOURCE}.ndjson").read_bytes() == b"{}\\n"
-                      state = json.loads(
-                          (manager.run_root / "run-state-v1.json").read_text(encoding="utf-8")
-                      )
-                      assert state["sources"][BINANCE_SOURCE]["events_written"] == 1
-                      asyncio.run(manager.stop())
-              ''')
-              test_text = test_text.replace(marker, addition + marker, 1)
-              test.write_text(test_text, encoding="utf-8")
-              changed = True
+          next_action = (
+              "next_action: Run exact focused tests lint format checkpoint validation and producer-consumer durability assertions on the current branch head, then remove the temporary recovery workflow before retained full CI and fresh independent audit."
+              if repair_present
+              else "next_action: Inspect the repo-only durability repair execution once terminal and repair only its first actionable failure; do not proceed to final CI until source and regression markers are present."
+          )
+          if re.search(r"(?m)^next_action: .*?$", block) is None:
+              raise SystemExit("next_action missing from checkpoint")
+          block = re.sub(r"(?m)^next_action: .*?$", next_action, block, count=1)
 
-          if not changed:
-              print("DURABILITY_REPAIR_ALREADY_PRESENT=true")
-          else:
-              print("DURABILITY_REPAIR_APPLIED=true")
+          new_text = text[: match.start(1)] + block + text[match.end(1) :]
+          task.write_text(new_text, encoding="utf-8")
+          print(f"POST_REPAIR_CHECKPOINT_STATUS={'ready' if repair_present else 'waiting'}")
+          print(f"POST_REPAIR_CHECKPOINT_HEAD={head}")
           PY
-          python3 -m py_compile \
-            ai_platform/scripts/liquidation_live_stream.py \
-            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          python3 tools/agents/checkpoint.py \
+            docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md \
+            --require-checkpoint
           git diff --check
-          git diff -- \
-            ai_platform/scripts/liquidation_live_stream.py \
-            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
 
-      - name: Commit repository patch when needed
+      - name: Commit checkpoint when changed
         shell: bash
         run: |
           set -euo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add \
-            ai_platform/scripts/liquidation_live_stream.py \
-            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          git add docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
           if git diff --cached --quiet; then
-            echo "DURABILITY_REPAIR_COMMIT=already-present"
+            echo "POST_REPAIR_CHECKPOINT_COMMIT=unchanged"
             exit 0
           fi
-          git commit -m "fix(liquidations): fsync events before persisting commit counts"
+          git commit -m "docs(wickhunter): persist post-repair checkpoint"
           git pull --rebase origin fix/wickhunter-1396-synology-recovery-v2
           git push origin HEAD:fix/wickhunter-1396-synology-recovery-v2

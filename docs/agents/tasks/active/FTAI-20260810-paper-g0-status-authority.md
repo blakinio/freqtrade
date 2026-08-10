@@ -15,6 +15,7 @@ continuation_policy: continue_until_real_stop
 base_branch: develop
 trusted_base_sha: 5a19ae32f1f71b112130ea66cb8d56d9a3e44049
 delivery_branch: feat/paper-g0-status-authority-20260810
+delivery_pr: 1449
 paper_gate: G0
 live_capital_authorized: false
 protected_production_deployment_authorized: false
@@ -41,10 +42,10 @@ Implement G0 work item 5 from `PAPER_PLATFORM_IMPLEMENTATION_PLAN.md`: establish
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-10T19:47:00Z
-head: ac861dec3e75312ce8a83c5fb22ac8432af56daf
+updated_at: 2026-08-10T19:49:00Z
+head: 0c392ddd6d1c775f435712840c80795815e907e7
 branch: feat/paper-g0-status-authority-20260810
-pr: none
+pr: 1449
 status: validating
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
@@ -68,13 +69,13 @@ proven:
   - The authority sidecar classifies architecture, living implementation truth, GitHub Issue ownership and every legacy #1101 status surface separately.
   - UI_DELIVERY_STATUS retains its legacy marker for #1101 compatibility and adds an explicit living-ledger current-authority marker.
   - A network-free tests/ci guard checks authority roles, sidecar linkage, legacy path classification, legacy snapshot SHA and human safety/supersession markers.
-  - Issue 1101 remains closed completed and was not reopened or rewritten.
+  - PR 1449 is the single delivery PR for this bounded G0 package and contains six declared changed paths.
 derived:
   - The candidate promotes the newer living exact-head evidence model without falsifying the older completed #1101 snapshot.
   - No runtime, browser, deployment or trading behavior is modified.
 unknown:
-  - Fresh independent review findings on the successor head created by this checkpoint.
-  - Exact-head CI result on the successor head.
+  - Fresh independent review findings on the successor exact head created by this checkpoint.
+  - Exact-head CI result on the successor exact head.
 conflicts:
   - none found with PR 1447 or 1448 changed paths
 first_failure:
@@ -92,6 +93,9 @@ changed_paths:
   - tests/ci/test_portal_status_authority.py
   - docs/agents/tasks/active/FTAI-20260810-paper-g0-status-authority.md
 validation:
+  - command: branch compare against develop@5a19ae32f1f71b112130ea66cb8d56d9a3e44049
+    result: PASS
+    evidence: ahead by 8, behind by 0, exactly six declared changed paths before PR-bound checkpoint successor
   - command: implementer static falsification of authority graph and compatibility markers
     result: PASS
     evidence: living ledger remains v2/living_exact_head_gate; historical snapshot remains unchanged; UI retains legacy marker and adds living marker
@@ -100,5 +104,5 @@ validation:
     evidence: status/governance-only package; no product runtime or browser behavior changes
 blockers:
   - none
-next_action: Open the bounded G0 status-authority PR from the checkpoint successor, request fresh Codex review, and collect the first exact-head CI observation while other independent PAPER work may continue under the owner-authorized continuous programme mode.
+next_action: Resolve PR 1449 successor exact head, request fresh Codex review and collect the first bounded exact-head CI observation; remediate only a material owned finding or prepare same-PR task archival after all gates are clear.
 ```

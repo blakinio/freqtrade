@@ -198,8 +198,8 @@ The already-completed historical run `liquid20-20260810T000000Z-1` still require
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-10T23:32:54+02:00
-head: 8f03d6966e700412dd19d4062bbd322a971780c0
+updated_at: 2026-08-10T23:44:34+02:00
+head: df6e78deed357f24b64f6b9020534cecec12f9cb
 branch: fix/wickhunter-1396-synology-recovery-v2
 pr: 1450
 status: validating
@@ -233,6 +233,7 @@ proven:
   - durable-state repair now flushes and fsyncs every open NDJSON writer before persisting state containing events_written and safely skips closed writers during stop and rotation
   - exact focused validation passed on head 2c3cb8387c22e3fb3864abeea312aa79476c84b1 with seven restart-durability tests plus Ruff check format and producer-consumer contract assertions
   - full ci:full compatibility testing exposed a stale legacy migration fixture that declared configured zero-row Bybit and Binance sources without their regular empty files; the fixture now models the valid historical contract without weakening production fail-closed behavior
+  - malformed active source state missing events_written now fails closed before any source truncation; no default zero commit boundary is accepted
 derived:
   - after the permanent producer fix is integrated a guarded repair of only the already completed inconsistent history should allow WH09 to recover naturally without weakening fail-closed behavior
 unknown:
@@ -276,8 +277,11 @@ validation:
   - command: Focused restart and legacy OKX migration fixture validation
     result: PASS
     evidence: GitHub Actions run 31434035985 job 93603982630 passed 14 focused integration tests plus Ruff check and format before the bookkeeping-only failure
+  - command: Explicit events_written commit-boundary regression validation
+    result: PASS
+    evidence: GitHub Actions run 31435151788 passed 15 focused restart and legacy migration tests Ruff check format compile and diff hygiene
 blockers: []
-next_action: Run retained ci:full exact-head CI and a fresh independent Codex review on the final four-path permanent diff, then squash-merge PR 1450 and continue the authorized protected Liquid20 recovery chain.
+next_action: Run retained ci:full exact-head CI plus a fresh independent Codex review with zero material findings, then squash-merge PR 1450 and continue protected Liquid20 recovery.
 ```
 
 ## Recovery checkpoint
@@ -285,7 +289,7 @@ next_action: Run retained ci:full exact-head CI and a fresh independent Codex re
 ```yaml
 recovery:
   policy_version: 1
-  generation: 7
+  generation: 8
   session_id: 2026-08-10T21:37+02:00
   session_started_at: 2026-08-10T21:37:00+02:00
   checkpointed_at: 2026-08-10T23:08:00+02:00

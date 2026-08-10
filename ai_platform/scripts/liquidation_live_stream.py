@@ -318,7 +318,9 @@ class LiveRunManager:
             source_state = sources[source]
             if not isinstance(source_state, dict):
                 raise RuntimeError(f"previous {source} source state is invalid")
-            committed_rows = source_state.get("events_written", 0)
+            if "events_written" not in source_state:
+                raise RuntimeError(f"previous {source} events_written is missing")
+            committed_rows = source_state["events_written"]
             allow_missing = (
                 source_state.get("configured") is not True
                 and source_state.get("last_event_received_at_ms") is None

@@ -201,9 +201,9 @@ def test_old_disabled_okx_live_state_migrates_to_new_active_run(tmp_path: Path) 
         "trading_authorized": False,
         "trading_credentials_present": False,
         "sources": {
-            BYBIT_SOURCE: {"configured": True},
-            BINANCE_SOURCE: {"configured": True},
-            OKX_SOURCE: {"configured": False},
+            BYBIT_SOURCE: {"configured": True, "events_written": 0},
+            BINANCE_SOURCE: {"configured": True, "events_written": 0},
+            OKX_SOURCE: {"configured": False, "events_written": 0},
         },
     }
     (old_root / "run-state-v1.json").write_text(json.dumps(old_state), encoding="utf-8")

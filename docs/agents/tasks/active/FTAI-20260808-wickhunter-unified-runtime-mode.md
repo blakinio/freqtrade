@@ -20,7 +20,7 @@ run_scope: autonomous_program
 continuation_policy: continue_until_real_stop
 task_completion_policy: finalize_archive_and_continue
 implementation_authorized: true
-status: repairing
+status: validating
 base_branch: develop
 trusted_base_sha: 5a19ae32f1f71b112130ea66cb8d56d9a3e44049
 branch: fix/wickhunter-1396-synology-recovery-v2
@@ -198,48 +198,75 @@ The already-completed historical run `liquid20-20260810T000000Z-1` still require
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-10T22:02:00+02:00
-status: repairing
+updated_at: 2026-08-10T22:16:00+02:00
+head: 1bb288c9e7f4f8b858b5cdd3054f8d09b27ab61a
 branch: fix/wickhunter-1396-synology-recovery-v2
-exact_head_before_this_checkpoint: bf9927579032538a5b53bb09fde8332207b96d35
-issue: 1396
-related_prs:
-  - 1397: merged
-  - 1388: merged
-  - 1436: merged
-  - 1443: closed_unmerged_obsolete_broad_cleanup
+pr: 1450
+status: validating
+context_routes:
+  - docs/agents/PROMPTING_STANDARD.md
+  - docs/agents/PROMPTING_HANDOVER.md
+  - docs/agents/DELIVERY_COMPLETENESS_AND_CLOSEOUT.md
+  - docs/agents/ANTI_STALL_AND_EXECUTION_BUDGET.md
+  - ai_platform/scripts/liquidation_live_stream.py
+  - tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+  - Issue #1396 and PR #1450
+owned_paths:
+  - ai_platform/scripts/liquidation_live_stream.py
+  - tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+  - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
+  - .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
 proven:
-  - all three WickHunter implementation/consumer PRs are merged
-  - exactly one expected WH09 exists, remains running and was not restarted by diagnostics
-  - WH09 zero-authority invariants remain intact
-  - WH09 fails closed on an exact Liquid20 completed-history row-count contradiction
-  - Liquid20 current active pointer, source freshness, mount readability and zero-authority state are healthy
-  - only completed restart run liquid20-20260810T000000Z-1 is inconsistent in the relevant history window
-  - binance-usdm has exactly 5 durable rows beyond committed events_written
-  - bybit-linear has exactly 1 durable row beyond committed events_written
-  - production restart finalization did not seal uncommitted NDJSON suffixes to the persisted boundary
-  - permanent producer repair and focused regression tests are committed on the recovery branch
+  - PRs 1397 1388 and 1436 are merged and PR 1443 remains closed unmerged
+  - WH09 remains the single expected H900 SHADOW container with zero trading authority
+  - WH09 exact cycle failure is Liquid20 source events binance-usdm contradicts events_written
+  - current Liquid20 active pointer sources and mount readability are fresh and internally consistent
+  - completed restart run liquid20-20260810T000000Z-1 is the only relevant row-count inconsistency isolated by the read-only audit
+  - binance-usdm has five durable rows beyond persisted events_written in that completed restart run
+  - bybit-linear has one durable row beyond persisted events_written in that completed restart run
+  - production restart finalization did not seal durable NDJSON suffixes to the persisted commit boundary
+  - producer repair seals to events_written before historical finalization and fails closed on missing committed rows
+  - dangling source symlinks are rejected before the zero-row missing-file shortcut
+  - focused restart durability regression coverage passes after the review repair
+derived:
+  - after the permanent producer fix is integrated a guarded repair of only the already completed inconsistent history should allow WH09 to recover naturally without weakening fail-closed behavior
 unknown:
-  - focused CI result for the permanent producer repair
-  - PR/final CI/audit result for the repair
-  - post-merge canonical Liquid20 deployment result
-  - guarded repair result for the already-completed historical run
-  - whether WH09 naturally returns healthy after the upstream data repair
-  - whether Portal BuildKit failure remains after WH09 recovery
-  - terminal post-merge Portal adoption/API/browser result
+  - final exact-head PR 1450 standard CI result after temporary workflow removal
+  - canonical post-merge Liquid20 Synology deployment result
+  - guarded completed-history repair result on the Synology runtime
+  - whether WH09 returns healthy naturally with two consecutive successful generation advances after upstream repair
+  - whether the prior Portal BuildKit context failure recurs after WH09 recovery
+  - terminal Portal adoption API browser persistence and desired-observed generation result
+  - final independent audit exact-head CI archive and Issue closure result
 conflicts: []
+first_failure:
+  marker: LIQUID20_RESTART_COMMIT_BOUNDARY_MISMATCH
+  evidence: run 31425261462 exposed the exact WH09 error and run 31425883292 isolated the completed restart run with plus five Binance rows and plus one Bybit row beyond persisted commit counts
+rejected_hypotheses:
+  - the current WH09 blocker is the earlier Portal BuildKit failure
+  - current Liquid20 pointer freshness or active run state is stale or inconsistent
+  - WH09 has stopped running or restarted
+  - weakening WH09 completed-history row-count validation is an acceptable repair
+changed_paths:
+  - ai_platform/scripts/liquidation_live_stream.py
+  - tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+  - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
+  - .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
 validation:
-  - run: 31425261462
-    job: 93575331867
-    result: PASS_READ_ONLY_ROOT_CAUSE
-  - run: 31425883292
-    job: 93577345378
-    result: PASS_READ_ONLY_INTEGRITY_ISOLATION
-counters:
-  repair_cycles_for_current_gate: 1
-  identical_failure_retries: 0
-  unchanged_state_checks: 0
-next_action: Validate the permanent Liquid20 restart-sealing repair and focused regression tests on the exact branch head, then open/reconcile the repair PR before any live data mutation.
+  - command: Read-only WH09 root-cause diagnostic
+    result: PASS
+    evidence: GitHub Actions run 31425261462 job 93575331867
+  - command: Read-only Liquid20 integrity isolation
+    result: PASS
+    evidence: GitHub Actions run 31425883292 job 93577345378
+  - command: Focused restart durability pytest before review repair
+    result: PASS
+    evidence: run 31427098950 job 93581282842 reported two passing tests before the later lint-only failure
+  - command: Dangling symlink fail-closed review repair workflow
+    result: PASS
+    evidence: GitHub Actions run 31427855045 job 93583737395 completed source repair lint format and focused regression validation
+blockers: []
+next_action: Complete PR 1450 exact-head validation and review, remove the temporary recovery workflow, merge only when gates pass, then observe canonical Liquid20 deployment before applying the single guarded completed-history commit-boundary repair through the protected Synology environment.
 ```
 
 ## Recovery checkpoint

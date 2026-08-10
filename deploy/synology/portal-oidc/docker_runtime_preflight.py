@@ -49,9 +49,7 @@ def _ensure_probe_image() -> None:
 
 def _cleanup_probe(name: str, *, required: bool = False) -> None:
     try:
-        result = _run(
-            ["docker", "rm", "-f", name], timeout=PROBE_REMOVE_TIMEOUT_SECONDS
-        )
+        result = _run(["docker", "rm", "-f", name], timeout=PROBE_REMOVE_TIMEOUT_SECONDS)
     except PreflightError as exc:
         if required:
             raise PreflightError(

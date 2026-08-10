@@ -19,7 +19,7 @@ def _finding_identity(finding: object) -> tuple[int, str]:
     assert isinstance(finding, dict)
     issue = finding.get("issue")
     finding_id = finding.get("id")
-    assert isinstance(issue, int) and issue > 0
+    assert type(issue) is int and issue > 0
     assert isinstance(finding_id, str) and finding_id
     return issue, finding_id
 

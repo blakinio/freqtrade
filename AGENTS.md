@@ -47,6 +47,7 @@ The repository, current Git state, active pull requests, CI results, and files i
 
 - Any temporary container or other Docker resource created by an agent or task must be uniquely attributable to that task through a deterministic name and/or ownership labels.
 - The task that creates a temporary Docker resource owns its cleanup. Remove task-owned temporary Docker resources as soon as they are no longer required, including failure and cancellation paths when automation supports unconditional cleanup such as `if: always()` or shell traps.
+- One-shot cleanup automation must itself be lifecycle-bounded. A temporary cleanup workflow or script committed solely for an operational cleanup must be constrained to a single authorized invocation and removed or disabled immediately after use; never leave destructive cleanup on a general push or recurring trigger.
 - Cleanup must be bounded to resources proven to belong to the current task. Never use broad destructive cleanup such as `docker system prune`, `docker container prune`, or equivalent host-wide pruning on shared Synology, CI, staging, or production hosts.
 - Do not remove persistent/shared deployment containers, databases, runners, portal/control-plane services, bot runtimes, evidence stores, volumes, images, or networks merely because they are stopped or old. Removal requires explicit task scope plus evidence that the exact resource is obsolete.
 - If ownership or continued use is uncertain, leave the resource in place and record it as unresolved instead of deleting it.

@@ -1,0 +1,118 @@
+name: Portal WickHunter New Run FD Lifecycle Repair v6
+
+"on":
+  push:
+    branches:
+      - fix/wickhunter-1396-synology-recovery-v2
+    paths:
+      - .github/workflows/portal-wickhunter-new-run-fd-recovery-v6.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: fix/wickhunter-1396-synology-recovery-v2
+          fetch-depth: 20
+      - name: Normalize generator delimiters and apply patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64
+          import re
+          from pathlib import Path
+          source = Path('.github/workflows/portal-wickhunter-new-run-fd-recovery-v2.yml').read_text(encoding='utf-8')
+          match = re.search(r"printf '%s' '([^']+)' \| base64 -d", source, re.S)
+          if match is None:
+              raise SystemExit('payload not found')
+          payload = base64.b64decode(''.join(match.group(1).split()), validate=True).decode('utf-8')
+          lines = payload.splitlines()
+          for i, line in enumerate(lines):
+              if line.strip() == "''":
+                  lines[i] = line[:-2] + "'''"
+              else:
+                  lines[i] = re.sub(r"^([A-Za-z_][A-Za-z0-9_]* = )''(?=\s)", r"\1'''", line)
+          payload = '\n'.join(lines) + '\n'
+          compile(payload, '/tmp/patch-retained-fd.py', 'exec')
+          Path('/tmp/patch-retained-fd.py').write_text(payload, encoding='utf-8')
+          PY
+          python3 /tmp/patch-retained-fd.py
+      - name: Install validation dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check -r requirements.txt
+          python3 -m pip install --disable-pip-version-check pytest==9.1.1 ruff==0.15.21
+      - name: Validate semantic repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m ruff format ai_platform/scripts/liquidation_live_stream.py ai_platform/scripts/liquidation_live_stream_okx.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python3 -m py_compile ai_platform/scripts/liquidation_live_stream.py ai_platform/scripts/liquidation_live_stream_okx.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python3 -m pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python3 -m ruff check ai_platform/scripts/liquidation_live_stream.py ai_platform/scripts/liquidation_live_stream_okx.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python3 -m ruff format --check ai_platform/scripts/liquidation_live_stream.py ai_platform/scripts/liquidation_live_stream_okx.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          git diff --check
+      - name: Update checkpoint and remove temporary workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import subprocess
+          from datetime import datetime
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+          task = Path('docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md')
+          text = task.read_text(encoding='utf-8')
+          prefix = '## Context checkpoint\n\n```yaml\n'
+          suffix = '\n```\n\n## Recovery checkpoint'
+          start = text.index(prefix) + len(prefix)
+          end = text.index(suffix, start)
+          cp = text[start:end]
+          head = subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip()
+          now = datetime.now(ZoneInfo('Europe/Warsaw')).replace(microsecond=0).isoformat()
+          rows = cp.splitlines()
+          for i, line in enumerate(rows):
+              if line.startswith('updated_at:'): rows[i] = f'updated_at: {now}'
+              elif line.startswith('head:'): rows[i] = f'head: {head}'
+          cp = '\n'.join(rows)
+          if '  - ai_platform/scripts/liquidation_live_stream_okx.py\n' not in cp:
+              cp = cp.replace('changed_paths:\n','changed_paths:\n  - ai_platform/scripts/liquidation_live_stream_okx.py\n',1)
+          validation = (
+              '  - command: Retained FD lifecycle new-run TOCTOU validation\n'
+              '    result: PASS\n'
+              f"    evidence: GitHub Actions run {os.environ['GITHUB_RUN_ID']} passed focused restart and OKX tests Ruff check format compile checkpoint and diff hygiene\n"
+          )
+          if 'Retained FD lifecycle new-run TOCTOU validation' not in cp:
+              cp = cp.replace('blockers: []\n', validation + 'blockers: []\n', 1)
+          rows = cp.splitlines()
+          for i, line in enumerate(rows):
+              if line.startswith('next_action:'):
+                  rows[i] = 'next_action: Reconcile latest develop then run final retained exact-head CI and fresh Codex audit, squash-merge PR 1450, and continue protected Liquid20 recovery.'
+                  break
+          text = text[:start] + '\n'.join(rows) + text[end:]
+          text = text.replace('  generation: 12\n','  generation: 13\n',1)
+          task.write_text(text, encoding='utf-8')
+          PY
+          python3 tools/agents/checkpoint.py docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md --require-checkpoint
+          for path in .github/workflows/portal-wickhunter-new-run-fd-recovery.yml .github/workflows/portal-wickhunter-new-run-fd-recovery-v2.yml .github/workflows/portal-wickhunter-new-run-fd-recovery-v3.yml .github/workflows/portal-wickhunter-new-run-fd-recovery-v4.yml .github/workflows/portal-wickhunter-new-run-fd-recovery-v5.yml .github/workflows/portal-wickhunter-new-run-fd-recovery-v6.yml .github/workflows/portal-wickhunter-new-run-fd-validate.yml .github/workflows/portal-wickhunter-retained-fd-payload-diagnostic.yml; do
+            [ ! -e "$path" ] || git rm "$path"
+          done
+          git diff --check
+      - name: Commit permanent repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m 'fix(liquidations): retain directory FDs through live run lifecycle'
+          git pull --rebase origin fix/wickhunter-1396-synology-recovery-v2
+          git push origin HEAD:fix/wickhunter-1396-synology-recovery-v2

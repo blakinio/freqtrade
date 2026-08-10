@@ -1,4 +1,4 @@
-name: Portal WickHunter Repo-Only Durability Repair V2
+name: Portal WickHunter Repo-Only Durability Repair V3
 
 "on":
   push:
@@ -11,12 +11,12 @@ permissions:
   contents: write
 
 concurrency:
-  group: portal-wickhunter-1396-repo-only-durability-repair-v2
+  group: portal-wickhunter-1396-repo-only-durability-repair-v3
   cancel-in-progress: false
 
 jobs:
   repair:
-    name: Patch repository durability invariant with exact matcher
+    name: Patch repository durability invariant yaml-safe
     runs-on:
       - freqtrade-staging
     timeout-minutes: 8
@@ -37,68 +37,67 @@ jobs:
           source = Path("ai_platform/scripts/liquidation_live_stream.py")
           text = source.read_text(encoding="utf-8")
 
-          old_close = (
-              "    def close(self) -> None:\n"
-              "        if not self._handle.closed:\n"
-              "            self.flush()\n"
-              "            self._handle.close()\n"
-          )
-          new_close = (
-              "    @property\n"
-              "    def closed(self) -> bool:\n"
-              "        return self._handle.closed\n"
-              "\n"
-              "    def close(self) -> None:\n"
-              "        if not self.closed:\n"
-              "            self.flush()\n"
-              "            self._handle.close()\n"
-          )
+          old_close = "".join((
+              "    def close(self) -> None:\n",
+              "        if not self._handle.closed:\n",
+              "            self.flush()\n",
+              "            self._handle.close()\n",
+          ))
+          new_close = "".join((
+              "    @property\n",
+              "    def closed(self) -> bool:\n",
+              "        return self._handle.closed\n",
+              "\n",
+              "    def close(self) -> None:\n",
+              "        if not self.closed:\n",
+              "            self.flush()\n",
+              "            self._handle.close()\n",
+          ))
           if "    def closed(self) -> bool:\n" not in text:
               if text.count(old_close) != 1:
                   raise SystemExit("unexpected exact writer close block")
               text = text.replace(old_close, new_close, 1)
 
-          old_heartbeat = (
-              "    async def heartbeat(self) -> None:\n"
-              "        async with self._lock:\n"
-              "            self._rotate_if_needed(self._now_ms())\n"
-              "            for writer in self._writers.values():\n"
-              "                await asyncio.to_thread(writer.flush)\n"
-              "            await asyncio.to_thread(self._write_state)\n"
-          )
-          new_heartbeat = (
-              "    async def heartbeat(self) -> None:\n"
-              "        async with self._lock:\n"
-              "            self._rotate_if_needed(self._now_ms())\n"
-              "            await asyncio.to_thread(self._write_state)\n"
-          )
+          old_heartbeat = "".join((
+              "    async def heartbeat(self) -> None:\n",
+              "        async with self._lock:\n",
+              "            self._rotate_if_needed(self._now_ms())\n",
+              "            for writer in self._writers.values():\n",
+              "                await asyncio.to_thread(writer.flush)\n",
+              "            await asyncio.to_thread(self._write_state)\n",
+          ))
+          new_heartbeat = "".join((
+              "    async def heartbeat(self) -> None:\n",
+              "        async with self._lock:\n",
+              "            self._rotate_if_needed(self._now_ms())\n",
+              "            await asyncio.to_thread(self._write_state)\n",
+          ))
           if old_heartbeat in text:
               if text.count(old_heartbeat) != 1:
                   raise SystemExit("unexpected exact heartbeat block")
               text = text.replace(old_heartbeat, new_heartbeat, 1)
 
-          old_write_state = (
-              "    def _write_state(self) -> None:\n"
-              "        payload = self._state_payload()\n"
-          )
-          new_write_state = (
-              "    def _write_state(self) -> None:\n"
-              "        for writer in self._writers.values():\n"
-              "            if not writer.closed:\n"
-              "                writer.flush()\n"
-              "        payload = self._state_payload()\n"
-          )
+          old_write_state = "".join((
+              "    def _write_state(self) -> None:\n",
+              "        payload = self._state_payload()\n",
+          ))
+          new_write_state = "".join((
+              "    def _write_state(self) -> None:\n",
+              "        for writer in self._writers.values():\n",
+              "            if not writer.closed:\n",
+              "                writer.flush()\n",
+              "        payload = self._state_payload()\n",
+          ))
           if "            if not writer.closed:\n" not in text:
               if text.count(old_write_state) != 1:
                   raise SystemExit("unexpected exact state writer block")
               text = text.replace(old_write_state, new_write_state, 1)
 
-          required = (
+          if not all(marker in text for marker in (
               "    def closed(self) -> bool:\n",
               "            if not writer.closed:\n",
               "                writer.flush()\n",
-          )
-          if not all(marker in text for marker in required):
+          )):
               raise SystemExit("durability source invariant is incomplete")
           source.write_text(text, encoding="utf-8")
 
@@ -109,33 +108,38 @@ jobs:
               marker = "\n\ndef test_restart_truncates_only_uncommitted_suffix_before_completion("
               if test_text.count(marker) != 1:
                   raise SystemExit("unexpected exact durability test marker")
-              addition = '''
-
-
-def test_state_commit_flushes_pending_ndjson_before_events_written(tmp_path: Path) -> None:
-    manager = OkxLiveRunManager(
-        data_root=tmp_path,
-        collector_commit="8" * 40,
-        host_id="synology-test",
-        now_ms=lambda: 1_786_384_683_792,
-        flush_interval_seconds=3600.0,
-    )
-    asyncio.run(manager.start())
-    writer = manager._writers[BINANCE_SOURCE]
-    writer._handle.write("{}\\n")
-    writer._pending = 1
-    manager.sources[BINANCE_SOURCE].events_written = 1
-
-    manager._write_state()
-
-    assert writer._pending == 0
-    assert (manager.run_root / f"{BINANCE_SOURCE}.ndjson").read_bytes() == b"{}\\n"
-    state = json.loads(
-        (manager.run_root / "run-state-v1.json").read_text(encoding="utf-8")
-    )
-    assert state["sources"][BINANCE_SOURCE]["events_written"] == 1
-    asyncio.run(manager.stop())
-'''
+              lines = [
+                  "",
+                  "",
+                  "def test_state_commit_flushes_pending_ndjson_before_events_written(tmp_path: Path) -> None:",
+                  "    manager = OkxLiveRunManager(",
+                  "        data_root=tmp_path,",
+                  "        collector_commit=\"8\" * 40,",
+                  "        host_id=\"synology-test\",",
+                  "        now_ms=lambda: 1_786_384_683_792,",
+                  "        flush_interval_seconds=3600.0,",
+                  "    )",
+                  "",
+                  "    async def scenario() -> None:",
+                  "        await manager.start()",
+                  "        writer = manager._writers[BINANCE_SOURCE]",
+                  "        writer._handle.write(\"{}\\\\n\")",
+                  "        writer._pending = 1",
+                  "        manager.sources[BINANCE_SOURCE].events_written = 1",
+                  "",
+                  "        manager._write_state()",
+                  "",
+                  "        assert writer._pending == 0",
+                  "        assert (manager.run_root / f\"{BINANCE_SOURCE}.ndjson\").read_bytes() == b\"{}\\\\n\"",
+                  "        state = json.loads(",
+                  "            (manager.run_root / \"run-state-v1.json\").read_text(encoding=\"utf-8\")",
+                  "        )",
+                  "        assert state[\"sources\"][BINANCE_SOURCE][\"events_written\"] == 1",
+                  "        await manager.stop()",
+                  "",
+                  "    asyncio.run(scenario())",
+              ]
+              addition = "\n".join(lines)
               test_text = test_text.replace(marker, addition + marker, 1)
               test.write_text(test_text, encoding="utf-8")
           PY
@@ -143,9 +147,6 @@ def test_state_commit_flushes_pending_ndjson_before_events_written(tmp_path: Pat
             ai_platform/scripts/liquidation_live_stream.py \
             tests/ai_platform_integration/test_liquidation_live_restart_durability.py
           git diff --check
-          git diff -- \
-            ai_platform/scripts/liquidation_live_stream.py \
-            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
 
       - name: Commit exact repository patch
         shell: bash

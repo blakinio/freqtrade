@@ -1,0 +1,83 @@
+name: Portal WickHunter BuildKit Cache Recovery
+
+"on":
+  push:
+    branches:
+      - fix/wickhunter-1396-synology-recovery-v2
+    paths:
+      - .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portal-wickhunter-buildkit-cache-recovery
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    name: Recover bounded Synology BuildKit cache
+    runs-on:
+      - freqtrade-staging
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact recovery head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Verify WH09 remains healthy and capture identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t ids < <(
+            docker ps -aq --no-trunc \
+              --filter 'label=com.docker.compose.project=wickhunter-production-research-runtime' \
+              --filter 'label=com.docker.compose.service=wickhunter-production-research-runtime' \
+              | sed '/^$/d'
+          )
+          [[ ${#ids[@]} -eq 1 ]]
+          [[ "$(docker inspect --format '{{.State.Running}}' "${ids[0]}")" == 'true' ]]
+          [[ "$(docker inspect --format '{{.State.Health.Status}}' "${ids[0]}")" == 'healthy' ]]
+          echo "WH09_CONTAINER_ID=${ids[0]}" >> "$GITHUB_ENV"
+
+      - name: Prove Docker runtime before recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 deploy/synology/portal-oidc/docker_runtime_preflight.py
+
+      - name: Prune only BuildKit build cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker builder prune --all --force
+
+      - name: Prove BuildKit context transfer after recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          probe_dir="$RUNNER_TEMP/wickhunter-buildkit-probe"
+          rm -rf "$probe_dir"
+          mkdir -p "$probe_dir"
+          printf '%s\n' 'probe' > "$probe_dir/probe.txt"
+          cat > "$probe_dir/Dockerfile" <<'EOF'
+          FROM python:3.13.14-slim-bookworm@sha256:9d7f287598e1a5a978c015ee176d8216435aaf335ed69ac3c38dd1bbb10e8d64
+          COPY probe.txt /probe.txt
+          RUN test "$(cat /probe.txt)" = probe
+          EOF
+          tag="local/wickhunter-buildkit-probe:${GITHUB_RUN_ID}"
+          timeout --signal=TERM --kill-after=15s 8m \
+            docker build --pull=false --file "$probe_dir/Dockerfile" --tag "$tag" "$probe_dir"
+          docker image rm --force "$tag" >/dev/null
+          rm -rf "$probe_dir"
+
+      - name: Re-verify unchanged WH09
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "${WH09_CONTAINER_ID:-}" ]]
+          [[ "$(docker inspect --format '{{.State.Running}}' "$WH09_CONTAINER_ID")" == 'true' ]]
+          [[ "$(docker inspect --format '{{.State.Health.Status}}' "$WH09_CONTAINER_ID")" == 'healthy' ]]

@@ -3,11 +3,27 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-AUTHORITY_PATH = REPO_ROOT / "tools" / "portal_audit" / "ledger" / "status_authority.json"
+AUTHORITY_PATH = (
+    REPO_ROOT / "tools" / "portal_audit" / "ledger" / "status_authority.json"
+)
 LIVING_INDEX_PATH = REPO_ROOT / "tools" / "portal_audit" / "ledger" / "index.json"
-LEGACY_LEDGER_PATH = REPO_ROOT / "docs" / "ai_platform" / "portal" / "FEATURE_COMPLETENESS_LEDGER.json"
-AUTHORITY_DOC_PATH = REPO_ROOT / "docs" / "ai_platform" / "portal" / "IMPLEMENTATION_STATUS_AUTHORITY.md"
-UI_STATUS_PATH = REPO_ROOT / "docs" / "ai_platform" / "portal" / "UI_DELIVERY_STATUS.md"
+LEGACY_LEDGER_PATH = (
+    REPO_ROOT
+    / "docs"
+    / "ai_platform"
+    / "portal"
+    / "FEATURE_COMPLETENESS_LEDGER.json"
+)
+AUTHORITY_DOC_PATH = (
+    REPO_ROOT
+    / "docs"
+    / "ai_platform"
+    / "portal"
+    / "IMPLEMENTATION_STATUS_AUTHORITY.md"
+)
+UI_STATUS_PATH = (
+    REPO_ROOT / "docs" / "ai_platform" / "portal" / "UI_DELIVERY_STATUS.md"
+)
 
 EXPECTED_LEGACY_STATUS_PATHS = {
     "docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.json",
@@ -69,8 +85,14 @@ def test_all_legacy_status_surfaces_are_classified_and_non_authoritative() -> No
     assert len(entries) == len(legacy_surfaces)
     assert EXPECTED_LEGACY_STATUS_PATHS.issubset(entries)
     assert LIVING_AUTHORITY_PATH not in entries
-    assert all(entry.get("role") != "exact_head_implementation_inventory" for entry in entries.values())
-    assert all(entry.get("superseded_by") == LIVING_AUTHORITY_PATH for entry in entries.values())
+    assert all(
+        entry.get("role") != "exact_head_implementation_inventory"
+        for entry in entries.values()
+    )
+    assert all(
+        entry.get("superseded_by") == LIVING_AUTHORITY_PATH
+        for entry in entries.values()
+    )
     assert all((REPO_ROOT / path).exists() for path in entries)
 
 
@@ -109,7 +131,10 @@ def test_human_status_contract_declares_supersession_and_safety_boundary() -> No
     ):
         assert marker in authority_doc
 
-    assert "<!-- portal-status-authority: FEATURE_COMPLETENESS_LEDGER.json -->" in ui_status
+    assert (
+        "<!-- portal-status-authority: FEATURE_COMPLETENESS_LEDGER.json -->"
+        in ui_status
+    )
     assert (
         "<!-- portal-current-status-authority: tools/portal_audit/ledger/index.json -->"
         in ui_status

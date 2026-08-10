@@ -12,10 +12,10 @@ permissions:
   contents: read
 
 jobs:
-  verify:
-    name: Restore existing containers and verify exact Portal preflight
+  diagnostic:
+    name: Inspect Docker Btrfs metadata and attributable image pressure
     runs-on: [freqtrade-staging]
-    timeout-minutes: 12
+    timeout-minutes: 10
     steps:
       - name: Refuse trading credential environment
         shell: bash
@@ -25,103 +25,94 @@ jobs:
             test -z "${!name:-}" || { echo "recognized trading credential present: $name" >&2; exit 1; }
           done
 
-      - name: Restore exact pre-restart containers that still exist
-        id: restore
+      - name: Collect Docker inventory
         shell: bash
         env:
-          RESULT: ${{ runner.temp }}/synology-1089-container-restore.txt
+          REPORT: ${{ runner.temp }}/synology-1089-docker-inventory.txt
         run: |
-          set -u
-          set +e
-          : > "$RESULT"
-          failures=0
-          for name in \
-            wickhunter-production-research-runtime-wickhunter-production-research-runtime-1 \
-            freqtrade-portal-postgresql \
-            wickhunter-paper-runtime-v12
-          do
-            exists="$(timeout 10 docker inspect --format '{{.State.Status}}' "$name" 2>/dev/null || true)"
-            echo "before_${name}=${exists:-missing}" >> "$RESULT"
-            if [[ -n "$exists" && "$exists" != running ]]; then
-              started=$(date +%s)
-              timeout --kill-after=5 120 docker start "$name" >> "$RESULT" 2>&1
-              rc=$?
-              ended=$(date +%s)
-              printf 'start_%s_rc=%s\nstart_%s_elapsed_seconds=%s\n' "$name" "$rc" "$name" "$((ended-started))" | tee -a "$RESULT"
-              [[ "$rc" -eq 0 ]] || failures=$((failures+1))
-            fi
-            state="$(timeout 10 docker inspect --format '{{.State.Status}}' "$name" 2>/dev/null || true)"
-            echo "after_${name}=${state:-missing}" | tee -a "$RESULT"
-            [[ "$state" == running ]] || failures=$((failures+1))
-          done
-          missing_name='wickhunter-wh09-egress-v12'
-          missing_state="$(timeout 10 docker inspect --format '{{.State.Status}}' "$missing_name" 2>/dev/null || true)"
-          echo "after_${missing_name}=${missing_state:-missing}" | tee -a "$RESULT"
-          echo "restore_failures=$failures" | tee -a "$RESULT"
-          [[ "$failures" -eq 0 ]]
+          set -euo pipefail
+          {
+            echo '===== docker info ====='
+            timeout 30 docker info --format 'ServerVersion={{.ServerVersion}} StorageDriver={{.Driver}} DockerRootDir={{.DockerRootDir}} Containers={{.Containers}} ContainersRunning={{.ContainersRunning}} ContainersStopped={{.ContainersStopped}} Images={{.Images}} DriverStatus={{json .DriverStatus}}'
+            echo '===== system df ====='
+            timeout 60 docker system df || true
+            echo '===== used image ids ====='
+            for cid in $(timeout 20 docker ps -aq); do timeout 10 docker inspect --format '{{.Image}}' "$cid" 2>/dev/null || true; done | sort -u
+            echo '===== attributable project images ====='
+            timeout 30 docker image ls --no-trunc --format '{{.ID}}\t{{.Repository}}\t{{.Tag}}\t{{.CreatedSince}}' | grep -Ei 'freqtrade|portal|wickhunter|quant' || true
+            echo '===== dangling images ====='
+            timeout 30 docker image ls --filter dangling=true --no-trunc --format '{{.ID}}\t{{.Repository}}\t{{.Tag}}\t{{.CreatedSince}}' || true
+            echo '===== wh09 egress ====='
+            timeout 20 docker inspect --format 'name={{.Name}} status={{.State.Status}} exit={{.State.ExitCode}} restart={{.HostConfig.RestartPolicy.Name}} image={{.Config.Image}} started={{.State.StartedAt}} finished={{.State.FinishedAt}}' wickhunter-wh09-egress-v12 2>/dev/null || true
+          } > "$REPORT" 2>&1
 
-      - name: Verify exact protected preflight twice
-        id: preflight
+      - name: Prepare SSH client
         shell: bash
         env:
-          RESULT: ${{ runner.temp }}/synology-1089-exact-preflight.txt
+          SSH_HOST: ${{ secrets.SYNOLOGY_SSH_HOST }}
+          SSH_PORT: ${{ secrets.SYNOLOGY_SSH_PORT }}
+          SSH_USER: ${{ secrets.SYNOLOGY_SSH_USER || vars.SYNOLOGY_SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SYNOLOGY_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SYNOLOGY_SSH_KNOWN_HOSTS }}
+          SSH_DIR: ${{ runner.temp }}/ssh-1089
         run: |
-          set -u
-          set +e
-          : > "$RESULT"
-          image='docker.io/library/postgres:16.13-alpine3.23@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777'
-          failures=0
-          for attempt in 1 2; do
-            probe="portal-oidc-exact-${GITHUB_RUN_ID}-${attempt}"
-            timeout 20 docker rm -f "$probe" >/dev/null 2>&1 || true
-            started=$(date +%s)
-            timeout --kill-after=5 20 docker run --rm --name "$probe" --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true --entrypoint /bin/true "$image" >> "$RESULT" 2>&1
-            rc=$?
-            ended=$(date +%s)
-            printf 'exact_preflight_%s_rc=%s\nexact_preflight_%s_elapsed_seconds=%s\n' "$attempt" "$rc" "$attempt" "$((ended-started))" | tee -a "$RESULT"
-            [[ "$rc" -eq 0 ]] || failures=$((failures+1))
-            timeout 20 docker rm -f "$probe" >/dev/null 2>&1 || true
-            sleep 3
-          done
-          timeout 15 docker version >/dev/null 2>&1
-          post_rc=$?
-          echo "post_docker_version_rc=$post_rc" | tee -a "$RESULT"
-          [[ "$post_rc" -eq 0 ]] || failures=$((failures+1))
-          leaks="$(timeout 15 docker ps -a --format '{{.Names}}' 2>/dev/null | grep -E '^portal-oidc-exact-' || true)"
-          [[ -z "$leaks" ]] || failures=$((failures+1))
-          echo "preflight_leaks=$([ -z "$leaks" ] && echo none || echo present)" | tee -a "$RESULT"
-          echo "preflight_failures=$failures" | tee -a "$RESULT"
-          [[ "$failures" -eq 0 ]]
+          set -euo pipefail
+          for name in SSH_HOST SSH_PORT SSH_USER SSH_PRIVATE_KEY SSH_KNOWN_HOSTS; do test -n "${!name:-}" || exit 2; done
+          install -d -m 0700 "$SSH_DIR"
+          umask 077
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$SSH_DIR/id"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"
+          chmod 0600 "$SSH_DIR/id" "$SSH_DIR/known_hosts"
 
-      - name: Upload recovery evidence
+      - name: Collect Btrfs metadata evidence
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SYNOLOGY_SSH_HOST }}
+          SSH_PORT: ${{ secrets.SYNOLOGY_SSH_PORT }}
+          SSH_USER: ${{ secrets.SYNOLOGY_SSH_USER || vars.SYNOLOGY_SSH_USER }}
+          SSH_DIR: ${{ runner.temp }}/ssh-1089
+          REPORT: ${{ runner.temp }}/synology-1089-btrfs-metadata.txt
+        run: |
+          set -euo pipefail
+          ssh_opts=(-i "$SSH_DIR/id" -p "$SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$SSH_DIR/known_hosts" -o ConnectTimeout=10 -o LogLevel=ERROR)
+          timeout 180 ssh "${ssh_opts[@]}" "$SSH_USER@$SSH_HOST" 'sh -s' > "$REPORT" 2>&1 <<'REMOTE'
+          set -u
+          echo '===== volume1 filesystem usage ====='
+          timeout 60 sudo -n /sbin/btrfs filesystem usage -T /volume1 2>&1 || true
+          echo '===== volume1 filesystem df ====='
+          timeout 30 sudo -n /sbin/btrfs filesystem df /volume1 2>&1 || true
+          echo '===== volume1 balance status ====='
+          timeout 30 sudo -n /sbin/btrfs balance status /volume1 2>&1 || true
+          echo '===== volume1 scrub status ====='
+          timeout 30 sudo -n /sbin/btrfs scrub status /volume1 2>&1 || true
+          echo '===== docker subvolume count ====='
+          timeout 90 sudo -n /sbin/btrfs subvolume list -o /volume1/@docker 2>/dev/null | wc -l || true
+          echo '===== qgroup summary ====='
+          timeout 30 sudo -n /sbin/btrfs qgroup show /volume1 2>&1 | head -n 40 || true
+          echo '===== pressure ====='
+          cat /proc/loadavg
+          cat /proc/pressure/io 2>/dev/null || true
+          command -v iostat >/dev/null 2>&1 && timeout 15 iostat -xz 1 2 || true
+          REMOTE
+
+      - name: Upload metadata evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: synology-1089-restored-preflight-${{ github.run_id }}-${{ github.run_attempt }}
+          name: synology-1089-btrfs-metadata-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            ${{ runner.temp }}/synology-1089-container-restore.txt
-            ${{ runner.temp }}/synology-1089-exact-preflight.txt
+            ${{ runner.temp }}/synology-1089-docker-inventory.txt
+            ${{ runner.temp }}/synology-1089-btrfs-metadata.txt
           if-no-files-found: error
           retention-days: 14
 
-      - name: Publish summary
+      - name: Cleanup
         if: always()
         shell: bash
         env:
-          RESTORE: ${{ runner.temp }}/synology-1089-container-restore.txt
-          PREFLIGHT: ${{ runner.temp }}/synology-1089-exact-preflight.txt
+          SSH_DIR: ${{ runner.temp }}/ssh-1089
+          DOCKER_REPORT: ${{ runner.temp }}/synology-1089-docker-inventory.txt
+          BTRFS_REPORT: ${{ runner.temp }}/synology-1089-btrfs-metadata.txt
         run: |
-          {
-            echo '## Synology #1089 post-restart restore + exact preflight'
-            echo
-            [[ -f "$RESTORE" ]] && grep -E '^(after_|start_|restore_failures=)' "$RESTORE" | sed 's/^/- /' || true
-            [[ -f "$PREFLIGHT" ]] && grep -E '^(exact_preflight_[12]_(rc|elapsed_seconds)|post_docker_version_rc|preflight_leaks|preflight_failures)=' "$PREFLIGHT" | sed 's/^/- /' || true
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Cleanup local evidence
-        if: always()
-        shell: bash
-        env:
-          RESTORE: ${{ runner.temp }}/synology-1089-container-restore.txt
-          PREFLIGHT: ${{ runner.temp }}/synology-1089-exact-preflight.txt
-        run: rm -f -- "$RESTORE" "$PREFLIGHT"
+          rm -rf -- "$SSH_DIR"
+          rm -f -- "$DOCKER_REPORT" "$BTRFS_REPORT"

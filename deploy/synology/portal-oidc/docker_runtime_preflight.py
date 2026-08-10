@@ -11,8 +11,11 @@ POSTGRES_IMAGE = (
     "docker.io/library/postgres:16.13-alpine3.23@sha256:"
     "57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777"
 )
-PROBE_TIMEOUT_SECONDS = 20
 DOCKER_QUERY_TIMEOUT_SECONDS = 10
+PROBE_CREATE_TIMEOUT_SECONDS = 180
+PROBE_START_TIMEOUT_SECONDS = 180
+PROBE_WAIT_TIMEOUT_SECONDS = 120
+PROBE_REMOVE_TIMEOUT_SECONDS = 60
 
 
 class PreflightError(RuntimeError):
@@ -44,11 +47,32 @@ def _ensure_probe_image() -> None:
         raise PreflightError("pinned Docker runtime probe image is unavailable")
 
 
-def _cleanup_probe(name: str) -> None:
+def _cleanup_probe(name: str, *, required: bool = False) -> None:
     try:
-        _run(["docker", "rm", "-f", name], timeout=DOCKER_QUERY_TIMEOUT_SECONDS)
-    except PreflightError:
-        pass
+        result = _run(["docker", "rm", "-f", name], timeout=PROBE_REMOVE_TIMEOUT_SECONDS)
+    except PreflightError as exc:
+        if required:
+            raise PreflightError(
+                "Docker daemon cannot remove the disposable container within the bounded timeout"
+            ) from exc
+        return
+    if required and result.returncode != 0:
+        raise PreflightError("Docker daemon cannot remove the disposable container")
+
+
+def _run_probe_stage(
+    stage: str, command: list[str], *, timeout: int
+) -> subprocess.CompletedProcess[str]:
+    try:
+        result = _run(command, timeout=timeout)
+    except PreflightError as exc:
+        raise PreflightError(
+            f"Docker daemon cannot {stage} a disposable container within the bounded timeout; "
+            "recover Synology Container Manager before deployment"
+        ) from exc
+    if result.returncode != 0:
+        raise PreflightError(f"Docker daemon cannot {stage} a disposable container")
+    return result
 
 
 def check_runtime() -> dict[str, object]:
@@ -62,12 +86,14 @@ def check_runtime() -> dict[str, object]:
     _ensure_probe_image()
     name = f"portal-oidc-runtime-preflight-{os.getpid()}"
     _cleanup_probe(name)
+    created = False
+    probe_error: PreflightError | None = None
     try:
-        probe = _run(
+        _run_probe_stage(
+            "create",
             [
                 "docker",
-                "run",
-                "--rm",
+                "create",
                 "--name",
                 name,
                 "--network",
@@ -81,20 +107,31 @@ def check_runtime() -> dict[str, object]:
                 "/bin/true",
                 POSTGRES_IMAGE,
             ],
-            timeout=PROBE_TIMEOUT_SECONDS,
+            timeout=PROBE_CREATE_TIMEOUT_SECONDS,
         )
-        if probe.returncode != 0:
-            raise PreflightError("Docker daemon cannot start a disposable container")
+        created = True
+        _run_probe_stage(
+            "start",
+            ["docker", "start", name],
+            timeout=PROBE_START_TIMEOUT_SECONDS,
+        )
+        wait = _run_probe_stage(
+            "wait for",
+            ["docker", "wait", name],
+            timeout=PROBE_WAIT_TIMEOUT_SECONDS,
+        )
+        if wait.stdout.strip() != "0":
+            raise PreflightError("disposable Docker runtime probe exited non-zero")
     except PreflightError as exc:
-        _cleanup_probe(name)
-        if "timed out" in str(exc):
-            raise PreflightError(
-                "Docker daemon cannot start a disposable container within the bounded timeout; "
-                "recover Synology Container Manager before deployment"
-            ) from exc
-        raise
+        probe_error = exc
     finally:
-        _cleanup_probe(name)
+        try:
+            _cleanup_probe(name, required=created)
+        except PreflightError as cleanup_exc:
+            if probe_error is None:
+                probe_error = cleanup_exc
+    if probe_error is not None:
+        raise probe_error
 
     return {
         "status": "ready",

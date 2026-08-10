@@ -1,7 +1,7 @@
 # Mandatory Agent Bootstrap
 
 ```yaml
-agent_bootstrap_policy_revision: 2.5
+agent_bootstrap_policy_revision: 2.4
 ```
 
 This root bootstrap may be loaded automatically by Codex or another agent runtime. It supplements and never weakens system, developer, owner, repository-allowlist, safety, production, credential, data, payment, authentication, protocol, asset, live-capital, deployment, merge, or cross-repository restrictions.
@@ -53,7 +53,7 @@ Final required exact-head CI, branch-protection completion and the resulting mer
 
 Auto-merge availability is not required. When repository auto-merge is unavailable, the owner invocation may remain active under the same bounded exception and perform a direct squash merge only after every repository-required check passes on the exact unchanged head. Force, bypass and administrative override remain forbidden.
 
-The active task at invocation entry, or the first selected `READY` task when none is active, is the entry task. Required post-merge archive closeout and ownership release remain part of that same entry task. By default, after it becomes fully terminal, at most one additional task may be started in the same invocation, and only when at least 30 minutes remains and no stall warning occurred. A trusted explicit owner instruction or a programme contract already present on the trusted base may enable the bounded `continuous_program_execution` override defined in `docs/agents/ANTI_STALL_AND_EXECUTION_BUDGET.md`; while that override is active, the fixed one-additional-task count does not apply, but every wall-clock, no-progress, exact-SHA observation, retry/repair, dependency, ownership, audit, E2E, merge and authority boundary still applies.
+The active task at invocation entry, or the first selected `READY` task when none is active, is the entry task. Required post-merge archive closeout and ownership release remain part of that same entry task. After it becomes fully terminal, at most one additional task may be started in the same invocation, and only when at least 30 minutes remains and no stall warning occurred.
 
 Budget exhaustion, ordinary no-progress, retry-limit exhaustion, unchanged pending ordinary state, exhausted terminal-CI limits, or an unsafe context/tool limit is a real stop condition. Persist exact durable state and return the correct invocation result.
 
@@ -61,7 +61,7 @@ Budget exhaustion, ordinary no-progress, retry-limit exhaustion, unchanged pendi
 
 Before the first deliberate sleep, delayed recheck, terminal-CI wait, runner job, or long-running command, persist the recovery checkpoint required by `SESSION_RECOVERY_AND_ORPHANED_EXECUTION.md`.
 
-A replacement or continuation session must read that checkpoint first, verify live ownership and state, then immediately execute the recorded safe `next_action`. It must preserve the original wait start, deadline, check generation, run IDs, and counters instead of restarting the task or resetting budgets. In particular, ordinary CI and unchanged-state observation counters remain keyed to the task and exact commit SHA across later owner/replacement invocations; a fresh invocation runtime budget does not create fresh same-SHA polling allowance. Only a genuinely new exact commit SHA reopens those ordinary per-head counters.
+A replacement or continuation session must read that checkpoint first, verify live ownership and state, then immediately execute the recorded safe `next_action`. It must preserve the original wait start, deadline, check generation, run IDs, and counters instead of restarting the task or resetting budgets.
 
 For Chat replacement specifically, preserve only the compact durable working set needed by `CHAT_FIRST_EXECUTION.md`; do not replay the previous conversation, resolved hypotheses, obsolete heads, or large evidence when durable references are sufficient.
 

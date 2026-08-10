@@ -14,158 +14,175 @@ feature_scope:
   frontend_required: true
   integration_required: true
   e2e_required: true
-  completion_claim: partial_producer
+  completion_claim: complete_feature
 execution_mode: chat_github_actions
 run_scope: autonomous_program
 continuation_policy: continue_until_real_stop
-task_completion_policy: checkpoint_and_handover
+task_completion_policy: finalize_archive_and_continue
 implementation_authorized: true
 status: validating
 base_branch: develop
-trusted_base_sha: 3f60af82000cac47baa0a3a4302603eb1522363f
-branch: feat/wickhunter-unified-runtime-mode-1396
+trusted_base_sha: 2a9bee4895981f0a2b7f7f08e0e1d2d2e2ad646a
+branch: fix/wickhunter-1396-synology-recovery-v2
 related_issue: 1396
-related_pr: 1397
-depends_on_issue: 1357
-depends_on_pr: 1388
+producer_pr: 1397
+runtime_generation_pr: 1388
+portal_adoption_pr: 1436
 live_capital_authorized: false
 trading_credentials_authorized: false
 real_order_adapter_authorized: false
 real_exchange_execution_authorized: false
+wh09_redeploy_authorized: false
 ```
 
 ## Objective
 
-Implement the first conflict-free producer slice for Issue #1396: one canonical WickHunter runtime-mode contract that reuses the existing `BotMode` domain and safely resolves `SHADOW`, `PAPER`, and `LIVE_BLOCKED` without creating a second RuntimeGeneration authority.
+Terminally close Issue #1396 by proving the already-merged unified WickHunter runtime-mode implementation through the real Synology Portal adoption path, without replacing or restarting WH09 and without expanding trading authority.
 
-This slice deliberately avoids every Portal/runtime-generation path currently owned by PR #1388. Full Portal selection, immutable RuntimeGeneration binding, desired/observed mode truth and browser E2E remain mandatory consumers after #1388 lands or exposes a stable integration seam.
+## Canonical semantics
 
-## Frozen semantics
-
-- `SHADOW`: market observation, inference, decision/evidence journaling; no exchange execution authority.
-- `PAPER`: simulated positions/execution evidence only; no real exchange credentials, no real order adapter, no exchange orders, no live capital.
-- `LIVE_BLOCKED`: never executable under this task. Validation must fail closed.
-- A platform capability for PAPER does not make every candidate/model PAPER-eligible. Eligibility is explicit immutable input and an ineligible PAPER request must fail closed with a machine-readable reason.
-- Mode changes are generation material. No API in this slice may mutate a running mode in place.
+- `SHADOW`: real/current market observation, inference and evidence only; zero exchange-order authority.
+- `PAPER`: simulator/paper lifecycle only and only with explicit immutable eligibility/authorization evidence.
+- `LIVE_BLOCKED`: non-executable under current authority.
+- Mode is immutable RuntimeGeneration/config material; transitions require explicit generation rollout/reconciliation.
+- The accepted WH09 H900 runtime remains SHADOW with `no_trade_confidence=0.60` until a separate PAPER eligibility gate exists.
 
 ## Acceptance inventory
 
-- `A1`: reuse canonical `BotMode`; do not create a competing WickHunter mode enum.
-- `A2`: provide an immutable/versioned runtime-mode request/policy contract suitable for later inclusion in normalized bot config and RuntimeGeneration digest material.
-- `A3`: resolve SHADOW to zero-authority observation capabilities.
-- `A4`: resolve PAPER only when explicit PAPER eligibility/authorization evidence is present; otherwise reject fail-closed.
-- `A5`: resolve PAPER to simulator/paper capabilities with zero real-trading authority.
-- `A6`: reject `LIVE_BLOCKED` and `RESEARCH` as managed executable trading runtime modes in this product path.
-- `A7`: expose stable machine-readable rejection reason codes.
-- `A8`: prove canonical serialization/digest changes when mode or eligibility identity changes.
-- `A9`: focused tests prove SHADOW, eligible PAPER, ineligible/malformed PAPER, LIVE/RESEARCH rejection, reconstruction/type invariants and zero-authority invariants.
-- `A10`: do not modify paths owned by PR #1388; document the consumer handoff needed for full Portal/runtime-generation/browser completion.
+- `A1`: canonical `BotMode` is reused; no competing mode enum or runtime authority exists.
+- `A2`: SHADOW and PAPER are capabilities of one WickHunter runtime product, not separate bot installations.
+- `A3`: mode and PAPER eligibility are immutable digest/generation material.
+- `A4`: PAPER requires explicit eligibility and fails closed when absent, false or malformed.
+- `A5`: LIVE remains blocked and cannot become executable under this task.
+- `A6`: desired and observed RuntimeGeneration/mode truth do not converge before exact reconciliation.
+- `A7`: start/restart/rollback semantics remain generation-exact.
+- `A8`: focused tests cover SHADOW, PAPER eligible/ineligible, LIVE rejection, save-without-rollout, rollout and rollback/restart.
+- `A9`: authenticated browser/API integration proves the existing Bots surface consumes canonical runtime truth.
+- `A10`: real Synology post-merge E2E proves exactly one unchanged WH09 runtime, H900/SHADOW, healthy evidence, desired==observed generation, zero credentials, zero order adapter, execution disabled, orders submitted zero and live capital false.
 
-## Owned paths for this slice
+## Delivered repository state
+
+- PR #1397 merged at `f46d10e30302b7310fe2a6e235c2ca05a0281a0a`: canonical WickHunter SHADOW/PAPER/LIVE_BLOCKED producer contract.
+- PR #1388 merged at `4e947ccd20e87d2a9f6a334509208a4845efc0a5`: canonical RuntimeGeneration/rollout authority.
+- PR #1436 merged at `978621fb358885dbf3c85d1bf837af9270678241`: Portal adoption, runtime evidence API and Bots-page consumer.
+- PR #1436 exact-head CI and authenticated browser/API-mode E2E passed before merge; fresh audit had zero material findings and unresolved review threads were zero.
+- Issue #1396 was deliberately reopened after merge because required real post-merge Synology adoption evidence had not reached PASS.
+
+## Post-merge failure evidence
+
+### Attempt 1
 
 ```yaml
-owned_paths:
-  - ai_platform/wickhunter/runtime_mode.py
-  - tests/ai_platform/test_wickhunter_runtime_mode.py
-  - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
+workflow: Portal WickHunter WH09 Adoption
+run: 31386104997
+job: 93446771029
+result: FAILURE
+first_failure: Synology Docker runtime preflight could not start a disposable container
+wh09_changed: false
 ```
 
-## Producer result
+### Attempt 2
 
-The bounded producer contract now provides:
-
-- canonical `BotMode` reuse rather than another mode enum;
-- immutable `ManagedRuntimeModeRequest` with canonical request digest;
-- immutable `RuntimeModeResolution` with canonical resolution digest;
-- SHADOW capability resolution with zero real-trading authority;
-- PAPER capability resolution only with positive, typed boolean authorization plus immutable authorization/candidate identity material;
-- direct reconstruction guards requiring a real `BotMode`, requiring a PAPER authorization digest for PAPER and forbidding it for SHADOW;
-- raw string modes such as `"paper"` / `"shadow"` fail closed instead of relying on `StrEnum` equality;
-- reconstructed capability and zero-authority fields require exact boolean values, and `orders_submitted` requires an actual integer zero rather than merely falsey/equal values;
-- stable fail-closed reasons for missing, negative or malformed PAPER eligibility, LIVE-blocked requests, RESEARCH requests and unsupported mode/schema state;
-- explicit `orders_submitted=0`, no credentials, no real order adapter, no real exchange execution, no live capital and no automatic promotion in every successful managed resolution.
-
-The current WH09 H900 deployment is not made PAPER-eligible by this producer. It remains SHADOW until its own PAPER eligibility/authorization evidence exists.
-
-## Required consumer after #1357 / PR #1388
-
-The canonical Portal integration must bind this mode contract into:
-
-```text
-BotConfigRevision
-  -> normalized runtime config digest
-  -> RuntimeGeneration
-  -> explicit rollout
-  -> observed generation reconciliation
+```yaml
+workflow: Portal WickHunter WH09 Adoption
+run: 31386104997
+job: 93455371701
+result: FAILURE
+preflight: PASS
+wh09_identity: ebb3bc5151c6041cc557395f77b3001230f881bc39c2e9a5c4789fcd920e3b37
+wh09_health: healthy
+first_failure: Docker BuildKit failed while loading/copying the Portal control-plane build context
+portal_deployed: false
+adoption_started: false
+wh09_changed: false
 ```
 
-The UI may offer SHADOW and PAPER only according to server-provided eligibility. LIVE remains visibly unavailable until a separate live-capital authorization package exists.
+The second failure changed the causal hypothesis from general Docker-daemon unavailability to stale/corrupt BuildKit build-cache/context state on the shared Synology runner. Broad container/image cleanup is rejected because it could affect unrelated workloads.
+
+## Recovery strategy
+
+The only authorized recovery mutation before another adoption retry is a bounded BuildKit-cache repair that:
+
+1. proves the exact existing WH09 container is still running and healthy;
+2. proves disposable Docker runtime health;
+3. prunes only Docker builder cache, not containers, volumes or project images;
+4. proves BuildKit context transfer with a disposable digest-pinned probe image;
+5. removes only the disposable probe image;
+6. re-verifies the same WH09 container remains healthy and unchanged.
+
+After recovery PASS, rerun the original authorized post-merge adoption workflow `31386104997`. Do not create or deploy a replacement WH09 runtime.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-09T00:18:00+02:00
-head: UNKNOWN
-branch: feat/wickhunter-unified-runtime-mode-1396
-pr: 1397
+updated_at: 2026-08-10T20:41:00+02:00
 status: validating
+branch: fix/wickhunter-1396-synology-recovery-v2
+head_at_recovery_start: ab5bc86489d82a4d7ae798b097c6b747277b30e6
+issue: 1396
+related_prs:
+  - 1397: merged
+  - 1388: merged
+  - 1436: merged
+  - 1443: closed_unmerged_obsolete_broad_cleanup
 context_routes:
+  - AGENTS.md
+  - AGENTS.override.md
+  - docs/agents/AGENTS.md
   - docs/agents/PROMPTING_STANDARD.md
   - docs/agents/PROMPTING_HANDOVER.md
+  - docs/agents/DELIVERY_COMPLETENESS_AND_CLOSEOUT.md
+  - docs/agents/ANTI_STALL_AND_EXECUTION_BUDGET.md
+  - docs/agents/GITHUB_ONLY_EXECUTION.md
   - docs/agents/AUTONOMOUS_PROGRAM_CONTINUATION.md
-  - ai_platform/wickhunter/runtime_mode.py
-  - tests/ai_platform/test_wickhunter_runtime_mode.py
-  - PR #1388 canonical RuntimeGeneration consumer
-owned_paths:
-  - ai_platform/wickhunter/runtime_mode.py
-  - tests/ai_platform/test_wickhunter_runtime_mode.py
-  - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
 proven:
-  - canonical WickHunter BotMode is reused for SHADOW PAPER RESEARCH and LIVE_BLOCKED
-  - SHADOW resolves with exact zero real-trading authority
-  - PAPER requires typed positive authorization plus immutable authorization and candidate identity
-  - malformed truthy PAPER authorization fails closed
-  - reconstructed PAPER requires authorization identity and SHADOW forbids it
-  - raw string runtime modes fail closed instead of relying on StrEnum equality
-  - reconstructed zero-authority booleans and orders_submitted require exact canonical types
-  - LIVE_BLOCKED and RESEARCH fail closed for this managed runtime path
-  - canonical request and resolution digests bind mode and PAPER authorization identity
-  - producer code before the latest type-hardening passed Freqtrade component CodeQL and zizmor gates
-  - PR #1388 owns Portal RuntimeGeneration and rollout paths and this producer does not fork that authority
-derived:
-  - the producer can be consumed as immutable generation material after canonical RuntimeGeneration integration
+  - producer PR 1397 merged
+  - canonical RuntimeGeneration PR 1388 merged
+  - Portal adoption PR 1436 merged
+  - premerge exact-head CI and authenticated browser E2E passed
+  - WH09 remained exactly one healthy container through both failed postmerge attempts
+  - WH09 container identity before recovery is ebb3bc5151c6041cc557395f77b3001230f881bc39c2e9a5c4789fcd920e3b37
+  - second adoption attempt passed Docker runtime preflight and failed specifically in BuildKit control-plane image build
+  - no Portal deployment or WH09 adoption occurred after that build failure
 unknown:
-  - final Portal mode selector and desired versus observed mode binding until PR #1388 consumer integration is completed
+  - whether bounded BuildKit cache recovery will restore context transfer
+  - terminal postmerge Portal deployment/adoption/API persistence result
 conflicts: []
-first_failure:
-  marker: FINAL_REVIEW_P2_EXACT_ZERO_AUTHORITY_TYPES_AND_CHECKPOINT_CONTRACT
-  evidence: Codex terminal review on aa1608b584d3d8daa945b865b4fae37a12b6aa68 identified falsey noncanonical authority values and an invalid custom checkpoint schema
-rejected_hypotheses:
-  - truthiness or equality is sufficient to prove canonical zero-authority field types
-  - a custom checkpoint_version 3 record is acceptable to the repository checkpoint parser
-changed_paths:
-  - ai_platform/wickhunter/runtime_mode.py
-  - tests/ai_platform/test_wickhunter_runtime_mode.py
-  - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
 validation:
-  - command: Freqtrade CI on 137cac48e03f78e349793361153e12507bd7e544
+  - run: 31420369456
+    workflow: Portal WickHunter BuildKit Cache Recovery
+    result: IN_PROGRESS
+counters:
+  repair_cycles_for_current_gate: 1
+  identical_failure_retries: 0
+  unchanged_state_checks: 0
+blockers: []
+next_action: When BuildKit recovery run 31420369456 reaches a terminal state, inspect it once; on PASS rerun failed adoption workflow run 31386104997, otherwise isolate the first new failure before any further heavy retry.
+```
+
+## Terminal closeout requirements
+
+Do not set `status: completed` until all are true:
+
+```yaml
+closeout:
+  implementation_complete: true
+  vertical_slice_complete: true
+  audit:
     result: PASS
-    evidence: run 31280734057
-  - command: Risk-aware AI Platform component CI on 137cac48e03f78e349793361153e12507bd7e544
+    material_findings_open: 0
+  e2e:
     result: PASS
-    evidence: run 31280734172 including tests lint format codespell and sensitive-data scan
-  - command: CodeQL on 137cac48e03f78e349793361153e12507bd7e544
+    required_real_synology_adoption: true
+  final_ci:
     result: PASS
-    evidence: run 31280708632
-  - command: zizmor on 137cac48e03f78e349793361153e12507bd7e544
-    result: PASS
-    evidence: run 31280708686
-  - command: exact final head CI after zero-authority type hardening and checkpoint repair
-    result: NOT_RUN
-    evidence: resolve PR #1397 live head after this documentation successor and require all applicable gates before merge
-blockers:
-  - full stack Portal completion depends on canonical RuntimeGeneration consumer PR #1388
-  - producer merge requires fresh exact-final-head CI and independent review with no material P1 or P2
-next_action: Resolve PR #1397 live head after this checkpoint commit, run exact-final-head CI and independent review, merge the producer only when all applicable gates pass, then integrate it into PR #1388 rather than creating a parallel RuntimeGeneration authority.
+    exact_head_required: true
+  pull_requests:
+    open_related_prs: 0
+    unresolved_review_threads: 0
+  issue_1396: closed_completed
+  task_archived: true
+  ownership_released: true
+  stale_recovery_branch_reconciled: true
 ```

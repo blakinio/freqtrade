@@ -1,0 +1,110 @@
+name: Portal WickHunter Restart FD Anchoring Finalization
+
+"on":
+  push:
+    branches:
+      - fix/wickhunter-1396-synology-recovery-v2
+    paths:
+      - .github/workflows/portal-wickhunter-buildkit-cache-recovery-v2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    name: Finalize descriptor-anchored restart sealing
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout recovery branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: fix/wickhunter-1396-synology-recovery-v2
+          fetch-depth: 20
+
+      - name: Apply low-complexity descriptor repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64
+          from pathlib import Path
+          block_b64 = "ZGVmIF9zZWN1cmVfZGlyZWN0b3J5X2ZsYWdzKCkgLT4gaW50OgogICAgZGlyZWN0b3J5X2ZsYWcgPSBnZXRhdHRyKG9zLCAiT19ESVJFQ1RPUlkiLCBOb25lKQogICAgbm9mb2xsb3dfZmxhZyA9IGdldGF0dHIob3MsICJPX05PRk9MTE9XIiwgTm9uZSkKICAgIGlmIGRpcmVjdG9yeV9mbGFnIGlzIE5vbmUgb3Igbm9mb2xsb3dfZmxhZyBpcyBOb25lOgogICAgICAgIHJhaXNlIFJ1bnRpbWVFcnJvcigic2VjdXJlIExpcXVpZDIwIHJlc3RhcnQgZmlsZXN5c3RlbSB0cmF2ZXJzYWwgaXMgdW5zdXBwb3J0ZWQiKQogICAgcmV0dXJuIG9zLk9fUkRPTkxZIHwgZGlyZWN0b3J5X2ZsYWcgfCBub2ZvbGxvd19mbGFnIHwgZ2V0YXR0cihvcywgIk9fQ0xPRVhFQyIsIDApCgoKZGVmIF9vcGVuX3Jlc3RhcnRfcnVuX3Jvb3RfZmQoZGF0YV9yb290OiBQYXRoLCBydW5faWQ6IHN0cikgLT4gaW50IHwgTm9uZToKICAgIGZsYWdzID0gX3NlY3VyZV9kaXJlY3RvcnlfZmxhZ3MoKQogICAgb3BlbmVkOiBsaXN0W2ludF0gPSBbXQogICAgdHJ5OgogICAgICAgIGN1cnJlbnRfZmQgPSBvcy5vcGVuKGRhdGFfcm9vdCwgZmxhZ3MpCiAgICAgICAgb3BlbmVkLmFwcGVuZChjdXJyZW50X2ZkKQogICAgICAgIGlmIG5vdCBzdGF0LlNfSVNESVIob3MuZnN0YXQoY3VycmVudF9mZCkuc3RfbW9kZSk6CiAgICAgICAgICAgIHJhaXNlIFJ1bnRpbWVFcnJvcigiTGlxdWlkMjAgZGF0YSByb290IGlzIG5vdCBhIHJlZ3VsYXIgZGlyZWN0b3J5IikKICAgICAgICBmb3IgY29tcG9uZW50IGluICgibGl2ZSIsICJydW5zIiwgcnVuX2lkKToKICAgICAgICAgICAgY3VycmVudF9mZCA9IG9zLm9wZW4oY29tcG9uZW50LCBmbGFncywgZGlyX2ZkPWN1cnJlbnRfZmQpCiAgICAgICAgICAgIG9wZW5lZC5hcHBlbmQoY3VycmVudF9mZCkKICAgICAgICAgICAgaWYgbm90IHN0YXQuU19JU0RJUihvcy5mc3RhdChjdXJyZW50X2ZkKS5zdF9tb2RlKToKICAgICAgICAgICAgICAgIHJhaXNlIFJ1bnRpbWVFcnJvcigicHJldmlvdXMgbGl2ZSBydW4gcm9vdCBpcyBub3QgYSByZWd1bGFyIGRpcmVjdG9yeSIpCiAgICAgICAgcmV0dXJuIG9wZW5lZC5wb3AoKQogICAgZXhjZXB0IEZpbGVOb3RGb3VuZEVycm9yOgogICAgICAgIHJldHVybiBOb25lCiAgICBleGNlcHQgT1NFcnJvciBhcyBleGM6CiAgICAgICAgcmFpc2UgUnVudGltZUVycm9yKCJwcmV2aW91cyBsaXZlIHJ1biByb290IGlzIG5vdCBhIHJlZ3VsYXIgZGlyZWN0b3J5IikgZnJvbSBleGMKICAgIGZpbmFsbHk6CiAgICAgICAgZm9yIGRlc2NyaXB0b3IgaW4gcmV2ZXJzZWQob3BlbmVkKToKICAgICAgICAgICAgb3MuY2xvc2UoZGVzY3JpcHRvcikKCgpkZWYgX3JlYWRfanNvbl9yZWd1bGFyX2F0KGRpcmVjdG9yeV9mZDogaW50LCBmaWxlX25hbWU6IHN0cikgLT4gZGljdFtzdHIsIG9iamVjdF0gfCBOb25lOgogICAgbm9mb2xsb3dfZmxhZyA9IGdldGF0dHIob3MsICJPX05PRk9MTE9XIiwgTm9uZSkKICAgIGlmIG5vZm9sbG93X2ZsYWcgaXMgTm9uZToKICAgICAgICByYWlzZSBSdW50aW1lRXJyb3IoInNlY3VyZSBMaXF1aWQyMCByZXN0YXJ0IGZpbGUgYWNjZXNzIGlzIHVuc3VwcG9ydGVkIikKICAgIHRyeToKICAgICAgICBkZXNjcmlwdG9yID0gb3Mub3BlbigKICAgICAgICAgICAgZmlsZV9uYW1lLAogICAgICAgICAgICBvcy5PX1JET05MWSB8IG5vZm9sbG93X2ZsYWcgfCBnZXRhdHRyKG9zLCAiT19DTE9FWEVDIiwgMCksCiAgICAgICAgICAgIGRpcl9mZD1kaXJlY3RvcnlfZmQsCiAgICAgICAgKQogICAgZXhjZXB0IEZpbGVOb3RGb3VuZEVycm9yOgogICAgICAgIHJldHVybiBOb25lCiAgICBleGNlcHQgT1NFcnJvciBhcyBleGM6CiAgICAgICAgcmFpc2UgUnVudGltZUVycm9yKCJwcmV2aW91cyBsaXZlIHN0YXRlIHBhdGggaXMgbm90IGEgcmVndWxhciBmaWxlIikgZnJvbSBleGMKICAgIGl0ZW0gPSBvcy5mc3RhdChkZXNjcmlwdG9yKQogICAgaWYgbm90IHN0YXQuU19JU1JFRyhpdGVtLnN0X21vZGUpOgogICAgICAgIG9zLmNsb3NlKGRlc2NyaXB0b3IpCiAgICAgICAgcmFpc2UgUnVudGltZUVycm9yKCJwcmV2aW91cyBsaXZlIHN0YXRlIHBhdGggaXMgbm90IGEgcmVndWxhciBmaWxlIikKICAgIHdpdGggb3MuZmRvcGVuKGRlc2NyaXB0b3IsICJyIiwgZW5jb2Rpbmc9InV0Zi04IikgYXMgaGFuZGxlOgogICAgICAgIHBheWxvYWQgPSBqc29uLmxvYWQoaGFuZGxlKQogICAgaWYgbm90IGlzaW5zdGFuY2UocGF5bG9hZCwgZGljdCk6CiAgICAgICAgcmFpc2UgVHlwZUVycm9yKCJwcmV2aW91cyBsaXZlIHN0YXRlIGlzIGludmFsaWQiKQogICAgcmV0dXJuIHBheWxvYWQKCgpkZWYgX3dyaXRlX2pzb25fYXRvbWljX2F0KAogICAgZGlyZWN0b3J5X2ZkOiBpbnQsIGZpbGVfbmFtZTogc3RyLCBwYXlsb2FkOiBkaWN0W3N0ciwgb2JqZWN0XQopIC0+IE5vbmU6CiAgICBub2ZvbGxvd19mbGFnID0gZ2V0YXR0cihvcywgIk9fTk9GT0xMT1ciLCBOb25lKQogICAgaWYgbm9mb2xsb3dfZmxhZyBpcyBOb25lOgogICAgICAgIHJhaXNlIFJ1bnRpbWVFcnJvcigic2VjdXJlIExpcXVpZDIwIHJlc3RhcnQgZmlsZSBhY2Nlc3MgaXMgdW5zdXBwb3J0ZWQiKQogICAgdGVtcG9yYXJ5X25hbWUgPSBmIi57ZmlsZV9uYW1lfS57b3MuZ2V0cGlkKCl9Lnt0aW1lLnRpbWVfbnMoKX0udG1wIgogICAgZGVzY3JpcHRvciA9IC0xCiAgICB0cnk6CiAgICAgICAgZGVzY3JpcHRvciA9IG9zLm9wZW4oCiAgICAgICAgICAgIHRlbXBvcmFyeV9uYW1lLAogICAgICAgICAgICBvcy5PX1dST05MWQogICAgICAgICAgICB8IG9zLk9fQ1JFQVQKICAgICAgICAgICAgfCBvcy5PX0VYQ0wKICAgICAgICAgICAgfCBub2ZvbGxvd19mbGFnCiAgICAgICAgICAgIHwgZ2V0YXR0cihvcywgIk9fQ0xPRVhFQyIsIDApLAogICAgICAgICAgICAwbzYwMCwKICAgICAgICAgICAgZGlyX2ZkPWRpcmVjdG9yeV9mZCwKICAgICAgICApCiAgICAgICAgd2l0aCBvcy5mZG9wZW4oZGVzY3JpcHRvciwgInciLCBlbmNvZGluZz0idXRmLTgiKSBhcyBoYW5kbGU6CiAgICAgICAgICAgIGRlc2NyaXB0b3IgPSAtMQogICAgICAgICAgICBqc29uLmR1bXAocGF5bG9hZCwgaGFuZGxlLCBpbmRlbnQ9Miwgc29ydF9rZXlzPVRydWUpCiAgICAgICAgICAgIGhhbmRsZS53cml0ZSgiXG4iKQogICAgICAgICAgICBoYW5kbGUuZmx1c2goKQogICAgICAgICAgICBvcy5mc3luYyhoYW5kbGUuZmlsZW5vKCkpCiAgICAgICAgb3MucmVwbGFjZSgKICAgICAgICAgICAgdGVtcG9yYXJ5X25hbWUsCiAgICAgICAgICAgIGZpbGVfbmFtZSwKICAgICAgICAgICAgc3JjX2Rpcl9mZD1kaXJlY3RvcnlfZmQsCiAgICAgICAgICAgIGRzdF9kaXJfZmQ9ZGlyZWN0b3J5X2ZkLAogICAgICAgICkKICAgICAgICBvcy5mc3luYyhkaXJlY3RvcnlfZmQpCiAgICBmaW5hbGx5OgogICAgICAgIGlmIGRlc2NyaXB0b3IgPj0gMDoKICAgICAgICAgICAgb3MuY2xvc2UoZGVzY3JpcHRvcikKICAgICAgICB0cnk6CiAgICAgICAgICAgIG9zLnVubGluayh0ZW1wb3JhcnlfbmFtZSwgZGlyX2ZkPWRpcmVjdG9yeV9mZCkKICAgICAgICBleGNlcHQgRmlsZU5vdEZvdW5kRXJyb3I6CiAgICAgICAgICAgIHBhc3MKCgpkZWYgX3NvdXJjZV9kaXJlY3RvcnlfZmQocGF0aDogUGF0aCwgZGlyZWN0b3J5X2ZkOiBpbnQgfCBOb25lLCBzb3VyY2U6IHN0cikgLT4gdHVwbGVbaW50LCBib29sXToKICAgIGlmIGRpcmVjdG9yeV9mZCBpcyBub3QgTm9uZToKICAgICAgICByZXR1cm4gZGlyZWN0b3J5X2ZkLCBGYWxzZQogICAgdHJ5OgogICAgICAgIHJldHVybiBvcy5vcGVuKHBhdGgucGFyZW50LCBfc2VjdXJlX2RpcmVjdG9yeV9mbGFncygpKSwgVHJ1ZQogICAgZXhjZXB0IE9TRXJyb3IgYXMgZXhjOgogICAgICAgIHJhaXNlIFJ1bnRpbWVFcnJvcihmInByZXZpb3VzIHtzb3VyY2V9IHNvdXJjZSBwYXRoIGlzIG5vdCBhIHJlZ3VsYXIgZmlsZSIpIGZyb20gZXhjCgoKZGVmIF9vcGVuX2NvbW1pdHRlZF9zb3VyY2VfZmQoCiAgICBkaXJlY3RvcnlfZmQ6IGludCwKICAgIGZpbGVfbmFtZTogc3RyLAogICAgKiwKICAgIGNvbW1pdHRlZF9yb3dzOiBpbnQsCiAgICBzb3VyY2U6IHN0ciwKICAgIGFsbG93X21pc3Npbmc6IGJvb2wsCikgLT4gaW50IHwgTm9uZToKICAgIG5vZm9sbG93X2ZsYWcgPSBnZXRhdHRyKG9zLCAiT19OT0ZPTExPVyIsIE5vbmUpCiAgICBpZiBub2ZvbGxvd19mbGFnIGlzIE5vbmU6CiAgICAgICAgcmFpc2UgUnVudGltZUVycm9yKCJzZWN1cmUgTGlxdWlkMjAgcmVzdGFydCBmaWxlIGFjY2VzcyBpcyB1bnN1cHBvcnRlZCIpCiAgICB0cnk6CiAgICAgICAgZGVzY3JpcHRvciA9IG9zLm9wZW4oCiAgICAgICAgICAgIGZpbGVfbmFtZSwKICAgICAgICAgICAgb3MuT19SRFdSIHwgbm9mb2xsb3dfZmxhZyB8IGdldGF0dHIob3MsICJPX0NMT0VYRUMiLCAwKSwKICAgICAgICAgICAgZGlyX2ZkPWRpcmVjdG9yeV9mZCwKICAgICAgICApCiAgICBleGNlcHQgRmlsZU5vdEZvdW5kRXJyb3I6CiAgICAgICAgaWYgYWxsb3dfbWlzc2luZyBhbmQgY29tbWl0dGVkX3Jvd3MgPT0gMDoKICAgICAgICAgICAgcmV0dXJuIE5vbmUKICAgICAgICBpZiBjb21taXR0ZWRfcm93cyA9PSAwOgogICAgICAgICAgICByYWlzZSBSdW50aW1lRXJyb3IoZiJwcmV2aW91cyB7c291cmNlfSBzb3VyY2UgZmlsZSBpcyBtaXNzaW5nIikKICAgICAgICByYWlzZSBSdW50aW1lRXJyb3IoZiJwcmV2aW91cyB7c291cmNlfSBzb3VyY2UgZmlsZSBpcyBtaXNzaW5nIGNvbW1pdHRlZCByb3dzIikKICAgIGV4Y2VwdCBPU0Vycm9yIGFzIGV4YzoKICAgICAgICByYWlzZSBSdW50aW1lRXJyb3IoZiJwcmV2aW91cyB7c291cmNlfSBzb3VyY2UgcGF0aCBpcyBub3QgYSByZWd1bGFyIGZpbGUiKSBmcm9tIGV4YwogICAgaWYgbm90IHN0YXQuU19JU1JFRyhvcy5mc3RhdChkZXNjcmlwdG9yKS5zdF9tb2RlKToKICAgICAgICBvcy5jbG9zZShkZXNjcmlwdG9yKQogICAgICAgIHJhaXNlIFJ1bnRpbWVFcnJvcihmInByZXZpb3VzIHtzb3VyY2V9IHNvdXJjZSBwYXRoIGlzIG5vdCBhIHJlZ3VsYXIgZmlsZSIpCiAgICByZXR1cm4gZGVzY3JpcHRvcgoKCmRlZiBfc2VhbF9jb21taXR0ZWRfbmRqc29uKAogICAgcGF0aDogUGF0aCwKICAgICosCiAgICBjb21taXR0ZWRfcm93czogaW50LAogICAgc291cmNlOiBzdHIsCiAgICBhbGxvd19taXNzaW5nOiBib29sLAogICAgZGlyZWN0b3J5X2ZkOiBpbnQgfCBOb25lID0gTm9uZSwKKSAtPiBOb25lOgogICAgaWYgKAogICAgICAgIGlzaW5zdGFuY2UoY29tbWl0dGVkX3Jvd3MsIGJvb2wpCiAgICAgICAgb3Igbm90IGlzaW5zdGFuY2UoY29tbWl0dGVkX3Jvd3MsIGludCkKICAgICAgICBvciBjb21taXR0ZWRfcm93cyA8IDAKICAgICk6CiAgICAgICAgcmFpc2UgUnVudGltZUVycm9yKGYicHJldmlvdXMge3NvdXJjZX0gZXZlbnRzX3dyaXR0ZW4gaXMgaW52YWxpZCIpCiAgICBzb3VyY2VfZGlyZWN0b3J5X2ZkLCBvd25lZCA9IF9zb3VyY2VfZGlyZWN0b3J5X2ZkKHBhdGgsIGRpcmVjdG9yeV9mZCwgc291cmNlKQogICAgdHJ5OgogICAgICAgIGRlc2NyaXB0b3IgPSBfb3Blbl9jb21taXR0ZWRfc291cmNlX2ZkKAogICAgICAgICAgICBzb3VyY2VfZGlyZWN0b3J5X2ZkLAogICAgICAgICAgICBwYXRoLm5hbWUsCiAgICAgICAgICAgIGNvbW1pdHRlZF9yb3dzPWNvbW1pdHRlZF9yb3dzLAogICAgICAgICAgICBzb3VyY2U9c291cmNlLAogICAgICAgICAgICBhbGxvd19taXNzaW5nPWFsbG93X21pc3NpbmcsCiAgICAgICAgKQogICAgICAgIGlmIGRlc2NyaXB0b3IgaXMgTm9uZToKICAgICAgICAgICAgcmV0dXJuCiAgICAgICAgd2l0aCBvcy5mZG9wZW4oZGVzY3JpcHRvciwgInIrYiIpIGFzIGhhbmRsZToKICAgICAgICAgICAgY29tbWl0dGVkX2VuZCA9IDAKICAgICAgICAgICAgZm9yIF8gaW4gcmFuZ2UoY29tbWl0dGVkX3Jvd3MpOgogICAgICAgICAgICAgICAgcm93ID0gaGFuZGxlLnJlYWRsaW5lKCkKICAgICAgICAgICAgICAgIGlmIG5vdCByb3cgb3Igbm90IHJvdy5lbmRzd2l0aChiIlxuIikgb3Igbm90IHJvdy5zdHJpcCgpOgogICAgICAgICAgICAgICAgICAgIHJhaXNlIFJ1bnRpbWVFcnJvcigKICAgICAgICAgICAgICAgICAgICAgICAgZiJwcmV2aW91cyB7c291cmNlfSBzb3VyY2UgZmlsZSBoYXMgZmV3ZXIgcm93cyB0aGFuIGNvbW1pdHRlZCIKICAgICAgICAgICAgICAgICAgICApCiAgICAgICAgICAgICAgICBjb21taXR0ZWRfZW5kID0gaGFuZGxlLnRlbGwoKQogICAgICAgICAgICBpZiBoYW5kbGUucmVhZCgxKToKICAgICAgICAgICAgICAgIGhhbmRsZS50cnVuY2F0ZShjb21taXR0ZWRfZW5kKQogICAgICAgICAgICBoYW5kbGUuZmx1c2goKQogICAgICAgICAgICBvcy5mc3luYyhoYW5kbGUuZmlsZW5vKCkpCiAgICBmaW5hbGx5OgogICAgICAgIGlmIG93bmVkOgogICAgICAgICAgICBvcy5jbG9zZShzb3VyY2VfZGlyZWN0b3J5X2ZkKQo="
+          method_b64 = "ICAgIGRlZiBfY29tcGxldGVfcHJldmlvdXNfYWN0aXZlX3J1bihzZWxmKSAtPiBOb25lOgogICAgICAgIHBvaW50ZXIgPSBzZWxmLmxpdmVfcm9vdCAvIExJVkVfU1RBVEVfRklMRQogICAgICAgIGlmIG5vdCBwb2ludGVyLmV4aXN0cygpIG9yIHBvaW50ZXIuaXNfc3ltbGluaygpOgogICAgICAgICAgICByZXR1cm4KICAgICAgICB0cnk6CiAgICAgICAgICAgIHBheWxvYWQgPSBqc29uLmxvYWRzKHBvaW50ZXIucmVhZF90ZXh0KGVuY29kaW5nPSJ1dGYtOCIpKQogICAgICAgICAgICBydW5faWQgPSBwYXlsb2FkLmdldCgiYWN0aXZlX3J1bl9pZCIpCiAgICAgICAgICAgIGlmIG5vdCBpc2luc3RhbmNlKHJ1bl9pZCwgc3RyKSBvciBub3QgUlVOX0lEX1BBVFRFUk4uZnVsbG1hdGNoKHJ1bl9pZCk6CiAgICAgICAgICAgICAgICByZXR1cm4KICAgICAgICBleGNlcHQgKE9TRXJyb3IsIFR5cGVFcnJvciwgVmFsdWVFcnJvciwganNvbi5KU09ORGVjb2RlRXJyb3IpOgogICAgICAgICAgICByZXR1cm4KCiAgICAgICAgcnVuX3Jvb3RfZmQgPSBfb3Blbl9yZXN0YXJ0X3J1bl9yb290X2ZkKHNlbGYuZGF0YV9yb290LCBydW5faWQpCiAgICAgICAgaWYgcnVuX3Jvb3RfZmQgaXMgTm9uZToKICAgICAgICAgICAgcmV0dXJuCiAgICAgICAgdHJ5OgogICAgICAgICAgICB0cnk6CiAgICAgICAgICAgICAgICBzdGF0ZSA9IF9yZWFkX2pzb25fcmVndWxhcl9hdChydW5fcm9vdF9mZCwgUlVOX1NUQVRFX0ZJTEUpCiAgICAgICAgICAgIGV4Y2VwdCAoVHlwZUVycm9yLCBWYWx1ZUVycm9yLCBqc29uLkpTT05EZWNvZGVFcnJvcik6CiAgICAgICAgICAgICAgICByZXR1cm4KICAgICAgICAgICAgaWYgc3RhdGUgaXMgTm9uZSBvciBzdGF0ZS5nZXQoInJ1bl9zdGF0ZSIpICE9ICJhY3RpdmUiOgogICAgICAgICAgICAgICAgcmV0dXJuCgogICAgICAgICAgICBzb3VyY2VzID0gc3RhdGUuZ2V0KCJzb3VyY2VzIikKICAgICAgICAgICAgaWYgbm90IGlzaW5zdGFuY2Uoc291cmNlcywgZGljdCk6CiAgICAgICAgICAgICAgICByYWlzZSBSdW50aW1lRXJyb3IoInByZXZpb3VzIGxpdmUgc291cmNlIHN0YXRlIGlzIGludmFsaWQiKQogICAgICAgICAgICBleHBlY3RlZF9zb3VyY2VzID0ge0JZQklUX1NPVVJDRSwgQklOQU5DRV9TT1VSQ0UsIE9LWF9TT1VSQ0V9CiAgICAgICAgICAgIGlmIHNldChzb3VyY2VzKSAhPSBleHBlY3RlZF9zb3VyY2VzOgogICAgICAgICAgICAgICAgcmFpc2UgUnVudGltZUVycm9yKCJwcmV2aW91cyBsaXZlIHNvdXJjZSBzZXQgaXMgaW52YWxpZCIpCiAgICAgICAgICAgIHJ1bl9yb290ID0gc2VsZi5ydW5zX3Jvb3QgLyBydW5faWQKICAgICAgICAgICAgZm9yIHNvdXJjZSBpbiAoQllCSVRfU09VUkNFLCBCSU5BTkNFX1NPVVJDRSwgT0tYX1NPVVJDRSk6CiAgICAgICAgICAgICAgICBjb21taXR0ZWRfcm93cywgYWxsb3dfbWlzc2luZyA9IF9yZXN0YXJ0X3NvdXJjZV9jb21taXRfc3RhdGUoCiAgICAgICAgICAgICAgICAgICAgc291cmNlc1tzb3VyY2VdLCBzb3VyY2U9c291cmNlCiAgICAgICAgICAgICAgICApCiAgICAgICAgICAgICAgICBfc2VhbF9jb21taXR0ZWRfbmRqc29uKAogICAgICAgICAgICAgICAgICAgIHJ1bl9yb290IC8gZiJ7c291cmNlfS5uZGpzb24iLAogICAgICAgICAgICAgICAgICAgIGNvbW1pdHRlZF9yb3dzPWNvbW1pdHRlZF9yb3dzLAogICAgICAgICAgICAgICAgICAgIHNvdXJjZT1zb3VyY2UsCiAgICAgICAgICAgICAgICAgICAgYWxsb3dfbWlzc2luZz1hbGxvd19taXNzaW5nLAogICAgICAgICAgICAgICAgICAgIGRpcmVjdG9yeV9mZD1ydW5fcm9vdF9mZCwKICAgICAgICAgICAgICAgICkKCiAgICAgICAgICAgIHN0YXRlWyJydW5fc3RhdGUiXSA9ICJjb21wbGV0ZWQiCiAgICAgICAgICAgIHN0YXRlWyJkYXRhX21vZGUiXSA9ICJoaXN0b3JpY2FsIgogICAgICAgICAgICBzdGF0ZVsiY29tcGxldGVkX2F0X21zIl0gPSBzZWxmLl9ub3dfbXMoKQogICAgICAgICAgICBzdGF0ZVsiY29tcGxldGlvbl9yZWFzb24iXSA9ICJjb2xsZWN0b3ItcmVzdGFydCIKICAgICAgICAgICAgX3dyaXRlX2pzb25fYXRvbWljX2F0KHJ1bl9yb290X2ZkLCBSVU5fU1RBVEVfRklMRSwgc3RhdGUpCiAgICAgICAgZmluYWxseToKICAgICAgICAgICAgb3MuY2xvc2UocnVuX3Jvb3RfZmQpCg=="
+          test_b64 = "CgpkZWYgdGVzdF9zZWFsX2FuY2hvcnNfc291cmNlX3RvX29wZW5fcnVuX2RpcmVjdG9yeV9hZnRlcl9wYXRoX3N3YXAodG1wX3BhdGg6IFBhdGgpIC0+IE5vbmU6CiAgICBydW5fcm9vdCA9IHRtcF9wYXRoIC8gInJ1biIKICAgIHJ1bl9yb290Lm1rZGlyKCkKICAgIHNvdXJjZV9wYXRoID0gcnVuX3Jvb3QgLyBmIntCSU5BTkNFX1NPVVJDRX0ubmRqc29uIgogICAgc291cmNlX3BhdGgud3JpdGVfdGV4dCgneyJyb3ciOjF9XG57InJvdyI6Mn1cbicsIGVuY29kaW5nPSJ1dGYtOCIpCiAgICBleHRlcm5hbF9yb290ID0gdG1wX3BhdGggLyAiZXh0ZXJuYWwiCiAgICBleHRlcm5hbF9yb290Lm1rZGlyKCkKICAgIGV4dGVybmFsX3NvdXJjZSA9IGV4dGVybmFsX3Jvb3QgLyBmIntCSU5BTkNFX1NPVVJDRX0ubmRqc29uIgogICAgZXh0ZXJuYWxfcGF5bG9hZCA9IGIneyJleHRlcm5hbCI6MX1cbnsiZXh0ZXJuYWwiOjJ9XG4nCiAgICBleHRlcm5hbF9zb3VyY2Uud3JpdGVfYnl0ZXMoZXh0ZXJuYWxfcGF5bG9hZCkKICAgIHJ1bl9yb290X2ZkID0gb3Mub3BlbigKICAgICAgICBydW5fcm9vdCwKICAgICAgICBvcy5PX1JET05MWSB8IG9zLk9fRElSRUNUT1JZIHwgb3MuT19OT0ZPTExPVywKICAgICkKICAgIGFyY2hpdmVkX3Jvb3QgPSB0bXBfcGF0aCAvICJhcmNoaXZlZC1ydW4iCiAgICB0cnk6CiAgICAgICAgcnVuX3Jvb3QucmVuYW1lKGFyY2hpdmVkX3Jvb3QpCiAgICAgICAgcnVuX3Jvb3Quc3ltbGlua190byhleHRlcm5hbF9yb290LCB0YXJnZXRfaXNfZGlyZWN0b3J5PVRydWUpCiAgICAgICAgX3NlYWxfY29tbWl0dGVkX25kanNvbigKICAgICAgICAgICAgcnVuX3Jvb3QgLyBmIntCSU5BTkNFX1NPVVJDRX0ubmRqc29uIiwKICAgICAgICAgICAgY29tbWl0dGVkX3Jvd3M9MSwKICAgICAgICAgICAgc291cmNlPUJJTkFOQ0VfU09VUkNFLAogICAgICAgICAgICBhbGxvd19taXNzaW5nPUZhbHNlLAogICAgICAgICAgICBkaXJlY3RvcnlfZmQ9cnVuX3Jvb3RfZmQsCiAgICAgICAgKQogICAgZmluYWxseToKICAgICAgICBvcy5jbG9zZShydW5fcm9vdF9mZCkKCiAgICBhc3NlcnQgZXh0ZXJuYWxfc291cmNlLnJlYWRfYnl0ZXMoKSA9PSBleHRlcm5hbF9wYXlsb2FkCiAgICBhc3NlcnQgKGFyY2hpdmVkX3Jvb3QgLyBmIntCSU5BTkNFX1NPVVJDRX0ubmRqc29uIikucmVhZF90ZXh0KGVuY29kaW5nPSJ1dGYtOCIpID09ICgKICAgICAgICAneyJyb3ciOjF9XG4nCiAgICApCg=="
+          source_path = Path("ai_platform/scripts/liquidation_live_stream.py")
+          text = source_path.read_text(encoding="utf-8")
+          start = text.index("\ndef _seal_committed_ndjson(")
+          end = text.index("\ndef _prepare_live_roots(", start)
+          text = text[:start] + "\n" + base64.b64decode(block_b64).decode() + text[end:]
+          method_start = text.index("    def _complete_previous_active_run(self) -> None:\n")
+          method_end = text.index("\n    def _start_new_run(self, now_ms: int) -> None:\n", method_start)
+          text = text[:method_start] + base64.b64decode(method_b64).decode() + text[method_end:]
+          source_path.write_text(text, encoding="utf-8")
+          test_path = Path("tests/ai_platform_integration/test_liquidation_live_restart_durability.py")
+          tests = test_path.read_text(encoding="utf-8")
+          if "import os\n" not in tests:
+              tests = tests.replace("import json\n", "import json\nimport os\n", 1)
+          if "test_seal_anchors_source_to_open_run_directory_after_path_swap" not in tests:
+              marker = "\n\ndef test_restart_rejects_symlinked_run_root_without_mutating_external_target("
+              tests = tests.replace(marker, base64.b64decode(test_b64).decode() + marker, 1)
+          test_path.write_text(tests, encoding="utf-8")
+          PY
+
+      - name: Validate focused repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check -r requirements.txt
+          python3 -m pip install --disable-pip-version-check pytest==9.1.1 ruff==0.15.21
+          python3 -m ruff format ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          python3 -m py_compile ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python3 -m pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python3 -m ruff check ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python3 -m ruff format --check ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          git diff --check
+
+      - name: Record evidence and commit permanent repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import subprocess
+          from datetime import datetime
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+          task = Path("docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md")
+          text = task.read_text(encoding="utf-8")
+          prefix = "## Context checkpoint\n\n```yaml\n"
+          suffix = "\n```\n\n## Recovery checkpoint"
+          start = text.index(prefix) + len(prefix)
+          end = text.index(suffix, start)
+          cp = text[start:end]
+          head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          now = datetime.now(ZoneInfo("Europe/Warsaw")).replace(microsecond=0).isoformat()
+          rows = cp.splitlines()
+          for index, line in enumerate(rows):
+              if line.startswith("updated_at:"):
+                  rows[index] = f"updated_at: {now}"
+              elif line.startswith("head:"):
+                  rows[index] = f"head: {head}"
+              elif line.startswith("next_action:"):
+                  rows[index] = "next_action: Run final retained ci:full exact-head CI plus fresh independent Codex review with zero material findings, then squash-merge PR 1450 and continue protected Liquid20 recovery."
+          cp = "\n".join(rows)
+          validation = "  - command: Descriptor-anchored restart sealing TOCTOU regression validation\n    result: PASS\n    evidence: GitHub Actions run " + os.environ["GITHUB_RUN_ID"] + " passed focused restart and legacy migration tests Ruff check format compile checkpoint and diff hygiene\n"
+          if "Descriptor-anchored restart sealing TOCTOU regression validation" not in cp:
+              cp = cp.replace("blockers: []\n", validation + "blockers: []\n", 1)
+          text = text[:start] + cp + text[end:]
+          text = text.replace("  generation: 11\n", "  generation: 12\n", 1)
+          task.write_text(text, encoding="utf-8")
+          PY
+          python3 tools/agents/checkpoint.py docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md --require-checkpoint
+          git rm .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml .github/workflows/portal-wickhunter-buildkit-cache-recovery-v2.yml
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "fix(liquidations): anchor restart sealing to directory descriptors"
+          git pull --rebase origin fix/wickhunter-1396-synology-recovery-v2
+          git push origin HEAD:fix/wickhunter-1396-synology-recovery-v2

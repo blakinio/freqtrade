@@ -7,7 +7,7 @@ repository: blakinio/freqtrade
 project_lane: freqtrade-portal
 task_kind: ci_governance
 phase: validation
-status: validating
+status: waiting
 priority: high
 prompting_standard_version: 2.1
 execution_policy_version: 2
@@ -51,16 +51,17 @@ owned_paths:
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 6
-updated_at: 2026-08-10T21:05:00+02:00
-last_progress_at: 2026-08-10T21:05:00+02:00
-implementation_head_before_checkpoint: 67764d0f7ba44189fd32e81fb244f297e75e00a1
+checkpoint_version: 7
+updated_at: 2026-08-10T21:09:00+02:00
+last_progress_at: 2026-08-10T21:07:00+02:00
+implementation_head_before_checkpoint: 4d4a2f8961af81b75b3ffaf3cb0bfd2aff6bc282
 branch: fix/architecture-registry-lifecycle-1356
 pr: 1447
-status: validating
+status: waiting
 counters:
-  ci_checks_for_current_head: 0
-  unchanged_state_checks: 0
+  ci_checks_for_pre_wait_head: 2
+  independent_review_checks_for_pre_wait_head: 2
+  unchanged_state_checks: 2
   identical_failure_retries: 0
   repair_cycles_for_current_gate: 2
   context_reconstruction_attempts: 0
@@ -82,21 +83,43 @@ independent_review:
     thread: PRRT_kwDOTdDTU86X_6vx
     path: tests/ci/test_architecture_registry.py
     summary: historical synchronized_base_sha was type-checked but not required to remain distinct from latest_architecture_change.base_sha
-    disposition: remediated_in_checkpoint_successor
+    disposition: remediated
+    remediation_head: 4d4a2f8961af81b75b3ffaf3cb0bfd2aff6bc282
+  rereview_requested: true
+  rereview_state_at_second_check: pending
+pre_wait_validation:
+  head: 4d4a2f8961af81b75b3ffaf3cb0bfd2aff6bc282
+  required_runs:
+    freqtrade_ci:
+      run: 31422453672
+      state_at_second_check: in_progress
+    risk_aware_component_ci:
+      run: 31422456686
+      state_at_second_check: in_progress
+    codeql:
+      run: 31422453189
+      state_at_second_check: success
+    zizmor:
+      run: 31422453339
+      state_at_second_check: success
 proven:
   - develop base for this task was 5a19ae32f1f71b112130ea66cb8d56d9a3e44049
   - Issue 1356 explicitly requires the preventive architecture-registry lifecycle validator
-  - PR 1447 contains only ARCHITECTURE_REGISTRY.yaml the active task record and tests/ci/test_architecture_registry.py
+  - PR 1447 exact diff is limited to ARCHITECTURE_REGISTRY.yaml the active task record and tests/ci/test_architecture_registry.py
   - the guard rejects duplicate/remapped Issue and finding identities resolved/open overlap non-open top-level findings stale domain-local open indexes and missing acceptance of the latest ADR
   - commit 8d8234be099a61fbd73c023b5a3974714ad0386e closed the remapped-identity loophole found during implementer falsification
-  - independent Codex review found one P2 provenance gap and the successor adds synchronized_base_sha != latest_architecture_change.base_sha
-  - Issues 1354 and 1355 remain genuinely open and therefore remain the only top-level open architecture findings in the candidate registry
+  - head 4d4a2f8961af81b75b3ffaf3cb0bfd2aff6bc282 closes the independent P2 by asserting both historical review provenance SHAs remain distinct from latest_architecture_change.base_sha
+  - the original P2 review thread is resolved and final Codex re-review was requested
+  - PR body now uses Closes #1356 so Issue closure occurs only after successful merge
+  - Issues 1354 and 1355 remain genuinely open and are the only top-level open architecture findings in the candidate registry
   - runtime browser deployment and trading E2E are not applicable to this CI/governance-only package
 unknown:
-  - exact final-head CI run IDs and terminal results after this remediation checkpoint
-  - independent Codex verification of the remediation on the final head
-blockers: []
-next_action: Resolve the live PR 1447 successor head, request/collect independent re-review and exact-head CI; merge and close/archive only when every required gate is green and review threads are resolved.
+  - terminal exact-head CI result on the checkpoint successor created by this wait commit
+  - terminal independent Codex re-review disposition on the checkpoint successor
+blockers:
+  - Freqtrade CI and Risk-aware CI remained non-terminal after two allowed aggregate observations of head 4d4a2f8961af81b75b3ffaf3cb0bfd2aff6bc282
+  - independent Codex re-review remained non-terminal after two allowed observations
+next_action: Resolve the live PR 1447 successor head and its new check generation once; if all required checks and independent review are terminally clear, complete merge and post-merge closeout, otherwise remediate only the first material owned failure.
 ```
 
 ## Recovery checkpoint
@@ -107,19 +130,23 @@ recovery:
   generation: 2
   session_id: paper-20260810-2103
   session_started_at: 2026-08-10T21:03:00+02:00
-  checkpointed_at: 2026-08-10T21:05:00+02:00
-  last_progress_at: 2026-08-10T21:05:00+02:00
-  phase: independent_review_remediation_and_terminal_ci
-  exact_head: 67764d0f7ba44189fd32e81fb244f297e75e00a1
+  checkpointed_at: 2026-08-10T21:09:00+02:00
+  last_progress_at: 2026-08-10T21:07:00+02:00
+  phase: terminal_ci_and_independent_rereview_wait
+  exact_head: 4d4a2f8961af81b75b3ffaf3cb0bfd2aff6bc282
   pull_request: 1447
-  active_operation: persist the P2 review remediation; this checkpoint commit creates the successor exact head to validate
-  external_run_ids: []
-  operation_started_at: 2026-08-10T21:03:00+02:00
+  active_operation: terminal CI and independent Codex re-review wait; this checkpoint commit creates a successor PR head that must be resolved on resume
+  external_run_ids:
+    - 31422453672
+    - 31422456686
+    - 31422453189
+    - 31422453339
+  operation_started_at: 2026-08-10T21:05:00+02:00
   wait_deadline_at: null
-  check_generation: post-p2-remediation-successor
-  checks_used: 0
-  status: active
+  check_generation: post-p2-head-4d4a2f8961af
+  checks_used: 2
+  status: waiting
   safe_to_resume: true
   resume_condition: The live PR 1447 successor head has terminal required CI and an independent Codex re-review disposition, or a material owned failure appears.
-  next_action: Resolve the live PR 1447 successor head once, then request/collect final independent review and exact-head CI; remediate only the first material owned failure or complete closeout if all gates pass.
+  next_action: Resolve the live PR 1447 successor head once; then either remediate the first material owned failure or complete merge and post-merge closeout when every gate is green and review threads are clear.
 ```

@@ -1,7 +1,7 @@
 # Anti-Stall and Execution Budget Contract
 
 ```yaml
-anti_stall_policy_version: 2
+anti_stall_policy_version: 3
 ```
 
 ## Purpose
@@ -51,9 +51,10 @@ minimum_remaining_minutes_to_start_additional_task: 30
 normal_command_timeout_minutes: 20
 heavy_command_timeout_minutes: 45
 heavy_timeout_requires_reason: true
+continuous_program_execution_default: false
 ```
 
-The **entry task** is the active task at invocation start or, when none is active, the first `READY` task selected by the coordinator. The entry task is not an additional task. After it becomes terminal, at most one additional task may be started in the same invocation and only under the conditions in `Starting another task` below.
+The **entry task** is the active task at invocation start or, when none is active, the first `READY` task selected by the coordinator. The entry task is not an additional task. By default, after it becomes terminal, at most one additional task may be started in the same invocation and only under the conditions in `Starting another task` below.
 
 A repository or owner may set a smaller budget. A larger budget requires an explicit task-record field and reason; vague instructions such as “work autonomously” do not enlarge it.
 
@@ -97,7 +98,7 @@ For one exact head:
 2. perform at most one later state check;
 3. if it remains pending and authorized auto-merge or a merge queue is available, configure it once;
 4. persist exact head, run IDs, pending checks, `status: waiting`, and one `next_action`;
-5. end or rotate the invocation, or execute genuinely independent work already inside the same declared task and remaining budget.
+5. end or rotate the invocation, execute genuinely independent work already inside the same declared task, or use a trusted continuous-programme override when one is active and remaining budget permits.
 
 Never perform a third CI state check for the same exact head in one invocation. Do not keep a worker active merely to wait for CI, reviews, deployment, scheduled jobs, dependencies, observation windows, or an owner reply.
 
@@ -128,9 +129,34 @@ When the no-progress limit, runtime budget, retry limit, repair limit, or contex
 
 Do not create another PR, archive PR, task, or branch solely to keep the invocation active. Required terminal cleanup may be completed only when it fits inside the remaining budget and does not require waiting loops.
 
+## Trusted continuous-programme override
+
+The default additional-task limit exists to prevent autonomous task-spawning loops. A trusted explicit owner instruction or a programme contract already present on the trusted base may instead enable:
+
+```yaml
+continuous_program_execution: true
+continuous_wait_rotation: true
+max_concurrent_writers: 1
+```
+
+This is a **coordination override, not a safety or budget override**. When it is active:
+
+- all wall-clock, no-progress, exact-head CI-check, unchanged-state, retry, repair-cycle, context-reconstruction, command-timeout, review, audit, E2E, merge, ownership and authority limits remain unchanged;
+- a task waiting only on an external event may be checkpointed with exact head/run/review state, unnecessary worker or lease ownership released, and left `waiting` while the coordinator selects another dependency-safe, non-conflicting `READY` task;
+- the waiting task does not need to become terminal before the coordinator selects that independent task;
+- the fixed `max_additional_tasks_after_terminal_entry_task` count does not apply while this trusted override is active; progress is instead bounded by the foreground runtime/no-progress budgets and real stop conditions;
+- writer concurrency remains one unless stricter repository concurrency policy explicitly allows otherwise; switching tasks is preferred over multiplying writers;
+- dependency, ownership and path-conflict preflight is required before every task switch; work that depends on the waiting task must remain blocked;
+- CI/review counters stay attached to their task and exact-head generation. Switching tasks never resets them;
+- a waiting task may be checked again only after a material external-state change, a new exact head/check generation, or a later invocation. Do not use task rotation to evade polling limits;
+- no task, branch, commit or PR may be created solely to consume time or keep the invocation alive;
+- the invocation ends only when budget/context limits apply or every authorized path is terminal, waiting, blocked, conflicting, or unsafe.
+
+An unmerged governance edit cannot grant itself this override. The override must come from the trusted instruction chain for the current invocation or from governance already merged to the trusted base.
+
 ## Starting another task
 
-Starting one additional task after the terminal entry task is allowed only when all are true:
+When `continuous_program_execution` is not active, starting one additional task after the terminal entry task is allowed only when all are true:
 
 - the entry task is fully terminal;
 - at least 30 minutes of declared budget remains;
@@ -138,6 +164,8 @@ Starting one additional task after the terminal entry task is allowed only when 
 - no required check or external event is being waited on;
 - ownership and dependency preflight confirms the next task is safe and independent;
 - no additional task has already been started in the invocation.
+
+When a trusted continuous-programme override is active, use the rules in `Trusted continuous-programme override` instead of the fixed one-additional-task count.
 
 Otherwise persist the programme handoff and stop. A rotated session on the same task is not a new task.
 
@@ -172,7 +200,8 @@ Do not:
 - create extra tasks, commits, branches, or PRs solely to extend execution;
 - interpret silence, pending status, or waiting as productive work;
 - write `ROTATE` as a checkpoint task status;
+- use continuous task rotation to reset per-head/per-gate counters or bypass dependency order;
 - claim autonomous execution justifies production, data, payment, authentication, protocol, asset, live-capital, or protected-configuration mutation without authority;
 - hide budget exhaustion by resetting counters or changing labels without a material state change.
 
-When this contract conflicts with a continuation instruction, follow this contract and stop safely.
+When this contract conflicts with a continuation instruction, follow this contract and stop safely unless the trusted instruction chain explicitly activates the bounded continuous-programme override defined above.

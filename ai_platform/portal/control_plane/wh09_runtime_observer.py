@@ -53,8 +53,8 @@ class Wh09ObserverHandler(BaseHTTPRequestHandler):
             return
         self._json(HTTPStatus.OK, evidence.model_dump(mode="json"))
 
-    def log_message(self, format: str, *args: object) -> None:
-        del format, args
+    def log_message(self, format_string: str, *args: object) -> None:
+        del format_string, args
 
     def _json(self, status: HTTPStatus, payload: dict[str, object]) -> None:
         body = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")

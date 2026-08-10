@@ -28,15 +28,21 @@ optional_reads: []
 
 ## Context checkpoint
 
-Checkpoint structure remains version 1. Policy revision 2 adds `waiting`, `completed`, and `NOT_APPLICABLE` without invalidating existing checkpoints. `ROTATE` is an invocation result, never a task status.
+Checkpoint version 2 is required for every new task and every legacy task record once it is modified. It persists ordinary CI/review observations by exact commit SHA so later owner invocations, Chat replacement, same-SHA reruns and A -> B -> A returns cannot renew an exhausted observation budget. `ROTATE` is an invocation result, never a task status.
 
 ```yaml
-checkpoint_version: 1
+checkpoint_version: 2
 updated_at: YYYY-MM-DDTHH:MM:SSZ
-head: UNKNOWN
+head: <lowercase-40-hex-commit-sha>
 branch: <task-branch>
 pr: none
 status: investigating # investigating|implementing|validating|ready|waiting|blocked|completed
+ci_checks_for_current_head: 0
+review_checks_for_current_head: 0
+observation_counters_by_sha:
+  <same-exact-head-sha>:
+    ci: 0
+    review: 0
 context_routes:
   - none
 owned_paths:
@@ -59,6 +65,8 @@ validation:
 blockers: []
 next_action: <exactly one concrete next step>
 ```
+
+The current-head scalar counters must equal the corresponding entry in `observation_counters_by_sha`. Never remove a prior exact-SHA entry or decrease either stored counter. A new exact SHA gets a new entry; returning to an old SHA reuses its stored entry.
 
 ## Live-capital boundary
 

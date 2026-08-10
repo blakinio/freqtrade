@@ -388,3 +388,74 @@ Consequence:
 Older target-state wording that implies a generic worker directly controls Docker/Freqtrade, that every dry-run runtime receives exchange trading credentials, that runtime identity is only `(tenant_id, bot_id)`, or that requested container-engine flags alone prove isolation is superseded by ADR-020 and this refinement. Target-state documents must be interpreted through both until they are updated.
 
 Documentation acceptance does not prove implementation. This decision grants no production deployment, protected-host mutation, exchange-credential activation, withdrawal, model-promotion or live-capital authority.
+
+## ADR-021 — Release branches, deployment environments and bot operating modes are orthogonal
+
+Status: `accepted`
+
+Accepted by owner: `2026-08-10`
+
+Issue: `#1438`
+
+Decision:
+
+The platform uses three independent control dimensions:
+
+1. **Deployment environment:** `dev | staging | production`.
+2. **Bot operating mode:** `SHADOW | PAPER | LIVE`.
+3. **Release channel:** `candidate | stable`.
+
+Their meanings must never be inferred from one another. In particular, `environment=production` does not imply `mode=LIVE`, and a source branch is not a deployment environment.
+
+The source/release model is:
+
+- `develop` remains the controlled integration branch and upstream `freqtrade/freqtrade:develop` synchronization boundary;
+- `main` is the accepted target canonical release branch;
+- ordinary feature/fix/audit/architecture/CI/infrastructure work integrates through short-lived branches into `develop`;
+- after the physical `main` migration is complete, stable release promotion uses a dedicated reviewed `develop -> main` path;
+- direct ordinary feature integration into `main` is prohibited;
+- staging consumes immutable candidate artifacts and production consumes explicitly authorized immutable stable artifacts originating from exact `main` commits;
+- branch advancement alone never authorizes a deployment;
+- production deployment consumes exact release/artifact provenance rather than a moving branch tip;
+- the preferred supply-chain pattern is build once and promote the same immutable digest from staging acceptance to stable/production.
+
+Environment isolation is binding: staging and production maintain separate authoritative state, secrets/credentials and protected-deployment authority. Artifact promotion does not implicitly migrate database/runtime state.
+
+Bot-mode promotion is separately governed. A production environment may run stable SHADOW or PAPER generations. LIVE remains fail-closed until a separate owner-approved live-capital, credential, execution and risk-acceptance package authorizes it. No branch, release-channel or environment promotion can supply missing PAPER/LIVE eligibility.
+
+`docs/ai_platform/portal/RELEASE_ENVIRONMENT_AND_BOT_MODE_ARCHITECTURE.md` is the binding detailed architecture for this decision.
+
+Reason:
+
+The temporary single-`develop` trunk policy intentionally deferred a production/release split until an explicit owner decision. The platform now has protected staging workflows, production-capable Portal architecture and explicit SHADOW/PAPER/LIVE runtime semantics. Treating `develop` as “test” and `main` as “production” would conflate source integration with deployment authority and, more dangerously, allow production environment terminology to be mistaken for live-trading authority.
+
+Separating the dimensions provides auditable release provenance, safer promotion/rollback, clear upstream synchronization and an explicit guarantee that production infrastructure does not silently grant bot execution authority.
+
+Migration impact:
+
+The target decision supersedes the temporary 2026-08-09 single-trunk architecture policy, but implementation is staged and must not be fabricated by documentation:
+
+1. merge ADR-021, registry and governance updates into the currently authoritative `develop` branch;
+2. create `main` from the exact accepted migration base;
+3. configure required `main` rules/protection and release gates before using it as release authority;
+4. update workflow triggers, automation and deployment/release references for the two-branch model;
+5. verify `develop -> main` release promotion and immutable artifact provenance without live-capital authority;
+6. change the repository default branch to `main` only after agent, CI, upstream-sync and deployment routing are proven safe;
+7. retain `develop` as the integration branch.
+
+Until the physical migration has exact repository evidence, agents must distinguish **accepted target architecture** from **implemented branch state** and continue routing ordinary work according to the current proven repository/governance state.
+
+Historical task/PR/deployment evidence using phrases such as “production research/shadow runtime” remains immutable history. New evidence should identify environment, release channel and bot mode separately; old wording is mapped only when exact evidence proves the mapping.
+
+Consequence:
+
+The canonical target flow is:
+
+```text
+upstream develop -> fork develop -> candidate artifact -> staging acceptance
+                 -> release promotion -> main -> stable immutable artifact -> production authorization
+```
+
+This is not full ceremonial GitFlow. Production-critical hotfixes may use a narrowly authorized stable repair path, but the semantic fix must be reconciled back into `develop`.
+
+ADR-021 does not weaken ADR-019 or ADR-020 and grants no production deployment, protected-host mutation, exchange credential activation, PAPER/LIVE promotion, model promotion, order submission, withdrawal or live-capital authority.

@@ -238,9 +238,7 @@ class Wh09RuntimeEvidenceReader:
         identity = _load_object(journal / "identity.json", label="WH09 identity")
         telemetry = _load_object(journal / "telemetry.json", label="WH09 telemetry")
         health = _load_object(operator / "health.json", label="WH09 health")
-        identity_hash = _verify_hash(
-            identity, hash_field="identity_sha256", label="WH09 identity"
-        )
+        identity_hash = _verify_hash(identity, hash_field="identity_sha256", label="WH09 identity")
         telemetry_hash = _verify_hash(
             telemetry, hash_field="telemetry_sha256", label="WH09 telemetry"
         )
@@ -288,17 +286,13 @@ class Wh09RuntimeEvidenceReader:
         for field in shared_fields:
             value = identity.get(field)
             if telemetry.get(field) != value or health.get(field) != value:
-                raise Wh09RuntimeEvidenceError(
-                    f"WH09 identity/telemetry/health mismatch: {field}"
-                )
+                raise Wh09RuntimeEvidenceError(f"WH09 identity/telemetry/health mismatch: {field}")
         if health.get("telemetry_sha256") != telemetry_hash:
             raise Wh09RuntimeEvidenceError("WH09 health does not bind current telemetry")
         if telemetry.get("operator_commit") != health.get("operator_commit"):
             raise Wh09RuntimeEvidenceError("WH09 operator commit differs across evidence")
         if telemetry.get("runtime_generation") != health.get("generation"):
-            raise Wh09RuntimeEvidenceError(
-                "WH09 source generation differs across telemetry/health"
-            )
+            raise Wh09RuntimeEvidenceError("WH09 source generation differs across telemetry/health")
 
         checked_at = _millis_to_datetime(health.get("checked_at_ms"), field="checked_at_ms")
         age_seconds = (self._clock() - checked_at).total_seconds()
@@ -381,9 +375,7 @@ class Wh09RuntimeEvidenceReader:
             if payload.get("schema_version") != WH09_DECISION_SCHEMA:
                 raise Wh09RuntimeEvidenceError("WH09 decision schema mismatch")
             _require_zero_authority(payload, label="WH09 decision")
-            record_hash = _verify_hash(
-                payload, hash_field="record_sha256", label="WH09 decision"
-            )
+            record_hash = _verify_hash(payload, hash_field="record_sha256", label="WH09 decision")
             if payload.get("run_id") != identity.get("run_id"):
                 raise Wh09RuntimeEvidenceError("WH09 decision run identity mismatch")
             observed_at_ms = payload.get("observed_at_ms")

@@ -20,7 +20,7 @@ The short command selects a repository-owned role prompt; it does not replace li
 
 Before substantial implementation, product-facing validation, audit, E2E, PR cleanup, or task closeout, read and follow `DELIVERY_COMPLETENESS_AND_CLOSEOUT.md`. It is mandatory for prompt evaluation discipline, trust and authority boundaries, delivery classification, frontend/backend or producer/consumer completeness, independent audit, real E2E, exact-head validation, related-PR terminal states, and archival. A worker summary is not terminal evidence.
 
-Before autonomous, long-running, retry-prone, CI-waiting, repair, continuation, or multi-task work, read and follow `ANTI_STALL_AND_EXECUTION_BUDGET.md`. Its runtime, no-progress, CI-check, retry, repair-cycle, context-reconstruction, command-timeout, and additional-task limits are mandatory. Budget exhaustion or unchanged pending state is a real stop condition even when another contract says to continue autonomously.
+Before autonomous, long-running, retry-prone, CI-waiting, repair, continuation, or multi-task work, read and follow `ANTI_STALL_AND_EXECUTION_BUDGET.md`. Its runtime, no-progress, CI-check, retry, repair-cycle, context-reconstruction, command-timeout, and additional-task limits are mandatory. Budget exhaustion or unchanged pending state is a real stop condition even when another contract says to continue autonomously. A trusted explicit owner instruction or trusted-base programme contract may activate the bounded `continuous_program_execution` exception defined there; that exception changes task-count/wait rotation only and does not enlarge any safety, authority, exact-head CI, repair, no-progress, runtime, audit, E2E, merge, ownership or command-timeout limit.
 
 Before treating the absence of Codex or a local terminal as a blocker, read and follow `GITHUB_ONLY_EXECUTION.md`. Use the GitHub connection and GitHub Actions on a dedicated branch, select the smallest proving validation, inspect full failed-job logs, keep repairs bounded, preserve required artifacts, and report an exact technical blocker only after the contract's alternatives are exhausted. Autonomous merge or auto-merge of the current task's own PR is authorized only after every required gate in that contract and this repository passes; live-capital, model-promotion, exchange-credential, production, secret, or protected-environment operations remain unauthorized without separate authority.
 
@@ -58,13 +58,13 @@ Before creating, claiming, resuming, updating, handing off, or closing any task 
 4. Treat the task record and Git or PR state as durable; treat the worker session as disposable.
 5. Execute one bounded phase per session and persist a checkpoint before a long-running or failure-prone operation.
 6. Record anti-stall timestamps and counters required by `ANTI_STALL_AND_EXECUTION_BUDGET.md`.
-7. Do not remain active while waiting for CI, dependencies, external evidence, deployment, or a user reply.
+7. Do not remain active on a task while waiting for CI, dependencies, external evidence, deployment, or a user reply. Persist/release that task first; when a trusted continuous-programme override is active, the coordinator may then select another dependency-safe, non-conflicting `READY` task under the override rules.
 8. On a blocker or exhausted budget, preserve coherent work, record checkpoint `status`, evidence, blocker, and exactly one `next_action`, then end or rotate the session.
 9. Record `execution_mode` and let the worker decide whether Chat/GitHub, Codex, or a permitted Linux runner is appropriate.
 10. At a synchronization barrier, run `python tools/agents/control_room.py --format markdown` and escalate only material decisions.
 11. Do not call a user-facing capability complete while any required backend, frontend/client, integration, or consumer layer is missing.
 12. Before `completed`, require independent audit PASS, required E2E PASS or NOT_APPLICABLE with reason, exact-head required CI PASS, zero unresolved review threads, zero unintentionally open related PRs, terminal task state, and released ownership.
-13. Start at most one additional task after the terminal entry task, only when at least 30 minutes of declared budget remains, no stall warning occurred, and the anti-stall gate permits it.
+13. By default, start at most one additional task after the terminal entry task, only when at least 30 minutes of declared budget remains, no stall warning occurred, and the anti-stall gate permits it. When a trusted `continuous_program_execution` override is active, use its bounded task-rotation rules instead of this fixed task-count limit; all other limits remain mandatory.
 
 ## PAPER-only and live-capital boundary
 

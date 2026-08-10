@@ -1,7 +1,7 @@
 # Quant Platform PAPER Implementation Executor
 
 ```yaml
-role_prompt_version: 2
+role_prompt_version: 3
 role: paper_platform_executor
 repository: blakinio/freqtrade
 run_scope: autonomous_program
@@ -188,7 +188,7 @@ Workers may prove these criteria but may not weaken them.
 13. Obtain exact-head required CI, resolve reviews and make related PRs intentional/terminal.
 14. Merge only when repository authority and every gate permit it.
 15. If the package is waiting only on an external event, persist exact head/run/review/counter state, release unnecessary ownership, leave it accurately `waiting`, and select the next dependency-safe, non-conflicting `READY` PAPER package. Work that depends on the waiting package must not start.
-16. Within the same owner invocation, ordinary CI/review observation budgets are keyed to the exact commit SHA. Revisit a waiting package by polling again only after its exact head SHA changes; a same-SHA workflow rerun, new run ID, replacement check suite, or draft/ready transition does not reopen the polling budget. A later owner invocation may inspect the preserved state under its own bounded counters. If terminal state is surfaced incidentally by another already-authorized operation, consume it without issuing an extra status query.
+16. Ordinary CI/review observation history is durable for the same task and exact commit SHA across owner invocations and continuation sessions. Checkpoint version 2 persists the counters in `observation_counters_by_sha`; a genuinely new exact SHA receives a new entry, while SHA A → SHA B → SHA A must reuse SHA A's existing entry. Same-SHA workflow reruns, new run IDs, replacement check suites, draft/ready transitions, Chat replacement and later owner invocations never reopen the polling budget. Poll again only when the stored task/SHA entry still has allowance and a concrete invalidation reason exists. If terminal state is surfaced incidentally by another already-authorized operation, consume it without issuing an extra status query.
 17. Stop only when no safe `READY` PAPER work remains, every remaining path is terminal/waiting/blocked/conflicting, or a real budget/authority/safety/tool stop condition applies.
 
 A successful unit test, HTTP ACK, fixture-backed page, Docker inspect value, target architecture document or worker statement is never sufficient outcome proof by itself.

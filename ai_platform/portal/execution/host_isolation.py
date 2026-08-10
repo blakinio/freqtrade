@@ -20,6 +20,28 @@ from ai_platform.portal.execution.isolation import (
 )
 
 
+_NON_PUBLIC_IPV4_NETWORKS = tuple(
+    ipaddress.ip_network(cidr)
+    for cidr in (
+        "0.0.0.0/8",
+        "10.0.0.0/8",
+        "100.64.0.0/10",
+        "127.0.0.0/8",
+        "169.254.0.0/16",
+        "172.16.0.0/12",
+        "192.0.0.0/24",
+        "192.0.2.0/24",
+        "192.88.99.0/24",
+        "192.168.0.0/16",
+        "198.18.0.0/15",
+        "198.51.100.0/24",
+        "203.0.113.0/24",
+        "224.0.0.0/4",
+        "240.0.0.0/4",
+    )
+)
+
+
 def _policy_digest(payload: dict[str, Any]) -> str:
     canonical = json.dumps(
         payload,
@@ -43,8 +65,14 @@ class MarketDataEgressPolicy:
             raise ValueError("at least one public market-data CIDR is required")
         for cidr in self.allowed_ipv4_cidrs:
             network = ipaddress.ip_network(cidr, strict=True)
-            if network.version != 4 or not network.is_global:
-                raise ValueError("market-data CIDRs must be globally routable IPv4 networks")
+            if (
+                network.version != 4
+                or not network.is_global
+                or any(network.overlaps(blocked) for blocked in _NON_PUBLIC_IPV4_NETWORKS)
+            ):
+                raise ValueError(
+                    "market-data CIDRs must be exclusively public globally routable IPv4 networks"
+                )
         if not self.allowed_tcp_ports:
             raise ValueError("at least one market-data TCP port is required")
         if any(port <= 0 or port > 65535 for port in self.allowed_tcp_ports):

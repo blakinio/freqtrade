@@ -9,12 +9,8 @@ def test_external_runtime_adoption_is_not_exposed_as_public_mutation() -> None:
     create_schema(engine)
     app = create_app(build_session_factory(engine))
 
-    methods_by_path = {
-        (method, route.path)
-        for route in app.routes
-        for method in (getattr(route, "methods", None) or set())
-    }
+    paths = app.openapi()["paths"]
 
-    assert ("POST", "/v1/bots/{bot_id}/runtime-observations/adopt") not in methods_by_path
-    assert ("GET", "/v1/bots/{bot_id}/runtime-observations/latest") in methods_by_path
-    assert ("GET", "/v1/bots/{bot_id}/wickhunter-runtime-evidence") in methods_by_path
+    assert "/v1/bots/{bot_id}/runtime-observations/adopt" not in paths
+    assert "get" in paths["/v1/bots/{bot_id}/runtime-observations/latest"]
+    assert "get" in paths["/v1/bots/{bot_id}/wickhunter-runtime-evidence"]

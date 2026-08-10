@@ -116,7 +116,10 @@ def test_restart_fails_closed_when_committed_rows_are_missing(tmp_path: Path) ->
 
     persisted = json.loads((old_run_root / "run-state-v1.json").read_text(encoding="utf-8"))
     assert persisted["run_state"] == "active"
-    assert json.loads((tmp_path / "live" / LIVE_STATE_FILE).read_text(encoding="utf-8"))[
-        "active_run_id"
-    ] == old_run_id
+    assert (
+        json.loads((tmp_path / "live" / LIVE_STATE_FILE).read_text(encoding="utf-8"))[
+            "active_run_id"
+        ]
+        == old_run_id
+    )
     assert sorted(path.name for path in (tmp_path / "live" / "runs").iterdir()) == [old_run_id]

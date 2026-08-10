@@ -7,7 +7,7 @@ repository: blakinio/freqtrade
 project_lane: freqtrade-portal
 task_kind: ci_governance
 phase: validation
-status: validating
+status: blocked
 priority: high
 prompting_standard_version: 2.1
 execution_policy_version: 2
@@ -22,11 +22,14 @@ issue: 1356
 paper_gate: G0
 live_capital_authorized: false
 protected_production_deployment_authorized: false
+repair_budget_exhausted: true
+successor_task: FTAI-20260810-paper-g0-registry-terminal-inventory-isolation-1356
+ownership_transferred_to_successor: true
 ```
 
 ## Objective
 
-Close PAPER implementation gate G0 finding #1356 by delivering a bounded automated architecture-registry lifecycle guard together with the registry reconciliation. Do not claim completion until exact-head CI, independent audit and PR hygiene pass.
+Close PAPER implementation gate G0 finding #1356 by delivering a bounded automated architecture-registry lifecycle guard together with the registry reconciliation. This task reached the anti-stall repair-cycle limit before terminal validation; its remaining narrow defect is transferred to the fresh isolation successor named above. PR #1447 remains the authoritative delivery vehicle and must not be duplicated.
 
 ## Acceptance inventory
 
@@ -39,94 +42,60 @@ Close PAPER implementation gate G0 finding #1356 by delivering a bounded automat
 - `A7`: exact-head routed CI, CodeQL/zizmor as applicable, independent Codex review and PR hygiene are green before merge.
 - `A8`: runtime/browser E2E is `NOT_APPLICABLE`; this task changes only CI/governance evidence and grants no runtime, deployment, credentials, order or LIVE authority.
 
-## Owned paths
+## Owned paths released to successor
 
 ```yaml
-owned_paths:
+released_paths:
   - ARCHITECTURE_REGISTRY.yaml
   - tests/ci/test_architecture_registry.py
   - docs/agents/tasks/active/FTAI-20260810-paper-g0-registry-lifecycle-1356.md
+successor_may_add:
+  - docs/agents/tasks/active/FTAI-20260810-paper-g0-registry-terminal-inventory-isolation-1356.md
 ```
 
-## Context checkpoint
+## Review and repair history
 
 ```yaml
-checkpoint_version: 8
-updated_at: 2026-08-10T21:16:08+02:00
-last_progress_at: 2026-08-10T21:16:08+02:00
-implementation_head_before_checkpoint: 93eaf7630a69d62f2da90f8f6d504d76aafb08f9
-branch: fix/architecture-registry-lifecycle-1356
-pr: 1447
-status: validating
-counters:
-  ci_checks_for_current_head: 0
-  independent_review_checks_for_current_head: 0
-  unchanged_state_checks: 0
-  identical_failure_retries: 0
-  repair_cycles_for_current_gate: 3
-  context_reconstruction_attempts: 0
-  stall_warnings: 0
-first_ci_failure:
-  workflow: Freqtrade CI
+repair_cycles_for_gate: 3
+ci_format_repair:
   run: 31421127334
-  jobs:
-    - 93561932198
-    - 93561932240
-  signature: ruff-format required formatting of tests/ci/test_architecture_registry.py
   repair_commit: 1e6be5adadd6ae5f26355b1aaa3bd58a19a09dce
-independent_review_history:
+independent_review_findings:
   - reviewed_head: 48c177b299c848da18d031ca41aa03ff5db689b5
-    submitted_at: 2026-08-10T19:03:13Z
     severity: P2
     thread: PRRT_kwDOTdDTU86X_6vx
-    summary: synchronized_base_sha was not required to remain distinct from latest_architecture_change.base_sha
+    summary: synchronized_base_sha not required to remain distinct from latest architecture base
     disposition: remediated
     remediation_head: 4d4a2f8961af81b75b3ffaf3cb0bfd2aff6bc282
   - reviewed_head: 4d4a2f8961af81b75b3ffaf3cb0bfd2aff6bc282
-    submitted_at: 2026-08-10T19:09:02Z
     severity: P2
     thread: PRRT_kwDOTdDTU86YABz6
-    summary: bool Issue identifiers were accepted because bool is a subclass of int in Python
+    summary: YAML boolean Issue identifiers accepted as integers
     disposition: remediated
     remediation_head: 93eaf7630a69d62f2da90f8f6d504d76aafb08f9
-proven:
-  - Issue 1356 explicitly requires the preventive architecture-registry lifecycle validator
-  - PR 1447 changed-file scope remains limited to ARCHITECTURE_REGISTRY.yaml the active task record and tests/ci/test_architecture_registry.py
-  - the guard rejects duplicate/remapped Issue and finding identities resolved/open overlap non-open top-level findings stale domain-local open indexes and missing acceptance of the latest ADR
-  - commit 8d8234be099a61fbd73c023b5a3974714ad0386e closed the remapped-identity loophole found during implementer falsification
-  - head 4d4a2f8961af81b75b3ffaf3cb0bfd2aff6bc282 closed the first independent P2 by asserting both historical review provenance SHAs remain distinct from latest_architecture_change.base_sha
-  - head 93eaf7630a69d62f2da90f8f6d504d76aafb08f9 closes the second independent P2 by requiring type(issue) is int and issue > 0
-  - PR body uses Closes #1356 so Issue closure occurs only after successful merge
-  - Issues 1354 and 1355 remain genuinely open and are the only top-level open architecture findings in the candidate registry
-  - runtime browser deployment and trading E2E are not applicable to this CI/governance-only package
-unknown:
-  - terminal exact-head CI result on the successor created by this task-record commit
-  - final independent Codex disposition on that successor/final substantive remediation
-blockers: []
-next_action: Resolve the live PR 1447 successor head, mark ready/request final independent review and collect exact-head CI; merge and close/archive only when all gates are green and no unresolved review threads remain.
+  - reviewed_head: 5d2e65944c0a2a2d07f88ab403e9bd75b2b14e3f
+    severity: P2
+    thread: PRRT_kwDOTdDTU86YAPja
+    summary: registry open/resolved sets share one editable source so a terminal Issue could remain open if its resolved record is omitted
+    disposition: transferred_to_fresh_isolation_task
 ```
 
-## Recovery checkpoint
+## Proven state
+
+- #1356 remains the only Issue being repaired by PR #1447; do not create a duplicate delivery PR.
+- The existing guard already enforces unique exact integer Issue IDs, unique finding IDs, resolved/open disjointness, domain index consistency, latest accepted ADR binding and historical review provenance separation.
+- The remaining defect is narrow: terminal lifecycle truth needs an independent pinned terminal identity inventory (or equivalent independent source) so known terminal findings cannot be silently left only in the open set.
+- Runtime/browser/deployment/trading E2E remains `NOT_APPLICABLE` for this CI/governance package.
+- PAPER remains the only authorized operational mode; LIVE remains unreachable/fail-closed.
+
+## Terminal checkpoint for this task
 
 ```yaml
-recovery:
-  policy_version: 1
-  generation: 3
-  session_id: paper-20260810-2114
-  session_started_at: 2026-08-10T21:14:00+02:00
-  checkpointed_at: 2026-08-10T21:16:08+02:00
-  last_progress_at: 2026-08-10T21:16:08+02:00
-  phase: final_independent_review_and_exact_head_ci
-  exact_head: 93eaf7630a69d62f2da90f8f6d504d76aafb08f9
-  pull_request: 1447
-  active_operation: persist the second P2 remediation; this task-record commit creates the exact successor to validate
-  external_run_ids: []
-  operation_started_at: 2026-08-10T21:16:08+02:00
-  wait_deadline_at: null
-  check_generation: post-bool-identity-remediation-successor
-  checks_used: 0
-  status: active
-  safe_to_resume: true
-  resume_condition: Final exact-head CI and independent Codex review are terminally clear, or a material owned failure appears.
-  next_action: Resolve the live PR 1447 successor head once; then complete merge/closeout if all gates pass or remediate only the first material owned failure.
+checkpoint_version: 9
+updated_at: 2026-08-10T21:25:00+02:00
+last_progress_at: 2026-08-10T21:25:00+02:00
+status: blocked
+blocker: anti_stall max_repair_cycles_per_gate reached after the final-head Codex review exposed a third material P2
+successor_task: FTAI-20260810-paper-g0-registry-terminal-inventory-isolation-1356
+next_action: The fresh isolation successor must reuse PR #1447, add an independent pinned terminal finding identity invariant, obtain fresh independent review and exact-head CI, then close/archive both task records in the same delivery PR before merge.
 ```

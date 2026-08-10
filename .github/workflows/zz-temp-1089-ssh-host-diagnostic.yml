@@ -11,11 +11,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: zz-temp-1089-synology-ssh-host-diagnostic
+  cancel-in-progress: false
+
 jobs:
   diagnostic:
-    name: Inspect Synology Btrfs metadata through SSH
+    name: Isolate Docker start execution from cleanup latency
     runs-on: [freqtrade-staging]
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - name: Refuse trading credential environment
         shell: bash
@@ -25,95 +29,65 @@ jobs:
             test -z "${!name:-}" || { echo "recognized trading credential present: $name" >&2; exit 1; }
           done
 
-      - name: Prepare SSH client
+      - name: Inspect leaked exact-preflight containers
         shell: bash
         env:
-          SSH_HOST: ${{ secrets.SYNOLOGY_SSH_HOST }}
-          SSH_PORT: ${{ secrets.SYNOLOGY_SSH_PORT }}
-          SSH_USER: ${{ secrets.SYNOLOGY_SSH_USER || vars.SYNOLOGY_SSH_USER }}
-          SSH_PRIVATE_KEY: ${{ secrets.SYNOLOGY_SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.SYNOLOGY_SSH_KNOWN_HOSTS }}
-          SSH_DIR: ${{ runner.temp }}/ssh-1089
+          REPORT: ${{ runner.temp }}/synology-1089-lifecycle-isolation.txt
         run: |
-          set -euo pipefail
-          for name in SSH_HOST SSH_PORT SSH_USER SSH_PRIVATE_KEY SSH_KNOWN_HOSTS; do test -n "${!name:-}" || exit 2; done
-          install -d -m 0700 "$SSH_DIR"
-          umask 077
-          printf '%s\n' "$SSH_PRIVATE_KEY" > "$SSH_DIR/id"
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"
-          chmod 0600 "$SSH_DIR/id" "$SSH_DIR/known_hosts"
-
-      - name: Collect Btrfs and Docker-process metadata
-        id: collect
-        shell: bash
-        env:
-          SSH_HOST: ${{ secrets.SYNOLOGY_SSH_HOST }}
-          SSH_PORT: ${{ secrets.SYNOLOGY_SSH_PORT }}
-          SSH_USER: ${{ secrets.SYNOLOGY_SSH_USER || vars.SYNOLOGY_SSH_USER }}
-          SSH_DIR: ${{ runner.temp }}/ssh-1089
-          REPORT: ${{ runner.temp }}/synology-1089-btrfs-metadata.txt
-        run: |
-          set -euo pipefail
-          ssh_opts=(-i "$SSH_DIR/id" -p "$SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$SSH_DIR/known_hosts" -o ConnectTimeout=10 -o ServerAliveInterval=10 -o ServerAliveCountMax=3 -o LogLevel=ERROR)
-          set +e
-          timeout 420 ssh "${ssh_opts[@]}" "$SSH_USER@$SSH_HOST" 'sh -s' > "$REPORT" 2>&1 <<'REMOTE'
           set -u
-          echo '===== timestamp ====='
-          date -u '+utc=%Y-%m-%dT%H:%M:%SZ'; uptime
-          echo '===== pressure ====='
-          cat /proc/loadavg
-          cat /proc/pressure/io 2>/dev/null || true
-          cat /proc/pressure/memory 2>/dev/null || true
-          command -v iostat >/dev/null 2>&1 && timeout 15 iostat -xz 1 2 || true
-          echo '===== container manager state ====='
-          timeout 15 sudo -n /usr/syno/bin/synopkg status ContainerManager 2>&1 || true
-          timeout 15 sudo -n /usr/syno/bin/synosystemctl get-active-status pkgctl-ContainerManager 2>&1 || true
-          echo '===== docker processes ====='
-          ps -eo pid,ppid,state,etime,wchan:40,comm,args 2>/dev/null | grep -E '(dockerd|containerd|containerd-shim|runc|synounlinkd|docker_event_watcherd)' | grep -v grep || true
-          echo '===== volume1 btrfs usage ====='
-          timeout 60 sudo -n /sbin/btrfs filesystem usage -T /volume1 2>&1 || true
-          echo '===== volume1 btrfs df ====='
-          timeout 30 sudo -n /sbin/btrfs filesystem df /volume1 2>&1 || true
-          echo '===== volume1 balance status ====='
-          timeout 30 sudo -n /sbin/btrfs balance status /volume1 2>&1 || true
-          echo '===== volume1 scrub status ====='
-          timeout 30 sudo -n /sbin/btrfs scrub status /volume1 2>&1 || true
-          echo '===== volume1 device stats ====='
-          timeout 30 sudo -n /sbin/btrfs device stats /volume1 2>&1 || true
-          echo '===== volume1 qgroup summary ====='
-          timeout 45 sudo -n /sbin/btrfs qgroup show /volume1 2>&1 | head -n 80 || true
-          echo '===== docker subvolume count ====='
-          timeout 90 sudo -n /sbin/btrfs subvolume list -o /volume1/@docker 2>&1 | wc -l || true
-          echo '===== docker root df ====='
-          df -h /volume1/@docker 2>&1 || true
-          df -i /volume1/@docker 2>&1 || true
-          echo '===== docker socket ping ====='
-          if command -v curl >/dev/null 2>&1; then timeout 10 curl --fail --silent --show-error --max-time 5 --unix-socket /var/run/docker.sock http://localhost/_ping; echo; fi
-          echo '===== restricted docker version ====='
-          timeout 30 sudo -n /usr/local/bin/docker version 2>&1 || true
+          : > "$REPORT"
+          for name in portal-oidc-exact-31435421798-1 portal-oidc-exact-31435421798-2; do
+            started=$(date +%s)
+            timeout --kill-after=3 15 docker inspect --format 'name={{.Name}} status={{.State.Status}} exit={{.State.ExitCode}} started={{.State.StartedAt}} finished={{.State.FinishedAt}} restart={{.HostConfig.RestartPolicy.Name}}' "$name" >> "$REPORT" 2>&1
+            rc=$?
+            ended=$(date +%s)
+            printf 'inspect_%s_rc=%s\ninspect_%s_elapsed_seconds=%s\n' "$name" "$rc" "$name" "$((ended-started))" | tee -a "$REPORT"
+          done
           exit 0
-          REMOTE
-          ssh_rc=$?
-          set -e
-          printf '\nssh_exit=%s\n' "$ssh_rc" >> "$REPORT"
-          python3 - "$REPORT" <<'PY'
-          import os, pathlib, re, sys
-          p=pathlib.Path(sys.argv[1]); x=p.read_text(encoding='utf-8',errors='replace')
-          for n in ('SSH_HOST','SSH_USER'):
-              v=os.environ.get(n,'')
-              if v: x=x.replace(v,f'[REDACTED_{n}]')
-          x=re.sub(r'(?i)((?:authorization|bearer|password|passwd|secret|token|api[_-]?key)\s*[:=]\s*)[^\s,;]+',r'\1[REDACTED]',x)
-          p.write_text(x,encoding='utf-8')
-          PY
-          printf 'ssh_exit=%s\n' "$ssh_rc" >> "$GITHUB_OUTPUT"
-          test "$ssh_rc" -eq 0
 
-      - name: Upload Btrfs metadata evidence
+      - name: Run exact lifecycle without auto-remove
+        shell: bash
+        env:
+          REPORT: ${{ runner.temp }}/synology-1089-lifecycle-isolation.txt
+        run: |
+          set -u
+          set +e
+          image='docker.io/library/postgres:16.13-alpine3.23@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777'
+          probe="portal-oidc-split-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          failures=0
+          record() {
+            label="$1"; seconds="$2"; shift 2
+            started=$(date +%s)
+            timeout --kill-after=5 "$seconds" "$@" >> "$REPORT" 2>&1
+            rc=$?
+            ended=$(date +%s)
+            printf '%s_rc=%s\n%s_elapsed_seconds=%s\n' "$label" "$rc" "$label" "$((ended-started))" | tee -a "$REPORT"
+            return "$rc"
+          }
+          record docker_version 20 docker version || failures=$((failures+1))
+          record split_create 60 docker create --name "$probe" --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true --entrypoint /bin/true "$image" || failures=$((failures+1))
+          if timeout --kill-after=3 15 docker inspect "$probe" >/dev/null 2>&1; then
+            record split_start 90 docker start "$probe" || failures=$((failures+1))
+            record split_wait 45 docker wait "$probe" || failures=$((failures+1))
+            record split_inspect 20 docker inspect --format 'status={{.State.Status}} exit={{.State.ExitCode}} started={{.State.StartedAt}} finished={{.State.FinishedAt}}' "$probe" || failures=$((failures+1))
+            record split_remove 120 docker rm -f "$probe" || failures=$((failures+1))
+          else
+            echo 'split_probe_missing=true' | tee -a "$REPORT"
+            failures=$((failures+1))
+          fi
+          record post_docker_version 20 docker version || failures=$((failures+1))
+          timeout --kill-after=3 15 docker inspect "$probe" >/dev/null 2>&1
+          leak_rc=$?
+          if [[ "$leak_rc" -eq 0 ]]; then echo 'split_probe_leaked=true' | tee -a "$REPORT"; else echo 'split_probe_leaked=false' | tee -a "$REPORT"; fi
+          echo "split_failures=$failures" | tee -a "$REPORT"
+          [[ "$failures" -eq 0 ]]
+
+      - name: Upload lifecycle isolation evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: synology-1089-btrfs-metadata-ssh-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/synology-1089-btrfs-metadata.txt
+          name: synology-1089-lifecycle-isolation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/synology-1089-lifecycle-isolation.txt
           if-no-files-found: error
           retention-days: 14
 
@@ -121,20 +95,17 @@ jobs:
         if: always()
         shell: bash
         env:
-          REPORT: ${{ runner.temp }}/synology-1089-btrfs-metadata.txt
+          REPORT: ${{ runner.temp }}/synology-1089-lifecycle-isolation.txt
         run: |
           {
-            echo '## Synology #1089 Btrfs metadata SSH diagnostic'
+            echo '## Synology #1089 Docker lifecycle isolation'
             echo
-            grep -E 'Overall:|Device size:|Device allocated:|Device unallocated:|Used:|Free \(estimated\):|Data ratio:|Metadata ratio:|Global reserve:|Data,|Metadata,|System,|balance status|scrub|write_io_errs|read_io_errs|flush_io_errs|corruption_errs|generation_errs|^ssh_exit=' "$REPORT" | sed 's/^/- /' || true
+            grep -E '^(name=|inspect_|docker_version_|split_|post_docker_version_)' "$REPORT" | sed 's/^/- /' || true
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Cleanup
+      - name: Cleanup local evidence
         if: always()
         shell: bash
         env:
-          SSH_DIR: ${{ runner.temp }}/ssh-1089
-          REPORT: ${{ runner.temp }}/synology-1089-btrfs-metadata.txt
-        run: |
-          rm -rf -- "$SSH_DIR"
-          rm -f -- "$REPORT"
+          REPORT: ${{ runner.temp }}/synology-1089-lifecycle-isolation.txt
+        run: rm -f -- "$REPORT"

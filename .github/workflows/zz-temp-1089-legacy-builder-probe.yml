@@ -1,0 +1,67 @@
+name: Temporary 1089 legacy Docker builder probe
+
+on:
+  push:
+    branches:
+      - ops/1089-synology-cleanup-20260810
+    paths:
+      - ".github/workflows/zz-temp-1089-legacy-builder-probe.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Probe Portal build with legacy Docker builder
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 20
+    steps:
+      - name: Checkout frozen request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: 231a3e12462fe542ea444609280dffae37666f44
+
+      - name: Refuse trading credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            test -z "${!name:-}" || { echo "recognized trading credential present: $name" >&2; exit 1; }
+          done
+
+      - name: Verify legacy builder is available
+        shell: bash
+        env:
+          DOCKER_BUILDKIT: "0"
+        run: |
+          set -euo pipefail
+          timeout 60 docker run --rm --network none alpine:3.23 true
+          mkdir -p "$RUNNER_TEMP/legacy-probe"
+          cat > "$RUNNER_TEMP/legacy-probe/Dockerfile" <<'EOF'
+          FROM alpine:3.23
+          RUN true
+          EOF
+          timeout 180 docker build --pull=false -t local/legacy-builder-probe:1089 "$RUNNER_TEMP/legacy-probe"
+          docker image rm local/legacy-builder-probe:1089
+
+      - name: Build exact Portal web image with legacy builder
+        shell: bash
+        env:
+          DOCKER_BUILDKIT: "0"
+        run: |
+          set -euo pipefail
+          timeout 900 docker build \
+            --pull=false \
+            --label org.opencontainers.image.revision=27b6b65ad6a79184c4922a79a86f6e72b3d4383e \
+            --file deploy/synology/portal/Dockerfile \
+            --tag local/freqtrade-portal-web:legacy-probe-1089 \
+            ai_platform/portal/web
+          docker image inspect local/freqtrade-portal-web:legacy-probe-1089 --format 'legacy_portal_image={{.Id}}'
+          docker image rm local/freqtrade-portal-web:legacy-probe-1089

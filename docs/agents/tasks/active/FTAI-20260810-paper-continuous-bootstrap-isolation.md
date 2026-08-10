@@ -7,7 +7,7 @@ repository: blakinio/freqtrade
 project_lane: agent-governance
 task_kind: isolation_repair
 phase: validation
-status: validating
+status: blocked
 priority: high
 execution_mode: github_only
 run_scope: autonomous_program
@@ -21,65 +21,42 @@ paper_gate: programme_governance
 live_capital_authorized: false
 protected_production_deployment_authorized: false
 repair_cycles_for_gate: 3
+repair_budget_exhausted: true
+successor_task: FTAI-20260810-paper-continuous-history-template-isolation
+ownership_transferred_to_successor: true
 ```
 
 ## Objective
 
-Close the bounded isolation created after parent PR #1448 exhausted its repair budget. The change may improve only continuous-programme coordination and durable checkpoint accounting. PAPER remains the only authorized operational trading mode; LIVE remains unreachable/fail-closed.
+This parent isolation delivered the checkpoint-v2, durable exact-SHA history and continuous-programme governance repair after parent PR #1448 exhausted its own repair budget. Its three repair cycles are exhausted. A later exact-head CI defect in task-template classification is owned by the fresh successor named above; do not perform a fourth repair here.
 
-## Acceptance
+## Proven implementation
 
-- root bootstrap recognizes a trusted continuous-programme exception without weakening the default cap;
-- CI/review observations are durable per task and exact SHA across later invocations, reruns and A→B→A history;
-- observation entries are monotonic and non-evicting across Git history;
-- every new or touched task record uses checkpoint v2 while untouched legacy v1 stays read-compatible;
-- coordinator and PAPER executor use the same durable-history rule;
-- manual prompt evaluation is labelled manual/static when no repeated-trial harness exists;
-- exact-head CI, fresh independent Codex review and zero unresolved material review threads are required before merge;
-- runtime/browser E2E is NOT_APPLICABLE because this is governance/checkpoint-only work.
+- root bootstrap recognizes only trusted owner or already-merged trusted-base continuous authority while retaining default bounded behavior;
+- checkpoint v2 stores ordinary CI and review observations by exact SHA;
+- Git-history validation rejects removal or decrease of prior-SHA observations;
+- new/touched durable task records migrate to v2 while untouched v1 remains read-compatible;
+- prior-SHA observation history is non-evicting;
+- autonomous coordinator and PAPER executor use the same stored task/SHA history;
+- manual prompt evaluation is explicitly manual/static because no executable repeated-trial harness is available;
+- PAPER remains the only authorized operational mode and LIVE remains unreachable/fail-closed.
 
-## Repair history
+## Repair boundary
 
-1. Cycle 1 aligned root bootstrap and continuous-mode coordination.
-2. Cycle 2 introduced checkpoint v2 keyed CI/review history and A→B→A regression coverage.
-3. Cycle 3 adds Git-history monotonicity enforcement, touched-task v2 migration enforcement, non-evicting history semantics, updated task templates/handoff guidance and an honest manual/static prompt-eval record.
-
-Fresh cycle-2 Codex findings addressed by cycle 3:
-
-- `PRRT_kwDOTdDTU86YB0WL` — prevent rewriting prior-SHA counters;
-- `PRRT_kwDOTdDTU86YB0WQ` — restrict v1 compatibility to genuinely legacy untouched records;
-- `PRRT_kwDOTdDTU86YB0WU` — do not claim repeated prompt trials when no harness exists;
-- `PRRT_kwDOTdDTU86YB0WZ` — preserve observation history beyond the old 32-head ceiling.
-
-## Prompt-as-code record
-
-```yaml
-prompt_contract:
-  version: paper-continuous-execution-v2
-  changed_surfaces:
-    - repository bootstrap instructions
-    - anti-stall continuation rule
-    - autonomous programme coordinator contract
-    - PAPER executor prompt
-    - durable checkpoint schema, validator and history workflow
-  objective: continue dependency-safe PAPER work during external waits without renewing ordinary polling budgets or losing prior-SHA history
-  baseline_version: paper-continuous-execution-v1
-  eval_suite: docs/agents/evals/PAPER_CONTINUOUS_EXECUTION_EVAL_20260810.md
-  rollback_version: paper-continuous-execution-v1
-```
+Cycle-3 exact-head Agent checkpoint history run `31432576481`, job `93599243414`, proved the six focused deterministic tests pass and isolated one new defect: `TASK_TEMPLATE.md` was incorrectly parsed as a persisted task record because it contains placeholder checkpoint material. That defect is not a fourth parent repair; it is transferred to `FTAI-20260810-paper-continuous-history-template-isolation` on the same PR #1451.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 2
-updated_at: 2026-08-10T21:07:00Z
-head: a17497b42a7d52122331440ae2ef56be27795085
+updated_at: 2026-08-10T21:14:00Z
+head: 1e1e33ecdac3cb756f951907895dac2cbd7dabc5
 branch: fix/paper-continuous-bootstrap-isolation-20260810
 pr: 1451
-status: validating
+status: blocked
 invocation_started_at: 2026-08-10T21:07:00Z
-last_progress_at: 2026-08-10T21:07:00Z
-ci_checks_for_current_head: 1
+last_progress_at: 2026-08-10T21:14:00Z
+ci_checks_for_current_head: 0
 review_checks_for_current_head: 0
 observation_counters_by_sha:
   fe95d6d9ede5ab64bf964e2e36eff5d384ea1b8b:
@@ -94,6 +71,12 @@ observation_counters_by_sha:
   a17497b42a7d52122331440ae2ef56be27795085:
     ci: 1
     review: 0
+  64b94a99eb1c820e09226b735b0134bc247aafbf:
+    ci: 1
+    review: 0
+  1e1e33ecdac3cb756f951907895dac2cbd7dabc5:
+    ci: 0
+    review: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
 repair_cycles_for_current_gate: 3
@@ -101,83 +84,38 @@ context_reconstruction_attempts: 0
 stall_warnings: 0
 context_routes:
   - parent PR 1448 continuous programme governance
-  - root bootstrap authority ordering
   - durable exact-SHA observation history
-  - checkpoint v2 migration and monotonicity
-  - PAPER executor prompt evaluation
-owned_paths:
-  - AGENTS.override.md
-  - docs/agents/ANTI_STALL_AND_EXECUTION_BUDGET.md
-  - docs/agents/AUTONOMOUS_PROGRAM_CONTINUATION.md
-  - docs/agents/GOVERNANCE_CONTRACT.json
-  - docs/agents/CONTEXT_HANDOFF.md
-  - docs/agents/tasks/TASK_TEMPLATE.md
-  - docs/agents/evals/PAPER_CONTINUOUS_EXECUTION_EVAL_20260810.md
-  - docs/agents/prompts/PAPER_PLATFORM_EXECUTOR.md
-  - docs/agents/tasks/active/FTAI-20260810-paper-continuous-bootstrap-isolation.md
-  - tools/agents/checkpoint.py
-  - tools/agents/validate_checkpoint_history.py
-  - tests/ci/test_agent_checkpoint_observation_history.py
-  - tests/ci/test_agent_checkpoint_history_monotonic.py
-  - .github/workflows/agent-checkpoint-history.yml
+  - checkpoint v2 migration
+  - successor repair handoff
+owned_paths: []
 proven:
-  - Parent PR 1448 exhausted three repair cycles and PR 1451 is its existing bounded stacked isolation.
-  - Root bootstrap continuous authority is coordination-only and cannot self-grant from an unmerged edit.
-  - Checkpoint v2 stores CI and review counters by exact SHA.
-  - tools/agents/validate_checkpoint_history.py compares task checkpoints across the PR Git history and rejects removed or decreased prior-SHA counters.
-  - The dedicated Agent checkpoint history workflow uses full Git history and validates touched task migration plus deterministic regressions.
-  - New and touched task records are required to use v2; untouched v1 records remain read-compatible.
-  - Observation history is non-evicting; the parser bound is defensive only and no 32-head archival loss remains authorized.
-  - The prompt eval explicitly records that no nondeterministic repeated-trial harness is available and does not call the manual matrix an automated prompt pass.
+  - Parent isolation exhausted exactly three repair cycles.
+  - Cycle-3 implementation added monotonic non-evicting checkpoint history and touched-task v2 migration.
+  - Agent checkpoint history run 31432576481 passed all six focused regressions before failing only on TASK_TEMPLATE placeholder classification.
+  - Successor task FTAI-20260810-paper-continuous-history-template-isolation exists on the same PR and owns that fresh defect.
   - PAPER remains the only authorized operational mode and LIVE remains unreachable/fail-closed.
 derived:
-  - Cycle 3 addresses every currently known material Codex finding without expanding runtime, deployment, credential or live-capital authority.
-  - Any new material defect after cycle 3 must move to a fresh isolation rather than a fourth repair in this task.
+  - This parent task must remain blocked until the successor completes PR 1451 final validation and closeout.
 unknown:
-  - Terminal exact-head CI result on the checkpoint-successor head.
-  - Fresh independent Codex disposition on the checkpoint-successor head.
+  - Terminal exact-head CI and fresh Codex result after successor repair.
 conflicts: []
 first_failure:
-  marker: cycle-2 review showed mutable/evictable observation history and unrestricted v1 write compatibility
-  evidence: PRRT_kwDOTdDTU86YB0WL PRRT_kwDOTdDTU86YB0WQ PRRT_kwDOTdDTU86YB0WU PRRT_kwDOTdDTU86YB0WZ
+  marker: repair budget exhausted before fresh task-template classification defect
+  evidence: run 31432576481 job 93599243414 after cycle 3
 rejected_hypotheses:
-  - Reset counters per owner invocation; rejected because it permits unbounded same-SHA polling.
-  - Keep a 32-SHA eviction ceiling; rejected because returning to an evicted SHA would lose consumed budget.
-  - Treat all v1 checkpoints as valid new writes; rejected in favor of untouched-legacy read compatibility only.
-  - Claim repeated model trials without an available harness; rejected by evidence and PROMPT_EVAL_STANDARD.
+  - Repair TASK_TEMPLATE classification as cycle 4 here; rejected by max repair cycles per gate.
 changed_paths:
-  - .github/workflows/agent-checkpoint-history.yml
-  - AGENTS.override.md
-  - docs/agents/ANTI_STALL_AND_EXECUTION_BUDGET.md
-  - docs/agents/AUTONOMOUS_PROGRAM_CONTINUATION.md
-  - docs/agents/CONTEXT_HANDOFF.md
-  - docs/agents/GOVERNANCE_CONTRACT.json
-  - docs/agents/evals/PAPER_CONTINUOUS_EXECUTION_EVAL_20260810.md
-  - docs/agents/prompts/PAPER_PLATFORM_EXECUTOR.md
-  - docs/agents/tasks/TASK_TEMPLATE.md
   - docs/agents/tasks/active/FTAI-20260810-paper-continuous-bootstrap-isolation.md
-  - tests/ci/test_agent_checkpoint_history_monotonic.py
-  - tests/ci/test_agent_checkpoint_observation_history.py
-  - tools/agents/checkpoint.py
-  - tools/agents/validate_checkpoint_history.py
 validation:
-  - command: parent PR 1448 exact-head CI before isolation
-    result: PASS
-    evidence: Freqtrade 31426530949; Risk-aware 31426531704; CodeQL 31426530964; zizmor 31426531062
-  - command: independent Codex review of cycle-2 head b9549121fb43a3c2f9f370ac225c084f3af01c15
+  - command: Agent checkpoint history cycle-3 final candidate
     result: FAIL
-    evidence: four open cycle-3 findings named in Repair history
-  - command: manual same-scenario prompt/governance matrix
-    result: PASS
-    evidence: documented manual/static evaluation; no executable nondeterministic prompt harness available
-  - command: Agent checkpoint history plus Freqtrade/Risk-aware exact-head CI for pre-checkpoint a17497b42a7d52122331440ae2ef56be27795085
-    result: NOT_RUN
-    evidence: runs 31432065543 31432065532 31432065752 were queued at first aggregate observation; checkpoint commit intentionally creates a successor generation
+    evidence: run 31432576481 job 93599243414; six focused tests passed, template placeholder classification failed
   - command: runtime/browser E2E
     result: NOT_APPLICABLE
-    evidence: governance/checkpoint/prompt coordination only; no runtime browser deployment or trading behavior changes
-blockers: []
-next_action: Resolve PR 1451 checkpoint-successor exact head, resolve the four cycle-3 review threads as remediated, request fresh Codex review, and validate exact-head CI. If clear, archive this task in the stacked PR, validate the archival successor, then merge PR 1451 into the parent branch and finish parent PR 1448 closeout.
+    evidence: governance/checkpoint-only parent isolation
+blockers:
+  - repair budget exhausted; successor task owns remaining PR 1451 validation
+next_action: Do not mutate this parent task except for terminal archival; continue PR 1451 only through FTAI-20260810-paper-continuous-history-template-isolation.
 ```
 
 ## Recovery checkpoint
@@ -185,22 +123,22 @@ next_action: Resolve PR 1451 checkpoint-successor exact head, resolve the four c
 ```yaml
 recovery:
   policy_version: 1
-  generation: 1
+  generation: 2
   session_id: paper-20260810-2307
   session_started_at: 2026-08-10T21:07:00Z
-  checkpointed_at: 2026-08-10T21:07:00Z
-  last_progress_at: 2026-08-10T21:07:00Z
-  phase: cycle_3_final_validation
-  exact_head: a17497b42a7d52122331440ae2ef56be27795085
+  checkpointed_at: 2026-08-10T21:14:00Z
+  last_progress_at: 2026-08-10T21:14:00Z
+  phase: ownership_transferred
+  exact_head: 1e1e33ecdac3cb756f951907895dac2cbd7dabc5
   pull_request: 1451
-  active_operation: resolve checkpoint-successor head then fresh Codex review and exact-head CI
-  external_run_ids: [31432065543, 31432065532, 31432065752]
-  operation_started_at: 2026-08-10T21:07:00Z
-  wait_deadline_at: 2026-08-10T21:52:00Z
-  check_generation: pre_checkpoint_cycle_3
+  active_operation: none
+  external_run_ids: [31432576481, 31432576462, 31432578417]
+  operation_started_at: 2026-08-10T21:10:00Z
+  wait_deadline_at: null
+  check_generation: cycle_3_template_classifier_failure
   checks_used: 1
-  status: ready
-  safe_to_resume: true
-  resume_condition: PR 1451 successor exact head exists after this checkpoint commit
-  next_action: Resolve the live PR 1451 head once, then request fresh Codex review and inspect the new exact-head CI generation.
+  status: blocked
+  safe_to_resume: false
+  resume_condition: successor task reaches terminal PR 1451 closeout
+  next_action: Resume through FTAI-20260810-paper-continuous-history-template-isolation, not this exhausted parent task.
 ```

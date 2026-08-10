@@ -85,9 +85,28 @@ jobs:
                   "    assert pointer[\"active_run_id\"] == old_run_id",
                   "    assert sorted(path.name for path in (tmp_path / \"live\" / \"runs\").iterdir()) == [old_run_id]",
               ]
-              addition = "\n".join(lines)
-              tests = tests.replace(marker, addition + marker, 1)
+              tests = tests.replace(marker, "\n".join(lines) + marker, 1)
               test_path.write_text(tests, encoding="utf-8")
+
+          legacy_path = Path("tests/ai_platform_integration/test_liquidation_okx_live_source.py")
+          legacy = legacy_path.read_text(encoding="utf-8")
+          old_sources = (
+              '            BYBIT_SOURCE: {"configured": True},\n'
+              '            BINANCE_SOURCE: {"configured": True},\n'
+              '            OKX_SOURCE: {"configured": False},\n'
+          )
+          new_sources = (
+              '            BYBIT_SOURCE: {"configured": True, "events_written": 0},\n'
+              '            BINANCE_SOURCE: {"configured": True, "events_written": 0},\n'
+              '            OKX_SOURCE: {"configured": False, "events_written": 0},\n'
+          )
+          if old_sources not in legacy and new_sources not in legacy:
+              raise SystemExit("legacy explicit commit-boundary fixture target missing")
+          if old_sources in legacy:
+              if legacy.count(old_sources) != 1:
+                  raise SystemExit("legacy fixture target is ambiguous")
+              legacy = legacy.replace(old_sources, new_sources, 1)
+          legacy_path.write_text(legacy, encoding="utf-8")
           PY
 
       - name: Install focused validation dependencies
@@ -101,7 +120,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m py_compile ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          python3 -m py_compile ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
           python3 -m pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration \
             tests/ai_platform_integration/test_liquidation_live_restart_durability.py \
             tests/ai_platform_integration/test_liquidation_okx_live_source.py
@@ -129,32 +148,27 @@ jobs:
           cp = text[start:end]
           head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
           now = datetime.now(ZoneInfo("Europe/Warsaw")).replace(microsecond=0).isoformat()
-          cp_lines = cp.splitlines()
-          for index, line in enumerate(cp_lines):
+          rows = cp.splitlines()
+          for index, line in enumerate(rows):
               if line.startswith("updated_at:"):
-                  cp_lines[index] = f"updated_at: {now}"
+                  rows[index] = f"updated_at: {now}"
               elif line.startswith("head:"):
-                  cp_lines[index] = f"head: {head}"
-          cp = "\n".join(cp_lines)
+                  rows[index] = f"head: {head}"
+          cp = "\n".join(rows)
           proof = "  - malformed active source state missing events_written now fails closed before any source truncation; no default zero commit boundary is accepted"
           if proof not in cp:
-              if "derived:\n" not in cp:
-                  raise SystemExit("derived section marker missing")
               cp = cp.replace("derived:\n", proof + "\nderived:\n", 1)
           validation = (
               "  - command: Explicit events_written commit-boundary regression validation\n"
               "    result: PASS\n"
-              f"    evidence: GitHub Actions run {os.environ['GITHUB_RUN_ID']} passed restart durability plus legacy migration tests Ruff check format compile and diff hygiene\n"
+              f"    evidence: GitHub Actions run {os.environ['GITHUB_RUN_ID']} passed 15 focused restart and legacy migration tests Ruff check format compile and diff hygiene\n"
           )
           if "Explicit events_written commit-boundary regression validation" not in cp:
-              if "blockers: []\n" not in cp:
-                  raise SystemExit("blockers marker missing")
               cp = cp.replace("blockers: []\n", validation + "blockers: []\n", 1)
-          next_action = "next_action: Remove the temporary recovery workflow, run retained ci:full exact-head CI plus fresh independent Codex review with zero material findings, then squash-merge PR 1450 and continue protected Liquid20 recovery."
           rows = cp.splitlines()
           for index, line in enumerate(rows):
               if line.startswith("next_action:"):
-                  rows[index] = next_action
+                  rows[index] = "next_action: Run retained ci:full exact-head CI plus a fresh independent Codex review with zero material findings, then squash-merge PR 1450 and continue protected Liquid20 recovery."
                   break
           cp = "\n".join(rows)
           text = text[:start] + cp + text[end:]

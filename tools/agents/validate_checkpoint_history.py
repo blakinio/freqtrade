@@ -110,6 +110,24 @@ def _parse_snapshot(text: str, *, path: str, commit: str) -> Snapshot:
     )
 
 
+def _snapshots_at_commit(
+    commit: str, paths: tuple[str, ...]
+) -> tuple[dict[str, Snapshot], list[str]]:
+    snapshots: dict[str, Snapshot] = {}
+    errors: list[str] = []
+    for path in paths:
+        text = _show(commit, path)
+        if text is None:
+            continue
+        try:
+            snapshot = _parse_snapshot(text, path=path, commit=commit)
+        except ValueError as exc:
+            errors.append(str(exc))
+            continue
+        snapshots[snapshot.task_id] = snapshot
+    return snapshots, errors
+
+
 def _assert_monotonic(previous: Snapshot, current: Snapshot) -> list[str]:
     errors: list[str] = []
     for sha, old in previous.observation_counters_by_sha.items():
@@ -130,21 +148,11 @@ def _assert_monotonic(previous: Snapshot, current: Snapshot) -> list[str]:
 def validate_history(base: str, head: str) -> list[str]:
     commits = _git("rev-list", "--reverse", f"{base}..{head}").splitlines()
     paths = _task_paths_between(base, head)
-    errors: list[str] = []
-    previous_by_task: dict[str, Snapshot] = {}
+    previous_by_task, errors = _snapshots_at_commit(base, paths)
 
     for commit in commits:
-        current_by_task: dict[str, Snapshot] = {}
-        for path in paths:
-            text = _show(commit, path)
-            if text is None:
-                continue
-            try:
-                snapshot = _parse_snapshot(text, path=path, commit=commit)
-            except ValueError as exc:
-                errors.append(str(exc))
-                continue
-            current_by_task[snapshot.task_id] = snapshot
+        current_by_task, parse_errors = _snapshots_at_commit(commit, paths)
+        errors.extend(parse_errors)
 
         for task_id, current in current_by_task.items():
             previous = previous_by_task.get(task_id)
@@ -160,18 +168,12 @@ def validate_history(base: str, head: str) -> list[str]:
     # Migration discriminator: every real task record touched by this PR and still
     # present at the final head must be v2. Templates and governance examples are
     # deliberately outside active/archive task-record namespaces.
-    for path in paths:
-        text = _show(head, path)
-        if text is None:
-            continue
-        try:
-            snapshot = _parse_snapshot(text, path=path, commit=head)
-        except ValueError as exc:
-            errors.append(str(exc))
-            continue
+    final_by_task, final_errors = _snapshots_at_commit(head, paths)
+    errors.extend(final_errors)
+    for snapshot in final_by_task.values():
         if snapshot.checkpoint_version != 2:
             errors.append(
-                f"{head}:{path}: touched/new task {snapshot.task_id} must migrate to checkpoint_version 2"
+                f"{head}:{snapshot.path}: touched/new task {snapshot.task_id} must migrate to checkpoint_version 2"
             )
 
     return errors

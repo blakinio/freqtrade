@@ -1,4 +1,4 @@
-name: Portal WickHunter Repo-Only Durability Repair V3
+name: Portal WickHunter Durability Exact Validation
 
 "on":
   push:
@@ -8,159 +8,121 @@ name: Portal WickHunter Repo-Only Durability Repair V3
       - .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: portal-wickhunter-1396-repo-only-durability-repair-v3
+  group: portal-wickhunter-1396-durability-exact-validation
   cancel-in-progress: false
 
 jobs:
-  repair:
-    name: Patch repository durability invariant yaml-safe
+  validate:
+    name: Validate durability repair on latest recovery branch
     runs-on:
       - freqtrade-staging
-    timeout-minutes: 8
+    timeout-minutes: 15
     steps:
-      - name: Checkout recovery branch
+      - name: Checkout latest recovery branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: fix/wickhunter-1396-synology-recovery-v2
+          persist-credentials: false
           fetch-depth: 20
 
-      - name: Apply exact repository-only durability patch
+      - name: Create isolated validation environment
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
+          python3 -m venv "$RUNNER_TEMP/wickhunter-durability-venv"
+          "$RUNNER_TEMP/wickhunter-durability-venv/bin/python" -m pip install --disable-pip-version-check -r requirements.txt
+          "$RUNNER_TEMP/wickhunter-durability-venv/bin/python" -m pip install --disable-pip-version-check pytest==9.1.1 ruff==0.15.21
+          "$RUNNER_TEMP/wickhunter-durability-venv/bin/python" -m pip install --disable-pip-version-check --no-deps -e .
+
+      - name: Validate checkpoint and durability markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          PY="$RUNNER_TEMP/wickhunter-durability-venv/bin/python"
+          "$PY" tools/agents/checkpoint.py \
+            docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md \
+            --require-checkpoint
+          "$PY" - <<'PY'
           from pathlib import Path
 
-          source = Path("ai_platform/scripts/liquidation_live_stream.py")
-          text = source.read_text(encoding="utf-8")
-
-          old_close = "".join((
-              "    def close(self) -> None:\n",
-              "        if not self._handle.closed:\n",
-              "            self.flush()\n",
-              "            self._handle.close()\n",
-          ))
-          new_close = "".join((
-              "    @property\n",
+          source = Path("ai_platform/scripts/liquidation_live_stream.py").read_text(encoding="utf-8")
+          tests = Path("tests/ai_platform_integration/test_liquidation_live_restart_durability.py").read_text(encoding="utf-8")
+          required = (
               "    def closed(self) -> bool:\n",
-              "        return self._handle.closed\n",
-              "\n",
-              "    def close(self) -> None:\n",
-              "        if not self.closed:\n",
-              "            self.flush()\n",
-              "            self._handle.close()\n",
-          ))
-          if "    def closed(self) -> bool:\n" not in text:
-              if text.count(old_close) != 1:
-                  raise SystemExit("unexpected exact writer close block")
-              text = text.replace(old_close, new_close, 1)
-
-          old_heartbeat = "".join((
-              "    async def heartbeat(self) -> None:\n",
-              "        async with self._lock:\n",
-              "            self._rotate_if_needed(self._now_ms())\n",
-              "            for writer in self._writers.values():\n",
-              "                await asyncio.to_thread(writer.flush)\n",
-              "            await asyncio.to_thread(self._write_state)\n",
-          ))
-          new_heartbeat = "".join((
-              "    async def heartbeat(self) -> None:\n",
-              "        async with self._lock:\n",
-              "            self._rotate_if_needed(self._now_ms())\n",
-              "            await asyncio.to_thread(self._write_state)\n",
-          ))
-          if old_heartbeat in text:
-              if text.count(old_heartbeat) != 1:
-                  raise SystemExit("unexpected exact heartbeat block")
-              text = text.replace(old_heartbeat, new_heartbeat, 1)
-
-          old_write_state = "".join((
-              "    def _write_state(self) -> None:\n",
-              "        payload = self._state_payload()\n",
-          ))
-          new_write_state = "".join((
-              "    def _write_state(self) -> None:\n",
               "        for writer in self._writers.values():\n",
               "            if not writer.closed:\n",
               "                writer.flush()\n",
-              "        payload = self._state_payload()\n",
-          ))
-          if "            if not writer.closed:\n" not in text:
-              if text.count(old_write_state) != 1:
-                  raise SystemExit("unexpected exact state writer block")
-              text = text.replace(old_write_state, new_write_state, 1)
-
-          if not all(marker in text for marker in (
-              "    def closed(self) -> bool:\n",
-              "            if not writer.closed:\n",
-              "                writer.flush()\n",
-          )):
-              raise SystemExit("durability source invariant is incomplete")
-          source.write_text(text, encoding="utf-8")
-
-          test = Path("tests/ai_platform_integration/test_liquidation_live_restart_durability.py")
-          test_text = test.read_text(encoding="utf-8")
-          test_name = "test_state_commit_flushes_pending_ndjson_before_events_written"
-          if test_name not in test_text:
-              marker = "\n\ndef test_restart_truncates_only_uncommitted_suffix_before_completion("
-              if test_text.count(marker) != 1:
-                  raise SystemExit("unexpected exact durability test marker")
-              lines = [
-                  "",
-                  "",
-                  "def test_state_commit_flushes_pending_ndjson_before_events_written(tmp_path: Path) -> None:",
-                  "    manager = OkxLiveRunManager(",
-                  "        data_root=tmp_path,",
-                  "        collector_commit=\"8\" * 40,",
-                  "        host_id=\"synology-test\",",
-                  "        now_ms=lambda: 1_786_384_683_792,",
-                  "        flush_interval_seconds=3600.0,",
-                  "    )",
-                  "",
-                  "    async def scenario() -> None:",
-                  "        await manager.start()",
-                  "        writer = manager._writers[BINANCE_SOURCE]",
-                  "        writer._handle.write(\"{}\\\\n\")",
-                  "        writer._pending = 1",
-                  "        manager.sources[BINANCE_SOURCE].events_written = 1",
-                  "",
-                  "        manager._write_state()",
-                  "",
-                  "        assert writer._pending == 0",
-                  "        assert (manager.run_root / f\"{BINANCE_SOURCE}.ndjson\").read_bytes() == b\"{}\\\\n\"",
-                  "        state = json.loads(",
-                  "            (manager.run_root / \"run-state-v1.json\").read_text(encoding=\"utf-8\")",
-                  "        )",
-                  "        assert state[\"sources\"][BINANCE_SOURCE][\"events_written\"] == 1",
-                  "        await manager.stop()",
-                  "",
-                  "    asyncio.run(scenario())",
-              ]
-              addition = "\n".join(lines)
-              test_text = test_text.replace(marker, addition + marker, 1)
-              test.write_text(test_text, encoding="utf-8")
+          )
+          if not all(marker in source for marker in required):
+              raise SystemExit("durability source invariant missing")
+          if "test_state_commit_flushes_pending_ndjson_before_events_written" not in tests:
+              raise SystemExit("durability regression test missing")
+          if "await asyncio.to_thread(writer.flush)" in source:
+              raise SystemExit("heartbeat still carries duplicate direct flush path")
+          print("DURABILITY_MARKERS=PASS")
           PY
-          python3 -m py_compile \
-            ai_platform/scripts/liquidation_live_stream.py \
-            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
-          git diff --check
 
-      - name: Commit exact repository patch
+      - name: Compile focused Python
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add \
+          PY="$RUNNER_TEMP/wickhunter-durability-venv/bin/python"
+          "$PY" -m py_compile \
             ai_platform/scripts/liquidation_live_stream.py \
             tests/ai_platform_integration/test_liquidation_live_restart_durability.py
-          if git diff --cached --quiet; then
-            echo "DURABILITY_REPAIR_COMMIT=already-present"
-            exit 0
-          fi
-          git commit -m "fix(liquidations): fsync events before persisting commit counts"
-          git pull --rebase origin fix/wickhunter-1396-synology-recovery-v2
-          git push origin HEAD:fix/wickhunter-1396-synology-recovery-v2
+
+      - name: Run focused restart durability regression suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          PY="$RUNNER_TEMP/wickhunter-durability-venv/bin/python"
+          "$PY" -m pytest -q -o addopts='' \
+            --confcutdir=tests/ai_platform_integration \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+
+      - name: Ruff focused Python
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUFF="$RUNNER_TEMP/wickhunter-durability-venv/bin/ruff"
+          "$RUFF" check \
+            ai_platform/scripts/liquidation_live_stream.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          "$RUFF" format --check \
+            ai_platform/scripts/liquidation_live_stream.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+
+      - name: Verify producer-consumer restart contract and diff hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          PY="$RUNNER_TEMP/wickhunter-durability-venv/bin/python"
+          "$PY" - <<'PY'
+          from pathlib import Path
+
+          producer = Path("ai_platform/scripts/liquidation_live_stream.py").read_text(encoding="utf-8")
+          consumer = Path("ai_platform/wickhunter/candidate_paper_runtime_operator.py").read_text(encoding="utf-8")
+          producer_markers = (
+              "if set(sources) != expected_sources:",
+              "if allow_missing and committed_rows == 0:",
+              "if path.is_symlink():",
+              "handle.truncate(committed_end)",
+              "os.fsync(handle.fileno())",
+          )
+          consumer_markers = (
+              "if tuple(sorted(source_payloads)) != EXPECTED_LIVE_SOURCES:",
+              "events_written == 0",
+              "and not configured",
+              "source_row.get(\"last_event_received_at_ms\") is None",
+          )
+          if not all(marker in producer for marker in producer_markers):
+              raise SystemExit("producer restart contract marker missing")
+          if not all(marker in consumer for marker in consumer_markers):
+              raise SystemExit("consumer historical contract marker missing")
+          print("PRODUCER_CONSUMER_RESTART_CONTRACT=PASS")
+          PY
+          git diff --check develop...HEAD
+          echo "VALIDATED_BRANCH_HEAD=$(git rev-parse HEAD)"

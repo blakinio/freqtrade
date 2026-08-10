@@ -156,8 +156,8 @@ jobs:
           required = {}
           for destination in ("/runtime/journal", "/runtime/operator"):
               mount = mounts.get(destination)
-              if not isinstance(mount, dict) or mount.get("RW") is not False:
-                  raise SystemExit(f"WH09 mount is not read-only eligible evidence: {destination}")
+              if not isinstance(mount, dict) or mount.get("Type") != "bind" or mount.get("RW") is not True:
+                  raise SystemExit(f"WH09 writable evidence source mount mismatch: {destination}")
               host_source = mount.get("Source")
               if not isinstance(host_source, str) or not host_source.startswith("/volume1/docker/"):
                   raise SystemExit(f"WH09 evidence host source is unsafe: {destination}")
@@ -312,6 +312,17 @@ jobs:
           [[ -z "$(docker port "$OBSERVER_CONTAINER")" ]]
           [[ "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "$OBSERVER_CONTAINER")" == "true" ]]
           [[ "$(docker inspect --format '{{.HostConfig.Privileged}}' "$OBSERVER_CONTAINER")" == "false" ]]
+          docker inspect "$OBSERVER_CONTAINER" > "$RUNNER_TEMP/wh09-observer-inspect.json"
+          python3 - "$RUNNER_TEMP/wh09-observer-inspect.json" <<'PY'
+          import json
+          import sys
+          observer = json.load(open(sys.argv[1], encoding="utf-8"))[0]
+          mounts = {entry.get("Destination"): entry for entry in observer.get("Mounts") or []}
+          for destination in ("/runtime/journal", "/runtime/operator"):
+              mount = mounts.get(destination)
+              if not isinstance(mount, dict) or mount.get("Type") != "bind" or mount.get("RW") is not False:
+                  raise SystemExit(f"WH09 observer evidence mount is not read-only: {destination}")
+          PY
 
           docker exec -i "$PORTAL_CONTROL_CONTAINER" \
             python -m ai_platform.portal.control_plane.wh09_bootstrap \
@@ -417,6 +428,7 @@ jobs:
 
           python3 - "$RUNNER_TEMP/wh09-bootstrap.json" "$RUNNER_TEMP/wh09-live-api.json" "$RUNNER_TEMP/portal-wh09-final-report.json" <<'PY'
           import json
+          import os
           import pathlib
           import sys
           bootstrap = json.load(open(sys.argv[1], encoding="utf-8"))
@@ -425,7 +437,7 @@ jobs:
           report = {
               "schema_version": 1,
               "result": "PASS",
-              "portal_commit": "${GITHUB_SHA}",
+              "portal_commit": os.environ["GITHUB_SHA"],
               "bot_id": bootstrap["bot_id"],
               "adoption_provenance": bootstrap["adoption_provenance"],
               "desired_runtime_generation_id": bootstrap["desired_runtime_generation_id"],

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -294,6 +295,7 @@ def test_provision_builds_quarantined_hardened_container(tmp_path: Path) -> None
     assert "-p" not in create
     assert "--publish" not in create
     assert not any("docker.sock" in value for value in create)
+    assert "/proc/swaps" in runner.calls[6][-1]
     assert attestor.prepared_storage == [spec.state_path]
     assert attestor.prepared_networks == [_network()]
     assert attestor.attested_storage == [spec.state_path]
@@ -467,3 +469,76 @@ def test_host_probe_reports_cgroup_v2_and_approved_external_backends(
     assert report.storage_backend is StorageIsolationBackend.BOUNDED_VOLUME
     assert report.network_backend is NetworkIsolationBackend.CONSTRAINED_PROXY
     assert report.log_backend is LogIsolationBackend.DOCKER_LOCAL
+
+
+def test_host_probe_accepts_no_active_swap_without_swap_controller(tmp_path: Path) -> None:
+    cgroup = tmp_path / "cgroup"
+    cgroup.mkdir()
+    (cgroup / "cgroup.controllers").write_text("cpu memory pids\n", encoding="utf-8")
+    boot_id = tmp_path / "boot-id"
+    boot_id.write_text("boot-1\n", encoding="utf-8")
+    proc_swaps = tmp_path / "swaps"
+    proc_swaps.write_text("Filename Type Size Used Priority\n", encoding="utf-8")
+    runner = _Runner(
+        CommandResult(0, stdout='["name=seccomp,profile=builtin"]'),
+        CommandResult(0, stdout='["local"]'),
+    )
+
+    report = DockerHostCapabilityProbe(
+        runner,
+        external_attestor=_Attestor(),
+        cgroup_root=cgroup,
+        boot_id_path=boot_id,
+        proc_swaps_path=proc_swaps,
+    ).probe(now=NOW)
+
+    assert report.supports_swap_bound_or_disable is True
+
+
+def test_host_probe_rejects_active_swap_without_swap_controller(tmp_path: Path) -> None:
+    cgroup = tmp_path / "cgroup"
+    cgroup.mkdir()
+    (cgroup / "cgroup.controllers").write_text("cpu memory pids\n", encoding="utf-8")
+    boot_id = tmp_path / "boot-id"
+    boot_id.write_text("boot-1\n", encoding="utf-8")
+    proc_swaps = tmp_path / "swaps"
+    proc_swaps.write_text(
+        "Filename Type Size Used Priority\n/swapfile file 1024 0 -2\n",
+        encoding="utf-8",
+    )
+    runner = _Runner(
+        CommandResult(0, stdout='["name=seccomp,profile=builtin"]'),
+        CommandResult(0, stdout='["local"]'),
+    )
+
+    report = DockerHostCapabilityProbe(
+        runner,
+        external_attestor=_Attestor(),
+        cgroup_root=cgroup,
+        boot_id_path=boot_id,
+        proc_swaps_path=proc_swaps,
+    ).probe(now=NOW)
+
+    assert report.supports_swap_bound_or_disable is False
+
+
+def test_effective_cgroup_accepts_host_disabled_swap_only_for_zero_swap_plan() -> None:
+    plan = _plan()
+    driver = DockerCliRuntimeDriver()
+    evidence = (
+        f"memory={plan.memory_limit_bytes}\n"
+        "swap=host-disabled\n"
+        f"pids={plan.pids_limit}\n"
+        "cpu=100000 100000\n"
+        "cpuset=\n"
+    )
+
+    driver._attest_cgroup(evidence, plan)
+
+    with pytest.raises(RuntimeDriverError) as exc_info:
+        driver._attest_cgroup(
+            evidence,
+            replace(plan, memory_swap_limit_bytes=plan.memory_limit_bytes + 1024),
+        )
+
+    assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"

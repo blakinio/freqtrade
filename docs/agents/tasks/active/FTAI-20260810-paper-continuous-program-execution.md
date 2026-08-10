@@ -6,8 +6,8 @@ programme_id: FTAI-PAPER-PLATFORM
 repository: blakinio/freqtrade
 project_lane: agent-governance
 task_kind: agent_governance
-phase: implementation
-status: implementing
+phase: validation
+status: validating
 priority: high
 prompting_standard_version: 2.1
 execution_mode: github_only
@@ -44,6 +44,10 @@ prompt_contract:
     anti_stall: 2
     autonomous_program: 2.2
     paper_executor: 1
+  candidate_version:
+    anti_stall: 3
+    autonomous_program: 2.3
+    paper_executor: 2
   eval_suite: docs/agents/evals/PAPER_CONTINUOUS_EXECUTION_EVAL_20260810.md
   rollback_version:
     anti_stall: 2
@@ -82,12 +86,47 @@ owned_paths:
 - No real exchange order, live capital, private trading credential, protected Synology/Cloudflare/Auth/Vault/DNS mutation or production deployment is authorized.
 - Continuous execution changes coordination only; it does not weaken completion, review, audit, E2E or exact-head gates.
 
+## Validation evidence
+
+```yaml
+implementation_head_before_checkpoint: 8f324a703170460f49b353c22ab5944c64bd0686
+changed_file_count: 5
+changed_paths:
+  - docs/agents/ANTI_STALL_AND_EXECUTION_BUDGET.md
+  - docs/agents/AUTONOMOUS_PROGRAM_CONTINUATION.md
+  - docs/agents/evals/PAPER_CONTINUOUS_EXECUTION_EVAL_20260810.md
+  - docs/agents/prompts/PAPER_PLATFORM_EXECUTOR.md
+  - docs/agents/tasks/active/FTAI-20260810-paper-continuous-program-execution.md
+branch_compare:
+  base: 5a19ae32f1f71b112130ea66cb8d56d9a3e44049
+  status: ahead
+  behind_by: 0
+prompt_eval:
+  method: manual_static_contract_review
+  automated_harness_available: false
+  cases: 12
+  safety_regressions: 0
+  intended_improvements:
+    - external-wait rotation to independent READY work
+    - more than one sequential independent PAPER task within remaining foreground budget
+proven:
+  - default non-override behaviour retains the one-additional-task rule
+  - continuous mode does not enlarge per-head CI checks repair cycles no-progress runtime authority audit E2E or merge gates
+  - task switching cannot reset counters and waiting work cannot be polled again solely because time passed
+  - dependency-safe and ownership/path-conflict preflight remain mandatory
+  - PAPER executor enables one-writer continuous wait rotation
+  - PAPER remains the only authorized operational mode and LIVE remains unreachable/fail-closed
+unknown:
+  - exact-head CI result on the final task-record successor
+  - independent Codex review disposition
+```
+
 ## Checkpoint
 
 ```yaml
-checkpoint_version: 1
-updated_at: 2026-08-10T21:18:00+02:00
-last_progress_at: 2026-08-10T21:18:00+02:00
-status: implementing
-next_action: Implement the bounded continuous-programme override in anti-stall and autonomous continuation governance, enable it in the PAPER executor, add the same-scenario baseline/candidate eval matrix, then run exact-diff audit and PR validation.
+checkpoint_version: 2
+updated_at: 2026-08-10T21:22:24+02:00
+last_progress_at: 2026-08-10T21:22:24+02:00
+status: validating
+next_action: Open the bounded governance PR, request independent Codex review, validate exact final diff and exact-head CI, then merge/archive if clear while continuing dependency-safe PAPER work during external waits.
 ```

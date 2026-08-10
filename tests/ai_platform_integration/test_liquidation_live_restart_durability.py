@@ -1,0 +1,120 @@
+from __future__ import annotations
+
+import asyncio
+import json
+from pathlib import Path
+
+import pytest
+
+from ai_platform.scripts.liquidation_live_stream import (
+    BINANCE_SOURCE,
+    BYBIT_SOURCE,
+    LIVE_STATE_FILE,
+    OKX_SOURCE,
+)
+from ai_platform.scripts.liquidation_live_stream_okx import OkxLiveRunManager
+
+
+def _write_previous_active_run(
+    data_root: Path,
+    *,
+    committed_rows: dict[str, int],
+    actual_rows: dict[str, int],
+) -> tuple[str, Path]:
+    run_id = "liquid20-20260810T000000Z-1"
+    run_root = data_root / "live" / "runs" / run_id
+    run_root.mkdir(parents=True)
+    sources = {
+        source: {
+            "configured": True,
+            "connected": True,
+            "events_written": committed_rows.get(source, 0),
+        }
+        for source in (BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE)
+    }
+    state = {
+        "schema_version": 1,
+        "contract": "liquidation-live-state-v1",
+        "run_id": run_id,
+        "run_state": "active",
+        "data_mode": "live",
+        "collector_started_at_ms": 1_786_362_979_860,
+        "collector_heartbeat_at_ms": 1_786_382_100_000,
+        "completed_at_ms": None,
+        "completion_reason": None,
+        "collector_commit": "1" * 40,
+        "host_id": "synology-test",
+        "execution_enabled": False,
+        "trading_authorized": False,
+        "trading_credentials_present": False,
+        "orders_submitted": 0,
+        "sources": sources,
+    }
+    (run_root / "run-state-v1.json").write_text(json.dumps(state), encoding="utf-8")
+    (data_root / "live" / LIVE_STATE_FILE).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "contract": "liquidation-live-state-v1",
+                "active_run_id": run_id,
+                "collector_heartbeat_at_ms": state["collector_heartbeat_at_ms"],
+                "state": state,
+            }
+        ),
+        encoding="utf-8",
+    )
+    for source, count in actual_rows.items():
+        (run_root / f"{source}.ndjson").write_bytes(b"{}\n" * count)
+    return run_id, run_root
+
+
+def test_restart_truncates_only_uncommitted_suffix_before_completion(tmp_path: Path) -> None:
+    old_run_id, old_run_root = _write_previous_active_run(
+        tmp_path,
+        committed_rows={BINANCE_SOURCE: 2, BYBIT_SOURCE: 1, OKX_SOURCE: 0},
+        actual_rows={BINANCE_SOURCE: 7, BYBIT_SOURCE: 2, OKX_SOURCE: 0},
+    )
+    manager = OkxLiveRunManager(
+        data_root=tmp_path,
+        collector_commit="2" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+
+    async def scenario() -> None:
+        await manager.start()
+        assert manager.run_id != old_run_id
+        await manager.stop()
+
+    asyncio.run(scenario())
+
+    completed = json.loads((old_run_root / "run-state-v1.json").read_text(encoding="utf-8"))
+    assert completed["run_state"] == "completed"
+    assert completed["completion_reason"] == "collector-restart"
+    assert (old_run_root / f"{BINANCE_SOURCE}.ndjson").read_bytes() == b"{}\n" * 2
+    assert (old_run_root / f"{BYBIT_SOURCE}.ndjson").read_bytes() == b"{}\n"
+    assert (old_run_root / f"{OKX_SOURCE}.ndjson").read_bytes() == b""
+
+
+def test_restart_fails_closed_when_committed_rows_are_missing(tmp_path: Path) -> None:
+    old_run_id, old_run_root = _write_previous_active_run(
+        tmp_path,
+        committed_rows={BINANCE_SOURCE: 2, BYBIT_SOURCE: 0, OKX_SOURCE: 0},
+        actual_rows={BINANCE_SOURCE: 1, BYBIT_SOURCE: 0, OKX_SOURCE: 0},
+    )
+    manager = OkxLiveRunManager(
+        data_root=tmp_path,
+        collector_commit="3" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+
+    with pytest.raises(RuntimeError, match="binance-usdm source file has fewer rows than committed"):
+        asyncio.run(manager.start())
+
+    persisted = json.loads((old_run_root / "run-state-v1.json").read_text(encoding="utf-8"))
+    assert persisted["run_state"] == "active"
+    assert json.loads((tmp_path / "live" / LIVE_STATE_FILE).read_text(encoding="utf-8"))[
+        "active_run_id"
+    ] == old_run_id
+    assert sorted(path.name for path in (tmp_path / "live" / "runs").iterdir()) == [old_run_id]

@@ -11,8 +11,37 @@ permissions:
   contents: read
 
 jobs:
+  cancel-stale:
+    name: Cancel stale cleanup attempts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Cancel stale attempts on the Synology runner
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for run_id in 31390818737 31391014027; do
+            code="$(curl --silent --show-error \
+              --output /tmp/cancel-response \
+              --write-out '%{http_code}' \
+              --request POST \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$run_id/cancel" || true)"
+            echo "cancel run=$run_id http=$code"
+            cat /tmp/cancel-response || true
+            echo
+          done
+
   cleanup:
     name: Clean project Docker garbage and retry Portal OIDC
+    needs: cancel-stale
     runs-on: [freqtrade-staging]
     timeout-minutes: 20
     permissions:

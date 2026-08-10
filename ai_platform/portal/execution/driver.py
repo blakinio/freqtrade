@@ -222,12 +222,19 @@ class DockerHostCapabilityProbe:
 
     def _host_swap_disabled(self) -> bool:
         try:
-            lines = self._proc_swaps_path.read_text(encoding="utf-8").splitlines()
+            lines = [
+                line.strip()
+                for line in self._proc_swaps_path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
         except OSError:
             return False
         if not lines:
+            return True
+        header = lines[0].lower()
+        if not header.startswith("filename") or "type" not in header or "size" not in header:
             return False
-        return not any(line.strip() for line in lines[1:])
+        return len(lines) == 1
 
     def _cpuset_cpus(self, mode: str) -> tuple[int, ...]:
         path = (

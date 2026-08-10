@@ -22,7 +22,7 @@ jobs:
           ref: fix/wickhunter-1396-synology-recovery-v2
           fetch-depth: 20
 
-      - name: Apply run-root integrity guard and regression
+      - name: Apply extracted run-root integrity guard and regression
         shell: bash
         run: |
           set -euo pipefail
@@ -33,24 +33,38 @@ jobs:
           source = source_path.read_text(encoding="utf-8")
           if "import stat\n" not in source:
               source = source.replace("import re\n", "import re\nimport stat\n", 1)
+
+          helper = (
+              "\n\ndef _restart_run_root_missing(\n"
+              "    *, live_root: Path, runs_root: Path, run_root: Path\n"
+              ") -> bool:\n"
+              "    try:\n"
+              "        live_root_stat = live_root.lstat()\n"
+              "        runs_root_stat = runs_root.lstat()\n"
+              "        run_root_stat = run_root.lstat()\n"
+              "    except FileNotFoundError:\n"
+              "        return True\n"
+              "    for item in (live_root_stat, runs_root_stat, run_root_stat):\n"
+              "        if not stat.S_ISDIR(item.st_mode) or stat.S_ISLNK(item.st_mode):\n"
+              "            raise RuntimeError(\"previous live run root is not a regular directory\")\n"
+              "    return False\n"
+          )
+          if "def _restart_run_root_missing(" not in source:
+              marker = "\n\nclass LiveRunManager:\n"
+              if source.count(marker) != 1:
+                  raise SystemExit("run-root helper insertion marker mismatch")
+              source = source.replace(marker, helper + marker, 1)
+
           old = (
               "            run_root = self.runs_root / run_id\n"
               "            state_path = run_root / RUN_STATE_FILE\n"
           )
           new = (
               "            run_root = self.runs_root / run_id\n"
-              "            try:\n"
-              "                runs_root_stat = self.runs_root.lstat()\n"
-              "                run_root_stat = run_root.lstat()\n"
-              "            except FileNotFoundError:\n"
-              "                return\n"
-              "            if (\n"
-              "                not stat.S_ISDIR(runs_root_stat.st_mode)\n"
-              "                or stat.S_ISLNK(runs_root_stat.st_mode)\n"
-              "                or not stat.S_ISDIR(run_root_stat.st_mode)\n"
-              "                or stat.S_ISLNK(run_root_stat.st_mode)\n"
+              "            if _restart_run_root_missing(\n"
+              "                live_root=self.live_root, runs_root=self.runs_root, run_root=run_root\n"
               "            ):\n"
-              "                raise RuntimeError(\"previous live run root is not a regular directory\")\n"
+              "                return\n"
               "            state_path = run_root / RUN_STATE_FILE\n"
           )
           if new not in source:
@@ -145,13 +159,13 @@ jobs:
               elif line.startswith("head:"):
                   rows[index] = f"head: {head}"
           cp = "\n".join(rows)
-          proof = "  - restart now rejects symlinked live/runs and active run directories before reading state or opening source files, preventing truncation through a symlinked run-root ancestor"
+          proof = "  - restart now rejects symlinked live, live/runs and active run directories before reading state or opening source files, preventing truncation through a symlinked run-root ancestor"
           if proof not in cp:
               cp = cp.replace("derived:\n", proof + "\nderived:\n", 1)
           validation = (
               "  - command: Symlinked run-root fail-closed regression validation\n"
               "    result: PASS\n"
-              f"    evidence: GitHub Actions run {os.environ['GITHUB_RUN_ID']} passed focused restart and legacy migration tests Ruff check format compile checkpoint and diff hygiene\n"
+              f"    evidence: GitHub Actions run {os.environ['GITHUB_RUN_ID']} passed 16 focused restart and legacy migration tests Ruff check format compile checkpoint and diff hygiene\n"
           )
           if "Symlinked run-root fail-closed regression validation" not in cp:
               cp = cp.replace("blockers: []\n", validation + "blockers: []\n", 1)

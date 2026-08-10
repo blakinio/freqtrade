@@ -145,7 +145,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          docker run --rm --entrypoint python "portal-wickhunter-control:${SOURCE_SHA}" - <<'PY' > artifacts/wh09-evidence.json
+          docker run --rm -i --entrypoint python "portal-wickhunter-control:${SOURCE_SHA}" - <<'PY' > artifacts/wh09-evidence.json
           from datetime import UTC, datetime
           from decimal import Decimal
           from ai_platform.portal.control_plane.wh09_runtime import (
@@ -312,18 +312,65 @@ jobs:
           set -euo pipefail
           npm ci
           npx playwright install --with-deps chromium
+          openssl req -x509 -newkey rsa:2048 -nodes \
+            -keyout "$RUNNER_TEMP/wickhunter-browser.key" \
+            -out "$RUNNER_TEMP/wickhunter-browser.crt" \
+            -days 1 \
+            -subj "/CN=127.0.0.1" \
+            -addext "subjectAltName=IP:127.0.0.1" >/dev/null 2>&1
+          cat > "$RUNNER_TEMP/wickhunter-browser-proxy.mjs" <<'JS'
+          import fs from "node:fs";
+          import http from "node:http";
+          import https from "node:https";
+
+          const [keyPath, certPath] = process.argv.slice(2);
+          const server = https.createServer(
+            { key: fs.readFileSync(keyPath), cert: fs.readFileSync(certPath) },
+            (request, response) => {
+              const upstream = http.request(
+                {
+                  hostname: "127.0.0.1",
+                  port: 3000,
+                  path: request.url,
+                  method: request.method,
+                  headers: { ...request.headers, host: "127.0.0.1:3000" },
+                },
+                (upstreamResponse) => {
+                  response.writeHead(upstreamResponse.statusCode ?? 502, upstreamResponse.headers);
+                  upstreamResponse.pipe(response);
+                },
+              );
+              upstream.on("error", () => {
+                response.writeHead(502);
+                response.end();
+              });
+              request.pipe(upstream);
+            },
+          );
+          server.listen(3443, "127.0.0.1");
+          JS
+          node "$RUNNER_TEMP/wickhunter-browser-proxy.mjs" \
+            "$RUNNER_TEMP/wickhunter-browser.key" "$RUNNER_TEMP/wickhunter-browser.crt" &
+          proxy_pid=$!
+          trap 'kill "$proxy_pid" >/dev/null 2>&1 || true' EXIT
+          for _ in $(seq 1 30); do
+            curl --insecure --fail --silent https://127.0.0.1:3443/login >/dev/null && break
+            sleep 1
+          done
+          curl --insecure --fail --silent https://127.0.0.1:3443/login >/dev/null
+
           cat > "$RUNNER_TEMP/wickhunter-browser.mjs" <<'JS'
           import { chromium } from "@playwright/test";
 
-          const origin = "http://127.0.0.1:3000";
+          const origin = "https://127.0.0.1:3443";
           const browser = await chromium.launch({ headless: true });
-          const context = await browser.newContext();
+          const context = await browser.newContext({ ignoreHTTPSErrors: true });
           await context.addCookies([
             {
               name: "__Host-portal_session",
               value: "wickhunter-browser-session-" + "s".repeat(40),
               url: origin,
-              secure: false,
+              secure: true,
               httpOnly: true,
               sameSite: "Lax",
             },
@@ -331,7 +378,7 @@ jobs:
               name: "__Host-portal_csrf",
               value: "wickhunter-browser-csrf-" + "c".repeat(40),
               url: origin,
-              secure: false,
+              secure: true,
               httpOnly: false,
               sameSite: "Lax",
             },

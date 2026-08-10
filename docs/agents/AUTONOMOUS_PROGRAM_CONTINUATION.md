@@ -1,7 +1,7 @@
 # Autonomous Program Continuation Contract
 
 ```yaml
-autonomous_program_contract_version: 2.3
+autonomous_program_contract_version: 2.4
 ```
 
 ## Purpose
@@ -184,7 +184,7 @@ Do not keep a worker active merely to wait for CI, another task, deployment, an 
 
 Persist exact `status: waiting` evidence and one `next_action`, release the worker or lease where appropriate, and execute other independent work already inside the same task. In default mode, start an additional task only under the fixed anti-stall gate. Under a trusted continuous-programme override, the coordinator may instead select another dependency-safe, non-conflicting `READY` task even while the prior task remains waiting.
 
-Never revisit a waiting task merely because time passed. Within one owner invocation, ordinary CI/review polling remains keyed to the exact commit SHA: a same-SHA rerun, new workflow run ID, replacement check suite, or draft/ready transition does not reset the observation budget. Revisit by polling again only after a new exact head SHA or in a later invocation. If a terminal state is surfaced incidentally by another already-authorized operation, consume it without issuing an extra status query. Return when every authorized path is waiting or blocked, or another real stop condition applies.
+Never revisit a waiting task merely because time passed. Ordinary CI/review observation history is durable for the same task and exact commit SHA across owner invocations, Chat replacement, workflow reruns, new run IDs, replacement check suites and draft/ready transitions. Checkpoint version 2 persists that history in `observation_counters_by_sha`; a genuinely new exact SHA receives a new entry, while a branch that returns SHA B → previously observed SHA A must reuse SHA A's stored counters. Revisit by polling only when the stored task/SHA entry still has allowance and a concrete invalidation reason exists. A later invocation by itself never reopens the polling budget. If a terminal state is surfaced incidentally by another already-authorized operation, consume it without issuing an extra status query. Return when every authorized path is waiting or blocked, or another real stop condition applies.
 
 Repeated status polling is not useful work.
 

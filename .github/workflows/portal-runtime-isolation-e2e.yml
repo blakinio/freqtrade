@@ -11,6 +11,7 @@ on:
       - "ai_platform/portal/execution/isolation.py"
       - "ai_platform/portal/execution/runtime_image/**"
       - "tests/ai_platform/portal/execution/test_driver.py"
+      - "tests/ai_platform/portal/execution/test_driver_swap_probe.py"
       - "tests/ai_platform/portal/execution/test_host_isolation.py"
       - "tests/ai_platform/portal/execution/test_isolation.py"
       - "tests/ai_platform/portal/execution/test_runtime_image.py"
@@ -48,6 +49,17 @@ jobs:
           python -m pip install --disable-pip-version-check
           pytest==9.1.1 jsonschema "pydantic>=2.2" "SQLAlchemy>=2.0.6"
           "httpx>=0.24.1" fastapi pyjwt cryptography "PyYAML>=6.0"
+
+      - name: Prepare no-swap hard-bound fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo swapoff -a
+          if [ "$(wc -l < /proc/swaps)" -gt 1 ]; then
+            echo "active swap remains after swapoff" >&2
+            cat /proc/swaps >&2
+            exit 1
+          fi
 
       - name: Exercise real Docker driver quarantine and hard bounds
         run: >-
@@ -167,3 +179,38 @@ jobs:
           path: artifacts/portal-runtime-isolation
           if-no-files-found: error
           retention-days: 14
+
+      - name: Cleanup task-owned Docker resources
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t containers < <(
+            docker ps -aq --filter 'label=ai.portal.test=runtime-isolation-e2e'
+          )
+          for container in "${containers[@]}"; do
+            name="$(docker inspect --format '{{.Name}}' "$container" | sed 's#^/##')"
+            case "$name" in
+              portal-isolation-e2e-*) ;;
+              *)
+                echo "refusing cleanup of unexpected container: $name" >&2
+                exit 1
+                ;;
+            esac
+            docker rm -f "$container"
+          done
+
+          mapfile -t networks < <(
+            docker network ls -q --filter 'label=ai.portal.runtime_id'
+          )
+          for network in "${networks[@]}"; do
+            runtime_id="$(docker network inspect --format '{{index .Labels "ai.portal.runtime_id"}}' "$network")"
+            case "$runtime_id" in
+              portal-isolation-e2e-*) ;;
+              *) continue ;;
+            esac
+            docker network rm "$network"
+          done
+
+          docker image rm -f portal/freqtrade-runtime:e2e >/dev/null 2>&1 || true

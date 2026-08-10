@@ -12,6 +12,7 @@ The canonical short role aliases are:
 AUDYT PLATFORMY
 NAPRAWA PLATFORMY
 ARCHITEKTURA PLATFORMY
+WDROŻENIE PAPER
 WICKHUNTER
 ```
 
@@ -65,10 +66,13 @@ Before creating, claiming, resuming, updating, handing off, or closing any task 
 12. Before `completed`, require independent audit PASS, required E2E PASS or NOT_APPLICABLE with reason, exact-head required CI PASS, zero unresolved review threads, zero unintentionally open related PRs, terminal task state, and released ownership.
 13. Start at most one additional task after the terminal entry task, only when at least 30 minutes of declared budget remains, no stall warning occurred, and the anti-stall gate permits it.
 
-## Live-capital boundary
+## PAPER-only and live-capital boundary
 
-- Repository work, research evidence, backtests, dry-run validation, and merge do not authorize model promotion, strategy promotion, live trading, capital allocation, withdrawals, exchange-credential changes, or production deployment.
-- New trading configurations remain `dry_run: true` unless a separately authorized promotion work package changes that state.
-- Autonomous repair agents may prepare isolated branches, tests, fixes, evidence, and PRs; they may not mutate live execution or bypass deterministic risk controls.
+- `PAPER` is the normal and only currently authorized operational mode for the Quant Platform.
+- `SHADOW` is optional and may be used only by a bounded test, training, research, diagnostic, or parity-validation package that proves why simulated order submission is not appropriate for that package.
+- Repository work, research evidence, backtests, SHADOW/PAPER validation, merge, release, deployment, or model/strategy promotion do not authorize live trading, real capital allocation, withdrawals, production exchange-credential activation, or a LIVE state transition.
+- New trading configurations remain `dry_run: true`; a managed Freqtrade dry-run runtime maps to platform `PAPER` unless the exact package is explicitly SHADOW-only.
+- `LIVE` must remain technically unreachable/fail-closed until a separate explicit owner-approved architecture and implementation programme changes this authority.
+- Autonomous agents may prepare isolated branches, tests, fixes, evidence, and PRs; they may not mutate real-capital execution or bypass deterministic risk controls.
 
 These rules supplement the repository root `AGENTS.md`. When rules overlap, follow the more restrictive safety or live-capital requirement.

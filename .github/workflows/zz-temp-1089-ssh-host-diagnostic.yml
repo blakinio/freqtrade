@@ -16,10 +16,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  acceptance:
-    name: Verify recovered Synology Docker runtime
+  diagnostic:
+    name: Attribute Synology I/O pressure and verify exact preflight
     runs-on: [freqtrade-staging]
-    timeout-minutes: 25
+    timeout-minutes: 12
     steps:
       - name: Refuse trading credential environment
         shell: bash
@@ -47,29 +47,23 @@ jobs:
           for name in SSH_PORT SSH_USER SSH_PRIVATE_KEY SSH_KNOWN_HOSTS; do
             test -n "${!name:-}" || { echo "required SSH input is missing: $name" >&2; exit 1; }
           done
-          [[ "$SSH_PORT" =~ ^[0-9]+$ ]]
           install -d -m 0700 "$SSH_DIR"
           umask 077
           printf '%s\n' "$SSH_PRIVATE_KEY" > "$SSH_DIR/id"
           printf '%s\n' "$SSH_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"
           chmod 0600 "$SSH_DIR/id" "$SSH_DIR/known_hosts"
 
-      - name: Collect focused host pressure and service evidence
+      - name: Collect host I/O attribution evidence
         id: host
         shell: bash
         env:
           SSH_HOST: ${{ secrets.SYNOLOGY_SSH_HOST }}
           SSH_PORT: ${{ secrets.SYNOLOGY_SSH_PORT }}
           SSH_USER: ${{ secrets.SYNOLOGY_SSH_USER || vars.SYNOLOGY_SSH_USER }}
-          SSH_PRIVATE_KEY: ${{ secrets.SYNOLOGY_SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.SYNOLOGY_SSH_KNOWN_HOSTS }}
           SSH_DIR: ${{ runner.temp }}/ssh-1089
-          REPORT: ${{ runner.temp }}/synology-1089-focused-host.txt
+          REPORT: ${{ runner.temp }}/synology-1089-io-attribution.txt
         run: |
           set -euo pipefail
-          for name in SSH_HOST SSH_PORT SSH_USER SSH_PRIVATE_KEY SSH_KNOWN_HOSTS; do
-            test -n "${!name:-}" || { echo "required SSH input is missing: $name" >&2; exit 1; }
-          done
           ssh_opts=(
             -i "$SSH_DIR/id"
             -p "$SSH_PORT"
@@ -82,159 +76,83 @@ jobs:
             -o LogLevel=ERROR
           )
           set +e
-          timeout 180 ssh "${ssh_opts[@]}" "$SSH_USER@$SSH_HOST" 'sh -s' > "$REPORT" 2>&1 <<'REMOTE'
+          timeout 240 ssh "${ssh_opts[@]}" "$SSH_USER@$SSH_HOST" 'sh -s' > "$REPORT" 2>&1 <<'REMOTE'
           set -u
           DOCKER=/usr/local/bin/docker
           [ -x "$DOCKER" ] || DOCKER=/var/packages/ContainerManager/target/usr/bin/docker
           echo '===== timestamp ====='
-          date -u '+utc=%Y-%m-%dT%H:%M:%SZ'
-          uptime
+          date -u '+utc=%Y-%m-%dT%H:%M:%SZ'; uptime
+          echo '===== btrfs scrub ====='
+          timeout 30 sudo -n /sbin/btrfs scrub status /volume1 2>&1 || true
+          timeout 30 sudo -n /sbin/btrfs scrub status /volume2 2>&1 || true
           echo '===== mdstat ====='
           cat /proc/mdstat 2>/dev/null || true
-          echo '===== md sync state ====='
-          for d in /sys/block/md*/md; do
-            [ -d "$d" ] || continue
-            printf '%s sync_action=' "$d"
-            cat "$d/sync_action" 2>/dev/null || true
-            printf '%s sync_completed=' "$d"
-            cat "$d/sync_completed" 2>/dev/null || true
-            printf '%s mismatch_cnt=' "$d"
-            cat "$d/mismatch_cnt" 2>/dev/null || true
-          done
-          echo '===== pressure ====='
-          cat /proc/pressure/io 2>/dev/null || true
-          cat /proc/pressure/memory 2>/dev/null || true
-          command -v iostat >/dev/null 2>&1 && timeout 15 iostat -xz 1 2 || true
-          echo '===== container manager ====='
-          timeout 15 sudo -n /usr/syno/bin/synosystemctl get-active-status pkgctl-ContainerManager 2>&1 || true
-          timeout 15 sudo -n /usr/syno/bin/synopkg status ContainerManager 2>&1 || true
-          echo '===== docker ====='
-          timeout 30 sudo -n "$DOCKER" version 2>&1 || true
-          timeout 30 sudo -n "$DOCKER" info --format 'ServerVersion={{.ServerVersion}} StorageDriver={{.Driver}} DockerRootDir={{.DockerRootDir}} Containers={{.Containers}} ContainersRunning={{.ContainersRunning}} ContainersStopped={{.ContainersStopped}} Images={{.Images}} LiveRestoreEnabled={{.LiveRestoreEnabled}}' 2>&1 || true
-          echo '===== volume1 btrfs counters ====='
-          timeout 30 sudo -n /sbin/btrfs device stats /volume1 2>&1 || true
-          echo '===== volume2 btrfs counters ====='
-          timeout 30 sudo -n /sbin/btrfs device stats /volume2 2>&1 || true
-          echo '===== runtime process states ====='
-          ps -eo pid,ppid,state,etime,wchan:32,comm,args 2>/dev/null | grep -E '(dockerd|containerd|runc|synounlinkd|docker_event_watcherd)' | grep -v grep || true
+          echo '===== process candidates ====='
+          ps -eo pid,ppid,user,state,etime,%cpu,%mem,comm,args 2>/dev/null | grep -Ei 'btrfs|scrub|backup|snapshot|surveillance|syno|docker|containerd' | grep -v grep | tail -n 250 || true
+          echo '===== pidstat io ====='
+          if command -v pidstat >/dev/null 2>&1; then timeout 15 pidstat -d 1 5 2>&1 || true; else echo 'pidstat unavailable'; fi
+          echo '===== iostat ====='
+          if command -v iostat >/dev/null 2>&1; then timeout 15 iostat -xz 1 3 2>&1 || true; fi
+          echo '===== docker stats ====='
+          timeout 60 sudo -n "$DOCKER" stats --no-stream --format '{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.BlockIO}}\t{{.NetIO}}' 2>&1 || true
+          echo '===== exact preflight probe ====='
+          PROBE='ft-1089-exact-preflight'
+          timeout 30 sudo -n "$DOCKER" rm -f "$PROBE" >/dev/null 2>&1 || true
+          started=$(date +%s)
+          timeout 20 sudo -n "$DOCKER" run --rm --name "$PROBE" --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true --entrypoint /bin/true docker.io/library/postgres:16.13-alpine3.23@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777 >/dev/null 2>&1
+          rc=$?
+          ended=$(date +%s)
+          printf 'exact_preflight_rc=%s\nexact_preflight_elapsed_seconds=%s\n' "$rc" "$((ended-started))"
+          timeout 30 sudo -n "$DOCKER" rm -f "$PROBE" >/dev/null 2>&1 || true
+          echo '===== post docker ====='
+          timeout 30 sudo -n "$DOCKER" version >/dev/null 2>&1; printf 'post_docker_version_rc=%s\n' "$?"
+          exit 0
           REMOTE
           ssh_rc=$?
           set -e
-          printf '\nssh_exit=%s\n' "$ssh_rc" >> "$REPORT"
+          printf 'ssh_exit=%s\n' "$ssh_rc" >> "$REPORT"
           python3 - "$REPORT" <<'PY'
           import os, pathlib, re, sys
-          p = pathlib.Path(sys.argv[1])
-          text = p.read_text(encoding='utf-8', errors='replace')
-          for name in ('SSH_HOST','SSH_USER','SSH_PRIVATE_KEY','SSH_KNOWN_HOSTS'):
-              value = os.environ.get(name, '')
-              if value:
-                  text = text.replace(value, f'[REDACTED_{name}]')
-          text = re.sub(r'-----BEGIN [^-\n]*PRIVATE KEY-----.*?-----END [^-\n]*PRIVATE KEY-----', '[REDACTED_PRIVATE_KEY_BLOCK]', text, flags=re.S)
-          text = re.sub(r'(?i)((?:authorization|bearer|password|passwd|secret|token|api[_-]?key)\s*[:=]\s*)[^\s,;]+', r'\1[REDACTED]', text)
-          p.write_text(text, encoding='utf-8')
+          p=pathlib.Path(sys.argv[1]); x=p.read_text(encoding='utf-8',errors='replace')
+          for n in ('SSH_HOST','SSH_USER'):
+              v=os.environ.get(n,'')
+              if v: x=x.replace(v,f'[REDACTED_{n}]')
+          x=re.sub(r'(?i)((?:authorization|bearer|password|passwd|secret|token|api[_-]?key)\s*[:=]\s*)[^\s,;]+',r'\1[REDACTED]',x)
+          p.write_text(x,encoding='utf-8')
           PY
           printf 'ssh_exit=%s\n' "$ssh_rc" >> "$GITHUB_OUTPUT"
           test "$ssh_rc" -eq 0
 
-      - name: Run bounded Docker lifecycle and builder acceptance
-        id: acceptance
-        shell: bash
-        env:
-          RESULT: ${{ runner.temp }}/synology-1089-runtime-acceptance.txt
-        run: |
-          set -u
-          : > "$RESULT"
-          probe="ft-1089-accept-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          legacy_image="ft-1089-legacy:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          buildkit_image="ft-1089-buildkit:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          context="${RUNNER_TEMP}/ft-1089-build-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          cleanup() {
-            timeout 60 docker rm -f "$probe" >/dev/null 2>&1 || true
-            timeout 60 docker image rm -f "$legacy_image" "$buildkit_image" >/dev/null 2>&1 || true
-            rm -rf "$context"
-          }
-          trap cleanup EXIT INT TERM
-          record() {
-            label="$1"; limit="$2"; shift 2
-            started=$(date +%s)
-            timeout "$limit" "$@" >> "$RESULT" 2>&1
-            rc=$?
-            ended=$(date +%s)
-            printf '%s_rc=%s\n%s_elapsed_seconds=%s\n' "$label" "$rc" "$label" "$((ended-started))" | tee -a "$RESULT"
-            return "$rc"
-          }
-          failures=0
-          record docker_version 30 docker version || failures=$((failures+1))
-          record docker_info 30 docker info || failures=$((failures+1))
-          if timeout 15 docker image inspect alpine:3.23 >/dev/null 2>&1; then
-            printf 'alpine_pull_rc=already_present\nalpine_pull_elapsed_seconds=0\n' | tee -a "$RESULT"
-          else
-            record alpine_pull 180 docker pull alpine:3.23 || failures=$((failures+1))
-          fi
-          record disposable_create 90 docker create --name "$probe" --network none alpine:3.23 true || failures=$((failures+1))
-          if timeout 15 docker inspect "$probe" >/dev/null 2>&1; then
-            record disposable_start 120 docker start -a "$probe" || failures=$((failures+1))
-            record disposable_remove 90 docker rm "$probe" || failures=$((failures+1))
-          else
-            printf 'disposable_start_rc=not_run\ndisposable_remove_rc=not_run\n' | tee -a "$RESULT"
-            failures=$((failures+2))
-          fi
-          record run_network_none 120 docker run --rm --network none alpine:3.23 true || failures=$((failures+1))
-          mkdir -p "$context"
-          printf 'FROM alpine:3.23\nRUN true\n' > "$context/Dockerfile"
-          record legacy_builder 300 env DOCKER_BUILDKIT=0 docker build --pull=false -t "$legacy_image" "$context" || failures=$((failures+1))
-          record buildkit_builder 420 env DOCKER_BUILDKIT=1 docker build --progress=plain --pull=false -t "$buildkit_image" "$context" || failures=$((failures+1))
-          record post_build_docker_version 30 docker version || failures=$((failures+1))
-          record post_build_docker_info 30 docker info || failures=$((failures+1))
-          cleanup
-          leaked_containers=$(timeout 30 docker ps -a --format '{{.Names}}' 2>/dev/null | grep -E '^ft-1089-(accept|ssh-probe)-' || true)
-          leaked_images=$(timeout 30 docker image ls --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep -E '^ft-1089-(legacy|buildkit):' || true)
-          if [ -n "$leaked_containers" ]; then printf 'leaked_containers=%s\n' "$leaked_containers" | tee -a "$RESULT"; failures=$((failures+1)); else echo 'leaked_containers=none' | tee -a "$RESULT"; fi
-          if [ -n "$leaked_images" ]; then printf 'leaked_images=%s\n' "$leaked_images" | tee -a "$RESULT"; failures=$((failures+1)); else echo 'leaked_images=none' | tee -a "$RESULT"; fi
-          printf 'acceptance_failures=%s\n' "$failures" | tee -a "$RESULT"
-          printf 'acceptance_failures=%s\n' "$failures" >> "$GITHUB_OUTPUT"
-          trap - EXIT INT TERM
-          [ "$failures" -eq 0 ]
-
-      - name: Upload focused recovery evidence
+      - name: Upload I/O attribution evidence
         if: always()
         id: upload
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: synology-1089-focused-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/synology-1089-focused-host.txt
-            ${{ runner.temp }}/synology-1089-runtime-acceptance.txt
+          name: synology-1089-io-attribution-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/synology-1089-io-attribution.txt
           if-no-files-found: error
           retention-days: 14
 
-      - name: Write acceptance summary
+      - name: Write focused summary
         if: always()
         shell: bash
         env:
-          HOST_REPORT: ${{ runner.temp }}/synology-1089-focused-host.txt
-          ACCEPT_REPORT: ${{ runner.temp }}/synology-1089-runtime-acceptance.txt
+          REPORT: ${{ runner.temp }}/synology-1089-io-attribution.txt
         run: |
           {
-            echo '## Synology #1089 focused runtime acceptance'
+            echo '## Synology #1089 I/O attribution'
             echo
-            if [[ -f "$HOST_REPORT" ]]; then
-              echo '### Host evidence'
-              grep -E 'sync_action=|sync_completed=|mismatch_cnt=|ServerVersion=|write_io_errs|read_io_errs|flush_io_errs|corruption_errs|generation_errs|ssh_exit=' "$HOST_REPORT" | sed 's/^/- /' || true
-            fi
-            if [[ -f "$ACCEPT_REPORT" ]]; then
-              echo '### Docker acceptance'
-              grep -E '^(docker_version_rc|docker_info_rc|disposable_create_rc|disposable_start_rc|disposable_remove_rc|run_network_none_rc|legacy_builder_rc|buildkit_builder_rc|post_build_docker_version_rc|post_build_docker_info_rc|leaked_containers|leaked_images|acceptance_failures)=' "$ACCEPT_REPORT" | sed 's/^/- /' || true
+            if [[ -f "$REPORT" ]]; then
+              grep -E 'scrub status|scrub started|scrub resumed|scrub canceled|scrub finished|exact_preflight_rc=|exact_preflight_elapsed_seconds=|post_docker_version_rc=|ssh_exit=' "$REPORT" | sed 's/^/- /' || true
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Remove local SSH and diagnostic material
+      - name: Remove local diagnostic material
         if: always()
         shell: bash
         env:
           SSH_DIR: ${{ runner.temp }}/ssh-1089
-          HOST_REPORT: ${{ runner.temp }}/synology-1089-focused-host.txt
-          ACCEPT_REPORT: ${{ runner.temp }}/synology-1089-runtime-acceptance.txt
+          REPORT: ${{ runner.temp }}/synology-1089-io-attribution.txt
         run: |
           rm -rf -- "$SSH_DIR"
-          rm -f -- "$HOST_REPORT" "$ACCEPT_REPORT"
+          rm -f -- "$REPORT"

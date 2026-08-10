@@ -1,4 +1,4 @@
-name: Portal WickHunter Liquid20 Exact Lint Repair
+name: Portal WickHunter Liquid20 Restart Sealing Validation
 
 "on":
   push:
@@ -6,65 +6,60 @@ name: Portal WickHunter Liquid20 Exact Lint Repair
       - fix/wickhunter-1396-synology-recovery-v2
     paths:
       - .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
+      - ai_platform/scripts/liquidation_live_stream.py
+      - tests/ai_platform_integration/test_liquidation_live_restart_durability.py
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: portal-wickhunter-1396-liquid20-lint-repair
-  cancel-in-progress: false
+  group: portal-wickhunter-1396-liquid20-restart-sealing
+  cancel-in-progress: true
 
 jobs:
-  repair:
-    name: Apply two proven E501 repairs
+  validate:
+    name: Focused restart durability tests and lint
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - name: Checkout exact branch head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: fix/wickhunter-1396-synology-recovery-v2
+          persist-credentials: false
           fetch-depth: 1
 
-      - name: Apply exact source formatting repairs
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          enable-cache: false
+          python-version: "3.12"
 
-          replacements = {
-              Path("ai_platform/scripts/liquidation_live_stream.py"): (
-                  "    if isinstance(committed_rows, bool) or not isinstance(committed_rows, int) or committed_rows < 0:\n",
-                  "    if (\n"
-                  "        isinstance(committed_rows, bool)\n"
-                  "        or not isinstance(committed_rows, int)\n"
-                  "        or committed_rows < 0\n"
-                  "    ):\n",
-              ),
-              Path("tests/ai_platform_integration/test_liquidation_live_restart_durability.py"): (
-                  "    with pytest.raises(RuntimeError, match=\"binance-usdm source file has fewer rows than committed\"):\n",
-                  "    with pytest.raises(\n"
-                  "        RuntimeError, match=\"binance-usdm source file has fewer rows than committed\"\n"
-                  "    ):\n",
-              ),
-          }
-          for path, (before, after) in replacements.items():
-              text = path.read_text(encoding="utf-8")
-              if text.count(before) != 1:
-                  raise SystemExit(f"expected exactly one target in {path}")
-              path.write_text(text.replace(before, after), encoding="utf-8")
-          PY
-          git diff --check
-          git diff -- ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
-
-      - name: Commit exact repairs to recovery branch
-        shell: bash
+      - name: Install bounded dependencies
         run: |
-          set -euo pipefail
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
-          git diff --cached --quiet && exit 1
-          git commit -m "style(liquidations): satisfy focused restart lint"
-          git push origin HEAD:fix/wickhunter-1396-synology-recovery-v2
+          uv pip install -r requirements.txt
+          uv pip install pytest==9.1.1 ruff==0.15.21
+          uv pip install --no-deps -e .
+
+      - name: Compile touched Python
+        run: |
+          python -m py_compile ai_platform/scripts/liquidation_live_stream.py
+          python -m py_compile tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+
+      - name: Run focused restart durability tests
+        run: >-
+          python -m pytest -q -o addopts=''
+          --confcutdir=tests/ai_platform_integration
+          tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+
+      - name: Ruff touched Python
+        run: >-
+          ruff check
+          ai_platform/scripts/liquidation_live_stream.py
+          tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+
+      - name: Ruff format touched Python
+        run: >-
+          ruff format --check
+          ai_platform/scripts/liquidation_live_stream.py
+          tests/ai_platform_integration/test_liquidation_live_restart_durability.py

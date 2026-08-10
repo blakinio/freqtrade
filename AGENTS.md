@@ -52,7 +52,7 @@ The repository, current Git state, active pull requests, CI results, and files i
 - Do not remove persistent/shared deployment containers, databases, runners, portal/control-plane services, bot runtimes, evidence stores, volumes, images, or networks merely because they are stopped or old. Removal requires explicit task scope plus evidence that the exact resource is obsolete.
 - If ownership or continued use is uncertain, leave the resource in place and record it as unresolved instead of deleting it.
 - Docker-resource cleanup must not implicitly remove persistent data. Do not use volume-removing flags or delete volumes containing persistent/evidence state unless persistent-data deletion is explicitly authorized and separately verified.
-- After cleanup, verify both that the intended authorized resources are gone and that protected/current services remain healthy using their declared Docker health checks and/or service-level probes where available; process `running` state alone is not sufficient when a stronger health signal exists. Record exact resource names/IDs and the health evidence in the task closeout.
+- Before cleanup, capture the applicable health signals for protected/current services. After cleanup, verify that every intended authorized resource is gone and that protected/current services did not degrade relative to that baseline; record pre-existing stopped or unhealthy states rather than requiring unrelated cleanup to repair them. Use declared Docker health checks and/or service-level probes where available, because process `running` state alone is not sufficient when a stronger health signal exists. Record exact resource names/IDs and the pre/post health evidence in the task closeout.
 
 ## Strategy lifecycle
 

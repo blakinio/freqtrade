@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   repair:
-    name: Require events_written and prove fail-closed no-mutation
+    name: Require explicit commit boundary and self-clean
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -22,7 +22,7 @@ jobs:
           ref: fix/wickhunter-1396-synology-recovery-v2
           fetch-depth: 20
 
-      - name: Apply P1 repair and regression
+      - name: Apply P1 repair and regressions
         shell: bash
         run: |
           set -euo pipefail
@@ -53,11 +53,9 @@ jobs:
               if tests.count(marker) != 1:
                   raise SystemExit("regression insertion marker mismatch")
               lines = [
-                  "",
-                  "",
+                  "", "",
                   "def test_restart_rejects_missing_events_written_without_mutating_source(",
-                  "    tmp_path: Path,",
-                  ") -> None:",
+                  "    tmp_path: Path,", ") -> None:",
                   "    old_run_id, old_run_root = _write_previous_active_run(",
                   "        tmp_path,",
                   "        committed_rows={BINANCE_SOURCE: 2, BYBIT_SOURCE: 0, OKX_SOURCE: 0},",
@@ -69,15 +67,10 @@ jobs:
                   "    state_path.write_text(json.dumps(state), encoding=\"utf-8\")",
                   "    original = (old_run_root / f\"{BINANCE_SOURCE}.ndjson\").read_bytes()",
                   "    manager = OkxLiveRunManager(",
-                  "        data_root=tmp_path,",
-                  "        collector_commit=\"9\" * 40,",
-                  "        host_id=\"synology-test\",",
-                  "        now_ms=lambda: 1_786_384_683_792,",
-                  "    )",
-                  "",
+                  "        data_root=tmp_path,", "        collector_commit=\"9\" * 40,",
+                  "        host_id=\"synology-test\",", "        now_ms=lambda: 1_786_384_683_792,", "    )", "",
                   "    with pytest.raises(RuntimeError, match=\"binance-usdm events_written is missing\"):",
-                  "        asyncio.run(manager.start())",
-                  "",
+                  "        asyncio.run(manager.start())", "",
                   "    assert (old_run_root / f\"{BINANCE_SOURCE}.ndjson\").read_bytes() == original",
                   "    persisted = json.loads(state_path.read_text(encoding=\"utf-8\"))",
                   "    assert persisted[\"run_state\"] == \"active\"",
@@ -109,17 +102,18 @@ jobs:
           legacy_path.write_text(legacy, encoding="utf-8")
           PY
 
-      - name: Install focused validation dependencies
+      - name: Install validation dependencies
         shell: bash
         run: |
           set -euo pipefail
           python3 -m pip install --disable-pip-version-check -r requirements.txt
           python3 -m pip install --disable-pip-version-check pytest==9.1.1 ruff==0.15.21
 
-      - name: Validate P1 repair
+      - name: Format and validate P1 repair
         shell: bash
         run: |
           set -euo pipefail
+          python3 -m ruff format tests/ai_platform_integration/test_liquidation_live_restart_durability.py
           python3 -m py_compile ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
           python3 -m pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration \
             tests/ai_platform_integration/test_liquidation_live_restart_durability.py \

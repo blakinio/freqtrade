@@ -139,11 +139,13 @@ class DockerHostCapabilityProbe:
         external_attestor: ExternalIsolationAttestor | None = None,
         cgroup_root: Path = Path("/sys/fs/cgroup"),
         boot_id_path: Path = Path("/proc/sys/kernel/random/boot_id"),
+        proc_swaps_path: Path = Path("/proc/swaps"),
     ) -> None:
         self._runner = runner or SubprocessCommandRunner()
         self._external = external_attestor or FailClosedExternalIsolationAttestor()
         self._cgroup_root = cgroup_root
         self._boot_id_path = boot_id_path
+        self._proc_swaps_path = proc_swaps_path
 
     def probe(self, *, now: datetime | None = None) -> RuntimeHostCapabilityReport:
         security = self._docker_json("{{json .SecurityOptions}}")
@@ -208,8 +210,20 @@ class DockerHostCapabilityProbe:
 
     def _swap_control_available(self, mode: str) -> bool:
         if mode == "v2":
-            return (self._cgroup_root / "memory.swap.max").exists()
-        return (self._cgroup_root / "memory" / "memory.memsw.limit_in_bytes").exists()
+            if (self._cgroup_root / "memory.swap.max").exists():
+                return True
+        elif (self._cgroup_root / "memory" / "memory.memsw.limit_in_bytes").exists():
+            return True
+        return self._host_swap_disabled()
+
+    def _host_swap_disabled(self) -> bool:
+        try:
+            lines = self._proc_swaps_path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return False
+        if not lines:
+            return False
+        return not any(line.strip() for line in lines[1:])
 
     def _cpuset_cpus(self, mode: str) -> tuple[int, ...]:
         path = (
@@ -607,7 +621,12 @@ class DockerCliRuntimeDriver:
                 "-ec",
                 (
                     'printf "memory="; cat /sys/fs/cgroup/memory.max; '
-                    'printf "swap="; cat /sys/fs/cgroup/memory.swap.max; '
+                    'printf "swap="; '
+                    "if [ -f /sys/fs/cgroup/memory.swap.max ]; then "
+                    "cat /sys/fs/cgroup/memory.swap.max; "
+                    'elif [ "$(wc -l < /proc/swaps)" -le 1 ]; then '
+                    'printf "host-disabled\\n"; '
+                    "else exit 72; fi; "
                     'printf "pids="; cat /sys/fs/cgroup/pids.max; '
                     'printf "cpu="; cat /sys/fs/cgroup/cpu.max; '
                     'printf "cpuset="; cat /sys/fs/cgroup/cpuset.cpus 2>/dev/null || true'
@@ -628,7 +647,8 @@ class DockerCliRuntimeDriver:
         values = dict(line.split("=", 1) for line in output.splitlines() if "=" in line)
         try:
             memory = int(values["memory"])
-            swap = int(values["swap"])
+            swap_raw = values["swap"]
+            swap = 0 if swap_raw == "host-disabled" else int(swap_raw)
             pids = int(values["pids"])
         except (KeyError, ValueError) as exc:
             raise RuntimeDriverError(

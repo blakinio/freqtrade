@@ -20,7 +20,7 @@ run_scope: autonomous_program
 continuation_policy: continue_until_real_stop
 task_completion_policy: finalize_archive_and_continue
 implementation_authorized: true
-status: waiting
+status: ready
 base_branch: develop
 trusted_base_sha: 2a9bee4895981f0a2b7f7f08e0e1d2d2e2ad646a
 branch: fix/wickhunter-1396-synology-recovery-v2
@@ -98,78 +98,85 @@ adoption_started: false
 wh09_changed: false
 ```
 
-The second failure changed the causal hypothesis from general Docker-daemon unavailability to stale/corrupt BuildKit build-cache/context state on the shared Synology runner. Broad container/image cleanup is rejected because it could affect unrelated workloads.
+### Bounded recovery observations
+
+```yaml
+run_31420369456:
+  result: FAILURE_BEFORE_MUTATION
+  reason: initial exact-WH09 assertion failed without sufficient diagnostics
+  docker_mutation: false
+run_31420701120:
+  result: FAILURE_BEFORE_MUTATION
+  wh09_matching_count: 1
+  wh09_identity: ebb3bc5151c6041cc557395f77b3001230f881bc39c2e9a5c4789fcd920e3b37
+  wh09_revision: 90cfc5ded10b0c6cb6406d00042817aca611e900
+  wh09_running: true
+  wh09_health: unhealthy
+  bounded_observation_seconds: 60
+  docker_mutation: false
+```
+
+The second recovery proves the BuildKit hypothesis cannot be acted on yet: the required precondition that WH09 is healthy is false. The exact runtime identity and revision did not change, but Docker health remained `unhealthy` for the full bounded observation. BuildKit prune/probe steps were therefore skipped.
+
+Repository inspection of the accepted WH09 compose and healthcheck shows the container health gate validates immutable SHADOW/zero-authority identity plus freshness of `/runtime/operator/health.json` and `/runtime/journal/telemetry.json` with `HEALTH_MAX_AGE_SECONDS=600`. The next diagnostic must determine the exact healthcheck failure and freshness/process state read-only before any repair hypothesis.
 
 ## Recovery strategy
 
-The only authorized recovery mutation before another adoption retry is a bounded BuildKit-cache repair that:
+Broad container/image cleanup remains rejected. No WH09 restart, replacement or redeploy is authorized in this task.
 
-1. proves the exact existing WH09 container is still running and healthy;
-2. proves disposable Docker runtime health;
-3. prunes only Docker builder cache, not containers, volumes or project images;
-4. proves BuildKit context transfer with a disposable digest-pinned probe image;
-5. removes only the disposable probe image;
-6. re-verifies the same WH09 container remains healthy and unchanged.
+Recovery generation 3 is read-only and must:
 
-Recovery run `31420369456` failed before any mutation because the original exact-WH09 assertion did not identify which invariant failed. No prune or build was executed. Recovery generation 2 therefore adds read-only diagnostics for exact container count, ID, status, health, labels, revision and user plus a bounded health observation before any mutation.
+1. prove the same unique WH09 container identity/revision;
+2. print the configured Docker healthcheck command and only the latest bounded healthcheck exit/output metadata;
+3. execute the same healthcheck command once via `docker exec` only to reproduce its read-only result;
+4. read and report only safe fields from health/telemetry: schema/status/mode/generation/check timestamps/zero-authority flags and computed age;
+5. report the container process state and runtime file mtimes without changing them;
+6. inspect the Liquid20 source container/running state and active-run pointer freshness without secrets;
+7. make no Docker mutation and perform no cache prune/build.
 
-After recovery PASS, rerun the original authorized post-merge adoption workflow `31386104997`. Do not create or deploy a replacement WH09 runtime.
+Only after this diagnostic yields a concrete causal hypothesis may a third and final bounded repair cycle be attempted. Acceptance may not be weakened from `healthy` to `degraded` or `unhealthy`.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-10T20:48:00+02:00
-status: waiting
+updated_at: 2026-08-10T21:06:00+02:00
+status: ready
 branch: fix/wickhunter-1396-synology-recovery-v2
-recovery_workflow_head: cc5903c65c089499f1f8bec72afc7527ffb5e300
 issue: 1396
 related_prs:
   - 1397: merged
   - 1388: merged
   - 1436: merged
   - 1443: closed_unmerged_obsolete_broad_cleanup
-context_routes:
-  - AGENTS.md
-  - AGENTS.override.md
-  - docs/agents/AGENTS.md
-  - docs/agents/PROMPTING_STANDARD.md
-  - docs/agents/PROMPTING_HANDOVER.md
-  - docs/agents/DELIVERY_COMPLETENESS_AND_CLOSEOUT.md
-  - docs/agents/ANTI_STALL_AND_EXECUTION_BUDGET.md
-  - docs/agents/GITHUB_ONLY_EXECUTION.md
-  - docs/agents/AUTONOMOUS_PROGRAM_CONTINUATION.md
-  - docs/agents/SESSION_RECOVERY_AND_ORPHANED_EXECUTION.md
-  - docs/agents/TERMINAL_CI_AND_COMMUNICATION_OVERRIDE.md
 proven:
   - producer PR 1397 merged
   - canonical RuntimeGeneration PR 1388 merged
   - Portal adoption PR 1436 merged
   - premerge exact-head CI and authenticated browser E2E passed
-  - WH09 remained exactly one healthy container through both failed postmerge adoption attempts
-  - WH09 container identity before recovery is ebb3bc5151c6041cc557395f77b3001230f881bc39c2e9a5c4789fcd920e3b37
-  - second adoption attempt passed Docker runtime preflight and failed specifically in BuildKit control-plane image build
-  - no Portal deployment or WH09 adoption occurred after that build failure
-  - recovery run 31420369456 failed before cache prune or build and therefore made no Docker mutation
+  - current WH09 is exactly one container with unchanged ID and accepted revision
+  - current WH09 is running but Docker health is unhealthy
+  - recovery runs 31420369456 and 31420701120 performed no Docker mutation
+  - accepted healthcheck requires <=600 second freshness for health and telemetry and exact zero-authority SHADOW identity
 unknown:
-  - exact current WH09 state that caused first recovery assertion to fail
-  - whether bounded BuildKit cache recovery will restore context transfer
+  - exact current healthcheck failure message
+  - whether runtime process is alive and progressing
+  - health/telemetry observed ages and last successful generation
+  - whether Liquid20 source freshness is the upstream cause
+  - whether bounded BuildKit cache recovery is still needed after WH09 health is restored
   - terminal postmerge Portal deployment/adoption/API persistence result
 conflicts: []
 validation:
   - run: 31420369456
-    workflow: Portal WickHunter BuildKit Cache Recovery
     result: FAILURE_BEFORE_MUTATION
   - run: 31420701120
-    workflow: Portal WickHunter BuildKit Cache Recovery
-    result: IN_PROGRESS
+    result: FAILURE_BEFORE_MUTATION_WH09_UNHEALTHY
 counters:
   repair_cycles_for_current_gate: 2
   identical_failure_retries: 0
-  unchanged_state_checks: 2
-blockers:
-  - external recovery run 31420701120 is still executing its read-only WH09 diagnostic/verification gate
-next_action: Inspect recovery run 31420701120 once after it becomes terminal; on PASS rerun failed adoption workflow run 31386104997, otherwise isolate its first new failure before any further heavy retry.
+  unchanged_state_checks: 0
+blockers: []
+next_action: Run one read-only WH09 health diagnostic on the Synology runner; use its exact failure as the third-cycle hypothesis and do not mutate Docker before that evidence exists.
 ```
 
 ## Recovery checkpoint
@@ -177,25 +184,24 @@ next_action: Inspect recovery run 31420701120 once after it becomes terminal; on
 ```yaml
 recovery:
   policy_version: 1
-  generation: 2
-  session_id: 2026-08-10T20:33+02:00
-  session_started_at: 2026-08-10T20:33:00+02:00
-  checkpointed_at: 2026-08-10T20:48:00+02:00
-  last_progress_at: 2026-08-10T20:45:34+02:00
-  phase: synology_buildkit_recovery_diagnostics
-  exact_head: cc5903c65c089499f1f8bec72afc7527ffb5e300
+  generation: 3
+  session_id: 2026-08-10T21:04+02:00
+  session_started_at: 2026-08-10T21:04:00+02:00
+  checkpointed_at: 2026-08-10T21:06:00+02:00
+  last_progress_at: 2026-08-10T21:06:00+02:00
+  phase: wh09_readonly_health_diagnostic
+  exact_head: checkpoint_commit
   pull_request: none
-  active_operation: Portal WickHunter BuildKit Cache Recovery
-  external_run_ids:
-    - 31420701120
-  operation_started_at: 2026-08-10T20:45:38+02:00
-  wait_deadline_at: 2026-08-10T21:00:38+02:00
-  check_generation: buildkit-recovery-v2
-  checks_used: 2
-  status: waiting
+  active_operation: none
+  external_run_ids: []
+  operation_started_at: null
+  wait_deadline_at: null
+  check_generation: wh09-health-diagnostic-v3
+  checks_used: 0
+  status: ready
   safe_to_resume: true
-  resume_condition: workflow run 31420701120 is terminal
-  next_action: Inspect run 31420701120 exactly once when terminal; on PASS rerun adoption run 31386104997, otherwise inspect the first failed step/log and form one new bounded hypothesis.
+  resume_condition: diagnostic workflow is committed and started
+  next_action: Update the temporary recovery workflow to perform only the bounded read-only WH09 health diagnostic, then capture its run ID in this checkpoint.
 ```
 
 ## Terminal closeout requirements

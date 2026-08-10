@@ -12,37 +12,32 @@ permissions:
 
 concurrency:
   group: portal-wickhunter-1396-durability-exact-validation
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   validate:
-    name: Validate durability repair on latest recovery branch
-    runs-on:
-      - freqtrade-staging
+    name: Validate durability repair on exact recovery head
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - name: Checkout latest recovery branch
+      - name: Checkout exact recovery branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: fix/wickhunter-1396-synology-recovery-v2
           persist-credentials: false
-          fetch-depth: 20
+          fetch-depth: 0
 
-      - name: Create isolated validation environment
+      - name: Install focused validation dependencies
         shell: bash
         run: |
           set -euo pipefail
-          TARGET="$RUNNER_TEMP/wickhunter-durability-pydeps"
-          rm -rf "$TARGET"
-          mkdir -p "$TARGET"
-          python3 -m pip install --disable-pip-version-check --target "$TARGET" -r requirements.txt
-          python3 -m pip install --disable-pip-version-check --target "$TARGET" pytest==9.1.1 ruff==0.15.21
+          python3 -m pip install --disable-pip-version-check -r requirements.txt
+          python3 -m pip install --disable-pip-version-check pytest==9.1.1 ruff==0.15.21
 
       - name: Validate checkpoint and durability markers
         shell: bash
         run: |
           set -euo pipefail
-          export PYTHONPATH="$RUNNER_TEMP/wickhunter-durability-pydeps:$PWD"
           python3 tools/agents/checkpoint.py \
             docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md \
             --require-checkpoint
@@ -66,20 +61,13 @@ jobs:
           print("DURABILITY_MARKERS=PASS")
           PY
 
-      - name: Compile focused Python
+      - name: Compile and run focused regression suite
         shell: bash
         run: |
           set -euo pipefail
-          export PYTHONPATH="$RUNNER_TEMP/wickhunter-durability-pydeps:$PWD"
           python3 -m py_compile \
             ai_platform/scripts/liquidation_live_stream.py \
             tests/ai_platform_integration/test_liquidation_live_restart_durability.py
-
-      - name: Run focused restart durability regression suite
-        shell: bash
-        run: |
-          set -euo pipefail
-          export PYTHONPATH="$RUNNER_TEMP/wickhunter-durability-pydeps:$PWD"
           python3 -m pytest -q -o addopts='' \
             --confcutdir=tests/ai_platform_integration \
             tests/ai_platform_integration/test_liquidation_live_restart_durability.py
@@ -88,7 +76,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          export PYTHONPATH="$RUNNER_TEMP/wickhunter-durability-pydeps:$PWD"
           python3 -m ruff check \
             ai_platform/scripts/liquidation_live_stream.py \
             tests/ai_platform_integration/test_liquidation_live_restart_durability.py
@@ -96,11 +83,10 @@ jobs:
             ai_platform/scripts/liquidation_live_stream.py \
             tests/ai_platform_integration/test_liquidation_live_restart_durability.py
 
-      - name: Verify producer-consumer restart contract and diff hygiene
+      - name: Verify producer-consumer contract and diff hygiene
         shell: bash
         run: |
           set -euo pipefail
-          export PYTHONPATH="$RUNNER_TEMP/wickhunter-durability-pydeps:$PWD"
           python3 - <<'PY'
           from pathlib import Path
 
@@ -125,5 +111,6 @@ jobs:
               raise SystemExit("consumer historical contract marker missing")
           print("PRODUCER_CONSUMER_RESTART_CONTRACT=PASS")
           PY
-          git diff --check develop...HEAD
+          git fetch origin develop
+          git diff --check origin/develop...HEAD
           echo "VALIDATED_BRANCH_HEAD=$(git rev-parse HEAD)"

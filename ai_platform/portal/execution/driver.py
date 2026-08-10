@@ -158,6 +158,7 @@ class DockerHostCapabilityProbe:
         mode, controllers = self._cgroup_capabilities()
         external = self._external.capabilities()
         cpuset = self._cpuset_cpus(mode)
+        security_options = {str(option).lower() for option in security}
         return RuntimeHostCapabilityReport(
             generated_at=now or datetime.now(UTC),
             host_boot_id=self._boot_id(),
@@ -167,7 +168,10 @@ class DockerHostCapabilityProbe:
             supports_tmpfs=True,
             supports_no_new_privileges=True,
             supports_capability_drop=True,
-            supports_required_seccomp=any("seccomp" in str(option).lower() for option in security),
+            supports_required_seccomp=any(
+                "name=seccomp" in option and "profile=builtin" in option
+                for option in security_options
+            ),
             supports_memory_hard_limit="memory" in controllers,
             supports_swap_bound_or_disable=self._swap_control_available(mode),
             supports_pid_hard_limit="pids" in controllers,
@@ -304,9 +308,9 @@ class DockerCliRuntimeDriver:
         network = self._network_name(spec.runtime_id)
         self._external.prepare_storage(plan, spec.state_path)
         self._external.prepare_network(plan, network, spec.runtime_id)
-        self._require_image_present(spec.image, plan.runtime_image_digest)
-        self._require_success(self._create_args(spec, plan, network), "DOCKER_CREATE_FAILED")
         try:
+            self._require_image_present(spec.image, plan.runtime_image_digest)
+            self._require_success(self._create_args(spec, plan, network), "DOCKER_CREATE_FAILED")
             self._attest_structural(spec, plan, network)
             self._require_success(("docker", "start", spec.runtime_id), "DOCKER_START_FAILED")
             self._attest_effective(spec, plan, network)
@@ -606,6 +610,7 @@ class DockerCliRuntimeDriver:
                 (
                     'test "$(id -u)" != 0; '
                     "grep -Eq '^NoNewPrivs:[[:space:]]*1$' /proc/1/status; "
+                    "grep -Eq '^Seccomp:[[:space:]]*2$' /proc/1/status; "
                     "grep -Eq '^CapEff:[[:space:]]*0+$' /proc/1/status; "
                     "! touch /portal-root-write-probe 2>/dev/null"
                 ),
@@ -638,7 +643,8 @@ class DockerCliRuntimeDriver:
         mounts = self._runner.run(
             ("docker", "exec", spec.runtime_id, "/bin/sh", "-ec", "cat /proc/mounts")
         )
-        self._require_probe(mounts, "tmpfs")
+        self._require_probe(mounts, "mounts")
+        self._attest_readonly_root(mounts.stdout)
         self._attest_tmpfs(mounts.stdout, plan)
         self._external.attest_storage(plan, spec.state_path)
         self._external.attest_network(plan, network, spec.runtime_id)
@@ -684,6 +690,20 @@ class DockerCliRuntimeDriver:
                 "ISOLATION_ATTESTATION_FAILED",
                 "effective CPUSET bound does not match isolation plan",
             )
+
+    @staticmethod
+    def _attest_readonly_root(mounts: str) -> None:
+        for line in mounts.splitlines():
+            fields = line.split()
+            if len(fields) >= 4 and fields[1] == "/":
+                options = set(fields[3].split(","))
+                if "ro" in options and "rw" not in options:
+                    return
+                break
+        raise RuntimeDriverError(
+            "ISOLATION_ATTESTATION_FAILED",
+            "effective root filesystem is not read-only",
+        )
 
     def _attest_tmpfs(self, mounts: str, plan: RuntimeIsolationPlan) -> None:
         for destination, maximum in (
@@ -733,7 +753,7 @@ class DockerCliRuntimeDriver:
         except json.JSONDecodeError as exc:
             raise RuntimeDriverError(
                 "ISOLATION_ATTESTATION_FAILED",
-                "runtime image identity evidence is invalid",
+                "runtime image identity evidence is invalid JSON",
             ) from exc
         suffix = f"@sha256:{digest}"
         if not isinstance(repo_digests, list) or not any(

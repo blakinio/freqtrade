@@ -7,8 +7,8 @@ repository: blakinio/freqtrade
 issue: 1354
 lane: freqtrade-portal
 task_kind: implementation
-phase: implement
-status: implementing
+phase: validate
+status: validating
 priority: high
 prompting_standard_version: 2.1
 execution_policy_version: 2
@@ -28,9 +28,9 @@ feature_scope:
   e2e_required: true
   completion_claim: internal_only
 base_branch: develop
-trusted_base_sha: bf92b3b11772eaef7f471ae284b804f25ca6d2d0
+trusted_base_sha: 21427e6b7f1cbe5e5882a007101ce6fe0c2f5784
 branch: fix/portal-runtime-isolation-1354
-pr: null
+pr: 1431
 related_issues:
   - 1355
   - 1413
@@ -39,6 +39,7 @@ related_prs:
   - 1395
   - 1416
   - 1425
+  - 1457
 live_capital_authorized: false
 production_deployment_authorized: false
 host_firewall_mutation_authorized: false
@@ -76,12 +77,12 @@ Do not implement #1355 Runtime Supervisor sole-authority API/UDS/lifecycle seria
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 2
-updated_at: 2026-08-09T20:07:00Z
-head: bf92b3b11772eaef7f471ae284b804f25ca6d2d0
+checkpoint_version: 3
+updated_at: 2026-08-10T23:24:22Z
+head: aec5d3c496e5e32cc664b411526849f93c7936b9
 branch: fix/portal-runtime-isolation-1354
-pr: none
-status: implementing
+pr: 1431
+status: validating
 context_routes:
   - docs/ai_platform/portal/RUNTIME_ISOLATION_AND_SUPERVISOR_CONTRACT.md
   - docs/ai_platform/portal/SYSTEM_ARCHITECTURE.md
@@ -91,21 +92,44 @@ owned_paths:
   - ai_platform/portal/execution/**
   - tests/ai_platform/portal/execution/**
 proven:
-  - develop includes merged #1353 generation-scoped storage separation
-  - executable RuntimeGeneration already binds isolation plan, Gateway and market-data egress identities from #1413
-  - current Docker CLI driver mounts config/state but lacks process/resource/tmpfs/log/network hardening and effective attestation
-  - binding architecture forbids silent fallback and treats plain Docker bridge/inspect intent as insufficient enforcement
+  - develop at 21427e6b7f1cbe5e5882a007101ce6fe0c2f5784 includes merged #1353 storage separation and the Synology runtime preflight repair
+  - PR 1431 is the existing implementation lane for issue 1354; no duplicate implementation PR was created
+  - feature history was repaired after synchronization and is again a clean descendant of develop with only the runtime-isolation scope in its diff
+  - immutable isolation profile/plan, fail-closed host capability resolution, hardened Docker creation, exact-image verification, structural/effective attestation and external storage/network boundaries are implemented
+  - fresh audit found structural attestation did not verify the fixed quarantine command or generation identity labels; the driver now verifies exact Entrypoint/Cmd and required labels before Docker start
+  - fresh audit found the original E2E exercised raw docker run rather than DockerCliRuntimeDriver; the E2E now provisions through the real driver with an exact digest image, pre-release quarantine, hard cgroup controls, read-only config, bounded state and hard-deny public network fixture
 unknown:
-  - smallest legacy-driver implementation that can satisfy #1354 without taking over #1355 Supervisor authority
+  - exact-head CI outcome for the latest audit-remediation head
+  - whether final independent audit finds any additional material gap after CI feedback
 first_failure:
-  marker: current driver lacks generation-bound hard isolation envelope
-  evidence: ai_platform/portal/execution/driver.py at trusted base
+  marker: audit-remediation-awaiting-exact-head-validation
+  evidence: PR 1431 head after driver/test remediation; required workflows are pending
 changed_paths:
+  - ai_platform/portal/execution/driver.py
+  - ai_platform/portal/execution/host_isolation.py
+  - ai_platform/portal/execution/isolation.py
+  - ai_platform/portal/execution/runtime_image/Dockerfile
+  - ai_platform/portal/execution/runtime_image/__init__.py
+  - ai_platform/portal/execution/runtime_image/build.py
   - docs/agents/tasks/active/FTAI-20260809-portal-runtime-isolation-1354.md
-validation: []
+  - tests/ai_platform/portal/execution/test_driver.py
+  - tests/ai_platform/portal/execution/test_host_isolation.py
+  - tests/ai_platform/portal/execution/test_isolation.py
+  - tests/ai_platform/portal/execution/test_runtime_image.py
+  - tests/ai_platform/portal/execution/test_runtime_isolation_e2e.py
+validation:
+  - command: compare develop@21427e6b7f1cbe5e5882a007101ce6fe0c2f5784...a799187bec5e20010cead1351c82c7d08cd080a6
+    result: PASS
+    evidence: branch was exactly one commit ahead, zero behind, with twelve runtime-isolation paths only
+  - command: exact-head PR CI after audit remediation
+    result: RUNNING
+    evidence: GitHub Actions runs were created for the latest PR head; inspect first failing gate before any completion claim
+  - command: fresh post-validation independent audit
+    result: NOT_RUN
+    evidence: must run after exact-head validation feedback and any repairs
 blockers:
   - none
-next_action: Implement the immutable isolation-plan contract and fail-closed Docker driver enforcement/attestation boundary, then add focused negative tests.
+next_action: Inspect exact-head CI for the audit-remediation head, repair the first real failure if any, then perform a fresh independent diff audit and final E2E/CI closeout before merging PR 1431.
 ```
 
 ## Recovery checkpoint
@@ -113,22 +137,29 @@ next_action: Implement the immutable isolation-plan contract and fail-closed Doc
 ```yaml
 recovery:
   policy_version: 1
-  generation: 1
-  session_id: 20260809T200700Z-chat-github
-  session_started_at: 2026-08-09T200645Z
-  checkpointed_at: 2026-08-09T200700Z
-  last_progress_at: 2026-08-09T200700Z
-  phase: implementation
-  exact_head: bf92b3b11772eaef7f471ae284b804f25ca6d2d0
-  pull_request: none
-  active_operation: repository implementation
-  external_run_ids: []
-  operation_started_at: 2026-08-09T200700Z
+  generation: 2
+  session_id: 20260811T012422+0200-chat-github
+  session_started_at: 2026-08-11T010300+0200
+  checkpointed_at: 2026-08-11T012422+0200
+  last_progress_at: 2026-08-11T012422+0200
+  phase: validation
+  exact_head: aec5d3c496e5e32cc664b411526849f93c7936b9
+  pull_request: 1431
+  active_operation: exact-head CI after audit remediation
+  external_run_ids:
+    - 31442179581
+    - 31442179321
+    - 31442179351
+    - 31442179332
+    - 31442179371
+    - 31442179327
+    - 31442179325
+  operation_started_at: 2026-08-11T012000+0200
   wait_deadline_at: null
-  check_generation: isolation-v1
-  checks_used: 0
+  check_generation: isolation-v2
+  checks_used: 1
   status: active
   safe_to_resume: true
-  resume_condition: branch remains owned and exact implementation head is reconcilable
-  next_action: Implement the immutable isolation-plan contract and fail-closed Docker driver enforcement/attestation boundary, then add focused negative tests.
+  resume_condition: branch remains owned and PR 1431 exact head remains reconcilable
+  next_action: Inspect exact-head CI, repair first failure if present, then run fresh audit and closeout.
 ```

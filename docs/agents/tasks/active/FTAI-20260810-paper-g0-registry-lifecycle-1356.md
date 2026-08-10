@@ -26,7 +26,7 @@ protected_production_deployment_authorized: false
 
 ## Objective
 
-Close PAPER implementation gate G0 finding #1356 by restoring a bounded automated architecture-registry lifecycle guard and reconciling the registry only after the guard is present and exact-head CI is green.
+Close PAPER implementation gate G0 finding #1356 by delivering a bounded automated architecture-registry lifecycle guard together with the registry reconciliation. Do not claim completion until exact-head CI, audit and PR hygiene pass.
 
 ## Acceptance inventory
 
@@ -51,23 +51,39 @@ owned_paths:
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 2
-updated_at: 2026-08-10T20:51:00+02:00
-head: 0457b1da63dedd3bdd50db96d0247a899e61b3f0
+checkpoint_version: 3
+updated_at: 2026-08-10T20:53:22+02:00
+last_progress_at: 2026-08-10T20:53:22+02:00
+implementation_head_before_checkpoint: 1e6be5adadd6ae5f26355b1aaa3bd58a19a09dce
 branch: fix/architecture-registry-lifecycle-1356
 pr: 1447
 status: validating
+counters:
+  ci_checks_for_current_head: 0
+  unchanged_state_checks: 0
+  identical_failure_retries: 0
+  repair_cycles_for_current_gate: 1
+  context_reconstruction_attempts: 0
+  stall_warnings: 0
+first_failure:
+  workflow: Freqtrade CI
+  run: 31421127334
+  jobs:
+    - 93561932198
+    - 93561932240
+  signature: ruff-format required formatting of tests/ci/test_architecture_registry.py
+  repair_commit: 1e6be5adadd6ae5f26355b1aaa3bd58a19a09dce
 proven:
-  - develop exact base is 5a19ae32f1f71b112130ea66cb8d56d9a3e44049
-  - Issue 1356 is open and dedicated to the preventive registry lifecycle validator
-  - PR 1447 contains the restored bounded tests/ci architecture registry guard
+  - develop exact base remains 5a19ae32f1f71b112130ea66cb8d56d9a3e44049
+  - Issue 1356 is open and explicitly requires the preventive architecture-registry lifecycle validator
+  - historical owner comments on Issue 1356 confirm the intended guard semantics and explain why the earlier PR 1367 prototype was intentionally removed from that over-scoped task
+  - PR 1447 contains the bounded tests/ci architecture-registry guard and candidate registry reconciliation
   - the guard rejects resolved/open overlap duplicate identities non-open top-level findings stale domain-local open indexes and missing acceptance of the latest ADR
-  - PR 1367 previously prepared then intentionally removed an earlier validator because that architecture task was over-scoped
-  - current PAPER plan G0 explicitly requires resolving 1356 before later PAPER gates are claimed complete
+  - the first exact-head CI failure was confined to formatting of the newly added owned test and was repaired by commit 1e6be5adadd6ae5f26355b1aaa3bd58a19a09dce
   - runtime browser deployment and trading E2E are not applicable to this CI/governance-only package
 unknown:
-  - exact final-head CI run IDs until GitHub Actions completes
-  - final independent audit result until the exact diff is rechecked after reconciliation
+  - exact final-head CI run IDs and terminal results after this checkpoint update
+  - final exact-diff audit result after this checkpoint update
 blockers: []
-next_action: Commit the registry reconciliation on PR 1447, require exact-head CI, audit the exact diff and merge only if every applicable gate passes.
+next_action: Require exact-head CI on the checkpoint successor; if green, refresh the exact diff and review-thread audit, mark PR 1447 ready and merge; otherwise isolate the first owned failure.
 ```

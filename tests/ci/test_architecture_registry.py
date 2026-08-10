@@ -7,6 +7,15 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 REGISTRY_PATH = REPO_ROOT / "ARCHITECTURE_REGISTRY.yaml"
 DECISIONS_PATH = REPO_ROOT / "docs" / "ai_platform" / "portal" / "ARCHITECTURE_DECISIONS.md"
 TERMINAL_FINDING_STATUSES = {"closed", "completed", "resolved", "superseded"}
+PINNED_TERMINAL_FINDINGS = frozenset(
+    {
+        (1251, "FTAI-ARCH-001"),
+        (1252, "FTAI-CI-001"),
+        (1353, "FTAI-ARCH-RUNTIME-TRUSTED-STATE"),
+        (1356, "FTAI-ARCH-REGISTRY-LIFECYCLE-GUARD"),
+        (1357, "FTAI-ARCH-BOT-REVISION-STATE"),
+    }
+)
 
 
 def _registry() -> dict[str, object]:
@@ -35,19 +44,26 @@ def test_architecture_registry_resolved_findings_are_not_open() -> None:
 
     resolved_identities = [_finding_identity(finding) for finding in resolved]
     open_identities = [_finding_identity(finding) for finding in open_findings]
+    resolved_identity_set = set(resolved_identities)
+    open_identity_set = set(open_identities)
     resolved_issues = {issue for issue, _ in resolved_identities}
     open_issues = {issue for issue, _ in open_identities}
     resolved_finding_ids = {finding_id for _, finding_id in resolved_identities}
     open_finding_ids = {finding_id for _, finding_id in open_identities}
+    pinned_issues = {issue for issue, _ in PINNED_TERMINAL_FINDINGS}
+    pinned_finding_ids = {finding_id for _, finding_id in PINNED_TERMINAL_FINDINGS}
 
-    assert len(set(resolved_identities)) == len(resolved)
-    assert len(set(open_identities)) == len(open_findings)
+    assert len(resolved_identity_set) == len(resolved)
+    assert len(open_identity_set) == len(open_findings)
     assert len(resolved_issues) == len(resolved)
     assert len(open_issues) == len(open_findings)
     assert len(resolved_finding_ids) == len(resolved)
     assert len(open_finding_ids) == len(open_findings)
     assert resolved_issues.isdisjoint(open_issues)
     assert resolved_finding_ids.isdisjoint(open_finding_ids)
+    assert resolved_identity_set == PINNED_TERMINAL_FINDINGS
+    assert pinned_issues.isdisjoint(open_issues)
+    assert pinned_finding_ids.isdisjoint(open_finding_ids)
     assert all(
         isinstance(finding, dict) and finding.get("status") == "open" for finding in open_findings
     )

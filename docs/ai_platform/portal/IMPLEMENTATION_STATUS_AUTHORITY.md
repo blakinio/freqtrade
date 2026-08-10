@@ -32,13 +32,18 @@ status_authority: tools/portal_audit/ledger/status_authority.json
 
 Inventory drift, composition drift or an invalid status contract must fail closed rather than falling back to an older status document.
 
+The reserved `portal-current-status-authority` marker is the machine-discoverable human roll-up pointer to this authority. It must occur exactly once in the documentation tree, in `UI_DELIVERY_STATUS.md`, and must point to `tools/portal_audit/ledger/index.json`. Explicit prose claims that something is the current implementation/status authority are restricted to this contract and that validated UI roll-up; the CI guard discovers such claims across the documentation tree rather than trusting only paths declared by the sidecar.
+
 ### 3. Historical and derived status surfaces
 
 `docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.json` is the historical #1101 snapshot at:
 
 ```yaml
 as_of_sha: b39b29c3e831ba491aa3376e5de86a8c09e2b537
+git_blob_sha: 4893b73ef020621529612192ff942fef79fb3cfc
 ```
+
+The Git blob identity is pinned by the CI guard from the file bytes themselves, so changing the historical snapshot while retaining or jointly editing its embedded metadata fails closed.
 
 Its embedded `status_authority: true` field and the legacy `portal-status-authority` document markers are retained **only as compatibility metadata for the completed #1101 snapshot and its validator**. They do not confer current implementation authority after adoption of the living exact-head ledger.
 
@@ -65,16 +70,19 @@ A closed Issue does not by itself prove current runtime composition, API-mode E2
 
 - a missing or redirected current implementation authority;
 - a living ledger whose schema/mode no longer matches the authority contract;
+- a duplicate reserved current-authority marker or an unclassified explicit current-authority claim in the documentation tree;
+- any additional documentation JSON object carrying top-level `status_authority: true` outside the pinned #1101 snapshot;
 - a missing or duplicate legacy-surface classification;
-- a legacy #1101 snapshot SHA mismatch;
+- any rewrite of the #1101 snapshot by checking both its fixed `as_of_sha` and independently computed Git blob SHA;
 - an implicit second current implementation authority;
 - loss of the explicit compatibility-only treatment of the old `status_authority: true` flag;
-- loss of the current-authority declaration from the UI status roll-up.
+- loss of the current-authority declaration from the UI status roll-up;
+- any structured authority grant for LIVE, real capital, withdrawals, private trading credentials, model/strategy promotion, protected-environment mutation or production deployment.
 
 The existing #1101 compatibility validator remains valid for its historical snapshot. This contract supersedes only its claim to be the *current* status authority; it does not rewrite its evidence.
 
 ## Safety boundary
 
-No status source authorizes LIVE, real capital, withdrawals, private trading credentials, model/strategy promotion, protected-environment mutation or production deployment.
+The machine-readable contract carries explicit `false` authority grants for LIVE trading, real capital, withdrawals, private trading credentials, model/strategy promotion, protected-environment mutation and production deployment. Human prose cannot override those structured fields.
 
 PAPER remains the only currently authorized operational trading mode. SHADOW remains optional and purpose-bound. LIVE remains unreachable/fail-closed until a separate explicit owner-approved architecture and implementation programme changes that authority.

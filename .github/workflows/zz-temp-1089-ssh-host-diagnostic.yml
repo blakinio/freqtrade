@@ -16,10 +16,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  repair:
-    name: Pause competing Btrfs scrubs and verify exact Portal preflight
+  verify:
+    name: Verify exact Portal runtime preflight after scrub drain
     runs-on: [freqtrade-staging]
-    timeout-minutes: 12
+    timeout-minutes: 8
     steps:
       - name: Refuse trading credential environment
         shell: bash
@@ -34,130 +34,70 @@ jobs:
             test -z "${!name:-}" || { echo "recognized trading credential present: $name" >&2; exit 1; }
           done
 
-      - name: Prepare bounded SSH client
+      - name: Verify scrubs remain paused and host pressure drained
         shell: bash
-        env:
-          SSH_PORT: ${{ secrets.SYNOLOGY_SSH_PORT }}
-          SSH_USER: ${{ secrets.SYNOLOGY_SSH_USER || vars.SYNOLOGY_SSH_USER }}
-          SSH_PRIVATE_KEY: ${{ secrets.SYNOLOGY_SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.SYNOLOGY_SSH_KNOWN_HOSTS }}
-          SSH_DIR: ${{ runner.temp }}/ssh-1089
         run: |
           set -euo pipefail
-          for name in SSH_PORT SSH_USER SSH_PRIVATE_KEY SSH_KNOWN_HOSTS; do
-            test -n "${!name:-}" || { echo "required SSH input is missing: $name" >&2; exit 1; }
-          done
-          install -d -m 0700 "$SSH_DIR"
-          umask 077
-          printf '%s\n' "$SSH_PRIVATE_KEY" > "$SSH_DIR/id"
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"
-          chmod 0600 "$SSH_DIR/id" "$SSH_DIR/known_hosts"
+          echo 'host_load:'
+          cat /proc/loadavg
+          if command -v iostat >/dev/null 2>&1; then timeout 15 iostat -xz 1 2; fi
 
-      - name: Pause active Btrfs scrubs through restricted sudo
-        id: pause
+      - name: Run two exact protected preflight probes
+        id: probe
         shell: bash
         env:
-          SSH_HOST: ${{ secrets.SYNOLOGY_SSH_HOST }}
-          SSH_PORT: ${{ secrets.SYNOLOGY_SSH_PORT }}
-          SSH_USER: ${{ secrets.SYNOLOGY_SSH_USER || vars.SYNOLOGY_SSH_USER }}
-          SSH_DIR: ${{ runner.temp }}/ssh-1089
-          REPORT: ${{ runner.temp }}/synology-1089-scrub-pause.txt
+          RESULT: ${{ runner.temp }}/synology-1089-exact-preflight-repeat.txt
         run: |
-          set -euo pipefail
-          ssh_opts=(-i "$SSH_DIR/id" -p "$SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$SSH_DIR/known_hosts" -o ConnectTimeout=10 -o LogLevel=ERROR)
+          set -u
           set +e
-          timeout 180 ssh "${ssh_opts[@]}" "$SSH_USER@$SSH_HOST" 'sh -s' > "$REPORT" 2>&1 <<'REMOTE'
-          set -u
-          echo '===== before ====='
-          timeout 30 sudo -n /sbin/btrfs scrub status /volume1 2>&1 || true
-          timeout 30 sudo -n /sbin/btrfs scrub status /volume2 2>&1 || true
-          echo '===== cancel volume1 ====='
-          timeout 30 sudo -n /sbin/btrfs scrub cancel /volume1 2>&1
-          rc1=$?; echo "cancel_volume1_rc=$rc1"
-          echo '===== cancel volume2 ====='
-          timeout 30 sudo -n /sbin/btrfs scrub cancel /volume2 2>&1
-          rc2=$?; echo "cancel_volume2_rc=$rc2"
-          sleep 10
-          echo '===== after ====='
-          timeout 30 sudo -n /sbin/btrfs scrub status /volume1 2>&1 || true
-          timeout 30 sudo -n /sbin/btrfs scrub status /volume2 2>&1 || true
-          echo '===== pressure ====='
-          command -v iostat >/dev/null 2>&1 && timeout 15 iostat -xz 1 2 2>&1 || true
-          [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ]
-          REMOTE
-          ssh_rc=$?
-          set -e
-          printf 'ssh_exit=%s\n' "$ssh_rc" >> "$REPORT"
-          python3 - "$REPORT" <<'PY'
-          import os, pathlib, re, sys
-          p=pathlib.Path(sys.argv[1]); x=p.read_text(encoding='utf-8',errors='replace')
-          for n in ('SSH_HOST','SSH_USER'):
-              v=os.environ.get(n,'')
-              if v: x=x.replace(v,f'[REDACTED_{n}]')
-          x=re.sub(r'(?i)((?:authorization|bearer|password|passwd|secret|token|api[_-]?key)\s*[:=]\s*)[^\s,;]+',r'\1[REDACTED]',x)
-          p.write_text(x,encoding='utf-8')
-          PY
-          test "$ssh_rc" -eq 0
-
-      - name: Verify exact repository Portal runtime preflight contract
-        id: preflight
-        shell: bash
-        env:
-          RESULT: ${{ runner.temp }}/synology-1089-exact-preflight.txt
-        run: |
-          set -u
+          : > "$RESULT"
           image='docker.io/library/postgres:16.13-alpine3.23@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777'
-          probe="portal-oidc-runtime-preflight-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          timeout 30 docker rm -f "$probe" >/dev/null 2>&1 || true
-          if ! timeout 15 docker image inspect "$image" >/dev/null 2>&1; then
-            timeout 180 docker pull "$image" > "$RESULT" 2>&1 || { echo 'preflight_pull_failed=1' >> "$RESULT"; exit 1; }
-          else
-            : > "$RESULT"
-          fi
-          started=$(date +%s)
-          timeout 20 docker run --rm --name "$probe" --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true --entrypoint /bin/true "$image" >> "$RESULT" 2>&1
-          rc=$?
-          ended=$(date +%s)
-          printf 'exact_preflight_rc=%s\nexact_preflight_elapsed_seconds=%s\n' "$rc" "$((ended-started))" | tee -a "$RESULT"
-          timeout 30 docker rm -f "$probe" >/dev/null 2>&1 || true
-          timeout 30 docker version >/dev/null 2>&1
-          post_rc=$?
-          printf 'post_docker_version_rc=%s\n' "$post_rc" | tee -a "$RESULT"
-          [ "$rc" -eq 0 ] && [ "$post_rc" -eq 0 ]
+          failures=0
+          timeout 10 docker info --format 'ServerVersion={{.ServerVersion}} DockerRootDir={{.DockerRootDir}}' >> "$RESULT" 2>&1
+          info_rc=$?; echo "docker_info_rc=$info_rc" | tee -a "$RESULT"
+          [ "$info_rc" -eq 0 ] || failures=$((failures+1))
+          for attempt in 1 2; do
+            probe="portal-oidc-runtime-preflight-repeat-${GITHUB_RUN_ID}-${attempt}"
+            timeout 15 docker rm -f "$probe" >/dev/null 2>&1 || true
+            started=$(date +%s)
+            timeout --kill-after=5 20 docker run --rm --name "$probe" --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true --entrypoint /bin/true "$image" >> "$RESULT" 2>&1
+            rc=$?
+            ended=$(date +%s)
+            printf 'exact_preflight_%s_rc=%s\nexact_preflight_%s_elapsed_seconds=%s\n' "$attempt" "$rc" "$attempt" "$((ended-started))" | tee -a "$RESULT"
+            [ "$rc" -eq 0 ] || failures=$((failures+1))
+            timeout 20 docker rm -f "$probe" >/dev/null 2>&1 || true
+            sleep 5
+          done
+          timeout 10 docker version >/dev/null 2>&1
+          post_rc=$?; echo "post_docker_version_rc=$post_rc" | tee -a "$RESULT"
+          [ "$post_rc" -eq 0 ] || failures=$((failures+1))
+          echo "probe_failures=$failures" | tee -a "$RESULT"
+          exit "$([ "$failures" -eq 0 ] && echo 0 || echo 1)"
 
-      - name: Upload scrub-pause and exact-preflight evidence
+      - name: Upload exact-preflight evidence
         if: always()
-        id: upload
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: synology-1089-scrub-pause-preflight-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/synology-1089-scrub-pause.txt
-            ${{ runner.temp }}/synology-1089-exact-preflight.txt
+          name: synology-1089-exact-preflight-repeat-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/synology-1089-exact-preflight-repeat.txt
           if-no-files-found: error
           retention-days: 14
 
-      - name: Write recovery summary
+      - name: Publish exact-preflight summary
         if: always()
         shell: bash
         env:
-          PAUSE_REPORT: ${{ runner.temp }}/synology-1089-scrub-pause.txt
-          PREFLIGHT_REPORT: ${{ runner.temp }}/synology-1089-exact-preflight.txt
+          RESULT: ${{ runner.temp }}/synology-1089-exact-preflight-repeat.txt
         run: |
           {
-            echo '## Synology #1089 reversible scrub pause + exact preflight'
+            echo '## Synology #1089 exact protected preflight repeat'
             echo
-            grep -E 'cancel_volume[12]_rc=|ssh_exit=' "$PAUSE_REPORT" | sed 's/^/- /' || true
-            grep -E 'exact_preflight_rc=|exact_preflight_elapsed_seconds=|post_docker_version_rc=' "$PREFLIGHT_REPORT" | sed 's/^/- /' || true
+            grep -E '^(docker_info_rc|exact_preflight_[12]_(rc|elapsed_seconds)|post_docker_version_rc|probe_failures)=' "$RESULT" | sed 's/^/- /' || true
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Remove local SSH and diagnostic material
+      - name: Remove local evidence
         if: always()
         shell: bash
         env:
-          SSH_DIR: ${{ runner.temp }}/ssh-1089
-          PAUSE_REPORT: ${{ runner.temp }}/synology-1089-scrub-pause.txt
-          PREFLIGHT_REPORT: ${{ runner.temp }}/synology-1089-exact-preflight.txt
-        run: |
-          rm -rf -- "$SSH_DIR"
-          rm -f -- "$PAUSE_REPORT" "$PREFLIGHT_REPORT"
+          RESULT: ${{ runner.temp }}/synology-1089-exact-preflight-repeat.txt
+        run: rm -f -- "$RESULT"

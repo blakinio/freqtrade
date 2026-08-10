@@ -19,6 +19,7 @@ class AuditAction(StrEnum):
     BOT_REVISION_APPLIED = "bot.revision_applied"
     BOT_RESTART_REQUESTED = "bot.restart_requested"
     BOT_ROLLBACK_REQUESTED = "bot.rollback_requested"
+    BOT_RUNTIME_ADOPTED = "bot.runtime_adopted"
     BOT_START_REQUESTED = "bot.start_requested"
     BOT_PAUSE_REQUESTED = "bot.pause_requested"
     BOT_STOP_REQUESTED = "bot.stop_requested"

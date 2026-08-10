@@ -54,7 +54,7 @@ jobs:
           if "test_seal_fsyncs_exact_committed_file_without_truncation" not in tests:
               import_anchor = "    _seal_committed_ndjson,\n"
               if import_anchor not in tests:
-                  old_import = "    OkxLiveRunManager,\n"
+                  old_import = "    LiveRunManager,\n"
                   if tests.count(old_import) != 1:
                       raise SystemExit("seal helper import target mismatch")
                   tests = tests.replace(old_import, old_import + import_anchor, 1)

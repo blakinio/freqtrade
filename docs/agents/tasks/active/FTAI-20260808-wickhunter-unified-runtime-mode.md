@@ -192,17 +192,17 @@ The already-completed historical run `liquid20-20260810T000000Z-1` still require
 
 ## Temporary workflow
 
-`.github/workflows/portal-wickhunter-buildkit-cache-recovery.yml` is temporary recovery instrumentation only. It currently contains the bounded read-only integrity diagnostic used for run `31425883292`. It must be removed before final merge/closeout and cannot serve as exact-head final CI after removal.
+`.github/workflows/portal-wickhunter-buildkit-cache-recovery.yml` was used only for bounded recovery diagnostics and focused repository validation. Exact focused validation passed in run `31433026457` / job `93600693019` after the final durability and formatting repairs. The workflow is now scheduled for deletion before retained exact-head CI and cannot serve as final merge evidence.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-10T22:56:00+02:00
-head: 7163c7517f4acee91242068073c414814e8eb036
+updated_at: 2026-08-10T23:08:00+02:00
+head: 2c3cb8387c22e3fb3864abeea312aa79476c84b1
 branch: fix/wickhunter-1396-synology-recovery-v2
 pr: 1450
-status: waiting
+status: validating
 context_routes:
   - docs/agents/PROMPTING_STANDARD.md
   - docs/agents/PROMPTING_HANDOVER.md
@@ -229,6 +229,8 @@ proven:
   - dangling source symlinks are rejected before the zero-row missing-file shortcut
   - focused restart durability regression coverage passes after the review repair
   - static durability audit proved state-writing paths can persist events_written while NDJSON writes are still pending because _write_state does not centrally flush writers
+  - durable-state repair now flushes and fsyncs every open NDJSON writer before persisting state containing events_written and safely skips closed writers during stop and rotation
+  - exact focused validation passed on head 2c3cb8387c22e3fb3864abeea312aa79476c84b1 with seven restart-durability tests plus Ruff check format and producer-consumer contract assertions
 derived:
   - after the permanent producer fix is integrated a guarded repair of only the already completed inconsistent history should allow WH09 to recover naturally without weakening fail-closed behavior
 unknown:
@@ -266,8 +268,11 @@ validation:
   - command: Dangling symlink fail-closed review repair workflow
     result: PASS
     evidence: GitHub Actions run 31427855045 job 93583737395 completed source repair lint format and focused regression validation
+  - command: Exact focused durability validation after fsync-before-state and formatting repairs
+    result: PASS
+    evidence: GitHub Actions run 31433026457 job 93600693019 passed checkpoint durability markers py_compile seven focused pytest cases Ruff check Ruff format producer-consumer assertions and diff hygiene
 blockers: []
-next_action: Inspect the repo-only durability repair execution once terminal and repair only its first actionable failure; do not proceed to final CI until source and regression markers are present.
+next_action: Remove the temporary recovery workflow, require ci:full retained exact-head CI and a fresh independent Codex review on the final three-path diff, then squash-merge PR 1450 and continue the authorized protected Liquid20 recovery chain.
 ```
 
 ## Recovery checkpoint
@@ -275,15 +280,15 @@ next_action: Inspect the repo-only durability repair execution once terminal and
 ```yaml
 recovery:
   policy_version: 1
-  generation: 5
+  generation: 6
   session_id: 2026-08-10T21:37+02:00
   session_started_at: 2026-08-10T21:37:00+02:00
-  checkpointed_at: 2026-08-10T22:02:00+02:00
-  last_progress_at: 2026-08-10T22:02:00+02:00
-  phase: liquid20_restart_durability_repair_validation
-  exact_head_before_checkpoint_commit: bf9927579032538a5b53bb09fde8332207b96d35
-  pull_request: none
-  active_operation: permanent producer repair validation
+  checkpointed_at: 2026-08-10T23:08:00+02:00
+  last_progress_at: 2026-08-10T23:08:00+02:00
+  phase: pr1450_final_validation
+  exact_head_before_checkpoint_commit: 2c3cb8387c22e3fb3864abeea312aa79476c84b1
+  pull_request: 1450
+  active_operation: final retained CI and independent review
   external_run_ids:
     - 31425261462
     - 31425883292
@@ -291,7 +296,7 @@ recovery:
   status: active
   safe_to_resume: true
   resume_condition: permanent repair and focused tests validated
-  next_action: Run focused validation for the Liquid20 restart-sealing repair, then open the task repair PR against current develop.
+  next_action: Delete the temporary recovery workflow, complete retained exact-head CI plus fresh Codex review, merge PR 1450, then continue canonical Liquid20 deployment and exact historical repair.
 ```
 
 ## Terminal closeout requirements

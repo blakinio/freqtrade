@@ -47,11 +47,19 @@ def _ensure_probe_image() -> None:
         raise PreflightError("pinned Docker runtime probe image is unavailable")
 
 
-def _cleanup_probe(name: str) -> None:
+def _cleanup_probe(name: str, *, required: bool = False) -> None:
     try:
-        _run(["docker", "rm", "-f", name], timeout=PROBE_REMOVE_TIMEOUT_SECONDS)
-    except PreflightError:
-        pass
+        result = _run(
+            ["docker", "rm", "-f", name], timeout=PROBE_REMOVE_TIMEOUT_SECONDS
+        )
+    except PreflightError as exc:
+        if required:
+            raise PreflightError(
+                "Docker daemon cannot remove the disposable container within the bounded timeout"
+            ) from exc
+        return
+    if required and result.returncode != 0:
+        raise PreflightError("Docker daemon cannot remove the disposable container")
 
 
 def _run_probe_stage(
@@ -80,6 +88,8 @@ def check_runtime() -> dict[str, object]:
     _ensure_probe_image()
     name = f"portal-oidc-runtime-preflight-{os.getpid()}"
     _cleanup_probe(name)
+    created = False
+    probe_error: PreflightError | None = None
     try:
         _run_probe_stage(
             "create",
@@ -101,6 +111,7 @@ def check_runtime() -> dict[str, object]:
             ],
             timeout=PROBE_CREATE_TIMEOUT_SECONDS,
         )
+        created = True
         _run_probe_stage(
             "start",
             ["docker", "start", name],
@@ -113,8 +124,16 @@ def check_runtime() -> dict[str, object]:
         )
         if wait.stdout.strip() != "0":
             raise PreflightError("disposable Docker runtime probe exited non-zero")
+    except PreflightError as exc:
+        probe_error = exc
     finally:
-        _cleanup_probe(name)
+        try:
+            _cleanup_probe(name, required=created)
+        except PreflightError as cleanup_exc:
+            if probe_error is None:
+                probe_error = cleanup_exc
+    if probe_error is not None:
+        raise probe_error
 
     return {
         "status": "ready",

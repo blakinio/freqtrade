@@ -198,8 +198,8 @@ The already-completed historical run `liquid20-20260810T000000Z-1` still require
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-10T23:08:00+02:00
-head: 2c3cb8387c22e3fb3864abeea312aa79476c84b1
+updated_at: 2026-08-10T23:32:54+02:00
+head: 8f03d6966e700412dd19d4062bbd322a971780c0
 branch: fix/wickhunter-1396-synology-recovery-v2
 pr: 1450
 status: validating
@@ -210,10 +210,12 @@ context_routes:
   - docs/agents/ANTI_STALL_AND_EXECUTION_BUDGET.md
   - ai_platform/scripts/liquidation_live_stream.py
   - tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+  - tests/ai_platform_integration/test_liquidation_okx_live_source.py
   - Issue #1396 and PR #1450
 owned_paths:
   - ai_platform/scripts/liquidation_live_stream.py
   - tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+  - tests/ai_platform_integration/test_liquidation_okx_live_source.py
   - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
 proven:
   - PRs 1397 1388 and 1436 are merged and PR 1443 remains closed unmerged
@@ -230,6 +232,7 @@ proven:
   - static durability audit proved state-writing paths can persist events_written while NDJSON writes are still pending because _write_state does not centrally flush writers
   - durable-state repair now flushes and fsyncs every open NDJSON writer before persisting state containing events_written and safely skips closed writers during stop and rotation
   - exact focused validation passed on head 2c3cb8387c22e3fb3864abeea312aa79476c84b1 with seven restart-durability tests plus Ruff check format and producer-consumer contract assertions
+  - full ci:full compatibility testing exposed a stale legacy migration fixture that declared configured zero-row Bybit and Binance sources without their regular empty files; the fixture now models the valid historical contract without weakening production fail-closed behavior
 derived:
   - after the permanent producer fix is integrated a guarded repair of only the already completed inconsistent history should allow WH09 to recover naturally without weakening fail-closed behavior
 unknown:
@@ -252,6 +255,7 @@ rejected_hypotheses:
 changed_paths:
   - ai_platform/scripts/liquidation_live_stream.py
   - tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+  - tests/ai_platform_integration/test_liquidation_okx_live_source.py
   - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
 validation:
   - command: Read-only WH09 root-cause diagnostic
@@ -269,8 +273,11 @@ validation:
   - command: Exact focused durability validation after fsync-before-state and formatting repairs
     result: PASS
     evidence: GitHub Actions run 31433026457 job 93600693019 passed checkpoint durability markers py_compile seven focused pytest cases Ruff check Ruff format producer-consumer assertions and diff hygiene
+  - command: Focused restart and legacy OKX migration fixture validation
+    result: PASS
+    evidence: GitHub Actions run 31434035985 job 93603982630 passed 14 focused integration tests plus Ruff check and format before the bookkeeping-only failure
 blockers: []
-next_action: Remove the temporary recovery workflow, require ci:full retained exact-head CI and a fresh independent Codex review on the final three-path diff, then squash-merge PR 1450 and continue the authorized protected Liquid20 recovery chain.
+next_action: Run retained ci:full exact-head CI and a fresh independent Codex review on the final four-path permanent diff, then squash-merge PR 1450 and continue the authorized protected Liquid20 recovery chain.
 ```
 
 ## Recovery checkpoint
@@ -278,7 +285,7 @@ next_action: Remove the temporary recovery workflow, require ci:full retained ex
 ```yaml
 recovery:
   policy_version: 1
-  generation: 6
+  generation: 7
   session_id: 2026-08-10T21:37+02:00
   session_started_at: 2026-08-10T21:37:00+02:00
   checkpointed_at: 2026-08-10T23:08:00+02:00

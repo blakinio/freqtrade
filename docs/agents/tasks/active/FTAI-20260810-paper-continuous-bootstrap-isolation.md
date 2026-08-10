@@ -15,7 +15,7 @@ continuation_policy: continue_until_real_stop
 base_branch: docs/paper-continuous-program-execution-20260810
 trusted_base_sha: 49332fadbffcda3c310b2a8031eb298413c1d65e
 delivery_branch: fix/paper-continuous-bootstrap-isolation-20260810
-delivery_pr: pending
+delivery_pr: 1451
 parent_pr: 1448
 paper_gate: programme_governance
 live_capital_authorized: false
@@ -41,13 +41,13 @@ This task does not enlarge safety, authority, wall-clock, retry, repair, review,
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-10T20:19:00Z
-head: 9afc960039d365e5da325f19986558ce77e927f7
+updated_at: 2026-08-10T20:22:30Z
+head: 1a6f06660ad1f4f0c343ca6a3eb48d4f85cccc19
 branch: fix/paper-continuous-bootstrap-isolation-20260810
-pr: pending
+pr: 1451
 status: validating
 invocation_started_at: 2026-08-10T20:10:00Z
-last_progress_at: 2026-08-10T20:19:00Z
+last_progress_at: 2026-08-10T20:22:30Z
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 review_checks_for_current_head: 0
@@ -70,10 +70,11 @@ proven:
   - Codex thread PRRT_kwDOTdDTU86YBBib shows the anti-stall wording permits later invocations to obtain fresh same-SHA counters.
   - Root AGENTS.override.md now keeps the default cap but defines the trusted continuous exception at the highest bootstrap level, with one writer, dependency/path/ownership preflight, and no safety or validation budget expansion.
   - ANTI_STALL_AND_EXECUTION_BUDGET.md now states that ordinary CI/review counters are durable per task and exact SHA across later owner invocations, Chat replacement and same-SHA check generations; only a new exact commit SHA resets the ordinary per-head counter.
+  - Stacked PR 1451 targets the parent PR 1448 branch rather than develop, so the isolation repair cannot bypass the parent task's review boundary.
 derived:
   - Both parent findings are addressed in one narrow isolation repair without touching runtime, browser, deployment or trading code.
 unknown:
-  - stacked PR number, independent Codex disposition and exact-head CI result on the successor created by this checkpoint
+  - independent Codex disposition and exact-head CI result on the successor created by this checkpoint
 conflicts:
   - none; branch is stacked on the exact parent PR 1448 head
 first_failure:
@@ -98,5 +99,5 @@ validation:
     evidence: governance-only repair; no runtime, browser, deployment or trading path changes
 blockers:
   - none before stacked PR exact-head CI and fresh independent review
-next_action: Open the stacked PR to docs/paper-continuous-program-execution-20260810, request independent Codex review, and collect the first bounded exact-head CI observation. If clear, archive this isolation task in the stacked PR, validate the archival successor, merge it into the parent branch, then resume parent PR 1448 final validation.
+next_action: Resolve live PR 1451 successor head, request independent Codex review, and collect the first bounded exact-head CI observation. If clear, archive this isolation task in the stacked PR, validate the archival successor, merge it into the parent branch, then resume parent PR 1448 final validation.
 ```

@@ -69,6 +69,34 @@ def _write_previous_active_run(
     return run_id, run_root
 
 
+def test_state_commit_flushes_pending_ndjson_before_events_written(tmp_path: Path) -> None:
+    manager = OkxLiveRunManager(
+        data_root=tmp_path,
+        collector_commit="8" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+        flush_interval_seconds=3600.0,
+    )
+
+    async def scenario() -> None:
+        await manager.start()
+        writer = manager._writers[BINANCE_SOURCE]
+        writer._handle.write("{}\\n")
+        writer._pending = 1
+        manager.sources[BINANCE_SOURCE].events_written = 1
+
+        manager._write_state()
+
+        assert writer._pending == 0
+        assert (manager.run_root / f"{BINANCE_SOURCE}.ndjson").read_bytes() == b"{}\\n"
+        state = json.loads(
+            (manager.run_root / "run-state-v1.json").read_text(encoding="utf-8")
+        )
+        assert state["sources"][BINANCE_SOURCE]["events_written"] == 1
+        await manager.stop()
+
+    asyncio.run(scenario())
+
 def test_restart_truncates_only_uncommitted_suffix_before_completion(tmp_path: Path) -> None:
     old_run_id, old_run_root = _write_previous_active_run(
         tmp_path,

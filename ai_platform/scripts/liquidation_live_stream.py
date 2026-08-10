@@ -115,8 +115,12 @@ class AppendOnlyNdjsonWriter:
         self._pending = 0
         self._last_flush = time.monotonic()
 
+    @property
+    def closed(self) -> bool:
+        return self._handle.closed
+
     def close(self) -> None:
-        if not self._handle.closed:
+        if not self.closed:
             self.flush()
             self._handle.close()
 
@@ -211,8 +215,6 @@ class LiveRunManager:
     async def heartbeat(self) -> None:
         async with self._lock:
             self._rotate_if_needed(self._now_ms())
-            for writer in self._writers.values():
-                await asyncio.to_thread(writer.flush)
             await asyncio.to_thread(self._write_state)
 
     async def set_subscription(self, source: str, symbols: Sequence[str]) -> None:
@@ -429,6 +431,9 @@ class LiveRunManager:
         }
 
     def _write_state(self) -> None:
+        for writer in self._writers.values():
+            if not writer.closed:
+                writer.flush()
         payload = self._state_payload()
         write_json_atomic(self.run_root / RUN_STATE_FILE, payload)
         for source in (BYBIT_SOURCE, BINANCE_SOURCE):

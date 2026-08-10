@@ -32,7 +32,7 @@ status_authority: tools/portal_audit/ledger/status_authority.json
 
 Inventory drift, composition drift or an invalid status contract must fail closed rather than falling back to an older status document.
 
-The reserved `portal-current-status-authority` marker is the machine-discoverable human roll-up pointer to this authority. It must occur exactly once in the documentation tree, in `UI_DELIVERY_STATUS.md`, and must point to `tools/portal_audit/ledger/index.json`. Explicit prose claims that something is the current implementation/status authority are restricted to this contract and that validated UI roll-up; the CI guard discovers such claims across the documentation tree rather than trusting only paths declared by the sidecar.
+The reserved `portal-current-status-authority` marker is the machine-discoverable human roll-up pointer to this authority. Its reserved prefix is scanned across the complete documentation tree independently of the target value; there must be exactly one occurrence, in `UI_DELIVERY_STATUS.md`, pointing to `tools/portal_audit/ledger/index.json`. Explicit prose claims in the Portal's status-bearing product documentation are restricted to this contract and that validated UI roll-up. Agent task/governance records may quote acceptance language as evidence, but they are not product status surfaces and cannot carry the reserved marker.
 
 ### 3. Historical and derived status surfaces
 
@@ -70,7 +70,8 @@ A closed Issue does not by itself prove current runtime composition, API-mode E2
 
 - a missing or redirected current implementation authority;
 - a living ledger whose schema/mode no longer matches the authority contract;
-- a duplicate reserved current-authority marker or an unclassified explicit current-authority claim in the documentation tree;
+- any second use of the reserved current-authority marker prefix anywhere in documentation, including a marker that points to a different target;
+- an unclassified explicit current-authority claim in the Portal status-bearing documentation;
 - any additional documentation JSON object carrying top-level `status_authority: true` outside the pinned #1101 snapshot;
 - a missing or duplicate legacy-surface classification;
 - any rewrite of the #1101 snapshot by checking both its fixed `as_of_sha` and independently computed Git blob SHA;

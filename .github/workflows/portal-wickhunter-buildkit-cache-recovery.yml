@@ -20,6 +20,11 @@ jobs:
     runs-on:
       - freqtrade-staging
     timeout-minutes: 15
+    env:
+      WH09_EXPECTED_ID: ebb3bc5151c6041cc557395f77b3001230f881bc39c2e9a5c4789fcd920e3b37
+      WH09_PROJECT: wickhunter-production-research-runtime
+      WH09_SERVICE: wickhunter-production-research-runtime
+      WH09_EXPECTED_REVISION: 90cfc5ded10b0c6cb6406d00042817aca611e900
     steps:
       - name: Checkout exact recovery head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -27,20 +32,61 @@ jobs:
           persist-credentials: false
           fetch-depth: 1
 
-      - name: Verify WH09 remains healthy and capture identity
+      - name: Diagnose and verify unchanged WH09
         shell: bash
         run: |
           set -euo pipefail
           mapfile -t ids < <(
             docker ps -aq --no-trunc \
-              --filter 'label=com.docker.compose.project=wickhunter-production-research-runtime' \
-              --filter 'label=com.docker.compose.service=wickhunter-production-research-runtime' \
+              --filter "label=com.docker.compose.project=$WH09_PROJECT" \
+              --filter "label=com.docker.compose.service=$WH09_SERVICE" \
               | sed '/^$/d'
           )
-          [[ ${#ids[@]} -eq 1 ]]
-          [[ "$(docker inspect --format '{{.State.Running}}' "${ids[0]}")" == 'true' ]]
-          [[ "$(docker inspect --format '{{.State.Health.Status}}' "${ids[0]}")" == 'healthy' ]]
-          echo "WH09_CONTAINER_ID=${ids[0]}" >> "$GITHUB_ENV"
+          echo "WH09_MATCHING_COUNT=${#ids[@]}"
+          docker ps -a --no-trunc \
+            --filter "label=com.docker.compose.project=$WH09_PROJECT" \
+            --filter "label=com.docker.compose.service=$WH09_SERVICE" \
+            --format 'WH09_MATCH={{.ID}} status={{.Status}} name={{.Names}}'
+
+          for id in "${ids[@]}"; do
+            docker inspect --format \
+              'WH09_INSPECT id={{.Id}} state={{.State.Status}} running={{.State.Running}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} project={{index .Config.Labels "com.docker.compose.project"}} service={{index .Config.Labels "com.docker.compose.service"}} revision={{index .Config.Labels "org.opencontainers.image.revision"}} user={{.Config.User}}' \
+              "$id"
+          done
+
+          if docker inspect "$WH09_EXPECTED_ID" >/dev/null 2>&1; then
+            docker inspect --format \
+              'WH09_EXPECTED id={{.Id}} state={{.State.Status}} running={{.State.Running}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} project={{index .Config.Labels "com.docker.compose.project"}} service={{index .Config.Labels "com.docker.compose.service"}} revision={{index .Config.Labels "org.opencontainers.image.revision"}} user={{.Config.User}}' \
+              "$WH09_EXPECTED_ID"
+          else
+            echo "WH09_EXPECTED_MISSING=$WH09_EXPECTED_ID" >&2
+          fi
+
+          [[ ${#ids[@]} -eq 1 ]] || {
+            echo "Expected exactly one canonical WH09 container; refusing recovery" >&2
+            exit 1
+          }
+          [[ "${ids[0]}" == "$WH09_EXPECTED_ID" ]] || {
+            echo "Canonical WH09 container identity changed; refusing recovery" >&2
+            exit 1
+          }
+          [[ "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "${ids[0]}")" == "$WH09_EXPECTED_REVISION" ]] || {
+            echo "WH09 image revision changed; refusing recovery" >&2
+            exit 1
+          }
+
+          for _ in $(seq 1 12); do
+            running="$(docker inspect --format '{{.State.Running}}' "${ids[0]}")"
+            health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "${ids[0]}")"
+            if [[ "$running" == 'true' && "$health" == 'healthy' ]]; then
+              echo "WH09_CONTAINER_ID=${ids[0]}" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            echo "WH09 not healthy without mutation: running=$running health=$health" >&2
+            sleep 5
+          done
+          echo "WH09 did not become healthy during bounded read-only observation; refusing recovery" >&2
+          exit 1
 
       - name: Prove Docker runtime before recovery
         shell: bash
@@ -79,5 +125,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ -n "${WH09_CONTAINER_ID:-}" ]]
+          [[ "$WH09_CONTAINER_ID" == "$WH09_EXPECTED_ID" ]]
           [[ "$(docker inspect --format '{{.State.Running}}' "$WH09_CONTAINER_ID")" == 'true' ]]
           [[ "$(docker inspect --format '{{.State.Health.Status}}' "$WH09_CONTAINER_ID")" == 'healthy' ]]
+          [[ "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$WH09_CONTAINER_ID")" == "$WH09_EXPECTED_REVISION" ]]

@@ -486,8 +486,30 @@ class DockerCliRuntimeDriver:
                 errors.append(marker)
 
         security = {str(value).lower() for value in host.get("SecurityOpt") or []}
+        labels_raw = config.get("Labels")
+        labels = labels_raw if isinstance(labels_raw, dict) else {}
+        expected_command = [
+            "-ec",
+            self._QUARANTINE,
+            "portal-quarantine",
+            "freqtrade",
+            "trade",
+            "--config",
+            "/runtime/config/config.json",
+            "--strategy",
+            spec.strategy_name,
+        ]
         check(config.get("User") == plan.runtime_user, "non-root-user")
         check(config.get("Image") == spec.image, "exact-image")
+        check(config.get("Entrypoint") == ["/bin/sh"], "quarantine-entrypoint")
+        check(config.get("Cmd") == expected_command, "quarantine-command")
+        check(isinstance(labels_raw, dict), "labels")
+        for key, value in sorted(spec.labels.items()):
+            check(labels.get(key) == value, f"label:{key}")
+        check(
+            labels.get("ai.portal.isolation_plan_digest") == plan.digest(),
+            "isolation-plan-label",
+        )
         check(host.get("Privileged") is False, "privileged=false")
         check(host.get("ReadonlyRootfs") is True, "read-only-root")
         check(any("no-new-privileges" in item for item in security), "no-new-privileges")

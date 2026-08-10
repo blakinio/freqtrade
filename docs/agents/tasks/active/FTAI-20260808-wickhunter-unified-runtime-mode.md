@@ -115,7 +115,7 @@ Only after this run yields a concrete causal hypothesis may the third and final 
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-10T21:10:00+02:00
+updated_at: 2026-08-10T21:12:00+02:00
 status: waiting
 branch: fix/wickhunter-1396-synology-recovery-v2
 issue: 1396
@@ -148,14 +148,14 @@ validation:
   - run: 31422691173
     head: c2a4d5cee3bb6f3225d0d2cd13de63b2ca7878c0
     workflow: Portal WickHunter WH09 Readonly Health Diagnostic
-    result: IN_PROGRESS
+    result: IN_PROGRESS_AT_SECOND_ALLOWED_OBSERVATION
 counters:
   repair_cycles_for_current_gate: 2
   identical_failure_retries: 0
-  unchanged_state_checks: 0
+  unchanged_state_checks: 2
 blockers:
-  - read-only health diagnostic run 31422691173 is executing
-next_action: Inspect run 31422691173 when terminal; use its exact failure as the third-cycle repair hypothesis, without mutating WH09 unless separately authorized.
+  - read-only health diagnostic run 31422691173 remained in progress at the second allowed ordinary state observation
+next_action: On the next invocation inspect run 31422691173 once; if terminal, use its exact health evidence for the one remaining third-cycle repair hypothesis without restarting or redeploying WH09.
 ```
 
 ## Recovery checkpoint
@@ -166,7 +166,7 @@ recovery:
   generation: 3
   session_id: 2026-08-10T21:04+02:00
   session_started_at: 2026-08-10T21:04:00+02:00
-  checkpointed_at: 2026-08-10T21:10:00+02:00
+  checkpointed_at: 2026-08-10T21:12:00+02:00
   last_progress_at: 2026-08-10T21:09:23+02:00
   phase: wh09_readonly_health_diagnostic
   exact_head: c2a4d5cee3bb6f3225d0d2cd13de63b2ca7878c0
@@ -177,11 +177,11 @@ recovery:
   operation_started_at: 2026-08-10T21:09:23+02:00
   wait_deadline_at: 2026-08-10T21:19:23+02:00
   check_generation: wh09-health-diagnostic-v3
-  checks_used: 1
+  checks_used: 2
   status: waiting
   safe_to_resume: true
   resume_condition: workflow run 31422691173 is terminal
-  next_action: Inspect run 31422691173 when terminal and form exactly one third-cycle repair hypothesis from its primary evidence.
+  next_action: Inspect run 31422691173 once on the next invocation and form exactly one third-cycle repair hypothesis from its primary evidence.
 ```
 
 ## Terminal closeout requirements

@@ -1,4 +1,4 @@
-name: Portal WickHunter Liquid20 Hardened Restart Validation
+name: Portal WickHunter Recovery Checkpoint Update
 
 "on":
   push:
@@ -6,105 +6,139 @@ name: Portal WickHunter Liquid20 Hardened Restart Validation
       - fix/wickhunter-1396-synology-recovery-v2
     paths:
       - .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
-      - ai_platform/scripts/liquidation_live_stream.py
-      - tests/ai_platform_integration/test_liquidation_live_restart_durability.py
-      - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: portal-wickhunter-1396-liquid20-hardened-validation
-  cancel-in-progress: true
+  group: portal-wickhunter-1396-checkpoint-update
+  cancel-in-progress: false
 
 jobs:
-  validate:
-    name: Validate exact hardened restart contract
+  checkpoint:
+    name: Persist validator-compatible recovery checkpoint
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 8
     steps:
-      - name: Checkout exact branch head
+      - name: Checkout exact recovery branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          persist-credentials: false
-          fetch-depth: 2
+          ref: fix/wickhunter-1396-synology-recovery-v2
+          fetch-depth: 1
 
-      - name: Install uv and Python
-        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
-        with:
-          activate-environment: true
-          enable-cache: false
-          python-version: "3.12"
-
-      - name: Install bounded dependencies
-        run: |
-          uv pip install -r requirements.txt
-          uv pip install pytest==9.1.1 ruff==0.15.21
-          uv pip install --no-deps -e .
-
-      - name: Validate canonical recovery checkpoint
-        run: >-
-          python tools/agents/checkpoint.py
-          docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
-          --require-checkpoint
-
-      - name: Compile touched Python
-        run: |
-          python -m py_compile ai_platform/scripts/liquidation_live_stream.py
-          python -m py_compile tests/ai_platform_integration/test_liquidation_live_restart_durability.py
-
-      - name: Run focused restart durability suite
-        run: >-
-          python -m pytest -q -o addopts=''
-          --confcutdir=tests/ai_platform_integration
-          tests/ai_platform_integration/test_liquidation_live_restart_durability.py
-
-      - name: Ruff touched Python
-        run: >-
-          ruff check
-          ai_platform/scripts/liquidation_live_stream.py
-          tests/ai_platform_integration/test_liquidation_live_restart_durability.py
-
-      - name: Ruff format touched Python
-        run: >-
-          ruff format --check
-          ai_platform/scripts/liquidation_live_stream.py
-          tests/ai_platform_integration/test_liquidation_live_restart_durability.py
-
-      - name: Verify producer-consumer restart invariants
+      - name: Replace Context checkpoint only
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
+          import re
           from pathlib import Path
 
-          producer = Path("ai_platform/scripts/liquidation_live_stream.py").read_text(encoding="utf-8")
-          consumer = Path("ai_platform/wickhunter/candidate_paper_runtime_operator.py").read_text(encoding="utf-8")
-          required_producer = [
-              "if set(sources) != expected_sources:",
-              "if allow_missing and committed_rows == 0:",
-              "if path.is_symlink():",
-              "handle.truncate(committed_end)",
-              "os.fsync(handle.fileno())",
-          ]
-          required_consumer = [
-              "if tuple(sorted(source_payloads)) != EXPECTED_LIVE_SOURCES:",
-              "events_written == 0",
-              "and not configured",
-              "source_row.get(\"last_event_received_at_ms\") is None",
-          ]
-          for marker in required_producer:
-              if marker not in producer:
-                  raise SystemExit(f"missing producer invariant: {marker}")
-          for marker in required_consumer:
-              if marker not in consumer:
-                  raise SystemExit(f"missing consumer invariant: {marker}")
-          print("PRODUCER_CONSUMER_RESTART_CONTRACT=PASS")
-          PY
+          path = Path("docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md")
+          text = path.read_text(encoding="utf-8")
+          replacement = '''## Context checkpoint
 
-      - name: Validate diff hygiene
+```yaml
+checkpoint_version: 1
+updated_at: 2026-08-10T22:42:00+02:00
+head: 7e17e50aebfab93c882c80aa0e62a6cd0cedb5b7
+branch: fix/wickhunter-1396-synology-recovery-v2
+pr: 1450
+status: validating
+context_routes:
+  - docs/agents/PROMPTING_STANDARD.md
+  - docs/agents/PROMPTING_HANDOVER.md
+  - docs/agents/GITHUB_ONLY_EXECUTION.md
+  - docs/agents/DELIVERY_COMPLETENESS_AND_CLOSEOUT.md
+  - docs/agents/ANTI_STALL_AND_EXECUTION_BUDGET.md
+  - ai_platform/scripts/liquidation_live_stream.py
+  - ai_platform/wickhunter/candidate_paper_runtime_operator.py
+  - Issue #1396 and PR #1450
+owned_paths:
+  - ai_platform/scripts/liquidation_live_stream.py
+  - tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+  - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
+  - .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
+proven:
+  - PRs 1397 1388 and 1436 are merged and PR 1443 remains closed unmerged
+  - WH09 remains the single expected H900 SHADOW runtime with zero trading authority
+  - WH09 root cause is a completed Liquid20 restart run containing durable rows beyond persisted events_written
+  - run liquid20-20260810T000000Z-1 has five uncommitted Binance rows and one uncommitted Bybit row
+  - producer restart sealing now truncates only durable bytes after each persisted commit boundary and fsyncs the file
+  - configured sources with missing files fail closed even when events_written is zero
+  - dangling source symlinks fail closed before missing-file handling
+  - restart state must contain the exact historical-consumer source set
+  - missing files remain allowed only for unconfigured zero-row sources with no receipt timestamp
+  - focused restart durability regression coverage contains six restart boundary cases
+  - exact hardened focused validation passed on head 7e17e50aebfab93c882c80aa0e62a6cd0cedb5b7
+  - both prior Codex P1 and P2 findings are resolved with proving validation
+  - temporary recovery workflow must be removed before final exact-head merge validation
+derived:
+  - the hardened producer contract now matches the historical consumer missing-file and exact-source-set invariants
+  - after integration a single guarded repair of the already completed inconsistent run should be sufficient to restore readable history without weakening fail-closed validation
+unknown:
+  - final retained full CI result after temporary workflow removal
+  - fresh independent audit result on the final diff
+  - explicit authority for the merge-triggered Liquidations Live Synology deployment
+  - post-merge canonical Liquid20 deployment result
+  - guarded completed-history repair result on Synology
+  - whether WH09 naturally advances through two consecutive healthy generations after upstream repair
+  - terminal Portal adoption API browser persistence and desired-observed generation result
+conflicts: []
+first_failure:
+  marker: LIQUID20_RESTART_COMMIT_BOUNDARY_MISMATCH
+  evidence: run 31425261462 exposed the WH09 contradiction and run 31425883292 isolated plus five Binance and plus one Bybit durable rows beyond persisted commit counts
+rejected_hypotheses:
+  - the active Liquid20 pointer or current source freshness is the WH09 blocker
+  - weakening historical row-count validation is an acceptable recovery
+  - a missing configured zero-row source may be treated as equivalent to an unconfigured absent source
+  - an incomplete source-state set may be finalized as valid historical state
+changed_paths:
+  - ai_platform/scripts/liquidation_live_stream.py
+  - tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+  - docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
+  - .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
+validation:
+  - command: Read-only WH09 root-cause diagnostic
+    result: PASS
+    evidence: GitHub Actions run 31425261462 job 93575331867
+  - command: Read-only Liquid20 integrity isolation
+    result: PASS
+    evidence: GitHub Actions run 31425883292 job 93577345378
+  - command: Dangling symlink fail-closed repair and focused regression
+    result: PASS
+    evidence: GitHub Actions run 31427855045 job 93583737395
+  - command: Canonical checkpoint validator
+    result: PASS
+    evidence: GitHub Actions run 31428019847 job 93584284664
+  - command: Hardened producer exact-head focused tests lint format checkpoint and producer-consumer invariants
+    result: PASS
+    evidence: GitHub Actions run 31430073700 on head 7e17e50aebfab93c882c80aa0e62a6cd0cedb5b7
+blockers:
+  - merging ai_platform/scripts/liquidation_live_stream.py to develop triggers the protected Liquidations Live Synology deploy workflow; repository merge authority alone does not establish protected live-operation authority
+next_action: Remove the temporary recovery workflow, run retained full exact-head CI and fresh independent audit, then stop before merge unless explicit authority for the merge-triggered Liquidations Live Synology deployment is established.
+```
+'''
+          pattern = re.compile(
+              r"## Context checkpoint\n\n```(?:yaml|yml)\n.*?\n```(?=\n\n## Recovery checkpoint)",
+              re.DOTALL,
+          )
+          if len(pattern.findall(text)) != 1:
+              raise SystemExit("expected exactly one replaceable Context checkpoint")
+          path.write_text(pattern.sub(replacement.rstrip(), text, count=1), encoding="utf-8")
+          PY
+          python tools/agents/checkpoint.py \
+            docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md \
+            --require-checkpoint
+          git diff --check
+
+      - name: Commit checkpoint
         shell: bash
         run: |
           set -euo pipefail
-          git diff --check HEAD^ HEAD
-          echo "VALIDATED_HEAD=$GITHUB_SHA"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
+          git diff --cached --quiet && exit 1
+          git commit -m "docs(wickhunter): checkpoint hardened Liquid20 recovery"
+          git push origin HEAD:fix/wickhunter-1396-synology-recovery-v2

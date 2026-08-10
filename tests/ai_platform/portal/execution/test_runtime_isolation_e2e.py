@@ -174,7 +174,7 @@ class _HardDenyE2EAttestor:
         assert payload["EnableIPv6"] is False
         assert payload["Labels"]["ai.portal.runtime_id"] == runtime_id
         containers = payload.get("Containers") or {}
-        assert set(containers) <= {self._container_id(runtime_id)}
+        assert set(containers) == {self._container_id(runtime_id)}
 
     def cleanup_network(self, network_name: str, runtime_id: str) -> None:
         del runtime_id
@@ -293,16 +293,35 @@ def test_real_docker_driver_provisions_attested_quarantine(tmp_path: Path) -> No
         )
         assert config_write.returncode != 0
 
+        state_write = _run(
+            "docker",
+            "exec",
+            runtime_id,
+            "/bin/sh",
+            "-ec",
+            "printf ok > /runtime/state/write-probe",
+        )
+        assert state_write.returncode == 0, state_write.stderr
         state_overflow = _run(
             "docker",
             "exec",
             runtime_id,
             "/bin/sh",
             "-ec",
-            "dd if=/dev/zero of=/runtime/state/quota-probe bs=1048576 count=12 status=none",
+            "dd if=/dev/zero of=/runtime/state/quota-probe bs=1048576 count=12",
         )
         assert state_overflow.returncode != 0
+        assert "No space left on device" in state_overflow.stderr
 
+        wget_available = _run(
+            "docker",
+            "exec",
+            runtime_id,
+            "/bin/sh",
+            "-ec",
+            "command -v wget",
+        )
+        assert wget_available.returncode == 0, wget_available.stderr
         public_egress = _run(
             "docker",
             "exec",

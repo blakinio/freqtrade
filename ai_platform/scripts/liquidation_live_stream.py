@@ -155,8 +155,8 @@ def _seal_committed_ndjson(
             committed_end = handle.tell()
         if handle.read(1):
             handle.truncate(committed_end)
-            handle.flush()
-            os.fsync(handle.fileno())
+        handle.flush()
+        os.fsync(handle.fileno())
 
 
 def _restart_run_root_missing(*, live_root: Path, runs_root: Path, run_root: Path) -> bool:

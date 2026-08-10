@@ -12,6 +12,7 @@ from ai_platform.scripts.liquidation_live_stream import (
     LIVE_STATE_FILE,
     OKX_SOURCE,
     LiveRunManager,
+    _seal_committed_ndjson,
 )
 from ai_platform.scripts.liquidation_live_stream_okx import OkxLiveRunManager
 
@@ -67,6 +68,24 @@ def _write_previous_active_run(
     for source, count in actual_rows.items():
         (run_root / f"{source}.ndjson").write_bytes(b"{}\n" * count)
     return run_id, run_root
+
+
+def test_seal_fsyncs_exact_committed_file_without_truncation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / f"{BINANCE_SOURCE}.ndjson"
+    payload = b"{}\n"
+    path.write_bytes(payload)
+    fsync_calls: list[int] = []
+    monkeypatch.setattr(
+        "ai_platform.scripts.liquidation_live_stream.os.fsync",
+        lambda fd: fsync_calls.append(fd),
+    )
+
+    _seal_committed_ndjson(path, committed_rows=1, source=BINANCE_SOURCE, allow_missing=False)
+
+    assert fsync_calls
+    assert path.read_bytes() == payload
 
 
 def test_state_commit_flushes_pending_ndjson_before_events_written(tmp_path: Path) -> None:

@@ -198,8 +198,8 @@ The already-completed historical run `liquid20-20260810T000000Z-1` still require
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-11T00:03:37+02:00
-head: 4d28854705622128b50ce73c1b3c7b4da6958ce2
+updated_at: 2026-08-11T00:14:20+02:00
+head: 446260ea7a340b91201f19ce4a2337d1dd33695d
 branch: fix/wickhunter-1396-synology-recovery-v2
 pr: 1450
 status: validating
@@ -286,8 +286,11 @@ validation:
   - command: Startup-root and configured metadata fail-closed validation
     result: PASS
     evidence: GitHub Actions run 31436594843 passed combined restart and legacy migration regression suite Ruff check format compile checkpoint and diff hygiene
+  - command: Exact recovered source fsync regression validation
+    result: PASS
+    evidence: GitHub Actions run 31437380099 passed focused restart and legacy migration tests Ruff check format compile checkpoint and diff hygiene
 blockers: []
-next_action: Run retained ci:full exact-head CI plus a fresh independent Codex review with zero material findings, then squash-merge PR 1450 and continue protected Liquid20 recovery.
+next_action: Run retained ci:full exact-head CI plus fresh independent Codex review with zero material findings, then squash-merge PR 1450 and continue protected Liquid20 recovery.
 ```
 
 ## Recovery checkpoint
@@ -295,7 +298,7 @@ next_action: Run retained ci:full exact-head CI plus a fresh independent Codex r
 ```yaml
 recovery:
   policy_version: 1
-  generation: 10
+  generation: 11
   session_id: 2026-08-10T21:37+02:00
   session_started_at: 2026-08-10T21:37:00+02:00
   checkpointed_at: 2026-08-10T23:08:00+02:00

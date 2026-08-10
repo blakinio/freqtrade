@@ -23,7 +23,6 @@ from ai_platform.portal.control_plane.service import ControlPlaneService
 from ai_platform.portal.security.authorization import require_permission
 from ai_platform.wickhunter.canonical import canonical_sha256
 from ai_platform.wickhunter.contracts import BotMode
-from ai_platform.wickhunter.production_research_runtime import FROZEN_NO_TRADE_CONFIDENCE
 
 
 WH09_BOT_ID = "wickhunter"
@@ -39,6 +38,7 @@ WH09_EXPECTED_MANIFEST_SHA256 = "9f5ba852e33915678ca085c2eeafbf526457a079ba8f6f2
 WH09_EXPECTED_MODEL_ARTIFACT_SHA256 = "0488eaea68a316e3659e3b9e2fcea667eb57de87a22888ce396d112a5c075d2e"
 WH09_EXPECTED_MODEL_HASH = "eddd12e3d0c5922547df89d9fa3d8556b8131a62c3cb8057c5a20c66747a240b"
 WH09_EXPECTED_PARAMETER_HASH = "014b471b9ccc663c3551a151353ae7cd932bd43ed48b9fbf239baad3483e2c11"
+WH09_FROZEN_NO_TRADE_CONFIDENCE = Decimal("0.60")
 WH09_OUTCOME_HORIZON_MS = 900_000
 WH09_MAX_EVIDENCE_AGE_SECONDS = 600
 WH09_MAX_OBSERVER_RESPONSE_BYTES = 512 * 1024
@@ -68,7 +68,7 @@ class Wh09LatestDecision(ContractModel):
 
     @model_validator(mode="after")
     def validate_frozen_threshold(self) -> Wh09LatestDecision:
-        if self.no_trade_confidence != FROZEN_NO_TRADE_CONFIDENCE:
+        if self.no_trade_confidence != WH09_FROZEN_NO_TRADE_CONFIDENCE:
             raise ValueError("WH09 decision no-trade threshold differs from frozen 0.60")
         return self
 
@@ -121,7 +121,7 @@ class Wh09RuntimeEvidence(ContractModel):
             raise ValueError("WH09 model hash mismatch")
         if self.parameter_hash != WH09_EXPECTED_PARAMETER_HASH:
             raise ValueError("WH09 parameter hash mismatch")
-        if self.no_trade_confidence != FROZEN_NO_TRADE_CONFIDENCE:
+        if self.no_trade_confidence != WH09_FROZEN_NO_TRADE_CONFIDENCE:
             raise ValueError("WH09 no-trade threshold differs from frozen 0.60")
         if self.outcome_horizon_ms != WH09_OUTCOME_HORIZON_MS:
             raise ValueError("WH09 outcome horizon differs from frozen H900 contract")
@@ -251,7 +251,7 @@ class Wh09RuntimeEvidenceReader:
             "model_hash": WH09_EXPECTED_MODEL_HASH,
             "parameter_hash": WH09_EXPECTED_PARAMETER_HASH,
             "mode": BotMode.SHADOW.value,
-            "no_trade_confidence": str(FROZEN_NO_TRADE_CONFIDENCE),
+            "no_trade_confidence": str(WH09_FROZEN_NO_TRADE_CONFIDENCE),
             "outcome_horizon_ms": WH09_OUTCOME_HORIZON_MS,
         }
         for key, expected in expected_identity.items():
@@ -372,7 +372,7 @@ class Wh09RuntimeEvidenceReader:
             return None
         payload = latest[1]
         threshold = Decimal(str(payload.get("no_trade_confidence")))
-        if threshold != FROZEN_NO_TRADE_CONFIDENCE:
+        if threshold != WH09_FROZEN_NO_TRADE_CONFIDENCE:
             raise Wh09RuntimeEvidenceError("WH09 latest decision changed no-trade threshold")
         try:
             return Wh09LatestDecision(

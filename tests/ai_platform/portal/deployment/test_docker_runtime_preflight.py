@@ -59,6 +59,7 @@ def test_runtime_preflight_proves_disposable_container_lifecycle(
     assert any(command[:2] == ["docker", "wait"] for command in commands)
     assert not any(command[:2] == ["docker", "run"] for command in commands)
     assert any("--network" in command and "none" in command for command in commands)
+    assert sum(command[:3] == ["docker", "rm", "-f"] for command in commands) == 2
 
 
 def test_runtime_preflight_fails_closed_when_container_start_times_out(
@@ -96,6 +97,29 @@ def test_runtime_preflight_fails_closed_on_nonzero_probe_exit(
     monkeypatch.setattr(module, "_run", fake_run)
 
     with pytest.raises(module.PreflightError, match="probe exited non-zero"):
+        module.check_runtime()
+
+
+def test_runtime_preflight_fails_closed_when_final_cleanup_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_preflight()
+    remove_calls = 0
+
+    def fake_run(command: list[str], *, timeout: int) -> Any:
+        nonlocal remove_calls
+        if command[:3] == ["docker", "info", "--format"]:
+            return _completed(command, stdout="27.5.1\n")
+        if command[:2] == ["docker", "wait"]:
+            return _completed(command, stdout="0\n")
+        if command[:3] == ["docker", "rm", "-f"]:
+            remove_calls += 1
+            return _completed(command, returncode=0 if remove_calls == 1 else 1)
+        return _completed(command)
+
+    monkeypatch.setattr(module, "_run", fake_run)
+
+    with pytest.raises(module.PreflightError, match="cannot remove"):
         module.check_runtime()
 
 

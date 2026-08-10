@@ -109,3 +109,4 @@ def test_registry_keeps_historical_review_provenance_separate_from_latest_change
     assert isinstance(synchronized_base_sha, str) and len(synchronized_base_sha) == 40
     assert isinstance(latest_base_sha, str) and len(latest_base_sha) == 40
     assert audited_base_sha != latest_base_sha
+    assert synchronized_base_sha != latest_base_sha

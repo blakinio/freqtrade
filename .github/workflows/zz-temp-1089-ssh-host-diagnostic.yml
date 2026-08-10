@@ -16,10 +16,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  validate:
-    name: Run calibrated PR 1454 preflight twice on Synology
+  diagnostic:
+    name: Inspect failed Portal migration state read-only
     runs-on: [freqtrade-staging]
-    timeout-minutes: 25
+    timeout-minutes: 8
     steps:
       - name: Refuse trading credential environment
         shell: bash
@@ -29,42 +29,56 @@ jobs:
             test -z "${!name:-}" || { echo "recognized trading credential present: $name" >&2; exit 1; }
           done
 
-      - name: Checkout exact calibrated preflight repair head
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-        with:
-          persist-credentials: false
-          fetch-depth: 1
-          ref: 6ae3439986c2852130cc18bd692bba18fdc8c93e
-
-      - name: Run exact repaired runtime preflight twice
+      - name: Collect secret-free Docker and PostgreSQL evidence
         shell: bash
         env:
-          REPORT: ${{ runner.temp }}/synology-1089-calibrated-preflight.txt
+          REPORT: ${{ runner.temp }}/synology-1089-post-deploy-failure.txt
         run: |
-          set -euo pipefail
+          set -u
+          set +e
           : > "$REPORT"
-          for attempt in 1 2; do
-            started=$(date +%s)
-            output="$(python3 deploy/synology/portal-oidc/docker_runtime_preflight.py)"
-            ended=$(date +%s)
-            printf 'attempt_%s_elapsed_seconds=%s\n%s\n' "$attempt" "$((ended-started))" "$output" | tee -a "$REPORT"
-            grep -F '"status": "ready"' <<< "$output"
-            grep -F '"disposable_container_start": true' <<< "$output"
-            grep -F '"secret_values_recorded": false' <<< "$output"
-            grep -F '"live_capital_authorized": false' <<< "$output"
-          done
-          leaks="$(timeout 30 docker ps -a --format '{{.Names}}' | grep -E '^portal-oidc-runtime-preflight-' || true)"
-          [[ -z "$leaks" ]]
-          echo 'probe_leaks=none' | tee -a "$REPORT"
-          timeout 30 docker version >/dev/null
-          echo 'post_docker_version=ok' | tee -a "$REPORT"
+          echo '===== metadata =====' >> "$REPORT"
+          date -u '+utc=%Y-%m-%dT%H:%M:%SZ' >> "$REPORT"
+          timeout 30 docker version --format 'server={{.Server.Version}}' >> "$REPORT" 2>&1
+          echo "docker_version_rc=$?" >> "$REPORT"
 
-      - name: Upload calibrated preflight evidence
+          echo '===== portal containers =====' >> "$REPORT"
+          for name in freqtrade-portal-postgresql freqtrade-portal-control-plane freqtrade-portal-staging; do
+            timeout 20 docker inspect --format 'name={{.Name}} status={{.State.Status}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} image={{.Config.Image}} restart={{.HostConfig.RestartPolicy.Name}}' "$name" >> "$REPORT" 2>&1
+            echo "inspect_${name}_rc=$?" >> "$REPORT"
+          done
+
+          echo '===== portal network members =====' >> "$REPORT"
+          timeout 20 docker network inspect portal_oidc_public --format '{{range .Containers}}{{.Name}}{{"\n"}}{{end}}' >> "$REPORT" 2>&1
+          echo "network_members_rc=$?" >> "$REPORT"
+
+          echo '===== portal databases =====' >> "$REPORT"
+          timeout 30 docker exec freqtrade-portal-postgresql psql -U portal -d portal_admin -Atc "SELECT datname FROM pg_database WHERE datname = 'portal_admin' OR datname LIKE 'portal_candidate_%' ORDER BY datname" >> "$REPORT" 2>&1
+          echo "database_inventory_rc=$?" >> "$REPORT"
+
+          echo '===== postgres error window =====' >> "$REPORT"
+          timeout 30 docker logs --since '2026-08-10T23:20:00Z' --timestamps freqtrade-portal-postgresql 2>&1 | grep -Ei 'ERROR|FATAL|PANIC|WARNING|database|role|connection|checkpoint|ready to accept' | tail -n 400 >> "$REPORT" || true
+
+          echo '===== exact approved control image =====' >> "$REPORT"
+          timeout 20 docker image inspect --format 'id={{.Id}} revision={{index .Config.Labels "org.opencontainers.image.revision"}}' sha256:50f2230810559e16acbfe6a57ad5fe1fc8eb087bcb1dd38419129e99315c8cf9 >> "$REPORT" 2>&1
+          echo "approved_control_image_rc=$?" >> "$REPORT"
+
+          python3 - "$REPORT" <<'PY'
+          import pathlib, re, sys
+          path = pathlib.Path(sys.argv[1])
+          text = path.read_text(encoding='utf-8', errors='replace')
+          text = re.sub(r'(?i)(password|passwd|secret|token|authorization|bearer|api[_-]?key)\s*[:=]\s*[^\s,;]+', r'\1=[REDACTED]', text)
+          text = re.sub(r'postgresql(?:\+psycopg)?://[^\s]+', '[REDACTED_DATABASE_URL]', text)
+          text = re.sub(r'\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b', '[REDACTED_JWT]', text)
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Upload read-only failure evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: synology-1089-calibrated-preflight-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/synology-1089-calibrated-preflight.txt
+          name: synology-1089-post-deploy-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/synology-1089-post-deploy-failure.txt
           if-no-files-found: error
           retention-days: 14
 
@@ -72,10 +86,10 @@ jobs:
         if: always()
         shell: bash
         env:
-          REPORT: ${{ runner.temp }}/synology-1089-calibrated-preflight.txt
+          REPORT: ${{ runner.temp }}/synology-1089-post-deploy-failure.txt
         run: |
           {
-            echo '## Synology #1089 calibrated preflight validation'
+            echo '## Synology #1089 failed deployment read-only diagnostic'
             echo
             [[ -f "$REPORT" ]] && sed 's/^/- /' "$REPORT" || true
           } >> "$GITHUB_STEP_SUMMARY"
@@ -84,5 +98,5 @@ jobs:
         if: always()
         shell: bash
         env:
-          REPORT: ${{ runner.temp }}/synology-1089-calibrated-preflight.txt
+          REPORT: ${{ runner.temp }}/synology-1089-post-deploy-failure.txt
         run: rm -f -- "$REPORT"

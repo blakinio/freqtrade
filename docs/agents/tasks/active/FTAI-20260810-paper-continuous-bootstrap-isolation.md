@@ -6,8 +6,8 @@ programme_id: FTAI-PAPER-PLATFORM
 repository: blakinio/freqtrade
 project_lane: agent-governance
 task_kind: isolation_repair
-phase: implementation
-status: implementing
+phase: validation
+status: validating
 priority: high
 execution_mode: github_only
 run_scope: autonomous_program
@@ -41,18 +41,18 @@ This task does not enlarge safety, authority, wall-clock, retry, repair, review,
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-10T20:15:45Z
-head: 49332fadbffcda3c310b2a8031eb298413c1d65e
+updated_at: 2026-08-10T20:19:00Z
+head: 9afc960039d365e5da325f19986558ce77e927f7
 branch: fix/paper-continuous-bootstrap-isolation-20260810
 pr: pending
-status: implementing
+status: validating
 invocation_started_at: 2026-08-10T20:10:00Z
-last_progress_at: 2026-08-10T20:15:45Z
+last_progress_at: 2026-08-10T20:19:00Z
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 review_checks_for_current_head: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 0
+repair_cycles_for_current_gate: 1
 context_reconstruction_attempts: 0
 stall_warnings: 0
 context_routes:
@@ -68,10 +68,12 @@ proven:
   - Parent task record explicitly records repair_cycles_for_current_gate 3, so new material findings require fresh isolation rather than a fourth parent repair.
   - Codex thread PRRT_kwDOTdDTU86YBBiZ shows root AGENTS.override.md still unconditionally caps one additional task.
   - Codex thread PRRT_kwDOTdDTU86YBBib shows the anti-stall wording permits later invocations to obtain fresh same-SHA counters.
+  - Root AGENTS.override.md now keeps the default cap but defines the trusted continuous exception at the highest bootstrap level, with one writer, dependency/path/ownership preflight, and no safety or validation budget expansion.
+  - ANTI_STALL_AND_EXECUTION_BUDGET.md now states that ordinary CI/review counters are durable per task and exact SHA across later owner invocations, Chat replacement and same-SHA check generations; only a new exact commit SHA resets the ordinary per-head counter.
 derived:
-  - Both findings can be repaired without touching runtime, browser, deployment or trading code.
+  - Both parent findings are addressed in one narrow isolation repair without touching runtime, browser, deployment or trading code.
 unknown:
-  - stacked PR number and exact-head validation result
+  - stacked PR number, independent Codex disposition and exact-head CI result on the successor created by this checkpoint
 conflicts:
   - none; branch is stacked on the exact parent PR 1448 head
 first_failure:
@@ -81,12 +83,20 @@ rejected_hypotheses:
   - Apply a fourth repair directly to parent task; rejected by max three repair cycles and the parent checkpoint.
   - Reset ordinary counters for each owner invocation; rejected because that enables unbounded same-SHA polling.
 changed_paths:
+  - AGENTS.override.md
+  - docs/agents/ANTI_STALL_AND_EXECUTION_BUDGET.md
   - docs/agents/tasks/active/FTAI-20260810-paper-continuous-bootstrap-isolation.md
 validation:
   - command: preflight parent PR 1448 live state and review threads
     result: PASS
     evidence: parent head 49332fadbffcda3c310b2a8031eb298413c1d65e; exact-head CI green; two new unresolved P1 findings isolated here
+  - command: implementer contract falsification
+    result: PASS
+    evidence: no-override default remains one additional task; trusted override changes only task-count coordination; same-SHA counters explicitly survive later owner invocations
+  - command: runtime/browser E2E
+    result: NOT_APPLICABLE
+    evidence: governance-only repair; no runtime, browser, deployment or trading path changes
 blockers:
-  - none
-next_action: Amend root bootstrap and anti-stall contract narrowly, open a stacked PR to the parent branch, request independent Codex review and exact-head CI, then merge the isolation only if all gates are clear.
+  - none before stacked PR exact-head CI and fresh independent review
+next_action: Open the stacked PR to docs/paper-continuous-program-execution-20260810, request independent Codex review, and collect the first bounded exact-head CI observation. If clear, archive this isolation task in the stacked PR, validate the archival successor, merge it into the parent branch, then resume parent PR 1448 final validation.
 ```

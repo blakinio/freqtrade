@@ -40,12 +40,10 @@ def test_architecture_registry_resolved_findings_are_not_open() -> None:
     assert len(open_identities) == len(open_findings)
     assert resolved_identities.isdisjoint(open_identities)
     assert all(
-        isinstance(finding, dict) and finding.get("status") == "open"
-        for finding in open_findings
+        isinstance(finding, dict) and finding.get("status") == "open" for finding in open_findings
     )
     assert all(
-        isinstance(finding, dict)
-        and finding.get("status") in TERMINAL_FINDING_STATUSES
+        isinstance(finding, dict) and finding.get("status") in TERMINAL_FINDING_STATUSES
         for finding in resolved
     )
 

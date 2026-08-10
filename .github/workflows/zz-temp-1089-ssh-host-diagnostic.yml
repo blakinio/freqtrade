@@ -12,9 +12,9 @@ permissions:
   contents: read
 
 jobs:
-  inspect:
-    name: Snapshot running-container restart policies before daemon repair
-    runs-on: [freqtrade-staging]
+  probe:
+    name: Verify GitHub-hosted SSH control path to Synology
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Refuse trading credential environment
@@ -25,53 +25,28 @@ jobs:
             test -z "${!name:-}" || { echo "recognized trading credential present: $name" >&2; exit 1; }
           done
 
-      - name: Snapshot restart policies
-        id: snapshot
+      - name: Prepare SSH client
         shell: bash
         env:
-          REPORT: ${{ runner.temp }}/synology-1089-restart-policies.txt
+          SSH_HOST: ${{ secrets.SYNOLOGY_SSH_HOST }}
+          SSH_PORT: ${{ secrets.SYNOLOGY_SSH_PORT }}
+          SSH_USER: ${{ secrets.SYNOLOGY_SSH_USER || vars.SYNOLOGY_SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SYNOLOGY_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SYNOLOGY_SSH_KNOWN_HOSTS }}
+          SSH_DIR: ${{ runner.temp }}/ssh-1089
         run: |
           set -euo pipefail
-          : > "$REPORT"
-          timeout 15 docker version --format 'docker_server={{.Server.Version}}' | tee -a "$REPORT"
-          running_ids="$(timeout 20 docker ps -q)"
-          for cid in $running_ids; do
-            timeout 10 docker inspect --format '{{.Id}}\t{{.Name}}\tstatus={{.State.Status}}\trestart={{.HostConfig.RestartPolicy.Name}}' "$cid" >> "$REPORT" || echo "inspect_failed=$cid" >> "$REPORT"
-          done
-          runner_policy="$(timeout 10 docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' freqtrade-synology-staging-runner 2>/dev/null || true)"
-          echo "runner_restart_policy=$runner_policy" | tee -a "$REPORT"
-          running_no_restart="$(grep -F '\tstatus=running\trestart=no' "$REPORT" || true)"
-          if [[ -n "$running_no_restart" ]]; then
-            echo 'running_restart_no_present=true' | tee -a "$REPORT"
-          else
-            echo 'running_restart_no_present=false' | tee -a "$REPORT"
-          fi
-          [[ "$runner_policy" == always || "$runner_policy" == unless-stopped ]]
-
-      - name: Upload restart-policy snapshot
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: synology-1089-restart-policy-snapshot-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/synology-1089-restart-policies.txt
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Publish summary
-        if: always()
-        shell: bash
-        env:
-          REPORT: ${{ runner.temp }}/synology-1089-restart-policies.txt
-        run: |
-          {
-            echo '## Synology #1089 restart-policy snapshot'
-            echo
-            grep -E '^runner_restart_policy=|^running_restart_no_present=|inspect_failed=' "$REPORT" | sed 's/^/- /' || true
-          } >> "$GITHUB_STEP_SUMMARY"
+          for name in SSH_HOST SSH_PORT SSH_USER SSH_PRIVATE_KEY SSH_KNOWN_HOSTS; do test -n "${!name:-}" || exit 2; done
+          install -d -m 0700 "$SSH_DIR"
+          umask 077
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$SSH_DIR/id"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"
+          chmod 0600 "$SSH_DIR/id" "$SSH_DIR/known_hosts"
+          timeout 20 ssh -i "$SSH_DIR/id" -p "$SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$SSH_DIR/known_hosts" -o ConnectTimeout=10 -o LogLevel=ERROR "$SSH_USER@$SSH_HOST" 'id >/dev/null && sudo -n /usr/syno/bin/synosystemctl get-active-status pkgctl-ContainerManager'
 
       - name: Cleanup
         if: always()
         shell: bash
         env:
-          REPORT: ${{ runner.temp }}/synology-1089-restart-policies.txt
-        run: rm -f -- "$REPORT"
+          SSH_DIR: ${{ runner.temp }}/ssh-1089
+        run: rm -rf -- "$SSH_DIR"

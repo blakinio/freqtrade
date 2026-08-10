@@ -456,9 +456,9 @@ class DockerCliRuntimeDriver:
         args.extend(
             (
                 "--tmpfs",
-                f"/tmp:rw,noexec,nosuid,nodev,size={plan.tmpfs_max_bytes}",
+                f"/tmp:rw,noexec,nosuid,nodev,size={plan.tmpfs_max_bytes},mode=1777",
                 "--tmpfs",
-                f"/run:rw,noexec,nosuid,nodev,size={plan.run_tmpfs_max_bytes}",
+                f"/run:rw,noexec,nosuid,nodev,size={plan.run_tmpfs_max_bytes},mode=1777",
                 "--log-driver",
                 "local",
                 "--log-opt",

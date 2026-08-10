@@ -35,6 +35,7 @@ jobs:
           REPORT: ${{ runner.temp }}/synology-1089-lifecycle-isolation.txt
         run: |
           set -u
+          set +e
           : > "$REPORT"
           for name in portal-oidc-exact-31435421798-1 portal-oidc-exact-31435421798-2; do
             started=$(date +%s)

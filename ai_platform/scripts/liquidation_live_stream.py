@@ -121,7 +121,9 @@ class AppendOnlyNdjsonWriter:
             self._handle.close()
 
 
-def _seal_committed_ndjson(path: Path, *, committed_rows: int, source: str) -> None:
+def _seal_committed_ndjson(
+    path: Path, *, committed_rows: int, source: str, allow_missing: bool
+) -> None:
     if (
         isinstance(committed_rows, bool)
         or not isinstance(committed_rows, int)
@@ -131,8 +133,10 @@ def _seal_committed_ndjson(path: Path, *, committed_rows: int, source: str) -> N
     if path.is_symlink():
         raise RuntimeError(f"previous {source} source path is not a regular file")
     if not path.exists():
-        if committed_rows == 0:
+        if allow_missing and committed_rows == 0:
             return
+        if committed_rows == 0:
+            raise RuntimeError(f"previous {source} source file is missing")
         raise RuntimeError(f"previous {source} source file is missing committed rows")
     if not path.is_file():
         raise RuntimeError(f"previous {source} source path is not a regular file")
@@ -305,17 +309,23 @@ class LiveRunManager:
         sources = state.get("sources")
         if not isinstance(sources, dict):
             raise RuntimeError("previous live source state is invalid")
+        expected_sources = {BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE}
+        if set(sources) != expected_sources:
+            raise RuntimeError("previous live source set is invalid")
         for source in (BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE):
-            source_state = sources.get(source)
-            if source_state is None:
-                continue
+            source_state = sources[source]
             if not isinstance(source_state, dict):
                 raise RuntimeError(f"previous {source} source state is invalid")
             committed_rows = source_state.get("events_written", 0)
+            allow_missing = (
+                source_state.get("configured") is not True
+                and source_state.get("last_event_received_at_ms") is None
+            )
             _seal_committed_ndjson(
                 run_root / f"{source}.ndjson",
                 committed_rows=committed_rows,
                 source=source,
+                allow_missing=allow_missing,
             )
 
         state["run_state"] = "completed"

@@ -11,6 +11,7 @@ from ai_platform.scripts.liquidation_live_stream import (
     BYBIT_SOURCE,
     LIVE_STATE_FILE,
     OKX_SOURCE,
+    LiveRunManager,
 )
 from ai_platform.scripts.liquidation_live_stream_okx import OkxLiveRunManager
 
@@ -94,6 +95,85 @@ def test_restart_truncates_only_uncommitted_suffix_before_completion(tmp_path: P
     assert (old_run_root / f"{BINANCE_SOURCE}.ndjson").read_bytes() == b"{}\n" * 2
     assert (old_run_root / f"{BYBIT_SOURCE}.ndjson").read_bytes() == b"{}\n"
     assert (old_run_root / f"{OKX_SOURCE}.ndjson").read_bytes() == b""
+
+
+def test_restart_rejects_missing_configured_zero_row_source(tmp_path: Path) -> None:
+    old_run_id, old_run_root = _write_previous_active_run(
+        tmp_path,
+        committed_rows={BINANCE_SOURCE: 0, BYBIT_SOURCE: 0, OKX_SOURCE: 0},
+        actual_rows={BINANCE_SOURCE: 0, BYBIT_SOURCE: 0, OKX_SOURCE: 0},
+    )
+    (old_run_root / f"{OKX_SOURCE}.ndjson").unlink()
+    manager = OkxLiveRunManager(
+        data_root=tmp_path,
+        collector_commit="5" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+
+    with pytest.raises(RuntimeError, match="okx-swap source file is missing"):
+        asyncio.run(manager.start())
+
+    persisted = json.loads((old_run_root / "run-state-v1.json").read_text(encoding="utf-8"))
+    assert persisted["run_state"] == "active"
+    pointer = json.loads((tmp_path / "live" / LIVE_STATE_FILE).read_text(encoding="utf-8"))
+    assert pointer["active_run_id"] == old_run_id
+
+
+def test_restart_allows_missing_unconfigured_zero_row_source(tmp_path: Path) -> None:
+    old_run_id, old_run_root = _write_previous_active_run(
+        tmp_path,
+        committed_rows={BINANCE_SOURCE: 0, BYBIT_SOURCE: 0, OKX_SOURCE: 0},
+        actual_rows={BINANCE_SOURCE: 0, BYBIT_SOURCE: 0, OKX_SOURCE: 0},
+    )
+    (old_run_root / f"{OKX_SOURCE}.ndjson").unlink()
+    state_path = old_run_root / "run-state-v1.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["sources"][OKX_SOURCE]["configured"] = False
+    state["sources"][OKX_SOURCE]["connected"] = False
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    manager = LiveRunManager(
+        data_root=tmp_path,
+        collector_commit="6" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+
+    async def scenario() -> None:
+        await manager.start()
+        assert manager.run_id != old_run_id
+        await manager.stop()
+
+    asyncio.run(scenario())
+    completed = json.loads(state_path.read_text(encoding="utf-8"))
+    assert completed["run_state"] == "completed"
+    assert completed["completion_reason"] == "collector-restart"
+
+
+def test_restart_rejects_incomplete_source_state_set(tmp_path: Path) -> None:
+    old_run_id, old_run_root = _write_previous_active_run(
+        tmp_path,
+        committed_rows={BINANCE_SOURCE: 0, BYBIT_SOURCE: 0, OKX_SOURCE: 0},
+        actual_rows={BINANCE_SOURCE: 0, BYBIT_SOURCE: 0, OKX_SOURCE: 0},
+    )
+    state_path = old_run_root / "run-state-v1.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    del state["sources"][OKX_SOURCE]
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    manager = OkxLiveRunManager(
+        data_root=tmp_path,
+        collector_commit="7" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+
+    with pytest.raises(RuntimeError, match="previous live source set is invalid"):
+        asyncio.run(manager.start())
+
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))
+    assert persisted["run_state"] == "active"
+    pointer = json.loads((tmp_path / "live" / LIVE_STATE_FILE).read_text(encoding="utf-8"))
+    assert pointer["active_run_id"] == old_run_id
 
 
 def test_restart_rejects_dangling_symlink_even_with_zero_committed_rows(

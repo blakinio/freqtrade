@@ -1,0 +1,69 @@
+name: Temporary 1089 SSH account discovery
+
+on:
+  push:
+    branches:
+      - ops/1089-synology-cleanup-20260810
+    paths:
+      - ".github/workflows/zz-temp-1089-ssh-account-discovery.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    name: Validate SSH account from configured key metadata
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 5
+    steps:
+      - name: Derive masked candidate and verify SSH authentication
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SYNOLOGY_SSH_HOST }}
+          SSH_PORT: ${{ secrets.SYNOLOGY_SSH_PORT }}
+          SSH_USER_CONFIGURED: ${{ secrets.SYNOLOGY_SSH_USER || vars.SYNOLOGY_SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SYNOLOGY_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SYNOLOGY_SSH_KNOWN_HOSTS }}
+          SSH_DIR: ${{ runner.temp }}/ssh-1089-discovery
+        run: |
+          set -euo pipefail
+          for name in SSH_HOST SSH_PORT SSH_PRIVATE_KEY SSH_KNOWN_HOSTS; do
+            test -n "${!name:-}" || { echo "required SSH input is missing: $name" >&2; exit 1; }
+          done
+          [[ "$SSH_PORT" =~ ^[0-9]+$ ]]
+          install -d -m 0700 "$SSH_DIR"
+          trap 'rm -rf -- "$SSH_DIR"' EXIT
+          umask 077
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$SSH_DIR/id"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"
+          chmod 0600 "$SSH_DIR/id" "$SSH_DIR/known_hosts"
+
+          ssh_user="$SSH_USER_CONFIGURED"
+          source_kind=configured
+          if [[ -z "$ssh_user" ]]; then
+            source_kind=key_comment
+            line="$(ssh-keygen -lf "$SSH_DIR/id" 2>/dev/null || true)"
+            comment="$(sed -E 's/^[0-9]+[[:space:]]+SHA256:[^[:space:]]+[[:space:]]+([^[:space:]]+).*/\1/' <<<"$line")"
+            if [[ "$comment" =~ ^([A-Za-z_][A-Za-z0-9._-]{0,31})@[^[:space:]@]+$ ]]; then
+              ssh_user="${BASH_REMATCH[1]}"
+            else
+              echo 'No unambiguous user@host key comment and no configured SSH user.' >&2
+              exit 42
+            fi
+          fi
+          echo "::add-mask::$ssh_user"
+          ssh_opts=(
+            -i "$SSH_DIR/id" -p "$SSH_PORT"
+            -o BatchMode=yes -o StrictHostKeyChecking=yes
+            -o "UserKnownHostsFile=$SSH_DIR/known_hosts"
+            -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2
+            -o LogLevel=ERROR
+          )
+          set +e
+          auth_output="$(timeout 30 ssh "${ssh_opts[@]}" "$ssh_user@$SSH_HOST" 'printf "ssh_auth_ok=1\\n"; id -u; if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then printf "sudo_noninteractive=1\\n"; else printf "sudo_noninteractive=0\\n"; fi' 2>&1)"
+          rc=$?
+          set -e
+          printf '%s\n' "$auth_output" | sed -E 's/^[0-9]+$/remote_uid=[REDACTED]/'
+          echo "ssh_source=$source_kind"
+          echo "ssh_auth_exit=$rc"
+          [[ "$rc" -eq 0 ]]

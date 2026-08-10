@@ -198,11 +198,11 @@ The already-completed historical run `liquid20-20260810T000000Z-1` still require
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-10T22:16:00+02:00
-head: 1bb288c9e7f4f8b858b5cdd3054f8d09b27ab61a
+updated_at: 2026-08-10T22:50:00+02:00
+head: 91a96ce32c9e9e7e7fd64c05d890dc860572f210
 branch: fix/wickhunter-1396-synology-recovery-v2
 pr: 1450
-status: validating
+status: waiting
 context_routes:
   - docs/agents/PROMPTING_STANDARD.md
   - docs/agents/PROMPTING_HANDOVER.md
@@ -228,9 +228,11 @@ proven:
   - producer repair seals to events_written before historical finalization and fails closed on missing committed rows
   - dangling source symlinks are rejected before the zero-row missing-file shortcut
   - focused restart durability regression coverage passes after the review repair
+  - static durability audit proved state-writing paths can persist events_written while NDJSON writes are still pending because _write_state does not centrally flush writers
 derived:
   - after the permanent producer fix is integrated a guarded repair of only the already completed inconsistent history should allow WH09 to recover naturally without weakening fail-closed behavior
 unknown:
+  - terminal result and pushed commit from durability repair run 31430668536
   - final exact-head PR 1450 standard CI result after temporary workflow removal
   - canonical post-merge Liquid20 Synology deployment result
   - guarded completed-history repair result on the Synology runtime
@@ -266,7 +268,7 @@ validation:
     result: PASS
     evidence: GitHub Actions run 31427855045 job 93583737395 completed source repair lint format and focused regression validation
 blockers: []
-next_action: Complete PR 1450 exact-head validation and review, remove the temporary recovery workflow, merge only when gates pass, then observe canonical Liquid20 deployment before applying the single guarded completed-history commit-boundary repair through the protected Synology environment.
+next_action: Inspect durability repair run 31430668536 once when terminal; on PASS verify its pushed code commit and run exact focused validation, otherwise inspect only its first actionable failure.
 ```
 
 ## Recovery checkpoint

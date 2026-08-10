@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from tools.agents import validate_checkpoint_history as history_validator
 from tools.agents.validate_checkpoint_history import (
     Snapshot,
     _assert_monotonic,
@@ -23,11 +24,57 @@ def _snapshot(
     )
 
 
+def _task_record_text(*, ci: int, review: int = 1) -> str:
+    return f"""task_id: FTAI-test
+
+## Context checkpoint
+
+```yaml
+checkpoint_version: 2
+observation_counters_by_sha:
+  {SHA_A}:
+    ci: {ci}
+    review: {review}
+```
+"""
+
+
 def test_task_record_classifier_excludes_governance_template() -> None:
     assert _is_task_record_path("docs/agents/tasks/active/task.md")
     assert _is_task_record_path("docs/agents/tasks/archive/task.md")
     assert not _is_task_record_path("docs/agents/tasks/TASK_TEMPLATE.md")
     assert not _is_task_record_path("docs/agents/CONTEXT_HANDOFF.md")
+
+
+def test_validate_history_seeds_monotonicity_from_pr_base(monkeypatch) -> None:
+    base = "1" * 40
+    head = "2" * 40
+    path = "docs/agents/tasks/active/task.md"
+
+    monkeypatch.setattr(
+        history_validator,
+        "_task_paths_between",
+        lambda _base, _head: (path,),
+    )
+    monkeypatch.setattr(
+        history_validator,
+        "_git",
+        lambda *args: f"{head}\n",
+    )
+
+    def fake_show(commit: str, candidate_path: str) -> str | None:
+        assert candidate_path == path
+        if commit == base:
+            return _task_record_text(ci=2)
+        if commit == head:
+            return _task_record_text(ci=0)
+        return None
+
+    monkeypatch.setattr(history_validator, "_show", fake_show)
+
+    errors = history_validator.validate_history(base, head)
+
+    assert any("decreased ci observations" in error for error in errors)
 
 
 def test_monotonic_history_accepts_growth_and_new_sha() -> None:

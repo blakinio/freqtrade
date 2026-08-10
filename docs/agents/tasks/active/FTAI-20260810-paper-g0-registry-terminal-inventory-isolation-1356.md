@@ -7,7 +7,7 @@ repository: blakinio/freqtrade
 project_lane: freqtrade-portal
 task_kind: repair_isolation
 phase: validation
-status: validating
+status: waiting
 priority: high
 execution_mode: github_only
 run_scope: autonomous_program
@@ -80,21 +80,30 @@ independent_review_history:
     thread: PRRT_kwDOTdDTU86YAlUi
     finding: renamed checkpoint sections still lacked the complete parser-required v1 schema
     disposition: remediated_by_parser_valid_parent_and_successor_records
+  - reviewed_head: 95ec792ecd6faae88f0a4ae81f012ef853e78dad
+    severity: none_material
+    finding: fresh Codex review produced no new material lifecycle finding; exact-head CI later exposed only a codespell wording failure in the parent task record
+    disposition: mechanical_codespell_repair_a5061c11e463f9d806485341603dcbe43ccec10f
 ```
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-10T19:55:00Z
-head: 1b2b214b7d0d2edb63291c4ae8c7efca73686da8
+updated_at: 2026-08-10T20:52:00Z
+head: a5061c11e463f9d806485341603dcbe43ccec10f
 branch: fix/architecture-registry-lifecycle-1356
 pr: 1447
-status: validating
-ci_checks_for_current_head: 0
+status: waiting
+invocation_started_at: 2026-08-10T20:37:00Z
+last_progress_at: 2026-08-10T20:52:00Z
+ci_checks_for_current_head: 2
 unchanged_state_checks: 0
-review_checks_for_current_head: 0
-repair_cycles_for_current_isolation: 3
+review_checks_for_current_head: 1
+identical_failure_retries: 0
+repair_cycles_for_current_gate: 3
+context_reconstruction_attempts: 0
+stall_warnings: 0
 context_routes:
   - PAPER G0 architecture registry lifecycle
   - terminal finding identity isolation
@@ -109,35 +118,41 @@ proven:
   - Resolved identities must equal the pinned terminal inventory and pinned Issue/finding IDs must be absent from open findings.
   - Exact integer, uniqueness, domain-index, accepted-ADR and historical provenance invariants remain present.
   - Parent task is parser-valid, blocked and ownership-transferred rather than silently resumed after repair-budget exhaustion.
-  - This successor checkpoint now uses the canonical v1 schema required by checkpoint.py.
+  - The successor checkpoint uses the canonical v1 schema required by checkpoint.py.
+  - Codespell-only failure on predecessor 95ec792ecd6faae88f0a4ae81f012ef853e78dad was repaired by a5061c11e463f9d806485341603dcbe43ccec10f without changing lifecycle logic.
+  - On a5061c11e463f9d806485341603dcbe43ccec10f CodeQL run 31430105103 and zizmor run 31430105148 passed.
   - Runtime/browser/deployment/trading E2E is not applicable to this CI/governance-only package.
 derived:
-  - The latest Codex P1 concerns durable recovery schema only; it does not invalidate the pinned terminal inventory design.
-  - This is the third repair cycle for the isolation task; any further material defect requires a fresh isolation task rather than a fourth repair here.
+  - The second and final ordinary aggregate CI observation on a5061c11e463f9d806485341603dcbe43ccec10f still had Freqtrade run 31430106545 in progress and Risk-aware run 31430105875 queued; no third same-SHA poll is allowed.
+  - Fresh Codex review was requested for a5061c11e463f9d806485341603dcbe43ccec10f after the mechanical codespell repair.
 unknown:
-  - Fresh Codex disposition on the checkpoint-repair successor exact head.
-  - Terminal required CI on the checkpoint-repair successor exact head.
+  - Terminal result of Freqtrade 31430106545 and Risk-aware 31430105875.
+  - Fresh Codex disposition on a5061c11e463f9d806485341603dcbe43ccec10f.
 conflicts:
   - none
 first_failure:
-  marker: checkpoint parser rejected both active task records after heading-only remediation
-  evidence: Codex thread PRRT_kwDOTdDTU86YAlUi on reviewed head 08b16c822e61e78671c1725c710a9a21e13dda4c
+  marker: exact-head pre-commit codespell failure on predecessor 95ec792ecd6faae88f0a4ae81f012ef853e78dad
+  evidence: Freqtrade run 31426411160 job 93579083570; only disjointness wording in parent task record
 rejected_hypotheses:
-  - Renaming the checkpoint heading alone is sufficient; rejected by fresh parser evidence.
-  - Continue with a fourth repair cycle in this isolation task if another material defect appears; rejected by max_repair_cycles_per_gate.
+  - Treat codespell wording as a new material lifecycle defect; rejected because lifecycle test logic and registry payload were unchanged.
+  - Perform a third ordinary CI query on a5061c11e463f9d806485341603dcbe43ccec10f; rejected by anti-stall per-head cap.
+  - Continue with a fourth material repair cycle in this isolation task; rejected by max_repair_cycles_per_gate.
 changed_paths:
   - ARCHITECTURE_REGISTRY.yaml
   - tests/ci/test_architecture_registry.py
   - docs/agents/tasks/active/FTAI-20260810-paper-g0-registry-lifecycle-1356.md
   - docs/agents/tasks/active/FTAI-20260810-paper-g0-registry-terminal-inventory-isolation-1356.md
 validation:
-  - command: independent Codex review of 08b16c822e61e78671c1725c710a9a21e13dda4c
-    result: FAIL
-    evidence: PRRT_kwDOTdDTU86YAlUi; checkpoint parser found incomplete v1 schemas
+  - command: independent Codex review of 95ec792ecd6faae88f0a4ae81f012ef853e78dad
+    result: PASS_NO_NEW_MATERIAL_FINDING
+    evidence: review PRR_kwDOTdDTU88AAAABJBrROA
+  - command: exact-head CI observation 2 on a5061c11e463f9d806485341603dcbe43ccec10f
+    result: WAITING
+    evidence: Freqtrade 31430106545 in_progress; Risk-aware 31430105875 queued; CodeQL 31430105103 PASS; zizmor 31430105148 PASS
   - command: runtime/browser E2E
     result: NOT_APPLICABLE
     evidence: CI/governance-only lifecycle guard; no runtime or user-facing behavior changes
 blockers:
-  - none before fresh independent review and exact-head CI of the successor created by this checkpoint commit
-next_action: Resolve live PR 1447 successor head, resolve PRRT_kwDOTdDTU86YAlUi as remediated, request fresh Codex review and validate exact-head CI. If any new material defect appears, rotate to a new isolation task; if clear, archive both task records in this same PR and complete final successor validation before merge.
+  - External exact-head CI and fresh independent review are pending; ordinary same-SHA observation budget is exhausted.
+next_action: On a later live-state change, resolve PR 1447 head once. If the head remains the checkpoint successor and external gates are clear with no new material finding, archive both parent and successor task records in this PR, then perform final exact-head closeout validation before merge. If a new material finding appears, rotate to a fresh isolation task rather than a fourth repair here.
 ```

@@ -1,4 +1,4 @@
-name: Portal WickHunter WH09 Root Cause Diagnostic
+name: Portal WickHunter Liquid20 Integrity Diagnostic
 
 "on":
   push:
@@ -11,31 +11,24 @@ permissions:
   contents: read
 
 concurrency:
-  group: portal-wickhunter-1396-root-cause-diagnostic
+  group: portal-wickhunter-1396-liquid20-integrity
   cancel-in-progress: false
 
 jobs:
   diagnose:
-    name: Diagnose WH09 and Liquid20 without runtime mutation
+    name: Locate Liquid20 events_written contradiction without mutation
     runs-on:
       - freqtrade-staging
-    timeout-minutes: 10
+    timeout-minutes: 8
     env:
       WH09_EXPECTED_ID: ebb3bc5151c6041cc557395f77b3001230f881bc39c2e9a5c4789fcd920e3b37
       WH09_EXPECTED_IMAGE: sha256:38b88958a873af21cca80455a27e14163bce85da6641a2688913e8772b7d2e88
+      WH09_EXPECTED_REVISION: 90cfc5ded10b0c6cb6406d00042817aca611e900
       WH09_PROJECT: wickhunter-production-research-runtime
       WH09_SERVICE: wickhunter-production-research-runtime
-      WH09_EXPECTED_REVISION: 90cfc5ded10b0c6cb6406d00042817aca611e900
       LIQUID20_CONTAINER: liquid20-live
     steps:
-      - name: Checkout exact diagnostic head
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-          fetch-depth: 1
-
-      - name: Capture WH09 identity health failure and bounded logs
-        if: always()
+      - name: Prove frozen WH09 identity
         shell: bash
         run: |
           set -euo pipefail
@@ -47,290 +40,128 @@ jobs:
           )
           printf 'WH09_MATCHING_COUNT=%s\n' "${#ids[@]}"
           [[ ${#ids[@]} -eq 1 ]]
-          wh09_id="${ids[0]}"
-          [[ "$wh09_id" == "$WH09_EXPECTED_ID" ]]
-          [[ "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$wh09_id")" == "$WH09_EXPECTED_REVISION" ]]
-          [[ "$(docker inspect --format '{{.Image}}' "$wh09_id")" == "$WH09_EXPECTED_IMAGE" ]]
-          [[ "$(docker inspect --format '{{.State.Running}}' "$wh09_id")" == 'true' ]]
+          [[ "${ids[0]}" == "$WH09_EXPECTED_ID" ]]
+          [[ "$(docker inspect --format '{{.State.Running}}' "$WH09_EXPECTED_ID")" == 'true' ]]
+          [[ "$(docker inspect --format '{{.Image}}' "$WH09_EXPECTED_ID")" == "$WH09_EXPECTED_IMAGE" ]]
+          [[ "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$WH09_EXPECTED_ID")" == "$WH09_EXPECTED_REVISION" ]]
+          echo "WH09_RESTART_COUNT=$(docker inspect --format '{{.RestartCount}}' "$WH09_EXPECTED_ID")"
 
-          docker inspect "$wh09_id" > "$RUNNER_TEMP/wh09-inspect.json"
-          python3 - "$RUNNER_TEMP/wh09-inspect.json" <<'PY'
-          import json
-          import sys
-
-          item = json.load(open(sys.argv[1], encoding="utf-8"))[0]
-          state = item.get("State") or {}
-          health = state.get("Health") or {}
-          print("WH09_STATE=" + str(state.get("Status")))
-          print("WH09_RUNNING=" + str(state.get("Running")))
-          print("WH09_HEALTH=" + str(health.get("Status")))
-          print("WH09_STARTED_AT=" + str(state.get("StartedAt")))
-          print("WH09_RESTART_COUNT=" + str(item.get("RestartCount")))
-          print("WH09_IMAGE=" + str(item.get("Image")))
-          for mount in item.get("Mounts") or []:
-              target = str(mount.get("Destination") or "")
-              if target.startswith("/runtime/"):
-                  print(
-                      "WH09_MOUNT="
-                      + json.dumps(
-                          {"target": target, "type": mount.get("Type"), "rw": mount.get("RW")},
-                          sort_keys=True,
-                      )
-                  )
-          for index, entry in enumerate((health.get("Log") or [])[-5:], start=1):
-              output = str(entry.get("Output") or "").replace("\n", " | ")[:500]
-              print(
-                  f"WH09_HEALTH_LOG_{index}=start:{entry.get('Start')} "
-                  f"end:{entry.get('End')} exit:{entry.get('ExitCode')} output:{output}"
-              )
-          PY
-
-          docker exec -i "$wh09_id" python - <<'PY'
+      - name: Count every relevant Liquid20 source file through WH09 read-only mount
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec -i "$WH09_EXPECTED_ID" python - <<'PY'
           import json
           import time
+          from datetime import UTC, datetime, timedelta
           from pathlib import Path
 
-          now_ms = time.time_ns() // 1_000_000
-          for label, path_text in (("HEALTH", "/runtime/operator/health.json"), ("TELEMETRY", "/runtime/journal/telemetry.json")):
-              path = Path(path_text)
-              print(f"WH09_{label}_FILE_EXISTS={path.is_file() and not path.is_symlink()}")
-              if not path.is_file() or path.is_symlink():
+          root = Path('/runtime/liquid20')
+          pointer = json.loads((root / 'live-state-v1.json').read_text(encoding='utf-8'))
+          active_run_id = pointer['active_run_id']
+          observed_at_ms = pointer['collector_heartbeat_at_ms']
+          history_start_ms = observed_at_ms - 86_400_000
+          history_start_day = datetime.fromtimestamp(history_start_ms / 1000, tz=UTC).strftime('%Y%m%d')
+          runs_root = root / 'runs'
+          run_ids = sorted(
+              item.name for item in runs_root.iterdir()
+              if item.is_dir() and not item.is_symlink()
+              and item.name.startswith('liquid20-')
+              and len(item.name) >= 17
+              and item.name[9:17] >= history_start_day
+          )
+          print('INTEGRITY_ACTIVE_RUN=' + str(active_run_id))
+          print('INTEGRITY_HISTORY_START_DAY=' + history_start_day)
+          print('INTEGRITY_RELEVANT_RUNS=' + json.dumps(run_ids))
+          mismatch_count = 0
+          for run_id in run_ids:
+              run_root = runs_root / run_id
+              state_path = run_root / 'run-state-v1.json'
+              try:
+                  state = json.loads(state_path.read_text(encoding='utf-8'))
+              except Exception as exc:
+                  print('INTEGRITY_RUN_STATE_ERROR=' + json.dumps({'run_id': run_id, 'error': type(exc).__name__}, sort_keys=True))
                   continue
-              payload = json.loads(path.read_text(encoding="utf-8"))
-              safe_keys = (
-                  "schema_version", "status", "runtime_health", "mode", "generation",
-                  "checked_at_ms", "last_success_at_ms", "last_observed_at_ms",
-                  "liquid20_snapshot_id", "circuit_breaker_active", "circuit_breaker_reasons",
-                  "error_code", "error_message", "binding_id", "run_id", "model_version",
-                  "model_hash", "model_artifact_sha256", "parameter_version", "parameter_hash",
-                  "dataset_hash", "no_trade_confidence", "outcome_horizon_ms",
-                  "protected_holdout_accessed", "automatic_promotion_enabled",
-                  "trading_credentials_present", "order_adapter_present", "execution_enabled",
-                  "orders_submitted", "live_capital_authorized",
-              )
-              safe = {key: payload.get(key) for key in safe_keys if key in payload}
-              for key in ("checked_at_ms", "last_success_at_ms", "last_observed_at_ms"):
-                  value = payload.get(key)
-                  if isinstance(value, int) and not isinstance(value, bool):
-                      safe[f"{key}_age_seconds"] = round((now_ms - value) / 1000, 3)
-              safe["file_mtime_age_seconds"] = round(time.time() - path.stat().st_mtime, 3)
-              print(f"WH09_{label}_SAFE=" + json.dumps(safe, sort_keys=True))
-
-          journal = Path("/runtime/journal")
-          recent = []
-          if journal.is_dir() and not journal.is_symlink():
-              for path in journal.rglob("*"):
+              sources = state.get('sources') if isinstance(state.get('sources'), dict) else {}
+              run_safe = {
+                  'run_id': run_id,
+                  'run_state': state.get('run_state'),
+                  'completion_reason': state.get('completion_reason'),
+                  'collector_started_at_ms': state.get('collector_started_at_ms'),
+                  'completed_at_ms': state.get('completed_at_ms'),
+                  'is_active_pointer': run_id == active_run_id,
+              }
+              print('INTEGRITY_RUN=' + json.dumps(run_safe, sort_keys=True))
+              for source in ('binance-usdm', 'bybit-linear', 'okx-swap'):
+                  row = sources.get(source) if isinstance(sources.get(source), dict) else {}
+                  expected = row.get('events_written')
+                  path = run_root / f'{source}.ndjson'
+                  result = {
+                      'run_id': run_id,
+                      'run_state': state.get('run_state'),
+                      'source': source,
+                      'events_written': expected,
+                      'file_exists': path.is_file() and not path.is_symlink(),
+                  }
                   if path.is_file() and not path.is_symlink():
-                      stat = path.stat()
-                      recent.append((stat.st_mtime_ns, path, stat.st_size))
-          for _mtime_ns, path, size in sorted(recent, reverse=True)[:20]:
-              print("WH09_JOURNAL_FILE=" + json.dumps({"path": str(path.relative_to(journal)), "size": size, "mtime_age_seconds": round(time.time() - path.stat().st_mtime, 3)}, sort_keys=True))
-          PY
-
-          echo 'WH09_BOUNDED_LOGS_BEGIN'
-          docker logs --since 30m --tail 240 "$wh09_id" 2>&1 \
-            | grep -E -i 'traceback|error|exception|fail|stale|liquid20|public market|runtime' \
-            | tail -n 160 \
-            | cut -c1-1200 || true
-          echo 'WH09_BOUNDED_LOGS_END'
-
-          echo 'WH09_PROCESS_SNAPSHOT_BEGIN'
-          docker top "$wh09_id" -eo pid,etime,stat,comm 2>&1 | head -n 20 || true
-          echo 'WH09_PROCESS_SNAPSHOT_END'
-
-      - name: Validate Liquid20 source through the WH09 read-only mount
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker exec -i "$WH09_EXPECTED_ID" python - <<'PY'
-          import json
-          import time
-          from pathlib import Path
-
-          from ai_platform.wickhunter.candidate_paper_runtime_operator import fetch_public_market_snapshot, load_liquid20_snapshot
-
-          root = Path("/runtime/liquid20")
-          now_ms = time.time_ns() // 1_000_000
-          print(f"WH09_LIQUID20_ROOT_IS_DIR={root.is_dir() and not root.is_symlink()}")
-          try:
-              list(root.iterdir())
-          except Exception as exc:
-              print("WH09_LIQUID20_ROOT_READABLE=false")
-              print(f"WH09_LIQUID20_ROOT_ERROR_CODE={type(exc).__name__}")
-              print(f"WH09_LIQUID20_ROOT_ERROR_MESSAGE={str(exc)[:500]}")
-              raise SystemExit(0)
-          print("WH09_LIQUID20_ROOT_READABLE=true")
-          pointer = root / "live-state-v1.json"
-          print(f"WH09_LIQUID20_POINTER_EXISTS={pointer.is_file() and not pointer.is_symlink()}")
-          if not pointer.is_file() or pointer.is_symlink():
-              raise SystemExit(0)
-          try:
-              payload = json.loads(pointer.read_text(encoding="utf-8"))
-          except Exception as exc:
-              print(f"WH09_LIQUID20_POINTER_ERROR_CODE={type(exc).__name__}")
-              print(f"WH09_LIQUID20_POINTER_ERROR_MESSAGE={str(exc)[:500]}")
-              raise SystemExit(0)
-          state = payload.get("state") if isinstance(payload.get("state"), dict) else {}
-          active_run_id = payload.get("active_run_id")
-          safe = {
-              "schema_version": payload.get("schema_version"), "contract": payload.get("contract"),
-              "active_run_id": active_run_id, "collector_heartbeat_at_ms": payload.get("collector_heartbeat_at_ms"),
-              "pointer_mtime_age_seconds": round(time.time() - pointer.stat().st_mtime, 3),
-              "run_id": state.get("run_id"), "run_state": state.get("run_state"),
-              "execution_enabled": state.get("execution_enabled"), "trading_authorized": state.get("trading_authorized"),
-              "trading_credentials_present": state.get("trading_credentials_present"), "orders_submitted": state.get("orders_submitted", 0),
-          }
-          heartbeat = payload.get("collector_heartbeat_at_ms")
-          if isinstance(heartbeat, int) and not isinstance(heartbeat, bool):
-              safe["collector_heartbeat_age_seconds"] = round((now_ms - heartbeat) / 1000, 3)
-          print("WH09_LIQUID20_POINTER_SAFE=" + json.dumps(safe, sort_keys=True))
-          sources = state.get("sources") if isinstance(state.get("sources"), dict) else {}
-          for source, row in sorted(sources.items()):
-              if not isinstance(row, dict):
-                  continue
-              source_safe = {"source": source, "configured": row.get("configured"), "connected": row.get("connected"), "events_written": row.get("events_written"), "last_event_received_at_ms": row.get("last_event_received_at_ms"), "last_heartbeat_at_ms": row.get("last_heartbeat_at_ms")}
-              for key in ("last_event_received_at_ms", "last_heartbeat_at_ms"):
-                  value = row.get(key)
-                  if isinstance(value, int) and not isinstance(value, bool):
-                      source_safe[f"{key}_age_seconds"] = round((now_ms - value) / 1000, 3)
-              print("WH09_LIQUID20_SOURCE_SAFE=" + json.dumps(source_safe, sort_keys=True))
-          persisted = root / "runs" / str(active_run_id) / "run-state-v1.json"
-          print(f"WH09_LIQUID20_RUN_STATE_EXISTS={persisted.is_file() and not persisted.is_symlink()}")
-          if persisted.is_file() and not persisted.is_symlink():
-              persisted_payload = json.loads(persisted.read_text(encoding="utf-8"))
-              print(f"WH09_LIQUID20_POINTER_RUN_STATE_EQUAL={persisted_payload == state}")
-              print("WH09_LIQUID20_RUN_STATE_SAFE=" + json.dumps({"schema_version": persisted_payload.get("schema_version"), "contract": persisted_payload.get("contract"), "run_id": persisted_payload.get("run_id"), "run_state": persisted_payload.get("run_state"), "collector_heartbeat_at_ms": persisted_payload.get("collector_heartbeat_at_ms"), "execution_enabled": persisted_payload.get("execution_enabled"), "trading_authorized": persisted_payload.get("trading_authorized"), "trading_credentials_present": persisted_payload.get("trading_credentials_present"), "orders_submitted": persisted_payload.get("orders_submitted", 0)}, sort_keys=True))
-          runs_root = root / "runs"
-          regular_runs = sorted(item.name for item in runs_root.iterdir() if item.is_dir() and not item.is_symlink()) if runs_root.is_dir() and not runs_root.is_symlink() else []
-          print(f"WH09_LIQUID20_NEWEST_RUN={regular_runs[-1] if regular_runs else None}")
-          print(f"WH09_LIQUID20_ACTIVE_IS_NEWEST={bool(regular_runs and regular_runs[-1] == active_run_id)}")
-          try:
-              snapshot = load_liquid20_snapshot(root, now_ms=now_ms, maximum_age_ms=300_000)
-          except Exception as exc:
-              print("WH09_LIQUID20_SNAPSHOT_LOAD_OK=false")
-              print(f"WH09_LIQUID20_SNAPSHOT_ERROR_CODE={type(exc).__name__}")
-              print(f"WH09_LIQUID20_SNAPSHOT_ERROR_MESSAGE={str(exc)[:500]}")
-          else:
-              print("WH09_LIQUID20_SNAPSHOT_LOAD_OK=true")
-              print(f"WH09_LIQUID20_SNAPSHOT_ID={snapshot.snapshot_id}")
-              print(f"WH09_LIQUID20_SNAPSHOT_OBSERVED_AT_MS={snapshot.observed_at_ms}")
-              print("WH09_LIQUID20_SELECTED_SYMBOLS=" + json.dumps(list(snapshot.universe.selected_symbols)))
-              if snapshot.universe.selected_symbols:
-                  symbol = snapshot.universe.selected_symbols[0]
-                  try:
-                      market = fetch_public_market_snapshot(symbol=symbol, observed_at_ms=now_ms)
-                  except Exception as exc:
-                      print("WH09_PUBLIC_MARKET_PROBE_OK=false")
-                      print(f"WH09_PUBLIC_MARKET_PROBE_SYMBOL={symbol}")
-                      print(f"WH09_PUBLIC_MARKET_ERROR_CODE={type(exc).__name__}")
-                      print(f"WH09_PUBLIC_MARKET_ERROR_MESSAGE={str(exc)[:500]}")
+                      count = 0
+                      size = path.stat().st_size
+                      last_byte = b''
+                      with path.open('rb') as handle:
+                          while True:
+                              chunk = handle.read(1024 * 1024)
+                              if not chunk:
+                                  break
+                              count += chunk.count(b'\n')
+                              last_byte = chunk[-1:]
+                      result['file_rows'] = count
+                      result['file_size_bytes'] = size
+                      result['ends_with_newline'] = (size == 0 or last_byte == b'\n')
+                      result['file_mtime_age_seconds'] = round(time.time() - path.stat().st_mtime, 3)
+                      if isinstance(expected, int) and not isinstance(expected, bool):
+                          result['delta_rows_minus_events_written'] = count - expected
+                          result['matches_exactly'] = count == expected
+                          if run_id == active_run_id:
+                              result['wh09_contract_count_acceptable'] = count >= expected and count - expected <= 10_000
+                          else:
+                              result['wh09_contract_count_acceptable'] = count == expected
+                          if not result['wh09_contract_count_acceptable']:
+                              mismatch_count += 1
                   else:
-                      print("WH09_PUBLIC_MARKET_PROBE_OK=true")
-                      print(f"WH09_PUBLIC_MARKET_PROBE_SYMBOL={symbol}")
-                      print(f"WH09_PUBLIC_MARKET_COMPLETED_CANDLE_MS={market.completed_candle_close_ms}")
+                      result['file_rows'] = None
+                      result['matches_exactly'] = False
+                      result['wh09_contract_count_acceptable'] = expected == 0 and row.get('configured') is not True and row.get('last_event_received_at_ms') is None
+                      if not result['wh09_contract_count_acceptable']:
+                          mismatch_count += 1
+                  print('INTEGRITY_SOURCE=' + json.dumps(result, sort_keys=True))
+          print(f'INTEGRITY_CONTRACT_MISMATCH_COUNT={mismatch_count}')
           PY
 
-      - name: Inspect Liquid20 producer state without mutation
-        if: always()
+      - name: Reproduce loader failure and prove producer identity
         shell: bash
         run: |
           set -euo pipefail
-          if ! docker inspect "$LIQUID20_CONTAINER" > "$RUNNER_TEMP/liquid20-inspect.json" 2>/dev/null; then
-            echo 'LIQUID20_CONTAINER_MISSING=true'
-            exit 0
-          fi
-          python3 - "$RUNNER_TEMP/liquid20-inspect.json" <<'PY'
-          import json
-          import sys
-          item = json.load(open(sys.argv[1], encoding="utf-8"))[0]
-          state = item.get("State") or {}
-          health = state.get("Health") or {}
-          print("LIQUID20_STATE=" + str(state.get("Status")))
-          print("LIQUID20_RUNNING=" + str(state.get("Running")))
-          print("LIQUID20_HEALTH=" + str(health.get("Status")))
-          print("LIQUID20_STARTED_AT=" + str(state.get("StartedAt")))
-          print("LIQUID20_RESTART_COUNT=" + str(item.get("RestartCount")))
-          print("LIQUID20_IMAGE=" + str(item.get("Image")))
-          print("LIQUID20_REVISION=" + str((item.get("Config") or {}).get("Labels", {}).get("org.opencontainers.image.revision")))
-          PY
-          liquid_running="$(docker inspect --format '{{.State.Running}}' "$LIQUID20_CONTAINER")"
-          echo 'LIQUID20_BOUNDED_LOGS_BEGIN'
-          docker logs --since 45m --tail 260 "$LIQUID20_CONTAINER" 2>&1 \
-            | grep -E -i 'traceback|error|exception|fail|stale|disconnect|reconnect|heartbeat|collector|source' \
-            | tail -n 180 \
-            | cut -c1-1200 || true
-          echo 'LIQUID20_BOUNDED_LOGS_END'
-          if [[ "$liquid_running" != 'true' ]]; then
-            exit 0
-          fi
-          echo 'LIQUID20_PROCESS_SNAPSHOT_BEGIN'
-          docker top "$LIQUID20_CONTAINER" -eo pid,etime,stat,comm 2>&1 | head -n 20 || true
-          echo 'LIQUID20_PROCESS_SNAPSHOT_END'
-          docker exec -i "$LIQUID20_CONTAINER" python - <<'PY'
+          echo "LIQUID20_RUNNING=$(docker inspect --format '{{.State.Running}}' "$LIQUID20_CONTAINER")"
+          echo "LIQUID20_RESTART_COUNT=$(docker inspect --format '{{.RestartCount}}' "$LIQUID20_CONTAINER")"
+          echo "LIQUID20_IMAGE=$(docker inspect --format '{{.Image}}' "$LIQUID20_CONTAINER")"
+          echo "LIQUID20_REVISION=$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$LIQUID20_CONTAINER")"
+          docker exec -i "$WH09_EXPECTED_ID" python - <<'PY'
           import json
           import time
           from pathlib import Path
-          now_ms = time.time_ns() // 1_000_000
-          pointer = Path("/data/live/live-state-v1.json")
-          print(f"LIQUID20_POINTER_EXISTS={pointer.is_file() and not pointer.is_symlink()}")
-          if not pointer.is_file() or pointer.is_symlink():
-              raise SystemExit(0)
+          from ai_platform.wickhunter.candidate_paper_runtime_operator import load_liquid20_snapshot
           try:
-              payload = json.loads(pointer.read_text(encoding="utf-8"))
+              load_liquid20_snapshot(Path('/runtime/liquid20'), now_ms=time.time_ns() // 1_000_000, maximum_age_ms=300_000)
           except Exception as exc:
-              print(f"LIQUID20_POINTER_ERROR_CODE={type(exc).__name__}")
-              print(f"LIQUID20_POINTER_ERROR_MESSAGE={str(exc)[:500]}")
-              raise SystemExit(0)
-          state = payload.get("state") if isinstance(payload.get("state"), dict) else {}
-          active_run_id = payload.get("active_run_id")
-          heartbeat = payload.get("collector_heartbeat_at_ms")
-          safe = {"schema_version": payload.get("schema_version"), "contract": payload.get("contract"), "active_run_id": active_run_id, "run_id": state.get("run_id"), "run_state": state.get("run_state"), "collector_heartbeat_at_ms": heartbeat, "pointer_mtime_age_seconds": round(time.time() - pointer.stat().st_mtime, 3), "execution_enabled": state.get("execution_enabled"), "trading_authorized": state.get("trading_authorized"), "trading_credentials_present": state.get("trading_credentials_present"), "orders_submitted": state.get("orders_submitted", 0)}
-          if isinstance(heartbeat, int) and not isinstance(heartbeat, bool):
-              safe["collector_heartbeat_age_seconds"] = round((now_ms - heartbeat) / 1000, 3)
-          print("LIQUID20_POINTER_SAFE=" + json.dumps(safe, sort_keys=True))
-          persisted = Path("/data/live/runs") / str(active_run_id) / "run-state-v1.json"
-          print(f"LIQUID20_RUN_STATE_EXISTS={persisted.is_file() and not persisted.is_symlink()}")
-          if persisted.is_file() and not persisted.is_symlink():
-              persisted_payload = json.loads(persisted.read_text(encoding="utf-8"))
-              print(f"LIQUID20_POINTER_RUN_STATE_EQUAL={persisted_payload == state}")
-          sources = state.get("sources") if isinstance(state.get("sources"), dict) else {}
-          for source, row in sorted(sources.items()):
-              if not isinstance(row, dict):
-                  continue
-              source_safe = {"source": source, "configured": row.get("configured"), "connected": row.get("connected"), "events_written": row.get("events_written"), "last_event_received_at_ms": row.get("last_event_received_at_ms"), "last_heartbeat_at_ms": row.get("last_heartbeat_at_ms")}
-              for key in ("last_event_received_at_ms", "last_heartbeat_at_ms"):
-                  value = row.get(key)
-                  if isinstance(value, int) and not isinstance(value, bool):
-                      source_safe[f"{key}_age_seconds"] = round((now_ms - value) / 1000, 3)
-              print("LIQUID20_SOURCE_SAFE=" + json.dumps(source_safe, sort_keys=True))
-          runs_root = Path("/data/live/runs")
-          regular_runs = sorted(item.name for item in runs_root.iterdir() if item.is_dir() and not item.is_symlink()) if runs_root.is_dir() and not runs_root.is_symlink() else []
-          print(f"LIQUID20_NEWEST_RUN={regular_runs[-1] if regular_runs else None}")
-          print(f"LIQUID20_ACTIVE_IS_NEWEST={bool(regular_runs and regular_runs[-1] == active_run_id)}")
+              print('LOADER_REPRO_OK=true')
+              print('LOADER_ERROR_CODE=' + type(exc).__name__)
+              print('LOADER_ERROR_MESSAGE=' + str(exc)[:500])
+          else:
+              print('LOADER_REPRO_OK=false')
+              print('LOADER_ERROR_CODE=none')
           PY
 
-      - name: Observe one WH09 supervisor interval
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          [[ "$(docker inspect --format '{{.State.Running}}' "$WH09_EXPECTED_ID" 2>/dev/null || true)" == 'true' ]] || exit 0
-          docker exec -i "$WH09_EXPECTED_ID" python - <<'PY'
-          import json
-          from pathlib import Path
-          payload = json.loads(Path("/runtime/operator/health.json").read_text(encoding="utf-8"))
-          print("WH09_SAMPLE_BEFORE=" + json.dumps({"checked_at_ms": payload.get("checked_at_ms"), "generation": payload.get("generation"), "last_observed_at_ms": payload.get("last_observed_at_ms"), "status": payload.get("status"), "error_code": payload.get("error_code"), "error_message": payload.get("error_message")}, sort_keys=True))
-          PY
-          sleep 70
-          docker exec -i "$WH09_EXPECTED_ID" python - <<'PY'
-          import json
-          from pathlib import Path
-          payload = json.loads(Path("/runtime/operator/health.json").read_text(encoding="utf-8"))
-          print("WH09_SAMPLE_AFTER=" + json.dumps({"checked_at_ms": payload.get("checked_at_ms"), "generation": payload.get("generation"), "last_observed_at_ms": payload.get("last_observed_at_ms"), "status": payload.get("status"), "error_code": payload.get("error_code"), "error_message": payload.get("error_message")}, sort_keys=True))
-          PY
-
-      - name: Prove diagnostic made no WH09 mutation
+      - name: Prove no runtime mutation
         if: always()
         shell: bash
         run: |
@@ -344,6 +175,6 @@ jobs:
           [[ ${#ids[@]} -eq 1 ]]
           [[ "${ids[0]}" == "$WH09_EXPECTED_ID" ]]
           [[ "$(docker inspect --format '{{.State.Running}}' "$WH09_EXPECTED_ID")" == 'true' ]]
-          [[ "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$WH09_EXPECTED_ID")" == "$WH09_EXPECTED_REVISION" ]]
           [[ "$(docker inspect --format '{{.Image}}' "$WH09_EXPECTED_ID")" == "$WH09_EXPECTED_IMAGE" ]]
+          [[ "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$WH09_EXPECTED_ID")" == "$WH09_EXPECTED_REVISION" ]]
           echo 'DIAGNOSTIC_DOCKER_MUTATION=false'

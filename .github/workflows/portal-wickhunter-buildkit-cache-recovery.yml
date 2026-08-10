@@ -1,4 +1,4 @@
-name: Portal WickHunter BuildKit Cache Recovery
+name: Portal WickHunter WH09 Readonly Health Diagnostic
 
 "on":
   push:
@@ -15,24 +15,25 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  recover:
-    name: Recover bounded Synology BuildKit cache
+  diagnose:
+    name: Diagnose WH09 health without runtime mutation
     runs-on:
       - freqtrade-staging
-    timeout-minutes: 15
+    timeout-minutes: 10
     env:
       WH09_EXPECTED_ID: ebb3bc5151c6041cc557395f77b3001230f881bc39c2e9a5c4789fcd920e3b37
       WH09_PROJECT: wickhunter-production-research-runtime
       WH09_SERVICE: wickhunter-production-research-runtime
       WH09_EXPECTED_REVISION: 90cfc5ded10b0c6cb6406d00042817aca611e900
+      LIQUID20_CONTAINER: liquid20-live
     steps:
-      - name: Checkout exact recovery head
+      - name: Checkout exact diagnostic head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
           fetch-depth: 1
 
-      - name: Diagnose and verify unchanged WH09
+      - name: Capture bounded read-only WH09 health evidence
         shell: bash
         run: |
           set -euo pipefail
@@ -42,90 +43,157 @@ jobs:
               --filter "label=com.docker.compose.service=$WH09_SERVICE" \
               | sed '/^$/d'
           )
-          echo "WH09_MATCHING_COUNT=${#ids[@]}"
-          docker ps -a --no-trunc \
-            --filter "label=com.docker.compose.project=$WH09_PROJECT" \
-            --filter "label=com.docker.compose.service=$WH09_SERVICE" \
-            --format 'WH09_MATCH={{.ID}} status={{.Status}} name={{.Names}}'
+          printf 'WH09_MATCHING_COUNT=%s\n' "${#ids[@]}"
+          [[ ${#ids[@]} -eq 1 ]]
+          wh09_id="${ids[0]}"
+          [[ "$wh09_id" == "$WH09_EXPECTED_ID" ]]
+          [[ "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$wh09_id")" == "$WH09_EXPECTED_REVISION" ]]
+          [[ "$(docker inspect --format '{{.State.Running}}' "$wh09_id")" == 'true' ]]
 
-          for id in "${ids[@]}"; do
-            docker inspect --format \
-              'WH09_INSPECT id={{.Id}} state={{.State.Status}} running={{.State.Running}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} project={{index .Config.Labels "com.docker.compose.project"}} service={{index .Config.Labels "com.docker.compose.service"}} revision={{index .Config.Labels "org.opencontainers.image.revision"}} user={{.Config.User}}' \
-              "$id"
-          done
+          docker inspect "$wh09_id" > "$RUNNER_TEMP/wh09-diagnostic-inspect.json"
+          python3 - "$RUNNER_TEMP/wh09-diagnostic-inspect.json" <<'PY'
+          import json
+          import sys
 
-          if docker inspect "$WH09_EXPECTED_ID" >/dev/null 2>&1; then
-            docker inspect --format \
-              'WH09_EXPECTED id={{.Id}} state={{.State.Status}} running={{.State.Running}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} project={{index .Config.Labels "com.docker.compose.project"}} service={{index .Config.Labels "com.docker.compose.service"}} revision={{index .Config.Labels "org.opencontainers.image.revision"}} user={{.Config.User}}' \
-              "$WH09_EXPECTED_ID"
+          item = json.load(open(sys.argv[1], encoding="utf-8"))[0]
+          state = item.get("State") or {}
+          health = state.get("Health") or {}
+          config = item.get("Config") or {}
+          print("WH09_STATE=" + str(state.get("Status")))
+          print("WH09_RUNNING=" + str(state.get("Running")))
+          print("WH09_HEALTH=" + str(health.get("Status")))
+          print("WH09_STARTED_AT=" + str(state.get("StartedAt")))
+          print("WH09_RESTART_COUNT=" + str(item.get("RestartCount")))
+          print("WH09_HEALTHCHECK_TEST=" + json.dumps((config.get("Healthcheck") or {}).get("Test")))
+          for index, entry in enumerate((health.get("Log") or [])[-5:], start=1):
+              output = str(entry.get("Output") or "").replace("\n", " | ")[:500]
+              print(
+                  f"WH09_HEALTH_LOG_{index}=start:{entry.get('Start')} end:{entry.get('End')} "
+                  f"exit:{entry.get('ExitCode')} output:{output}"
+              )
+          PY
+
+          set +e
+          manual_output="$(docker exec "$wh09_id" \
+            python /app/deploy/synology/wickhunter-production-research-runtime/research_runtime_healthcheck.py 2>&1)"
+          manual_rc=$?
+          set -e
+          printf 'WH09_MANUAL_HEALTH_RC=%s\n' "$manual_rc"
+          printf 'WH09_MANUAL_HEALTH_OUTPUT=%s\n' "$(printf '%s' "$manual_output" | tr '\n' ' ' | cut -c1-1000)"
+          printf 'MANUAL_HEALTH_RC=%s\n' "$manual_rc" >> "$GITHUB_ENV"
+          printf 'WH09_CONTAINER_ID=%s\n' "$wh09_id" >> "$GITHUB_ENV"
+
+          docker exec -i "$wh09_id" python - <<'PY'
+          import json
+          import time
+          from pathlib import Path
+
+          now_ms = time.time_ns() // 1_000_000
+          zero_fields = (
+              "protected_holdout_accessed",
+              "automatic_promotion_enabled",
+              "trading_credentials_present",
+              "order_adapter_present",
+              "execution_enabled",
+              "orders_submitted",
+              "live_capital_authorized",
+          )
+          for label, path_text in (
+              ("HEALTH", "/runtime/operator/health.json"),
+              ("TELEMETRY", "/runtime/journal/telemetry.json"),
+          ):
+              path = Path(path_text)
+              print(f"WH09_{label}_FILE_EXISTS={path.is_file() and not path.is_symlink()}")
+              if not path.is_file() or path.is_symlink():
+                  continue
+              stat = path.stat()
+              print(f"WH09_{label}_FILE_MTIME_NS={stat.st_mtime_ns}")
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              safe = {
+                  key: payload.get(key)
+                  for key in (
+                      "schema_version",
+                      "status",
+                      "runtime_health",
+                      "mode",
+                      "generation",
+                      "checked_at_ms",
+                      "last_success_at_ms",
+                      "last_observed_at_ms",
+                      "circuit_breaker_active",
+                      "no_trade_confidence",
+                      "outcome_horizon_ms",
+                  )
+                  if key in payload
+              }
+              for key in zero_fields:
+                  if key in payload:
+                      safe[key] = payload.get(key)
+              for key in ("checked_at_ms", "last_success_at_ms", "last_observed_at_ms"):
+                  value = payload.get(key)
+                  if isinstance(value, int) and not isinstance(value, bool):
+                      safe[f"{key}_age_seconds"] = round((now_ms - value) / 1000, 3)
+              print(f"WH09_{label}_SAFE=" + json.dumps(safe, sort_keys=True))
+          PY
+
+          echo 'WH09_PROCESS_SNAPSHOT_BEGIN'
+          docker top "$wh09_id" -eo pid,etime,stat,comm 2>&1 | head -n 20 || true
+          echo 'WH09_PROCESS_SNAPSHOT_END'
+
+          if docker inspect "$LIQUID20_CONTAINER" >/dev/null 2>&1; then
+            liquid_running="$(docker inspect --format '{{.State.Running}}' "$LIQUID20_CONTAINER")"
+            printf 'LIQUID20_RUNNING=%s\n' "$liquid_running"
+            if [[ "$liquid_running" == 'true' ]]; then
+              docker exec -i "$LIQUID20_CONTAINER" python - <<'PY'
+              import json
+              import time
+              from pathlib import Path
+
+              pointer = Path("/data/live/live-state-v1.json")
+              print(f"LIQUID20_POINTER_EXISTS={pointer.is_file() and not pointer.is_symlink()}")
+              if pointer.is_file() and not pointer.is_symlink():
+                  payload = json.loads(pointer.read_text(encoding="utf-8"))
+                  state = payload.get("state") if isinstance(payload.get("state"), dict) else {}
+                  safe = {
+                      "schema_version": payload.get("schema_version"),
+                      "contract": payload.get("contract"),
+                      "active_run_id": payload.get("active_run_id"),
+                      "run_id": state.get("run_id"),
+                      "run_state": state.get("run_state"),
+                      "execution_enabled": state.get("execution_enabled"),
+                      "trading_authorized": state.get("trading_authorized"),
+                      "trading_credentials_present": state.get("trading_credentials_present"),
+                      "pointer_mtime_age_seconds": round(time.time() - pointer.stat().st_mtime, 3),
+                  }
+                  print("LIQUID20_SAFE=" + json.dumps(safe, sort_keys=True))
+              PY
+            fi
           else
-            echo "WH09_EXPECTED_MISSING=$WH09_EXPECTED_ID" >&2
+            echo 'LIQUID20_CONTAINER_MISSING=true'
           fi
 
-          [[ ${#ids[@]} -eq 1 ]] || {
-            echo "Expected exactly one canonical WH09 container; refusing recovery" >&2
-            exit 1
-          }
-          [[ "${ids[0]}" == "$WH09_EXPECTED_ID" ]] || {
-            echo "Canonical WH09 container identity changed; refusing recovery" >&2
-            exit 1
-          }
-          [[ "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "${ids[0]}")" == "$WH09_EXPECTED_REVISION" ]] || {
-            echo "WH09 image revision changed; refusing recovery" >&2
-            exit 1
-          }
-
-          for _ in $(seq 1 12); do
-            running="$(docker inspect --format '{{.State.Running}}' "${ids[0]}")"
-            health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "${ids[0]}")"
-            if [[ "$running" == 'true' && "$health" == 'healthy' ]]; then
-              echo "WH09_CONTAINER_ID=${ids[0]}" >> "$GITHUB_ENV"
-              exit 0
-            fi
-            echo "WH09 not healthy without mutation: running=$running health=$health" >&2
-            sleep 5
-          done
-          echo "WH09 did not become healthy during bounded read-only observation; refusing recovery" >&2
-          exit 1
-
-      - name: Prove Docker runtime before recovery
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 deploy/synology/portal-oidc/docker_runtime_preflight.py
-
-      - name: Prune only BuildKit build cache
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker builder prune --all --force
-
-      - name: Prove BuildKit context transfer after recovery
-        shell: bash
-        run: |
-          set -euo pipefail
-          probe_dir="$RUNNER_TEMP/wickhunter-buildkit-probe"
-          rm -rf "$probe_dir"
-          mkdir -p "$probe_dir"
-          printf '%s\n' 'probe' > "$probe_dir/probe.txt"
-          cat > "$probe_dir/Dockerfile" <<'EOF'
-          FROM python:3.13.14-slim-bookworm@sha256:9d7f287598e1a5a978c015ee176d8216435aaf335ed69ac3c38dd1bbb10e8d64
-          COPY probe.txt /probe.txt
-          RUN test "$(cat /probe.txt)" = probe
-          EOF
-          tag="local/wickhunter-buildkit-probe:${GITHUB_RUN_ID}"
-          timeout --signal=TERM --kill-after=15s 8m \
-            docker build --pull=false --file "$probe_dir/Dockerfile" --tag "$tag" "$probe_dir"
-          docker image rm --force "$tag" >/dev/null
-          rm -rf "$probe_dir"
-
-      - name: Re-verify unchanged WH09
+      - name: Prove diagnostic made no WH09 mutation
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          [[ -n "${WH09_CONTAINER_ID:-}" ]]
-          [[ "$WH09_CONTAINER_ID" == "$WH09_EXPECTED_ID" ]]
-          [[ "$(docker inspect --format '{{.State.Running}}' "$WH09_CONTAINER_ID")" == 'true' ]]
-          [[ "$(docker inspect --format '{{.State.Health.Status}}' "$WH09_CONTAINER_ID")" == 'healthy' ]]
-          [[ "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$WH09_CONTAINER_ID")" == "$WH09_EXPECTED_REVISION" ]]
+          mapfile -t ids < <(
+            docker ps -aq --no-trunc \
+              --filter "label=com.docker.compose.project=$WH09_PROJECT" \
+              --filter "label=com.docker.compose.service=$WH09_SERVICE" \
+              | sed '/^$/d'
+          )
+          [[ ${#ids[@]} -eq 1 ]]
+          [[ "${ids[0]}" == "$WH09_EXPECTED_ID" ]]
+          [[ "$(docker inspect --format '{{.State.Running}}' "$WH09_EXPECTED_ID")" == 'true' ]]
+          [[ "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$WH09_EXPECTED_ID")" == "$WH09_EXPECTED_REVISION" ]]
+
+      - name: Fail closed while WH09 healthcheck is failing
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${MANUAL_HEALTH_RC:-1}" == '0' ]] || {
+            echo 'WH09 healthcheck remains non-zero; no recovery mutation is authorized.' >&2
+            exit 1
+          }

@@ -20,7 +20,7 @@ run_scope: autonomous_program
 continuation_policy: continue_until_real_stop
 task_completion_policy: finalize_archive_and_continue
 implementation_authorized: true
-status: ready
+status: waiting
 base_branch: develop
 trusted_base_sha: 2a9bee4895981f0a2b7f7f08e0e1d2d2e2ad646a
 branch: fix/wickhunter-1396-synology-recovery-v2
@@ -46,7 +46,7 @@ Terminally close Issue #1396 by proving the already-merged unified WickHunter ru
 - `LIVE_BLOCKED`: non-executable under current authority.
 - Mode is immutable RuntimeGeneration/config material; transitions require explicit generation rollout/reconciliation.
 - The accepted WH09 H900 runtime remains SHADOW with `no_trade_confidence=0.60` until a separate PAPER eligibility gate exists.
-- ADR-022, merged after this invocation's trusted base, makes PAPER the normal operational target and SHADOW optional/purpose-bound; it does not invalidate this existing bounded SHADOW runtime/integration-validation closeout and does not authorize changing WH09 mode in this task.
+- ADR-022, merged after this invocation's trusted base, makes PAPER the normal operational target and SHADOW optional/purpose-bound; it does not invalidate this bounded SHADOW runtime/integration-validation closeout and does not authorize changing WH09 mode in this task.
 
 ## Acceptance inventory
 
@@ -71,77 +71,52 @@ Terminally close Issue #1396 by proving the already-merged unified WickHunter ru
 
 ## Post-merge failure evidence
 
-### Attempt 1
-
 ```yaml
-workflow: Portal WickHunter WH09 Adoption
-run: 31386104997
-job: 93446771029
-result: FAILURE
-first_failure: Synology Docker runtime preflight could not start a disposable container
-wh09_changed: false
-```
-
-### Attempt 2
-
-```yaml
-workflow: Portal WickHunter WH09 Adoption
-run: 31386104997
-job: 93455371701
-result: FAILURE
-preflight: PASS
-wh09_identity: ebb3bc5151c6041cc557395f77b3001230f881bc39c2e9a5c4789fcd920e3b37
-wh09_health: healthy
-first_failure: Docker BuildKit failed while loading/copying the Portal control-plane build context
-portal_deployed: false
-adoption_started: false
-wh09_changed: false
-```
-
-### Bounded recovery observations
-
-```yaml
-run_31420369456:
+adoption_attempt_1:
+  workflow_run: 31386104997
+  job: 93446771029
+  result: FAILURE
+  first_failure: Docker runtime preflight could not start a disposable container
+  wh09_changed: false
+adoption_attempt_2:
+  workflow_run: 31386104997
+  job: 93455371701
+  result: FAILURE
+  preflight: PASS
+  wh09_identity: ebb3bc5151c6041cc557395f77b3001230f881bc39c2e9a5c4789fcd920e3b37
+  wh09_health: healthy
+  first_failure: BuildKit failed while loading/copying Portal control-plane build context
+  portal_deployed: false
+  adoption_started: false
+  wh09_changed: false
+recovery_1:
+  run: 31420369456
   result: FAILURE_BEFORE_MUTATION
-  reason: initial exact-WH09 assertion failed without sufficient diagnostics
-  docker_mutation: false
-run_31420701120:
-  result: FAILURE_BEFORE_MUTATION
+recovery_2:
+  run: 31420701120
+  result: FAILURE_BEFORE_MUTATION_WH09_UNHEALTHY
   wh09_matching_count: 1
   wh09_identity: ebb3bc5151c6041cc557395f77b3001230f881bc39c2e9a5c4789fcd920e3b37
   wh09_revision: 90cfc5ded10b0c6cb6406d00042817aca611e900
   wh09_running: true
   wh09_health: unhealthy
-  bounded_observation_seconds: 60
   docker_mutation: false
 ```
 
-The second recovery proves the BuildKit hypothesis cannot be acted on yet: the required precondition that WH09 is healthy is false. The exact runtime identity and revision did not change, but Docker health remained `unhealthy` for the full bounded observation. BuildKit prune/probe steps were therefore skipped.
+The BuildKit hypothesis cannot be acted on while WH09 is unhealthy. The accepted healthcheck validates immutable SHADOW/zero-authority identity plus freshness of `/runtime/operator/health.json` and `/runtime/journal/telemetry.json` with `HEALTH_MAX_AGE_SECONDS=600`. Broad cleanup, restart, replacement and redeploy remain forbidden.
 
-Repository inspection of the accepted WH09 compose and healthcheck shows the container health gate validates immutable SHADOW/zero-authority identity plus freshness of `/runtime/operator/health.json` and `/runtime/journal/telemetry.json` with `HEALTH_MAX_AGE_SECONDS=600`. The next diagnostic must determine the exact healthcheck failure and freshness/process state read-only before any repair hypothesis.
+## Current recovery
 
-## Recovery strategy
+Recovery generation 3 is read-only only. Workflow run `31422691173` at diagnostic head `c2a4d5cee3bb6f3225d0d2cd13de63b2ca7878c0` captures the configured healthcheck, bounded Docker health logs, one manual read-only healthcheck execution, safe health/telemetry fields and ages, process snapshot, and safe Liquid20 source state. It performs no prune, build, restart, stop, removal or deployment.
 
-Broad container/image cleanup remains rejected. No WH09 restart, replacement or redeploy is authorized in this task.
-
-Recovery generation 3 is read-only and must:
-
-1. prove the same unique WH09 container identity/revision;
-2. print the configured Docker healthcheck command and only the latest bounded healthcheck exit/output metadata;
-3. execute the same healthcheck command once via `docker exec` only to reproduce its read-only result;
-4. read and report only safe fields from health/telemetry: schema/status/mode/generation/check timestamps/zero-authority flags and computed age;
-5. report the container process state and runtime file mtimes without changing them;
-6. inspect the Liquid20 source container/running state and active-run pointer freshness without secrets;
-7. make no Docker mutation and perform no cache prune/build.
-
-Only after this diagnostic yields a concrete causal hypothesis may a third and final bounded repair cycle be attempted. Acceptance may not be weakened from `healthy` to `degraded` or `unhealthy`.
+Only after this run yields a concrete causal hypothesis may the third and final bounded repair cycle be attempted. Acceptance may not be weakened from `healthy` to `degraded` or `unhealthy`.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-10T21:06:00+02:00
-status: ready
+updated_at: 2026-08-10T21:10:00+02:00
+status: waiting
 branch: fix/wickhunter-1396-synology-recovery-v2
 issue: 1396
 related_prs:
@@ -155,15 +130,14 @@ proven:
   - Portal adoption PR 1436 merged
   - premerge exact-head CI and authenticated browser E2E passed
   - current WH09 is exactly one container with unchanged ID and accepted revision
-  - current WH09 is running but Docker health is unhealthy
+  - current WH09 is running but Docker health was unhealthy through the last bounded observation
   - recovery runs 31420369456 and 31420701120 performed no Docker mutation
   - accepted healthcheck requires <=600 second freshness for health and telemetry and exact zero-authority SHADOW identity
 unknown:
   - exact current healthcheck failure message
-  - whether runtime process is alive and progressing
-  - health/telemetry observed ages and last successful generation
+  - runtime process progress and health/telemetry ages
   - whether Liquid20 source freshness is the upstream cause
-  - whether bounded BuildKit cache recovery is still needed after WH09 health is restored
+  - whether BuildKit cache recovery remains necessary after WH09 health is restored
   - terminal postmerge Portal deployment/adoption/API persistence result
 conflicts: []
 validation:
@@ -171,12 +145,17 @@ validation:
     result: FAILURE_BEFORE_MUTATION
   - run: 31420701120
     result: FAILURE_BEFORE_MUTATION_WH09_UNHEALTHY
+  - run: 31422691173
+    head: c2a4d5cee3bb6f3225d0d2cd13de63b2ca7878c0
+    workflow: Portal WickHunter WH09 Readonly Health Diagnostic
+    result: IN_PROGRESS
 counters:
   repair_cycles_for_current_gate: 2
   identical_failure_retries: 0
   unchanged_state_checks: 0
-blockers: []
-next_action: Run one read-only WH09 health diagnostic on the Synology runner; use its exact failure as the third-cycle hypothesis and do not mutate Docker before that evidence exists.
+blockers:
+  - read-only health diagnostic run 31422691173 is executing
+next_action: Inspect run 31422691173 when terminal; use its exact failure as the third-cycle repair hypothesis, without mutating WH09 unless separately authorized.
 ```
 
 ## Recovery checkpoint
@@ -187,21 +166,22 @@ recovery:
   generation: 3
   session_id: 2026-08-10T21:04+02:00
   session_started_at: 2026-08-10T21:04:00+02:00
-  checkpointed_at: 2026-08-10T21:06:00+02:00
-  last_progress_at: 2026-08-10T21:06:00+02:00
+  checkpointed_at: 2026-08-10T21:10:00+02:00
+  last_progress_at: 2026-08-10T21:09:23+02:00
   phase: wh09_readonly_health_diagnostic
-  exact_head: checkpoint_commit
+  exact_head: c2a4d5cee3bb6f3225d0d2cd13de63b2ca7878c0
   pull_request: none
-  active_operation: none
-  external_run_ids: []
-  operation_started_at: null
-  wait_deadline_at: null
+  active_operation: Portal WickHunter WH09 Readonly Health Diagnostic
+  external_run_ids:
+    - 31422691173
+  operation_started_at: 2026-08-10T21:09:23+02:00
+  wait_deadline_at: 2026-08-10T21:19:23+02:00
   check_generation: wh09-health-diagnostic-v3
-  checks_used: 0
-  status: ready
+  checks_used: 1
+  status: waiting
   safe_to_resume: true
-  resume_condition: diagnostic workflow is committed and started
-  next_action: Update the temporary recovery workflow to perform only the bounded read-only WH09 health diagnostic, then capture its run ID in this checkpoint.
+  resume_condition: workflow run 31422691173 is terminal
+  next_action: Inspect run 31422691173 when terminal and form exactly one third-cycle repair hypothesis from its primary evidence.
 ```
 
 ## Terminal closeout requirements

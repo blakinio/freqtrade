@@ -1,8 +1,8 @@
 {
   "schema_version": 3,
-  "policy_revision": 3,
+  "policy_revision": 4,
   "contract_name": "portable-agent-checkpoint-handoff",
-  "compatibility": "checkpoint version 2 adds durable per-task exact-SHA observation history while retaining version 1 read compatibility",
+  "compatibility": "checkpoint version 2 is required for every new or touched task record; untouched legacy version 1 records remain readable during migration",
   "shared_checkpoint_contract": {
     "version": 2,
     "accepted_versions": [
@@ -41,11 +41,14 @@
         "ci",
         "review"
       ],
-      "max_exact_heads": 32,
+      "max_exact_heads": 2147483647,
       "current_head_ci_scalar": "ci_checks_for_current_head",
       "current_head_review_scalar": "review_checks_for_current_head",
       "reset_rule": "only_a_genuinely_new_exact_commit_sha_gets_a_new_counter_entry",
-      "return_to_prior_sha_rule": "reuse_the_existing_counter_entry_for_that_task_and_sha"
+      "return_to_prior_sha_rule": "reuse_the_existing_counter_entry_for_that_task_and_sha",
+      "monotonic_history_rule": "a prior exact-SHA entry may never be removed and its ci or review counter may never decrease",
+      "migration_rule": "every task record touched or created after this policy revision must be checkpoint version 2; untouched version 1 records are legacy-read-only",
+      "overflow_rule": "observation history is durable and non-evicting; the very large parser bound is defensive input protection, not an archival or eviction threshold"
     },
     "allowed_statuses": [
       "investigating",
@@ -91,10 +94,12 @@
       "ROTATE is a terminal invocation result and never a checkpoint task status.",
       "Before returning ROTATE, persist ready, waiting or blocked with one concrete next_action.",
       "NOT_APPLICABLE requires a concrete evidence reason.",
-      "Checkpoint version 1 remains readable only for legacy records that have not migrated to durable observation history.",
+      "Checkpoint version 1 is legacy-read-only: every task record changed or created after the version-2 migration policy must use version 2.",
       "Any checkpoint version 2 record must persist CI and review observations in observation_counters_by_sha keyed by exact commit SHA.",
       "For version 2, current-head scalar counters must equal the current head entry in observation_counters_by_sha.",
-      "Returning from SHA B to previously observed SHA A reuses SHA A counters; owner invocation, Chat replacement, rerun and check-generation changes never reset them."
+      "Across a task's Git history, observation entries are append-only by exact SHA and their CI/review counters are monotonic non-decreasing.",
+      "Returning from SHA B to previously observed SHA A reuses SHA A counters; owner invocation, Chat replacement, rerun and check-generation changes never reset them.",
+      "Prior exact-SHA history must not be evicted; the parser's defensive maximum is intentionally far above any plausible task lifetime and does not authorize deletion."
     ]
   }
 }

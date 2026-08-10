@@ -256,6 +256,7 @@ def _provision_results(
         CommandResult(
             0,
             stdout=(
+                "overlay / overlay ro,relatime 0 0\n"
                 f"tmpfs /tmp tmpfs rw,nosuid,nodev,noexec,size={plan.tmpfs_max_bytes} 0 0\n"
                 f"tmpfs /run tmpfs rw,nosuid,nodev,noexec,size={plan.run_tmpfs_max_bytes} 0 0\n"
             ),
@@ -295,6 +296,7 @@ def test_provision_builds_quarantined_hardened_container(tmp_path: Path) -> None
     assert "-p" not in create
     assert "--publish" not in create
     assert not any("docker.sock" in value for value in create)
+    assert "Seccomp:" in runner.calls[5][-1]
     assert "/proc/swaps" in runner.calls[6][-1]
     assert attestor.prepared_storage == [spec.state_path]
     assert attestor.prepared_networks == [_network()]
@@ -351,6 +353,29 @@ def test_missing_storage_backend_fails_before_create(tmp_path: Path) -> None:
 
     assert exc_info.value.reason_code == "HOST_STORAGE_ISOLATION_UNSUPPORTED"
     assert all(call[:2] != ("docker", "create") for call in runner.calls)
+
+
+def test_missing_image_cleans_prepared_generation_network(tmp_path: Path) -> None:
+    plan = _plan()
+    spec = _spec(tmp_path)
+    runner = _Runner(
+        CommandResult(1, stderr="Error: No such object: runtime-1"),
+        CommandResult(1, stderr="No such image"),
+        CommandResult(1, stderr="Error: No such object: runtime-1"),
+    )
+    attestor = _Attestor()
+    driver = DockerCliRuntimeDriver(
+        runner,
+        isolation_plans=_provider(plan),
+        external_attestor=attestor,
+    )
+
+    with pytest.raises(RuntimeDriverError) as exc_info:
+        driver.provision(spec)
+
+    assert exc_info.value.reason_code == "IMAGE_NOT_PRESENT"
+    assert runner.calls[-1] == ("docker", "rm", "-f", "runtime-1")
+    assert attestor.cleaned == [_network()]
 
 
 def test_structural_failure_removes_quarantined_container(tmp_path: Path) -> None:
@@ -540,5 +565,14 @@ def test_effective_cgroup_accepts_host_disabled_swap_only_for_zero_swap_plan() -
             evidence,
             replace(plan, memory_swap_limit_bytes=plan.memory_limit_bytes + 1024),
         )
+
+    assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
+
+
+def test_effective_rootfs_attestation_requires_readonly_mount() -> None:
+    DockerCliRuntimeDriver._attest_readonly_root("overlay / overlay ro,relatime 0 0\n")
+
+    with pytest.raises(RuntimeDriverError) as exc_info:
+        DockerCliRuntimeDriver._attest_readonly_root("overlay / overlay rw,relatime 0 0\n")
 
     assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"

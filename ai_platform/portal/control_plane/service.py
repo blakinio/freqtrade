@@ -65,6 +65,8 @@ class ControlPlaneService(_CoreControlPlaneService):
         name: str,
         spec: BotSpec,
     ) -> BotInstance:
+        require_permission(context.permissions, Permission.BOT_CREATE)
+        self._require_tenant(context, spec.tenant_id)
         self._require_authored_mode(spec)
         return super().create_bot(context, bot_id, name, spec)
 
@@ -74,6 +76,8 @@ class ControlPlaneService(_CoreControlPlaneService):
         bot_id: str,
         spec: BotSpec,
     ) -> BotInstance:
+        require_permission(context.permissions, Permission.BOT_CREATE)
+        self._require_tenant(context, spec.tenant_id)
         self._require_authored_mode(spec)
         return super().revise_bot(context, bot_id, spec)
 
@@ -84,6 +88,7 @@ class ControlPlaneService(_CoreControlPlaneService):
         revision_id: str,
         expected_state_version: int,
     ) -> BotConfigRevision:
+        require_permission(context.permissions, Permission.BOT_CREATE)
         # A historical/reserved LIVE_BLOCKED revision may still be readable from
         # durable state, but it must never cross the promotion boundary.
         with self._session_factory() as session:

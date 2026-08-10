@@ -1,0 +1,177 @@
+name: Portal WickHunter Explicit Commit Boundary Repair
+
+"on":
+  push:
+    branches:
+      - fix/wickhunter-1396-synology-recovery-v2
+    paths:
+      - .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    name: Require events_written and prove fail-closed no-mutation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout recovery branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: fix/wickhunter-1396-synology-recovery-v2
+          fetch-depth: 20
+
+      - name: Apply P1 repair and regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source_path = Path("ai_platform/scripts/liquidation_live_stream.py")
+          source = source_path.read_text(encoding="utf-8")
+          old = '            committed_rows = source_state.get("events_written", 0)\n'
+          new = (
+              '            if "events_written" not in source_state:\n'
+              '                raise RuntimeError(f"previous {source} events_written is missing")\n'
+              '            committed_rows = source_state["events_written"]\n'
+          )
+          if old not in source and new not in source:
+              raise SystemExit("explicit commit-boundary source target missing")
+          if old in source:
+              if source.count(old) != 1:
+                  raise SystemExit("explicit commit-boundary source target is ambiguous")
+              source = source.replace(old, new, 1)
+          source_path.write_text(source, encoding="utf-8")
+
+          test_path = Path("tests/ai_platform_integration/test_liquidation_live_restart_durability.py")
+          tests = test_path.read_text(encoding="utf-8")
+          test_name = "test_restart_rejects_missing_events_written_without_mutating_source"
+          if test_name not in tests:
+              marker = "\n\ndef test_restart_rejects_missing_configured_zero_row_source(tmp_path: Path) -> None:\n"
+              if tests.count(marker) != 1:
+                  raise SystemExit("regression insertion marker mismatch")
+              lines = [
+                  "",
+                  "",
+                  "def test_restart_rejects_missing_events_written_without_mutating_source(",
+                  "    tmp_path: Path,",
+                  ") -> None:",
+                  "    old_run_id, old_run_root = _write_previous_active_run(",
+                  "        tmp_path,",
+                  "        committed_rows={BINANCE_SOURCE: 2, BYBIT_SOURCE: 0, OKX_SOURCE: 0},",
+                  "        actual_rows={BINANCE_SOURCE: 2, BYBIT_SOURCE: 0, OKX_SOURCE: 0},",
+                  "    )",
+                  "    state_path = old_run_root / \"run-state-v1.json\"",
+                  "    state = json.loads(state_path.read_text(encoding=\"utf-8\"))",
+                  "    del state[\"sources\"][BINANCE_SOURCE][\"events_written\"]",
+                  "    state_path.write_text(json.dumps(state), encoding=\"utf-8\")",
+                  "    original = (old_run_root / f\"{BINANCE_SOURCE}.ndjson\").read_bytes()",
+                  "    manager = OkxLiveRunManager(",
+                  "        data_root=tmp_path,",
+                  "        collector_commit=\"9\" * 40,",
+                  "        host_id=\"synology-test\",",
+                  "        now_ms=lambda: 1_786_384_683_792,",
+                  "    )",
+                  "",
+                  "    with pytest.raises(RuntimeError, match=\"binance-usdm events_written is missing\"):",
+                  "        asyncio.run(manager.start())",
+                  "",
+                  "    assert (old_run_root / f\"{BINANCE_SOURCE}.ndjson\").read_bytes() == original",
+                  "    persisted = json.loads(state_path.read_text(encoding=\"utf-8\"))",
+                  "    assert persisted[\"run_state\"] == \"active\"",
+                  "    pointer = json.loads((tmp_path / \"live\" / LIVE_STATE_FILE).read_text(encoding=\"utf-8\"))",
+                  "    assert pointer[\"active_run_id\"] == old_run_id",
+                  "    assert sorted(path.name for path in (tmp_path / \"live\" / \"runs\").iterdir()) == [old_run_id]",
+              ]
+              addition = "\n".join(lines)
+              tests = tests.replace(marker, addition + marker, 1)
+              test_path.write_text(tests, encoding="utf-8")
+          PY
+
+      - name: Install focused validation dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check -r requirements.txt
+          python3 -m pip install --disable-pip-version-check pytest==9.1.1 ruff==0.15.21
+
+      - name: Validate P1 repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          python3 -m pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py \
+            tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python3 -m ruff check ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python3 -m ruff format --check ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          git diff --check
+
+      - name: Record P1 evidence and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import subprocess
+          from datetime import datetime
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+
+          task = Path("docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md")
+          text = task.read_text(encoding="utf-8")
+          prefix = "## Context checkpoint\n\n```yaml\n"
+          suffix = "\n```\n\n## Recovery checkpoint"
+          start = text.index(prefix) + len(prefix)
+          end = text.index(suffix, start)
+          cp = text[start:end]
+          head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          now = datetime.now(ZoneInfo("Europe/Warsaw")).replace(microsecond=0).isoformat()
+          cp_lines = cp.splitlines()
+          for index, line in enumerate(cp_lines):
+              if line.startswith("updated_at:"):
+                  cp_lines[index] = f"updated_at: {now}"
+              elif line.startswith("head:"):
+                  cp_lines[index] = f"head: {head}"
+          cp = "\n".join(cp_lines)
+          proof = "  - malformed active source state missing events_written now fails closed before any source truncation; no default zero commit boundary is accepted"
+          if proof not in cp:
+              if "derived:\n" not in cp:
+                  raise SystemExit("derived section marker missing")
+              cp = cp.replace("derived:\n", proof + "\nderived:\n", 1)
+          validation = (
+              "  - command: Explicit events_written commit-boundary regression validation\n"
+              "    result: PASS\n"
+              f"    evidence: GitHub Actions run {os.environ['GITHUB_RUN_ID']} passed restart durability plus legacy migration tests Ruff check format compile and diff hygiene\n"
+          )
+          if "Explicit events_written commit-boundary regression validation" not in cp:
+              if "blockers: []\n" not in cp:
+                  raise SystemExit("blockers marker missing")
+              cp = cp.replace("blockers: []\n", validation + "blockers: []\n", 1)
+          next_action = "next_action: Remove the temporary recovery workflow, run retained ci:full exact-head CI plus fresh independent Codex review with zero material findings, then squash-merge PR 1450 and continue protected Liquid20 recovery."
+          rows = cp.splitlines()
+          for index, line in enumerate(rows):
+              if line.startswith("next_action:"):
+                  rows[index] = next_action
+                  break
+          cp = "\n".join(rows)
+          text = text[:start] + cp + text[end:]
+          text = text.replace("  generation: 7\n", "  generation: 8\n", 1)
+          task.write_text(text, encoding="utf-8")
+          PY
+          python3 tools/agents/checkpoint.py docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md --require-checkpoint
+          git rm .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
+          git diff --check
+
+      - name: Commit validated P1 repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "fix(liquidations): require explicit restart commit boundary"
+          git pull --rebase origin fix/wickhunter-1396-synology-recovery-v2
+          git push origin HEAD:fix/wickhunter-1396-synology-recovery-v2

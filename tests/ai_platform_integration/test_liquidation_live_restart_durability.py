@@ -96,6 +96,34 @@ def test_restart_truncates_only_uncommitted_suffix_before_completion(tmp_path: P
     assert (old_run_root / f"{OKX_SOURCE}.ndjson").read_bytes() == b""
 
 
+def test_restart_rejects_dangling_symlink_even_with_zero_committed_rows(
+    tmp_path: Path,
+) -> None:
+    old_run_id, old_run_root = _write_previous_active_run(
+        tmp_path,
+        committed_rows={BINANCE_SOURCE: 0, BYBIT_SOURCE: 0, OKX_SOURCE: 0},
+        actual_rows={BINANCE_SOURCE: 0, BYBIT_SOURCE: 0, OKX_SOURCE: 0},
+    )
+    okx_path = old_run_root / f"{OKX_SOURCE}.ndjson"
+    okx_path.unlink()
+    okx_path.symlink_to(old_run_root / "missing-okx.ndjson")
+    manager = OkxLiveRunManager(
+        data_root=tmp_path,
+        collector_commit="4" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+
+    with pytest.raises(RuntimeError, match="okx-swap source path is not a regular file"):
+        asyncio.run(manager.start())
+
+    persisted = json.loads((old_run_root / "run-state-v1.json").read_text(encoding="utf-8"))
+    assert persisted["run_state"] == "active"
+    pointer = json.loads((tmp_path / "live" / LIVE_STATE_FILE).read_text(encoding="utf-8"))
+    assert pointer["active_run_id"] == old_run_id
+    assert sorted(path.name for path in (tmp_path / "live" / "runs").iterdir()) == [old_run_id]
+
+
 def test_restart_fails_closed_when_committed_rows_are_missing(tmp_path: Path) -> None:
     old_run_id, old_run_root = _write_previous_active_run(
         tmp_path,

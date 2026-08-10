@@ -128,11 +128,13 @@ def _seal_committed_ndjson(path: Path, *, committed_rows: int, source: str) -> N
         or committed_rows < 0
     ):
         raise RuntimeError(f"previous {source} events_written is invalid")
+    if path.is_symlink():
+        raise RuntimeError(f"previous {source} source path is not a regular file")
     if not path.exists():
         if committed_rows == 0:
             return
         raise RuntimeError(f"previous {source} source file is missing committed rows")
-    if path.is_symlink() or not path.is_file():
+    if not path.is_file():
         raise RuntimeError(f"previous {source} source path is not a regular file")
 
     with path.open("r+b") as handle:

@@ -1,4 +1,4 @@
-name: Portal WickHunter Liquid20 Integrity Diagnostic
+name: Portal WickHunter Liquid20 Restart Sealing Validation
 
 "on":
   push:
@@ -6,175 +6,60 @@ name: Portal WickHunter Liquid20 Integrity Diagnostic
       - fix/wickhunter-1396-synology-recovery-v2
     paths:
       - .github/workflows/portal-wickhunter-buildkit-cache-recovery.yml
+      - ai_platform/scripts/liquidation_live_stream.py
+      - tests/ai_platform_integration/test_liquidation_live_restart_durability.py
 
 permissions:
   contents: read
 
 concurrency:
-  group: portal-wickhunter-1396-liquid20-integrity
-  cancel-in-progress: false
+  group: portal-wickhunter-1396-liquid20-restart-sealing
+  cancel-in-progress: true
 
 jobs:
-  diagnose:
-    name: Locate Liquid20 events_written contradiction without mutation
-    runs-on:
-      - freqtrade-staging
-    timeout-minutes: 8
-    env:
-      WH09_EXPECTED_ID: ebb3bc5151c6041cc557395f77b3001230f881bc39c2e9a5c4789fcd920e3b37
-      WH09_EXPECTED_IMAGE: sha256:38b88958a873af21cca80455a27e14163bce85da6641a2688913e8772b7d2e88
-      WH09_EXPECTED_REVISION: 90cfc5ded10b0c6cb6406d00042817aca611e900
-      WH09_PROJECT: wickhunter-production-research-runtime
-      WH09_SERVICE: wickhunter-production-research-runtime
-      LIQUID20_CONTAINER: liquid20-live
+  validate:
+    name: Focused restart durability tests and lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-      - name: Prove frozen WH09 identity
-        shell: bash
-        run: |
-          set -euo pipefail
-          mapfile -t ids < <(
-            docker ps -aq --no-trunc \
-              --filter "label=com.docker.compose.project=$WH09_PROJECT" \
-              --filter "label=com.docker.compose.service=$WH09_SERVICE" \
-              | sed '/^$/d'
-          )
-          printf 'WH09_MATCHING_COUNT=%s\n' "${#ids[@]}"
-          [[ ${#ids[@]} -eq 1 ]]
-          [[ "${ids[0]}" == "$WH09_EXPECTED_ID" ]]
-          [[ "$(docker inspect --format '{{.State.Running}}' "$WH09_EXPECTED_ID")" == 'true' ]]
-          [[ "$(docker inspect --format '{{.Image}}' "$WH09_EXPECTED_ID")" == "$WH09_EXPECTED_IMAGE" ]]
-          [[ "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$WH09_EXPECTED_ID")" == "$WH09_EXPECTED_REVISION" ]]
-          echo "WH09_RESTART_COUNT=$(docker inspect --format '{{.RestartCount}}' "$WH09_EXPECTED_ID")"
+      - name: Checkout exact branch head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 1
 
-      - name: Count every relevant Liquid20 source file through WH09 read-only mount
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker exec -i "$WH09_EXPECTED_ID" python - <<'PY'
-          import json
-          import time
-          from datetime import UTC, datetime, timedelta
-          from pathlib import Path
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          enable-cache: false
+          python-version: "3.12"
 
-          root = Path('/runtime/liquid20')
-          pointer = json.loads((root / 'live-state-v1.json').read_text(encoding='utf-8'))
-          active_run_id = pointer['active_run_id']
-          observed_at_ms = pointer['collector_heartbeat_at_ms']
-          history_start_ms = observed_at_ms - 86_400_000
-          history_start_day = datetime.fromtimestamp(history_start_ms / 1000, tz=UTC).strftime('%Y%m%d')
-          runs_root = root / 'runs'
-          run_ids = sorted(
-              item.name for item in runs_root.iterdir()
-              if item.is_dir() and not item.is_symlink()
-              and item.name.startswith('liquid20-')
-              and len(item.name) >= 17
-              and item.name[9:17] >= history_start_day
-          )
-          print('INTEGRITY_ACTIVE_RUN=' + str(active_run_id))
-          print('INTEGRITY_HISTORY_START_DAY=' + history_start_day)
-          print('INTEGRITY_RELEVANT_RUNS=' + json.dumps(run_ids))
-          mismatch_count = 0
-          for run_id in run_ids:
-              run_root = runs_root / run_id
-              state_path = run_root / 'run-state-v1.json'
-              try:
-                  state = json.loads(state_path.read_text(encoding='utf-8'))
-              except Exception as exc:
-                  print('INTEGRITY_RUN_STATE_ERROR=' + json.dumps({'run_id': run_id, 'error': type(exc).__name__}, sort_keys=True))
-                  continue
-              sources = state.get('sources') if isinstance(state.get('sources'), dict) else {}
-              run_safe = {
-                  'run_id': run_id,
-                  'run_state': state.get('run_state'),
-                  'completion_reason': state.get('completion_reason'),
-                  'collector_started_at_ms': state.get('collector_started_at_ms'),
-                  'completed_at_ms': state.get('completed_at_ms'),
-                  'is_active_pointer': run_id == active_run_id,
-              }
-              print('INTEGRITY_RUN=' + json.dumps(run_safe, sort_keys=True))
-              for source in ('binance-usdm', 'bybit-linear', 'okx-swap'):
-                  row = sources.get(source) if isinstance(sources.get(source), dict) else {}
-                  expected = row.get('events_written')
-                  path = run_root / f'{source}.ndjson'
-                  result = {
-                      'run_id': run_id,
-                      'run_state': state.get('run_state'),
-                      'source': source,
-                      'events_written': expected,
-                      'file_exists': path.is_file() and not path.is_symlink(),
-                  }
-                  if path.is_file() and not path.is_symlink():
-                      count = 0
-                      size = path.stat().st_size
-                      last_byte = b''
-                      with path.open('rb') as handle:
-                          while True:
-                              chunk = handle.read(1024 * 1024)
-                              if not chunk:
-                                  break
-                              count += chunk.count(b'\n')
-                              last_byte = chunk[-1:]
-                      result['file_rows'] = count
-                      result['file_size_bytes'] = size
-                      result['ends_with_newline'] = (size == 0 or last_byte == b'\n')
-                      result['file_mtime_age_seconds'] = round(time.time() - path.stat().st_mtime, 3)
-                      if isinstance(expected, int) and not isinstance(expected, bool):
-                          result['delta_rows_minus_events_written'] = count - expected
-                          result['matches_exactly'] = count == expected
-                          if run_id == active_run_id:
-                              result['wh09_contract_count_acceptable'] = count >= expected and count - expected <= 10_000
-                          else:
-                              result['wh09_contract_count_acceptable'] = count == expected
-                          if not result['wh09_contract_count_acceptable']:
-                              mismatch_count += 1
-                  else:
-                      result['file_rows'] = None
-                      result['matches_exactly'] = False
-                      result['wh09_contract_count_acceptable'] = expected == 0 and row.get('configured') is not True and row.get('last_event_received_at_ms') is None
-                      if not result['wh09_contract_count_acceptable']:
-                          mismatch_count += 1
-                  print('INTEGRITY_SOURCE=' + json.dumps(result, sort_keys=True))
-          print(f'INTEGRITY_CONTRACT_MISMATCH_COUNT={mismatch_count}')
-          PY
-
-      - name: Reproduce loader failure and prove producer identity
-        shell: bash
+      - name: Install bounded dependencies
         run: |
-          set -euo pipefail
-          echo "LIQUID20_RUNNING=$(docker inspect --format '{{.State.Running}}' "$LIQUID20_CONTAINER")"
-          echo "LIQUID20_RESTART_COUNT=$(docker inspect --format '{{.RestartCount}}' "$LIQUID20_CONTAINER")"
-          echo "LIQUID20_IMAGE=$(docker inspect --format '{{.Image}}' "$LIQUID20_CONTAINER")"
-          echo "LIQUID20_REVISION=$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$LIQUID20_CONTAINER")"
-          docker exec -i "$WH09_EXPECTED_ID" python - <<'PY'
-          import json
-          import time
-          from pathlib import Path
-          from ai_platform.wickhunter.candidate_paper_runtime_operator import load_liquid20_snapshot
-          try:
-              load_liquid20_snapshot(Path('/runtime/liquid20'), now_ms=time.time_ns() // 1_000_000, maximum_age_ms=300_000)
-          except Exception as exc:
-              print('LOADER_REPRO_OK=true')
-              print('LOADER_ERROR_CODE=' + type(exc).__name__)
-              print('LOADER_ERROR_MESSAGE=' + str(exc)[:500])
-          else:
-              print('LOADER_REPRO_OK=false')
-              print('LOADER_ERROR_CODE=none')
-          PY
+          uv pip install -r requirements.txt
+          uv pip install pytest==9.1.1 ruff==0.15.21
+          uv pip install --no-deps -e .
 
-      - name: Prove no runtime mutation
-        if: always()
-        shell: bash
+      - name: Compile touched Python
         run: |
-          set -euo pipefail
-          mapfile -t ids < <(
-            docker ps -aq --no-trunc \
-              --filter "label=com.docker.compose.project=$WH09_PROJECT" \
-              --filter "label=com.docker.compose.service=$WH09_SERVICE" \
-              | sed '/^$/d'
-          )
-          [[ ${#ids[@]} -eq 1 ]]
-          [[ "${ids[0]}" == "$WH09_EXPECTED_ID" ]]
-          [[ "$(docker inspect --format '{{.State.Running}}' "$WH09_EXPECTED_ID")" == 'true' ]]
-          [[ "$(docker inspect --format '{{.Image}}' "$WH09_EXPECTED_ID")" == "$WH09_EXPECTED_IMAGE" ]]
-          [[ "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$WH09_EXPECTED_ID")" == "$WH09_EXPECTED_REVISION" ]]
-          echo 'DIAGNOSTIC_DOCKER_MUTATION=false'
+          python -m py_compile ai_platform/scripts/liquidation_live_stream.py
+          python -m py_compile tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+
+      - name: Run focused restart durability tests
+        run: >-
+          python -m pytest -q -o addopts=''
+          --confcutdir=tests/ai_platform_integration
+          tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+
+      - name: Ruff touched Python
+        run: >-
+          ruff check
+          ai_platform/scripts/liquidation_live_stream.py
+          tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+
+      - name: Ruff format touched Python
+        run: >-
+          ruff format --check
+          ai_platform/scripts/liquidation_live_stream.py
+          tests/ai_platform_integration/test_liquidation_live_restart_durability.py

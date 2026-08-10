@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import UTC, datetime
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, StrictBool
 from sqlalchemy import select
 
-from ai_platform.portal.contracts.bots import BotInstance, BotObservedState, BotSpec
+from ai_platform.portal.contracts.audit import AuditAction, AuditEvent, AuditResult
+from ai_platform.portal.contracts.bots import BotInstance, BotObservedState
 from ai_platform.portal.contracts.identity import Permission
 from ai_platform.portal.contracts.runtime_generation import (
     ReconciliationCompletenessStatus,
@@ -26,13 +28,19 @@ from ai_platform.portal.control_plane.models import (
     BotRolloutRow,
     BotRow,
     RuntimeGenerationObservationRow,
-    RuntimeGenerationRow,
 )
 from ai_platform.portal.control_plane.repository import BotRepository
 from ai_platform.portal.security.authorization import require_permission
 
 
-_EXTERNAL_ADOPTION_REASON = "EXTERNAL_RUNTIME_ADOPTED"
+EXTERNAL_ADOPTION_REASON = "EXTERNAL_RUNTIME_ADOPTED"
+_PENDING_ADOPTION_ROLLOUT_STATES = {
+    "REQUESTED",
+    "PRECHECK",
+    "PROVISIONING",
+    "STARTING",
+    "VERIFYING",
+}
 
 
 class RuntimeObservationReconciliation(BaseModel):
@@ -41,7 +49,7 @@ class RuntimeObservationReconciliation(BaseModel):
     bot: BotInstance
     generation: RuntimeGeneration
     observation: RuntimeGenerationObservation
-    adopted_external_runtime: bool = True
+    adopted_external_runtime: StrictBool = True
 
 
 def _restore_utc(value: datetime | None) -> datetime | None:
@@ -126,90 +134,171 @@ def _validate_exact_observation(
     return observed_state
 
 
+class RuntimeAdoptionService:
+    """Trusted system reconciliation for a runtime that already exists outside Portal.
+
+    This service never creates, starts, stops, restarts or replaces a runtime. It only
+    converges a canonical desired RuntimeGeneration to observed after exact immutable
+    identity evidence is supplied by the host-side reconciler.
+    """
+
+    def __init__(self, session_factory: SessionFactory) -> None:
+        self._session_factory = session_factory
+        self._repository = BotRepository()
+
+    def adopt_external_runtime(
+        self,
+        context: RequestContext,
+        bot_id: str,
+        observation: RuntimeGenerationObservation,
+    ) -> RuntimeObservationReconciliation:
+        require_permission(context.permissions, Permission.ADMIN_MANAGE)
+
+        with self._session_factory() as session, session.begin():
+            bot = self._repository.get_bot(session, context.tenant_id, bot_id)
+            if bot is None:
+                raise BotNotFoundError("bot not found")
+            if bot.desired_runtime_generation_id != observation.generation_id:
+                raise ControlPlaneConflictError(
+                    "external runtime may only adopt the canonical desired generation"
+                )
+            if (
+                bot.observed_runtime_generation_id is not None
+                and bot.observed_runtime_generation_id != observation.generation_id
+            ):
+                raise ControlPlaneConflictError(
+                    "bot is already bound to a different observed RuntimeGeneration"
+                )
+            generation = self._repository.get_runtime_generation(
+                session, context.tenant_id, observation.generation_id
+            )
+            if generation is None or generation.bot_id != bot_id:
+                raise ControlPlaneConflictError("runtime generation does not belong to bot")
+
+            observed_state = _validate_exact_observation(
+                generation=generation,
+                observation=observation,
+            )
+
+            existing = session.get(RuntimeGenerationObservationRow, observation.observation_id)
+            if existing is not None:
+                persisted = _observation_from_row(existing)
+                if persisted != observation:
+                    raise ControlPlaneConflictError(
+                        "runtime observation id already has different immutable evidence"
+                    )
+                current = self._repository.get_bot(session, context.tenant_id, bot_id)
+                if current is None:
+                    raise BotNotFoundError("bot not found")
+                if current.observed_runtime_generation_id != generation.generation_id:
+                    raise ControlPlaneConflictError(
+                        "persisted observation does not match current observed generation"
+                    )
+                return RuntimeObservationReconciliation(
+                    bot=current,
+                    generation=generation,
+                    observation=persisted,
+                )
+
+            latest = session.scalar(
+                select(RuntimeGenerationObservationRow)
+                .where(RuntimeGenerationObservationRow.generation_id == generation.generation_id)
+                .order_by(
+                    RuntimeGenerationObservationRow.reconciled_at.desc(),
+                    RuntimeGenerationObservationRow.observation_id.desc(),
+                )
+                .limit(1)
+            )
+            if latest is not None and latest.runtime_instance_id != observation.runtime_instance_id:
+                raise ControlPlaneConflictError(
+                    "runtime instance changed within immutable RuntimeGeneration"
+                )
+
+            rollout = session.scalar(
+                select(BotRolloutRow)
+                .where(
+                    BotRolloutRow.tenant_id == context.tenant_id,
+                    BotRolloutRow.bot_id == bot_id,
+                    BotRolloutRow.to_generation_id == generation.generation_id,
+                )
+                .order_by(BotRolloutRow.updated_at.desc(), BotRolloutRow.rollout_id.desc())
+                .limit(1)
+            )
+            if rollout is None:
+                raise ControlPlaneConflictError(
+                    "external runtime adoption requires a canonical rollout"
+                )
+            if rollout.status == "SUCCEEDED":
+                if rollout.reason_code != EXTERNAL_ADOPTION_REASON:
+                    raise ControlPlaneConflictError(
+                        "successful rollout was not established by external adoption"
+                    )
+            elif rollout.status not in _PENDING_ADOPTION_ROLLOUT_STATES:
+                raise ControlPlaneConflictError(
+                    "rollout state does not permit external runtime adoption"
+                )
+
+            _add_observation(session, observation)
+            row = session.get(BotRow, (context.tenant_id, bot_id))
+            if row is None:
+                raise BotNotFoundError("bot not found")
+            row.observed_runtime_generation_id = generation.generation_id
+            row.observed_state = observed_state.value
+            row.state_version = (row.state_version or 0) + 1
+
+            if rollout.status != "SUCCEEDED":
+                rollout.status = "SUCCEEDED"
+                rollout.reason_code = EXTERNAL_ADOPTION_REASON
+                rollout.updated_at = observation.reconciled_at
+                rollout.completed_at = observation.reconciled_at
+
+            self._repository.add_audit_event(
+                session,
+                AuditEvent(
+                    audit_id=uuid4(),
+                    occurred_at=observation.reconciled_at,
+                    actor_type=context.actor_type,
+                    actor_id=context.actor_id,
+                    tenant_id=context.tenant_id,
+                    resource_type="bot",
+                    resource_id=bot_id,
+                    action=AuditAction.BOT_RUNTIME_ADOPTED,
+                    result=AuditResult.SUCCEEDED,
+                    request_id=context.request_id,
+                    correlation_id=context.correlation_id,
+                    causation_id=context.causation_id,
+                    reason_code=EXTERNAL_ADOPTION_REASON,
+                    details={
+                        "generation_id": generation.generation_id,
+                        "runtime_instance_id": observation.runtime_instance_id,
+                        "observation_id": observation.observation_id,
+                        "evidence_hash": observation.evidence_hash,
+                        "provenance": EXTERNAL_ADOPTION_REASON,
+                    },
+                ),
+            )
+            session.flush()
+            updated = self._repository.get_bot(session, context.tenant_id, bot_id)
+            if updated is None:
+                raise BotNotFoundError("bot not found")
+
+        return RuntimeObservationReconciliation(
+            bot=updated,
+            generation=generation,
+            observation=observation,
+        )
+
+
 def reconcile_external_runtime_observation(
     session_factory: SessionFactory,
     context: RequestContext,
     bot_id: str,
     observation: RuntimeGenerationObservation,
 ) -> RuntimeObservationReconciliation:
-    """Adopt a pre-existing runtime by observation only; never deploy or start it.
-
-    The desired RuntimeGeneration must already exist in the canonical control plane. The
-    observation may only converge desired -> observed when all immutable generation
-    digests match and the evidence is current, complete and identity-matched.
-    """
-
-    require_permission(context.permissions, Permission.ADMIN_MANAGE)
-    repository = BotRepository()
-
-    with session_factory() as session, session.begin():
-        bot = repository.get_bot(session, context.tenant_id, bot_id)
-        if bot is None:
-            raise BotNotFoundError("bot not found")
-        if bot.desired_runtime_generation_id != observation.generation_id:
-            raise ControlPlaneConflictError(
-                "external runtime may only adopt the canonical desired generation"
-            )
-        generation = repository.get_runtime_generation(
-            session, context.tenant_id, observation.generation_id
-        )
-        if generation is None or generation.bot_id != bot_id:
-            raise ControlPlaneConflictError("runtime generation does not belong to bot")
-
-        observed_state = _validate_exact_observation(
-            generation=generation,
-            observation=observation,
-        )
-
-        existing = session.get(RuntimeGenerationObservationRow, observation.observation_id)
-        if existing is not None:
-            persisted = _observation_from_row(existing)
-            if persisted != observation:
-                raise ControlPlaneConflictError(
-                    "runtime observation id already has different immutable evidence"
-                )
-            current = repository.get_bot(session, context.tenant_id, bot_id)
-            if current is None:
-                raise BotNotFoundError("bot not found")
-            return RuntimeObservationReconciliation(
-                bot=current,
-                generation=generation,
-                observation=persisted,
-            )
-
-        _add_observation(session, observation)
-        row = session.get(BotRow, (context.tenant_id, bot_id))
-        if row is None:
-            raise BotNotFoundError("bot not found")
-        row.observed_runtime_generation_id = generation.generation_id
-        row.observed_state = observed_state.value
-        row.state_version = (row.state_version or 0) + 1
-
-        rollout = session.scalar(
-            select(BotRolloutRow)
-            .where(
-                BotRolloutRow.tenant_id == context.tenant_id,
-                BotRolloutRow.bot_id == bot_id,
-                BotRolloutRow.to_generation_id == generation.generation_id,
-            )
-            .order_by(BotRolloutRow.updated_at.desc(), BotRolloutRow.rollout_id.desc())
-            .limit(1)
-        )
-        if rollout is not None and rollout.status in {"REQUESTED", "PRECHECK", "VERIFYING"}:
-            rollout.status = "SUCCEEDED"
-            rollout.reason_code = _EXTERNAL_ADOPTION_REASON
-            rollout.updated_at = observation.reconciled_at
-            rollout.completed_at = observation.reconciled_at
-
-        session.flush()
-        updated = repository.get_bot(session, context.tenant_id, bot_id)
-        if updated is None:
-            raise BotNotFoundError("bot not found")
-
-    return RuntimeObservationReconciliation(
-        bot=updated,
-        generation=generation,
-        observation=observation,
+    return RuntimeAdoptionService(session_factory).adopt_external_runtime(
+        context,
+        bot_id,
+        observation,
     )
 
 
@@ -246,22 +335,6 @@ def build_router(
     context_dependency: Callable[..., RequestContext],
 ) -> APIRouter:
     router = APIRouter(tags=["runtime-generation"])
-
-    @router.post(
-        "/v1/bots/{bot_id}/runtime-observations/adopt",
-        response_model=RuntimeObservationReconciliation,
-    )
-    def adopt_runtime_observation(
-        bot_id: str,
-        observation: RuntimeGenerationObservation,
-        context: RequestContext = Depends(context_dependency),
-    ) -> RuntimeObservationReconciliation:
-        return reconcile_external_runtime_observation(
-            session_factory,
-            context,
-            bot_id,
-            observation,
-        )
 
     @router.get(
         "/v1/bots/{bot_id}/runtime-observations/latest",

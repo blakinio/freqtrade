@@ -89,13 +89,12 @@ def test_state_commit_flushes_pending_ndjson_before_events_written(tmp_path: Pat
 
         assert writer._pending == 0
         assert (manager.run_root / f"{BINANCE_SOURCE}.ndjson").read_bytes() == b"{}\\n"
-        state = json.loads(
-            (manager.run_root / "run-state-v1.json").read_text(encoding="utf-8")
-        )
+        state = json.loads((manager.run_root / "run-state-v1.json").read_text(encoding="utf-8"))
         assert state["sources"][BINANCE_SOURCE]["events_written"] == 1
         await manager.stop()
 
     asyncio.run(scenario())
+
 
 def test_restart_truncates_only_uncommitted_suffix_before_completion(tmp_path: Path) -> None:
     old_run_id, old_run_root = _write_previous_active_run(

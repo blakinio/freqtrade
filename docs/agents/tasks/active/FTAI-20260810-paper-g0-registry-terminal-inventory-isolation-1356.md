@@ -40,6 +40,7 @@ Reuse authoritative PR #1447 and close the single remaining lifecycle-guard defe
 - `I8`: exact-head routed CI, CodeQL/zizmor as applicable and zero unresolved review threads are required before merge.
 - `I9`: runtime/browser E2E remains `NOT_APPLICABLE` because the repair is CI/governance-only.
 - `I10`: before final exact-head CI, archive both the exhausted parent task and this successor in the same PR according to `REPAIR_PR_ECONOMY.md`.
+- `I11`: every active task record in this delivery remains consumable by `tools/agents/checkpoint.py --require-checkpoint` through the exact `## Context checkpoint` heading.
 
 ## Owned paths
 
@@ -79,15 +80,26 @@ validator_invariants:
   - pinned terminal finding IDs are disjoint from top-level open finding IDs
   - existing exact-integer identity, uniqueness, domain-index, ADR-binding and provenance guards remain intact
 network_dependency_added: false
-repair_cycles_for_current_isolation: 1
+repair_cycles_for_current_isolation: 2
+independent_review_followup:
+  reviewed_head: 404de0a9ba89d6eb044e5aef2b560ff856d2d7f9
+  reviewer: chatgpt-codex-connector
+  submitted_at: 2026-08-10T19:29:33Z
+  severity: P1
+  thread: PRRT_kwDOTdDTU86YAbOp
+  finding: parent and successor active task records used noncanonical checkpoint headings and failed the required durable checkpoint parser
+  remediation:
+    - parent heading renamed from Terminal checkpoint for this task to Context checkpoint
+    - successor heading renamed from Checkpoint to Context checkpoint
 ```
 
-## Checkpoint
+## Context checkpoint
 
 ```yaml
-checkpoint_version: 2
-updated_at: 2026-08-10T21:26:29+02:00
-last_progress_at: 2026-08-10T21:26:29+02:00
+checkpoint_version: 3
+updated_at: 2026-08-10T21:33:00+02:00
+last_progress_at: 2026-08-10T21:33:00+02:00
+repair_cycles_for_current_isolation: 2
 status: validating
-next_action: Resolve the P2 review thread as remediated, request a fresh Codex review of the current PR head, inspect exact changed paths and exact-head CI once, then prepare same-PR task archival only after the independent review is materially clear.
+next_action: Resolve the remediated checkpoint-heading P1 thread, request fresh Codex review on the successor head and collect bounded exact-head CI; if review and CI are materially clear, archive both task records in this same PR before final successor validation and merge.
 ```

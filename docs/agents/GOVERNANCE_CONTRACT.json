@@ -1,10 +1,14 @@
 {
-  "schema_version": 2,
-  "policy_revision": 2,
+  "schema_version": 3,
+  "policy_revision": 3,
   "contract_name": "portable-agent-checkpoint-handoff",
-  "compatibility": "backward-compatible additive revision of checkpoint version 1",
+  "compatibility": "checkpoint version 2 adds durable per-task exact-SHA observation history while retaining version 1 read compatibility",
   "shared_checkpoint_contract": {
-    "version": 1,
+    "version": 2,
+    "accepted_versions": [
+      1,
+      2
+    ],
     "required_fields": [
       "checkpoint_version",
       "updated_at",
@@ -25,6 +29,24 @@
       "blockers",
       "next_action"
     ],
+    "version_2_required_fields": [
+      "ci_checks_for_current_head",
+      "review_checks_for_current_head",
+      "observation_counters_by_sha"
+    ],
+    "observation_counter_contract": {
+      "field": "observation_counters_by_sha",
+      "key_format": "lowercase_40_hex_exact_commit_sha",
+      "required_counter_keys": [
+        "ci",
+        "review"
+      ],
+      "max_exact_heads": 32,
+      "current_head_ci_scalar": "ci_checks_for_current_head",
+      "current_head_review_scalar": "review_checks_for_current_head",
+      "reset_rule": "only_a_genuinely_new_exact_commit_sha_gets_a_new_counter_entry",
+      "return_to_prior_sha_rule": "reuse_the_existing_counter_entry_for_that_task_and_sha"
+    },
     "allowed_statuses": [
       "investigating",
       "implementing",
@@ -69,7 +91,10 @@
       "ROTATE is a terminal invocation result and never a checkpoint task status.",
       "Before returning ROTATE, persist ready, waiting or blocked with one concrete next_action.",
       "NOT_APPLICABLE requires a concrete evidence reason.",
-      "Additive accepted values preserve all existing valid checkpoint version 1 records."
+      "Checkpoint version 1 remains readable only for legacy records that have not migrated to durable observation history.",
+      "Any checkpoint version 2 record must persist CI and review observations in observation_counters_by_sha keyed by exact commit SHA.",
+      "For version 2, current-head scalar counters must equal the current head entry in observation_counters_by_sha.",
+      "Returning from SHA B to previously observed SHA A reuses SHA A counters; owner invocation, Chat replacement, rerun and check-generation changes never reset them."
     ]
   }
 }

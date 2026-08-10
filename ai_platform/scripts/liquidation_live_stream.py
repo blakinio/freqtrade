@@ -5,6 +5,7 @@ import asyncio
 import json
 import os
 import re
+import stat
 import time
 import urllib.parse
 import urllib.request
@@ -158,6 +159,19 @@ def _seal_committed_ndjson(
             os.fsync(handle.fileno())
 
 
+def _restart_run_root_missing(*, live_root: Path, runs_root: Path, run_root: Path) -> bool:
+    try:
+        live_root_stat = live_root.lstat()
+        runs_root_stat = runs_root.lstat()
+        run_root_stat = run_root.lstat()
+    except FileNotFoundError:
+        return True
+    for item in (live_root_stat, runs_root_stat, run_root_stat):
+        if not stat.S_ISDIR(item.st_mode) or stat.S_ISLNK(item.st_mode):
+            raise RuntimeError("previous live run root is not a regular directory")
+    return False
+
+
 class LiveRunManager:
     def __init__(
         self,
@@ -299,6 +313,10 @@ class LiveRunManager:
             if not isinstance(run_id, str) or not RUN_ID_PATTERN.fullmatch(run_id):
                 return
             run_root = self.runs_root / run_id
+            if _restart_run_root_missing(
+                live_root=self.live_root, runs_root=self.runs_root, run_root=run_root
+            ):
+                return
             state_path = run_root / RUN_STATE_FILE
             if not state_path.is_file() or state_path.is_symlink():
                 return

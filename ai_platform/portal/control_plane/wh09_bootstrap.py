@@ -4,7 +4,6 @@ import json
 import os
 import sys
 from datetime import UTC, datetime
-from pathlib import Path
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
@@ -19,6 +18,7 @@ from ai_platform.portal.contracts.runtime_generation import (
     RuntimeGenerationObservation,
     RuntimeIdentityStatus,
 )
+from ai_platform.portal.control_plane._service_core import BotNotFoundError
 from ai_platform.portal.control_plane.context import RequestContext
 from ai_platform.portal.control_plane.database import build_engine, build_session_factory
 from ai_platform.portal.control_plane.repository import BotRepository
@@ -27,7 +27,7 @@ from ai_platform.portal.control_plane.service import ControlPlaneService
 from ai_platform.portal.control_plane.wh09_runtime import (
     WH09_BOT_ID,
     Wh09RuntimeEvidence,
-    configured_wh09_reader,
+    configured_wh09_source,
 )
 from ai_platform.wickhunter.canonical import canonical_sha256
 from ai_platform.wickhunter.contracts import BotMode
@@ -54,7 +54,7 @@ class Wh09HostRuntimeDescriptor(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     tenant_id: str = WH09_TENANT_ID
-    runtime_instance_id: str = Field(min_length=12)
+    runtime_instance_id: str = Field(pattern=r"^[0-9a-f]{64}$")
     runtime_image_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
     image_revision: str = Field(pattern=r"^[0-9a-f]{40}$")
     compose_project: str
@@ -115,7 +115,7 @@ def _spec(evidence: Wh09RuntimeEvidence) -> BotSpec:
         exchange_connection_ref="public-market-observation-only",
         pair_universe=("BINANCE_USDM_DYNAMIC",),
         timeframe="runtime-selected",
-        capital_allocation="10000",
+        capital_allocation="1",
         capital_currency="USDT",
         runtime_version=f"wh09-{evidence.operator_commit[:12]}",
         config_revision=1,
@@ -125,7 +125,10 @@ def _spec(evidence: Wh09RuntimeEvidence) -> BotSpec:
     )
 
 
-def _material(evidence: Wh09RuntimeEvidence, descriptor: Wh09HostRuntimeDescriptor) -> RuntimeGenerationMaterial:
+def _material(
+    evidence: Wh09RuntimeEvidence,
+    descriptor: Wh09HostRuntimeDescriptor,
+) -> RuntimeGenerationMaterial:
     zero_authority = {
         "trading_credentials_present": False,
         "order_adapter_present": False,
@@ -162,6 +165,7 @@ def _material(evidence: Wh09RuntimeEvidence, descriptor: Wh09HostRuntimeDescript
     }
     no_order_gateway = {
         "schema_version": WH09_GATEWAY_CONTRACT_VERSION,
+        "artifact": "none",
         "order_adapter_present": False,
         "execution_enabled": False,
         "orders_submitted": 0,
@@ -184,7 +188,7 @@ def _material(evidence: Wh09RuntimeEvidence, descriptor: Wh09HostRuntimeDescript
             }
         ),
         model_artifact_digest=evidence.model_artifact_sha256,
-        feature_schema_version="wickhunter-h900-runtime-features-v1",
+        feature_schema_version=None,
         risk_policy_digest=canonical_sha256(
             {
                 "risk_policy_version": WH09_RISK_POLICY_VERSION,
@@ -207,7 +211,7 @@ def _material(evidence: Wh09RuntimeEvidence, descriptor: Wh09HostRuntimeDescript
                 "liquid20_mount": "read-only",
             }
         ),
-        gateway_artifact_digest=canonical_sha256("no-order-gateway-adapter"),
+        gateway_artifact_digest=canonical_sha256(no_order_gateway),
         gateway_contract_version=WH09_GATEWAY_CONTRACT_VERSION,
         gateway_contract_digest=canonical_sha256(no_order_gateway),
         market_data_egress_policy_version=WH09_MARKET_EGRESS_POLICY_VERSION,
@@ -262,12 +266,41 @@ def _observation(
     )
 
 
+def _generation_matches(
+    generation: object,
+    revision_id: str,
+    material: RuntimeGenerationMaterial,
+    evidence: Wh09RuntimeEvidence,
+    descriptor: Wh09HostRuntimeDescriptor,
+) -> bool:
+    return bool(
+        getattr(generation, "config_revision_id", None) == revision_id
+        and getattr(generation, "managed_mode", None) is BotMode.SHADOW
+        and getattr(generation, "runtime_image_digest", None) == descriptor.runtime_image_digest
+        and getattr(generation, "normalized_runtime_config_digest", None)
+        == material.normalized_runtime_config_digest
+        and getattr(generation, "strategy_artifact_digest", None)
+        == material.strategy_artifact_digest
+        and getattr(generation, "model_artifact_digest", None) == evidence.model_artifact_sha256
+        and getattr(generation, "risk_policy_digest", None) == material.risk_policy_digest
+        and getattr(generation, "exchange_mode", None) == material.exchange_mode
+        and getattr(generation, "isolation_profile_digest", None)
+        == material.isolation_profile_digest
+        and getattr(generation, "isolation_plan_digest", None) == material.isolation_plan_digest
+        and getattr(generation, "gateway_artifact_digest", None) == material.gateway_artifact_digest
+        and getattr(generation, "gateway_contract_digest", None) == material.gateway_contract_digest
+        and getattr(generation, "market_data_egress_policy_digest", None)
+        == material.market_data_egress_policy_digest
+        and getattr(generation, "paper_authorization_digest", None) is None
+    )
+
+
 def bootstrap_wh09(descriptor: Wh09HostRuntimeDescriptor) -> dict[str, object]:
     descriptor.validate_wh09()
-    reader = configured_wh09_reader()
-    if reader is None:
-        raise Wh09BootstrapError("WH09 read-only runtime evidence root is not configured")
-    evidence = reader.read()
+    try:
+        evidence = configured_wh09_source().read()
+    except Exception as exc:
+        raise Wh09BootstrapError("WH09 private runtime evidence is unavailable") from exc
     if evidence.health != "HEALTHY":
         raise Wh09BootstrapError(f"WH09 runtime evidence is not healthy/current: {evidence.health}")
     if evidence.operator_commit != descriptor.image_revision:
@@ -288,7 +321,7 @@ def bootstrap_wh09(descriptor: Wh09HostRuntimeDescriptor) -> dict[str, object]:
 
     try:
         bot = service.get_bot(context, WH09_BOT_ID)
-    except LookupError:
+    except BotNotFoundError:
         bot = service.create_bot(context, WH09_BOT_ID, WH09_BOT_NAME, spec)
 
     if bot.name != WH09_BOT_NAME or bot.spec != spec:
@@ -325,7 +358,7 @@ def bootstrap_wh09(descriptor: Wh09HostRuntimeDescriptor) -> dict[str, object]:
             WH09_BOT_ID,
             revision.revision_id,
             bot.state_version,
-            f"adopt-wh09-{evidence.run_id[:24]}",
+            f"adopt-wh09-{evidence.run_id}",
         )
     else:
         with session_factory() as session:
@@ -336,17 +369,25 @@ def bootstrap_wh09(descriptor: Wh09HostRuntimeDescriptor) -> dict[str, object]:
             )
         if generation is None:
             raise Wh09BootstrapError("desired WickHunter RuntimeGeneration is missing")
-        exact_generation = (
-            generation.managed_mode is BotMode.SHADOW
-            and generation.runtime_image_digest == descriptor.runtime_image_digest
-            and generation.normalized_runtime_config_digest == material.normalized_runtime_config_digest
-            and generation.model_artifact_digest == evidence.model_artifact_sha256
-            and generation.paper_authorization_digest is None
-        )
-        if not exact_generation:
+        if not _generation_matches(
+            generation,
+            revision.revision_id,
+            material,
+            evidence,
+            descriptor,
+        ):
             raise Wh09BootstrapError(
-                "existing desired WickHunter RuntimeGeneration differs from the observed WH09 runtime"
+                "existing desired WickHunter RuntimeGeneration differs from observed WH09 runtime"
             )
+
+    bot = service.get_bot(context, WH09_BOT_ID)
+    if (
+        bot.observed_runtime_generation_id is not None
+        and bot.observed_runtime_generation_id != generation.generation_id
+    ):
+        raise Wh09BootstrapError(
+            "WickHunter is already bound to a different observed RuntimeGeneration"
+        )
 
     observation = _observation(
         evidence=evidence,

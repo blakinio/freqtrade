@@ -320,10 +320,12 @@ def bootstrap_wh09(descriptor: Wh09HostRuntimeDescriptor) -> dict[str, object]:
         generation_material_resolver=lambda _context, _revision: material,
     )
 
+    created_bot = False
     try:
         bot = service.get_bot(context, WH09_BOT_ID)
     except BotNotFoundError:
         bot = service.create_bot(context, WH09_BOT_ID, WH09_BOT_NAME, spec)
+        created_bot = True
 
     if bot.name != WH09_BOT_NAME or bot.spec != spec:
         raise Wh09BootstrapError("existing WickHunter BotInstance differs from canonical WH09 adoption spec")
@@ -340,6 +342,10 @@ def bootstrap_wh09(descriptor: Wh09HostRuntimeDescriptor) -> dict[str, object]:
     if revision is None:
         raise Wh09BootstrapError("canonical WickHunter revision is missing")
     if revision.state is BotConfigRevisionState.DRAFT:
+        if not created_bot:
+            raise Wh09BootstrapError(
+                "existing WickHunter DRAFT revision requires explicit promotion before adoption"
+            )
         revision = service.promote_revision(
             context,
             WH09_BOT_ID,
@@ -349,9 +355,6 @@ def bootstrap_wh09(descriptor: Wh09HostRuntimeDescriptor) -> dict[str, object]:
         bot = service.get_bot(context, WH09_BOT_ID)
     elif revision.state is not BotConfigRevisionState.PROMOTED:
         raise Wh09BootstrapError("canonical WickHunter revision is not promotable")
-
-    if bot.desired_state is not BotDesiredState.RUNNING:
-        bot = service.set_desired_state(context, WH09_BOT_ID, BotDesiredState.RUNNING)
 
     if bot.desired_runtime_generation_id is None:
         bot, generation, _rollout = service.apply_revision(
@@ -382,6 +385,8 @@ def bootstrap_wh09(descriptor: Wh09HostRuntimeDescriptor) -> dict[str, object]:
             )
 
     bot = service.get_bot(context, WH09_BOT_ID)
+    if bot.desired_state is not BotDesiredState.RUNNING:
+        bot = service.set_desired_state(context, WH09_BOT_ID, BotDesiredState.RUNNING)
     if (
         bot.observed_runtime_generation_id is not None
         and bot.observed_runtime_generation_id != generation.generation_id

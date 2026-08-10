@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import StrictBool, StrictInt
+from pydantic import StrictBool, StrictInt, model_validator
 from sqlalchemy import select
 
 from ai_platform.portal.contracts.common import ContractModel, NonEmptyStr, Sha256Hex, UtcDateTime
@@ -25,10 +28,12 @@ from ai_platform.wickhunter.production_research_runtime import FROZEN_NO_TRADE_C
 
 WH09_BOT_ID = "wickhunter"
 WH09_RUNTIME_ROOT_ENV = "PORTAL_WICKHUNTER_WH09_ROOT"
+WH09_PRIVATE_OBSERVER_URL = "http://portal-wh09-runtime-observer:8080/evidence"
 WH09_IDENTITY_SCHEMA = "wickhunter-production-research-runtime-identity-v1"
 WH09_TELEMETRY_SCHEMA = "wickhunter-production-research-telemetry-v1"
 WH09_HEALTH_SCHEMA = "wickhunter-production-research-runtime-health-v1"
 WH09_DECISION_SCHEMA = "wickhunter-production-research-decision-v1"
+WH09_EXPECTED_BOT_INSTANCE = "wickhunter-wh09-production-research"
 WH09_EXPECTED_PACKAGE_ID = "wickhunter-wh09-candidate-materialization-20260808-r1-h900s-7b23a958fd4d"
 WH09_EXPECTED_MANIFEST_SHA256 = "9f5ba852e33915678ca085c2eeafbf526457a079ba8f6f2fb7c1097f1d20ab79"
 WH09_EXPECTED_MODEL_ARTIFACT_SHA256 = "0488eaea68a316e3659e3b9e2fcea667eb57de87a22888ce396d112a5c075d2e"
@@ -36,6 +41,7 @@ WH09_EXPECTED_MODEL_HASH = "eddd12e3d0c5922547df89d9fa3d8556b8131a62c3cb8057c5a2
 WH09_EXPECTED_PARAMETER_HASH = "014b471b9ccc663c3551a151353ae7cd932bd43ed48b9fbf239baad3483e2c11"
 WH09_OUTCOME_HORIZON_MS = 900_000
 WH09_MAX_EVIDENCE_AGE_SECONDS = 600
+WH09_MAX_OBSERVER_RESPONSE_BYTES = 512 * 1024
 
 ZERO_AUTHORITY_FIELDS = (
     "protected_holdout_accessed",
@@ -59,6 +65,12 @@ class Wh09LatestDecision(ContractModel):
     no_trade_confidence: Decimal
     observed_at_ms: int
     record_sha256: Sha256Hex
+
+    @model_validator(mode="after")
+    def validate_frozen_threshold(self) -> Wh09LatestDecision:
+        if self.no_trade_confidence != FROZEN_NO_TRADE_CONFIDENCE:
+            raise ValueError("WH09 decision no-trade threshold differs from frozen 0.60")
+        return self
 
 
 class Wh09RuntimeEvidence(ContractModel):
@@ -95,6 +107,37 @@ class Wh09RuntimeEvidence(ContractModel):
     telemetry_sha256: Sha256Hex
     identity_sha256: Sha256Hex
 
+    @model_validator(mode="after")
+    def validate_frozen_wh09_contract(self) -> Wh09RuntimeEvidence:
+        if self.mode is not BotMode.SHADOW:
+            raise ValueError("WH09 managed runtime evidence must remain SHADOW")
+        if self.package_id != WH09_EXPECTED_PACKAGE_ID:
+            raise ValueError("WH09 package identity mismatch")
+        if self.package_manifest_sha256 != WH09_EXPECTED_MANIFEST_SHA256:
+            raise ValueError("WH09 package manifest mismatch")
+        if self.model_artifact_sha256 != WH09_EXPECTED_MODEL_ARTIFACT_SHA256:
+            raise ValueError("WH09 model artifact mismatch")
+        if self.model_hash != WH09_EXPECTED_MODEL_HASH:
+            raise ValueError("WH09 model hash mismatch")
+        if self.parameter_hash != WH09_EXPECTED_PARAMETER_HASH:
+            raise ValueError("WH09 parameter hash mismatch")
+        if self.no_trade_confidence != FROZEN_NO_TRADE_CONFIDENCE:
+            raise ValueError("WH09 no-trade threshold differs from frozen 0.60")
+        if self.outcome_horizon_ms != WH09_OUTCOME_HORIZON_MS:
+            raise ValueError("WH09 outcome horizon differs from frozen H900 contract")
+        if self.paper_active is not False or self.paper_activation_authorized is not False:
+            raise ValueError("WH09 PAPER authority is not allowed")
+        if (
+            self.trading_credentials_present is not False
+            or self.order_adapter_present is not False
+            or self.execution_enabled is not False
+            or type(self.orders_submitted) is not int
+            or self.orders_submitted != 0
+            or self.live_capital_authorized is not False
+        ):
+            raise ValueError("WH09 runtime evidence contains forbidden trading authority")
+        return self
+
 
 class Wh09PortalRuntimeView(ContractModel):
     bot_id: NonEmptyStr
@@ -108,11 +151,15 @@ class Wh09PortalRuntimeView(ContractModel):
     runtime: Wh09RuntimeEvidence
 
 
+class Wh09RuntimeEvidenceSource(Protocol):
+    def read(self) -> Wh09RuntimeEvidence: ...
+
+
 def _load_object(path: Path, *, label: str) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file():
         raise Wh09RuntimeEvidenceError(f"{label} is not a regular file")
     size = path.stat().st_size
-    if size <= 0 or size > 512 * 1024:
+    if size <= 0 or size > WH09_MAX_OBSERVER_RESPONSE_BYTES:
         raise Wh09RuntimeEvidenceError(f"{label} size is invalid")
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -154,7 +201,7 @@ class Wh09RuntimeEvidenceReader:
         self,
         root: Path,
         *,
-        clock: callable | None = None,
+        clock: Callable[[], datetime] | None = None,
         max_age_seconds: int = WH09_MAX_EVIDENCE_AGE_SECONDS,
     ) -> None:
         if not root.is_absolute():
@@ -190,6 +237,8 @@ class Wh09RuntimeEvidenceReader:
             raise Wh09RuntimeEvidenceError("WH09 telemetry schema mismatch")
         if health.get("schema_version") != WH09_HEALTH_SCHEMA:
             raise Wh09RuntimeEvidenceError("WH09 health schema mismatch")
+        if identity.get("bot_instance") != WH09_EXPECTED_BOT_INSTANCE:
+            raise Wh09RuntimeEvidenceError("WH09 bot instance identity mismatch")
 
         _require_zero_authority(identity, label="WH09 identity")
         _require_zero_authority(telemetry, label="WH09 telemetry")
@@ -229,6 +278,8 @@ class Wh09RuntimeEvidenceReader:
             raise Wh09RuntimeEvidenceError("WH09 health does not bind current telemetry")
         if telemetry.get("operator_commit") != health.get("operator_commit"):
             raise Wh09RuntimeEvidenceError("WH09 operator commit differs across evidence")
+        if telemetry.get("runtime_generation") != health.get("generation"):
+            raise Wh09RuntimeEvidenceError("WH09 source generation differs across telemetry/health")
 
         checked_at = _millis_to_datetime(health.get("checked_at_ms"), field="checked_at_ms")
         age_seconds = (self._clock() - checked_at).total_seconds()
@@ -240,11 +291,11 @@ class Wh09RuntimeEvidenceReader:
             and health.get("model_drift") == "healthy"
             and health.get("data_drift") == "healthy"
             and health.get("circuit_breaker_active") is False
-            and not health.get("circuit_breaker_reasons")
+            and health.get("circuit_breaker_reasons") == []
             and health.get("error_code") is None
         )
         if age_seconds > self._max_age_seconds:
-            health_state = "STALE"
+            health_state: Literal["HEALTHY", "DEGRADED", "STALE"] = "STALE"
         elif source_healthy:
             health_state = "HEALTHY"
         else:
@@ -261,30 +312,33 @@ class Wh09RuntimeEvidenceReader:
         if type(no_trade_count) is not int or no_trade_count < 0 or no_trade_count > decision_count:
             raise Wh09RuntimeEvidenceError("WH09 no_trade_count is invalid")
 
-        return Wh09RuntimeEvidence(
-            run_id=str(identity["run_id"]),
-            mode=BotMode.SHADOW,
-            health=health_state,
-            source_checked_at=checked_at,
-            source_runtime_generation=source_generation,
-            package_id=str(identity["package_id"]),
-            package_manifest_sha256=str(identity["package_manifest_sha256"]),
-            model_version=str(identity["model_version"]),
-            model_hash=str(identity["model_hash"]),
-            model_artifact_sha256=str(identity["model_artifact_sha256"]),
-            parameter_version=str(identity["parameter_version"]),
-            parameter_hash=str(identity["parameter_hash"]),
-            dataset_hash=str(identity["dataset_hash"]),
-            operator_commit=str(health["operator_commit"]),
-            no_trade_confidence=Decimal(str(identity["no_trade_confidence"])),
-            outcome_horizon_ms=int(identity["outcome_horizon_ms"]),
-            decision_count=decision_count,
-            no_trade_count=no_trade_count,
-            latest_decision=latest_decision,
-            health_sha256=health_hash,
-            telemetry_sha256=telemetry_hash,
-            identity_sha256=identity_hash,
-        )
+        try:
+            return Wh09RuntimeEvidence(
+                run_id=str(identity["run_id"]),
+                mode=BotMode.SHADOW,
+                health=health_state,
+                source_checked_at=checked_at,
+                source_runtime_generation=source_generation,
+                package_id=str(identity["package_id"]),
+                package_manifest_sha256=str(identity["package_manifest_sha256"]),
+                model_version=str(identity["model_version"]),
+                model_hash=str(identity["model_hash"]),
+                model_artifact_sha256=str(identity["model_artifact_sha256"]),
+                parameter_version=str(identity["parameter_version"]),
+                parameter_hash=str(identity["parameter_hash"]),
+                dataset_hash=str(identity["dataset_hash"]),
+                operator_commit=str(health["operator_commit"]),
+                no_trade_confidence=Decimal(str(identity["no_trade_confidence"])),
+                outcome_horizon_ms=int(identity["outcome_horizon_ms"]),
+                decision_count=decision_count,
+                no_trade_count=no_trade_count,
+                latest_decision=latest_decision,
+                health_sha256=health_hash,
+                telemetry_sha256=telemetry_hash,
+                identity_sha256=identity_hash,
+            )
+        except ValueError as exc:
+            raise Wh09RuntimeEvidenceError("WH09 evidence failed frozen contract validation") from exc
 
     def _latest_decision(
         self,
@@ -293,10 +347,15 @@ class Wh09RuntimeEvidenceReader:
     ) -> Wh09LatestDecision | None:
         if decisions_root.is_symlink() or not decisions_root.is_dir():
             return None
+        paths = [
+            path
+            for path in decisions_root.iterdir()
+            if path.suffix == ".json" and path.is_file() and not path.is_symlink()
+        ]
+        if len(paths) > 10_000:
+            raise Wh09RuntimeEvidenceError("WH09 decision evidence inventory exceeds safety bound")
         latest: tuple[int, dict[str, Any]] | None = None
-        for path in decisions_root.iterdir():
-            if path.suffix != ".json" or path.is_symlink() or not path.is_file():
-                continue
+        for path in paths:
             payload = _load_object(path, label="WH09 decision")
             if payload.get("schema_version") != WH09_DECISION_SCHEMA:
                 raise Wh09RuntimeEvidenceError("WH09 decision schema mismatch")
@@ -315,31 +374,56 @@ class Wh09RuntimeEvidenceReader:
         threshold = Decimal(str(payload.get("no_trade_confidence")))
         if threshold != FROZEN_NO_TRADE_CONFIDENCE:
             raise Wh09RuntimeEvidenceError("WH09 latest decision changed no-trade threshold")
-        return Wh09LatestDecision(
-            final_decision=str(payload["final_decision"]),
-            status=str(payload["status"]),
-            symbol=str(payload["symbol"]),
-            calibrated_confidence=(
-                None
-                if payload.get("calibrated_confidence") is None
-                else Decimal(str(payload["calibrated_confidence"]))
-            ),
-            no_trade_confidence=threshold,
-            observed_at_ms=int(payload["observed_at_ms"]),
-            record_sha256=str(payload["record_sha256"]),
-        )
+        try:
+            return Wh09LatestDecision(
+                final_decision=str(payload["final_decision"]),
+                status=str(payload["status"]),
+                symbol=str(payload["symbol"]),
+                calibrated_confidence=(
+                    None
+                    if payload.get("calibrated_confidence") is None
+                    else Decimal(str(payload["calibrated_confidence"]))
+                ),
+                no_trade_confidence=threshold,
+                observed_at_ms=int(payload["observed_at_ms"]),
+                record_sha256=str(payload["record_sha256"]),
+            )
+        except (KeyError, ValueError) as exc:
+            raise Wh09RuntimeEvidenceError("WH09 latest decision payload is invalid") from exc
 
 
-def configured_wh09_reader() -> Wh09RuntimeEvidenceReader | None:
-    value = os.environ.get(WH09_RUNTIME_ROOT_ENV, "").strip()
-    if not value:
-        return None
-    return Wh09RuntimeEvidenceReader(Path(value))
+class Wh09RuntimeEvidenceHttpClient:
+    def __init__(self, endpoint: str = WH09_PRIVATE_OBSERVER_URL) -> None:
+        if endpoint != WH09_PRIVATE_OBSERVER_URL:
+            raise ValueError("WH09 private observer endpoint is not canonical")
+        self._endpoint = endpoint
+
+    def read(self) -> Wh09RuntimeEvidence:
+        request = Request(self._endpoint, headers={"accept": "application/json"}, method="GET")
+        try:
+            with urlopen(request, timeout=5) as response:  # noqa: S310 - exact private endpoint above
+                body = response.read(WH09_MAX_OBSERVER_RESPONSE_BYTES + 1)
+        except (HTTPError, URLError, TimeoutError) as exc:
+            raise Wh09RuntimeEvidenceError("WH09 private observer is unavailable") from exc
+        if len(body) > WH09_MAX_OBSERVER_RESPONSE_BYTES:
+            raise Wh09RuntimeEvidenceError("WH09 private observer response is too large")
+        try:
+            payload = json.loads(body)
+            return Wh09RuntimeEvidence.model_validate(payload)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+            raise Wh09RuntimeEvidenceError("WH09 private observer response is invalid") from exc
+
+
+def configured_wh09_source() -> Wh09RuntimeEvidenceSource:
+    local_root = os.environ.get(WH09_RUNTIME_ROOT_ENV, "").strip()
+    if local_root:
+        return Wh09RuntimeEvidenceReader(Path(local_root))
+    return Wh09RuntimeEvidenceHttpClient()
 
 
 def build_router(
     session_factory: SessionFactory,
-    context_dependency: callable,
+    context_dependency: Callable[..., RequestContext],
 ) -> APIRouter:
     router = APIRouter(tags=["wickhunter-runtime"])
     service = ControlPlaneService(session_factory)
@@ -356,14 +440,8 @@ def build_router(
         bot = service.get_bot(context, bot_id)
         if bot.bot_id != WH09_BOT_ID:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not a WickHunter WH09 bot")
-        reader = configured_wh09_reader()
-        if reader is None:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="WH09 runtime evidence source is not configured",
-            )
         try:
-            evidence = reader.read()
+            evidence = configured_wh09_source().read()
         except Wh09RuntimeEvidenceError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

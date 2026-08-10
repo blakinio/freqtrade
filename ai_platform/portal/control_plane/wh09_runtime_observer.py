@@ -28,7 +28,7 @@ def _reader() -> Wh09RuntimeEvidenceReader:
 class Wh09ObserverHandler(BaseHTTPRequestHandler):
     server_version = "WH09Observer/1"
 
-    def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler contract
+    def do_GET(self) -> None:
         if self.path not in {"/healthz", "/evidence"}:
             self._json(HTTPStatus.NOT_FOUND, {"detail": "not found"})
             return

@@ -16,10 +16,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  measure:
-    name: Measure loaded Synology Docker lifecycle bounds
+  validate:
+    name: Run calibrated PR 1454 preflight twice on Synology
     runs-on: [freqtrade-staging]
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Refuse trading credential environment
         shell: bash
@@ -29,57 +29,42 @@ jobs:
             test -z "${!name:-}" || { echo "recognized trading credential present: $name" >&2; exit 1; }
           done
 
-      - name: Measure exact pinned probe lifecycle under current load
+      - name: Checkout exact calibrated preflight repair head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: 6ae3439986c2852130cc18bd692bba18fdc8c93e
+
+      - name: Run exact repaired runtime preflight twice
         shell: bash
         env:
-          REPORT: ${{ runner.temp }}/synology-1089-loaded-lifecycle.txt
+          REPORT: ${{ runner.temp }}/synology-1089-calibrated-preflight.txt
         run: |
-          set -u
-          set +e
+          set -euo pipefail
           : > "$REPORT"
-          image='docker.io/library/postgres:16.13-alpine3.23@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777'
-          probe="portal-oidc-measure-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          record() {
-            label="$1"; seconds="$2"; shift 2
+          for attempt in 1 2; do
             started=$(date +%s)
-            timeout --kill-after=5 "$seconds" "$@" >> "$REPORT" 2>&1
-            rc=$?
+            output="$(python3 deploy/synology/portal-oidc/docker_runtime_preflight.py)"
             ended=$(date +%s)
-            printf '%s_rc=%s\n%s_elapsed_seconds=%s\n' "$label" "$rc" "$label" "$((ended-started))" | tee -a "$REPORT"
-            return "$rc"
-          }
-          record docker_version 30 docker version || true
-          record docker_info 30 docker info || true
-          stale="$(timeout --kill-after=3 20 docker ps -a --format '{{.Names}}' 2>/dev/null | grep -E '^portal-oidc-(runtime-preflight|measure)-' || true)"
-          if [[ -n "$stale" ]]; then
-            while IFS= read -r name; do
-              [[ -n "$name" ]] || continue
-              record "stale_remove_${name}" 120 docker rm -f "$name" || true
-            done <<< "$stale"
-          fi
-          failures=0
-          record create 180 docker create --name "$probe" --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true --entrypoint /bin/true "$image" || failures=$((failures+1))
-          if timeout --kill-after=3 20 docker inspect "$probe" >/dev/null 2>&1; then
-            record start 180 docker start "$probe" || failures=$((failures+1))
-            record wait 120 docker wait "$probe" || failures=$((failures+1))
-            record inspect 30 docker inspect --format 'status={{.State.Status}} exit={{.State.ExitCode}} started={{.State.StartedAt}} finished={{.State.FinishedAt}}' "$probe" || failures=$((failures+1))
-            record remove 120 docker rm -f "$probe" || failures=$((failures+1))
-          else
-            echo 'probe_missing_after_create=true' | tee -a "$REPORT"
-            failures=$((failures+1))
-          fi
-          record post_docker_version 30 docker version || failures=$((failures+1))
-          leak="$(timeout --kill-after=3 20 docker inspect "$probe" >/dev/null 2>&1; echo $?)"
-          if [[ "$leak" == 0 ]]; then echo 'probe_leaked=true' | tee -a "$REPORT"; failures=$((failures+1)); else echo 'probe_leaked=false' | tee -a "$REPORT"; fi
-          echo "measure_failures=$failures" | tee -a "$REPORT"
-          [[ "$failures" -eq 0 ]]
+            printf 'attempt_%s_elapsed_seconds=%s\n%s\n' "$attempt" "$((ended-started))" "$output" | tee -a "$REPORT"
+            grep -F '"status": "ready"' <<< "$output"
+            grep -F '"disposable_container_start": true' <<< "$output"
+            grep -F '"secret_values_recorded": false' <<< "$output"
+            grep -F '"live_capital_authorized": false' <<< "$output"
+          done
+          leaks="$(timeout 30 docker ps -a --format '{{.Names}}' | grep -E '^portal-oidc-runtime-preflight-' || true)"
+          [[ -z "$leaks" ]]
+          echo 'probe_leaks=none' | tee -a "$REPORT"
+          timeout 30 docker version >/dev/null
+          echo 'post_docker_version=ok' | tee -a "$REPORT"
 
-      - name: Upload loaded lifecycle evidence
+      - name: Upload calibrated preflight evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: synology-1089-loaded-lifecycle-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/synology-1089-loaded-lifecycle.txt
+          name: synology-1089-calibrated-preflight-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/synology-1089-calibrated-preflight.txt
           if-no-files-found: error
           retention-days: 14
 
@@ -87,17 +72,17 @@ jobs:
         if: always()
         shell: bash
         env:
-          REPORT: ${{ runner.temp }}/synology-1089-loaded-lifecycle.txt
+          REPORT: ${{ runner.temp }}/synology-1089-calibrated-preflight.txt
         run: |
           {
-            echo '## Synology #1089 loaded lifecycle measurement'
+            echo '## Synology #1089 calibrated preflight validation'
             echo
-            [[ -f "$REPORT" ]] && grep -E '^(docker_|stale_|create_|start_|wait_|inspect_|remove_|post_|probe_|measure_)' "$REPORT" | sed 's/^/- /' || true
+            [[ -f "$REPORT" ]] && sed 's/^/- /' "$REPORT" || true
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Cleanup local evidence
         if: always()
         shell: bash
         env:
-          REPORT: ${{ runner.temp }}/synology-1089-loaded-lifecycle.txt
+          REPORT: ${{ runner.temp }}/synology-1089-calibrated-preflight.txt
         run: rm -f -- "$REPORT"

@@ -1,7 +1,7 @@
 # Autonomous Program Continuation Contract
 
 ```yaml
-autonomous_program_contract_version: 2.2
+autonomous_program_contract_version: 2.3
 ```
 
 ## Purpose
@@ -37,6 +37,7 @@ run_scope: autonomous_program
 continuation_policy: continue_until_real_stop
 task_completion_policy: finalize_archive_and_continue
 user_communication: low_noise
+continuous_program_execution: false  # set true only from trusted owner/base authority
 ```
 
 ## Authority and trust
@@ -55,8 +56,9 @@ At invocation start:
 4. inspect checkpoints, branches, exact heads, PRs, reviews, CI, ownership, leases, dependencies, and safety boundaries;
 5. search for related, duplicate, superseded, abandoned, and request-only PRs;
 6. load the acceptance inventory, delivery classification, real producer/consumer path, and required E2E journey;
-7. repair stale coordinator state only with sufficient repository evidence and authority;
-8. do not ask the owner to restate information available in live state.
+7. resolve whether a trusted `continuous_program_execution` override is active and record its source without letting current unmerged governance self-authorize it;
+8. repair stale coordinator state only with sufficient repository evidence and authority;
+9. do not ask the owner to restate information available in live state.
 
 Use just-in-time context and the smallest evidence slice that can support the next decision.
 
@@ -79,9 +81,9 @@ Repeat while a safe action is available and the execution budget permits:
 13. **Close PRs and reviews** — make every related PR intentionally terminal and resolve review threads.
 14. **Finalize task** — write terminal evidence, set `status: completed`, archive or terminally close the task, and release ownership or leases.
 15. **Review barrier** — refresh dependencies, programme state, and stale related work.
-16. **Continue programme** — start at most one additional `READY` task after the terminal entry task, only when the anti-stall contract permits it.
+16. **Continue programme** — in default mode start at most one additional `READY` task after the terminal entry task when the anti-stall contract permits it. When a trusted continuous-programme override is active, checkpoint any externally waiting task and rotate to the next dependency-safe, non-conflicting `READY` task without using rotation to evade per-head/per-gate limits.
 
-Do not return merely because one phase or the entry task completed. Do not start a second additional task in the same invocation.
+Do not return merely because one phase or the entry task completed. The default mode still prohibits a second additional task. A trusted continuous-programme override replaces only that fixed task-count rule; it does not enlarge runtime, repair, CI, safety, ownership or authority budgets.
 
 ## Vertical-slice rule
 
@@ -119,6 +121,7 @@ Checkpoint so work survives context loss, tool failure, rotation, or takeover. A
 - continue immediately when `next_action` is safe;
 - return `ROTATE` only when a fresh role or context is safer or required;
 - use `status: waiting` for unchanged external dependencies;
+- when trusted continuous execution is active, a waiting checkpoint may release that task and permit selection of another dependency-safe `READY` task;
 - keep the owner invocation active only while useful work and budget remain.
 
 Do not turn checkpoint cadence into owner-interaction cadence.
@@ -173,19 +176,21 @@ A task may become `completed` only after:
 9. ownership, worktree, and leases are released;
 10. stale branches or indexes are reconciled through approved mechanisms.
 
-Afterwards review the barrier and start at most one additional task when the anti-stall budget allows it.
+Afterwards review the barrier. Default mode may start at most one additional task when the anti-stall budget allows it; trusted continuous mode may keep selecting dependency-safe `READY` tasks while useful budget remains.
 
 ## Waiting and external events
 
 Do not keep a worker active merely to wait for CI, another task, deployment, an observation window, a scheduled run, or an owner reply.
 
-Persist exact `status: waiting` evidence and one `next_action`, release the worker or lease where appropriate, and execute other independent work already inside the same task. Start an additional task only under the anti-stall gate. Return when every authorized path is waiting or blocked, or another real stop condition applies.
+Persist exact `status: waiting` evidence and one `next_action`, release the worker or lease where appropriate, and execute other independent work already inside the same task. In default mode, start an additional task only under the fixed anti-stall gate. Under a trusted continuous-programme override, the coordinator may instead select another dependency-safe, non-conflicting `READY` task even while the prior task remains waiting.
+
+Never revisit a waiting task merely because time passed. Revisit only after a material external-state change, new exact-head/check generation, or later invocation, preserving that task's counters. Return when every authorized path is waiting or blocked, or another real stop condition applies.
 
 Repeated status polling is not useful work.
 
 ## Parallel work
 
-Parallelism is allowed only for independent owned paths and branches with valid dependency order and repository concurrency limits. One coordinator remains responsible for shared state, acceptance, barrier review, and final integration. Do not increase writer count merely because agents are available.
+Parallelism is allowed only for independent owned paths and branches with valid dependency order and repository concurrency limits. One coordinator remains responsible for shared state, acceptance, barrier review, and final integration. Do not increase writer count merely because agents are available. Continuous wait rotation defaults to one active writer at a time.
 
 ## Low-noise communication
 
@@ -201,13 +206,15 @@ Stop when:
 
 - all currently authorized programme work within the invocation budget is complete;
 - no safe `READY` action remains and all remaining work is genuinely waiting or blocked;
-- the additional-task allowance has been consumed;
+- in default mode, the additional-task allowance has been consumed;
 - a material owner, authority, product, or architecture decision is required;
 - ownership conflict or a safety rule prevents continuation;
 - production, credentials, protected data, irreversible effects, or live capital require separate authorization;
 - context, tool, or environment limits make continuation unsafe;
 - allowed repair attempts failed and the defect requires a fresh isolation phase;
 - an anti-stall limit is reached.
+
+When trusted continuous execution is active, consuming the default one-additional-task allowance is not a stop condition. Wall-clock/no-progress limits and the absence of dependency-safe `READY` work remain stop conditions.
 
 Phase completion, checkpoint, commit, PR creation, green CI, merge, audit, E2E, PR cleanup, task archival, or worker-session end are not stop conditions by themselves.
 
@@ -232,5 +239,6 @@ Do not:
 - leave duplicate, superseded, abandoned, or request-only PRs open;
 - leave completed tasks falsely active or ownership claimed;
 - poll indefinitely instead of doing safe work;
-- start more than one additional task after the entry task;
+- in default mode, start more than one additional task after the entry task;
+- in continuous mode, use task switching to reset counters, bypass dependencies, exceed writer limits or manufacture activity;
 - silently broaden authorization or bypass safety or merge gates.

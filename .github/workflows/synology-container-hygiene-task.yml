@@ -15,65 +15,25 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  cleanup:
+  inventory:
     runs-on: [freqtrade-staging]
     timeout-minutes: 5
     steps:
-      - name: Remove only verified obsolete Liquid20 acceptance container
+      - name: Inventory Docker resources read-only
         run: |
           set -euo pipefail
           docker version >/dev/null
 
-          candidate_id="7dff35957847a73b0676e91654ac42f1f15840ebf2d91531e7bde286b09a6cea"
-          candidate_name="liquid20-collector"
-          candidate_image="ghcr.io/blakinio/liquid20-collector:c00a091c5adc67cf75c46db5805e358ffc72fad7"
-
-          verify_running() {
-            local name="$1"
-            docker inspect "$name" >/dev/null 2>&1
-            test "$(docker inspect --format '{{.State.Running}}' "$name")" = "true"
-          }
-
-          protected=(
-            liquid20-live
-            freqtrade-portal-postgresql
-            freqtrade-portal-staging
-            freqtrade-portal-control-plane
-            wickhunter-paper-runtime-v12
-            wickhunter-wh09-egress-v12
-            wickhunter-market-evidence
-            wickhunter-market-evidence-v2
-            freqtrade-synology-staging-runner
-          )
-
-          echo "=== PRE-CLEANUP PROTECTION CHECK ==="
-          for name in "${protected[@]}"; do
-            verify_running "$name"
-            echo "PROTECTED_RUNNING|$name"
+          echo "=== CONTAINERS ==="
+          for id in $(docker ps -aq --no-trunc); do
+            docker inspect --format 'CONTAINER|{{.Id}}|{{.Name}}|{{.Config.Image}}|{{.State.Status}}|{{.State.Running}}|{{.HostConfig.RestartPolicy.Name}}|{{.Created}}|compose_project={{index .Config.Labels "com.docker.compose.project"}}|compose_service={{index .Config.Labels "com.docker.compose.service"}}|compose_config={{index .Config.Labels "com.docker.compose.project.config_files"}}|compose_workdir={{index .Config.Labels "com.docker.compose.project.working_dir"}}' "$id"
+            docker inspect --format '{{range .Mounts}}MOUNT|{{$.Id}}|{{.Type}}|{{.Source}}|{{.Destination}}|rw={{.RW}}{{println}}{{end}}' "$id"
           done
 
-          docker inspect "$candidate_id" >/dev/null 2>&1
-          test "$(docker inspect --format '{{.Name}}' "$candidate_id")" = "/$candidate_name"
-          test "$(docker inspect --format '{{.Config.Image}}' "$candidate_id")" = "$candidate_image"
-          test "$(docker inspect --format '{{.State.Running}}' "$candidate_id")" = "false"
-          test "$(docker inspect --format '{{.State.Status}}' "$candidate_id")" = "exited"
-          test "$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$candidate_id")" = "no"
+          echo "=== COMPOSE PROJECTS ==="
+          docker compose ls --all --format json || true
 
-          echo "REMOVING_VERIFIED_CONTAINER|$candidate_id|$candidate_name"
-          docker rm "$candidate_id"
-
-          if docker inspect "$candidate_id" >/dev/null 2>&1 || docker inspect "$candidate_name" >/dev/null 2>&1; then
-            echo "Candidate still exists after cleanup" >&2
-            exit 1
-          fi
-
-          echo "=== POST-CLEANUP PROTECTION CHECK ==="
-          for name in "${protected[@]}"; do
-            verify_running "$name"
-            echo "PROTECTED_RUNNING|$name"
-          done
-
-          echo "=== POST-CLEANUP SUMMARY ==="
+          echo "=== COUNTS ==="
           echo "all=$(docker ps -aq | wc -l | tr -d ' ')"
           echo "running=$(docker ps -q | wc -l | tr -d ' ')"
           echo "exited=$(docker ps -aq --filter status=exited | wc -l | tr -d ' ')"

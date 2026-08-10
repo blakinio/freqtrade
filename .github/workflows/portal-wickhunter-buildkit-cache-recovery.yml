@@ -54,53 +54,40 @@ jobs:
               elif line.startswith("head:"):
                   line = f"head: {head}"
 
+              if line.startswith("blockers:") and not inserted["validation"]:
+                  output.extend([
+                      validation_marker,
+                      "    result: PASS",
+                      "    evidence: GitHub Actions run 31434035985 job 93603982630 passed 14 focused integration tests plus Ruff check and format before the bookkeeping-only failure",
+                  ])
+                  inserted["validation"] = True
+
               if line and not line.startswith(" ") and line.endswith(":"):
-                  if line == "blockers:" and not inserted["validation"]:
-                      if validation_marker not in output:
-                          output.extend([
-                              validation_marker,
-                              "    result: PASS",
-                              "    evidence: GitHub Actions run 31434035985 job 93603982630 passed 14 focused integration tests plus Ruff check and format before the bookkeeping-only failure",
-                          ])
-                      inserted["validation"] = True
                   current = line[:-1]
 
               output.append(line)
 
               if current in {"context_routes", "owned_paths", "changed_paths"} and line == "  - tests/ai_platform_integration/test_liquidation_live_restart_durability.py":
-                  if new_path not in output:
-                      output.append(new_path)
+                  output.append(new_path)
                   inserted[current] = True
 
               if current == "proven" and "exact focused validation passed on head 2c3cb8387c22e3fb3864abeea312aa79476c84b1" in line:
-                  proof = "  - full ci:full compatibility testing exposed a stale legacy migration fixture that declared configured zero-row Bybit and Binance sources without their regular empty files; the fixture now models the valid historical contract without weakening production fail-closed behavior"
-                  if proof not in output:
-                      output.append(proof)
+                  output.append("  - full ci:full compatibility testing exposed a stale legacy migration fixture that declared configured zero-row Bybit and Binance sources without their regular empty files; the fixture now models the valid historical contract without weakening production fail-closed behavior")
                   inserted["proven"] = True
 
           missing = [name for name, done in inserted.items() if not done]
           if missing:
               raise SystemExit(f"checkpoint section update incomplete: {missing}")
 
-          updated = "\n".join(output)
-          old_next = "next_action: Remove the temporary recovery workflow, run retained final ci:full exact-head CI plus a fresh independent Codex review on the four-path permanent diff, then squash-merge PR 1450 and continue the authorized protected Liquid20 recovery chain."
-          alt_next = "next_action: Remove the temporary recovery workflow, require ci:full retained exact-head CI and a fresh independent Codex review on the final three-path diff, then squash-merge PR 1450 and continue the authorized protected Liquid20 recovery chain."
-          new_next = "next_action: Run retained ci:full exact-head CI and a fresh independent Codex review on the final four-path permanent diff, then squash-merge PR 1450 and continue the authorized protected Liquid20 recovery chain."
-          if old_next in updated:
-              updated = updated.replace(old_next, new_next, 1)
-          elif alt_next in updated:
-              updated = updated.replace(alt_next, new_next, 1)
+          rows = output
+          for index, line in enumerate(rows):
+              if line.startswith("next_action:"):
+                  rows[index] = "next_action: Run retained ci:full exact-head CI and a fresh independent Codex review on the final four-path permanent diff, then squash-merge PR 1450 and continue the authorized protected Liquid20 recovery chain."
+                  break
           else:
-              for i, line in enumerate(updated.splitlines()):
-                  if line.startswith("next_action:"):
-                      rows = updated.splitlines()
-                      rows[i] = new_next
-                      updated = "\n".join(rows)
-                      break
-              else:
-                  raise SystemExit("context checkpoint next_action missing")
+              raise SystemExit("context checkpoint next_action missing")
 
-          text = text[:start] + updated + text[end:]
+          text = text[:start] + "\n".join(rows) + text[end:]
           text = text.replace("  generation: 6\n", "  generation: 7\n", 1)
           path.write_text(text, encoding="utf-8")
           PY

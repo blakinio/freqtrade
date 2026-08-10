@@ -164,7 +164,26 @@ def _network() -> str:
 
 def _inspect(spec: RuntimeContainerSpec, plan: RuntimeIsolationPlan) -> dict[str, object]:
     return {
-        "Config": {"User": plan.runtime_user, "Image": spec.image},
+        "Config": {
+            "User": plan.runtime_user,
+            "Image": spec.image,
+            "Entrypoint": ["/bin/sh"],
+            "Cmd": [
+                "-ec",
+                DockerCliRuntimeDriver._QUARANTINE,
+                "portal-quarantine",
+                "freqtrade",
+                "trade",
+                "--config",
+                "/runtime/config/config.json",
+                "--strategy",
+                spec.strategy_name,
+            ],
+            "Labels": {
+                **spec.labels,
+                "ai.portal.isolation_plan_digest": plan.digest(),
+            },
+        },
         "HostConfig": {
             "Privileged": False,
             "ReadonlyRootfs": True,
@@ -339,6 +358,41 @@ def test_structural_failure_removes_quarantined_container(tmp_path: Path) -> Non
     unsafe_host = unsafe["HostConfig"]
     assert isinstance(unsafe_host, dict)
     unsafe_host["Privileged"] = True
+    results = _provision_results(spec, plan)[:4]
+    results[3] = CommandResult(0, stdout=json.dumps([unsafe]))
+    results.append(CommandResult(0))
+    runner = _Runner(*results)
+    attestor = _Attestor()
+    driver = DockerCliRuntimeDriver(
+        runner,
+        isolation_plans=_provider(plan),
+        external_attestor=attestor,
+    )
+
+    with pytest.raises(RuntimeDriverError) as exc_info:
+        driver.provision(spec)
+
+    assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
+    assert runner.calls[-1] == ("docker", "rm", "-f", "runtime-1")
+    assert attestor.cleaned == [_network()]
+
+
+@pytest.mark.parametrize("tampered_field", ["command", "identity"])
+def test_structural_attestation_rejects_tampered_bootstrap_or_identity(
+    tmp_path: Path,
+    tampered_field: str,
+) -> None:
+    plan = _plan()
+    spec = _spec(tmp_path)
+    unsafe = _inspect(spec, plan)
+    unsafe_config = unsafe["Config"]
+    assert isinstance(unsafe_config, dict)
+    if tampered_field == "command":
+        unsafe_config["Cmd"] = ["freqtrade", "trade"]
+    else:
+        labels = unsafe_config["Labels"]
+        assert isinstance(labels, dict)
+        labels["ai.portal.isolation_plan_digest"] = "f" * 64
     results = _provision_results(spec, plan)[:4]
     results[3] = CommandResult(0, stdout=json.dumps([unsafe]))
     results.append(CommandResult(0))

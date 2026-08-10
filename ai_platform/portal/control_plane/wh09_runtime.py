@@ -440,6 +440,15 @@ def build_router(
         bot = service.get_bot(context, bot_id)
         if bot.bot_id != WH09_BOT_ID:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not a WickHunter WH09 bot")
+        if (
+            bot.desired_runtime_generation_id is None
+            or bot.observed_runtime_generation_id is None
+            or bot.desired_runtime_generation_id != bot.observed_runtime_generation_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="WickHunter WH09 adoption has not converged",
+            )
         try:
             evidence = configured_wh09_source().read()
         except Wh09RuntimeEvidenceError as exc:
@@ -460,17 +469,19 @@ def build_router(
                 )
                 .limit(1)
             )
+        if observation is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="WickHunter WH09 adoption evidence is unavailable",
+            )
         return Wh09PortalRuntimeView(
             bot_id=bot.bot_id,
             bot_name=bot.name,
             managed_mode=bot.spec.managed_mode,
             desired_runtime_generation_id=bot.desired_runtime_generation_id,
             observed_runtime_generation_id=bot.observed_runtime_generation_id,
-            generations_synced=(
-                bot.desired_runtime_generation_id is not None
-                and bot.desired_runtime_generation_id == bot.observed_runtime_generation_id
-            ),
-            runtime_instance_id=(None if observation is None else observation.runtime_instance_id),
+            generations_synced=True,
+            runtime_instance_id=observation.runtime_instance_id,
             runtime=evidence,
         )
 

@@ -8,7 +8,11 @@ import pytest
 from sqlalchemy import func, select
 
 from ai_platform.portal.control_plane import wh09_bootstrap
-from ai_platform.portal.control_plane.database import build_engine, create_schema
+from ai_platform.portal.control_plane.database import (
+    build_engine,
+    build_session_factory,
+    create_schema,
+)
 from ai_platform.portal.control_plane.models import (
     BotConfigRevisionRow,
     BotRolloutRow,
@@ -16,7 +20,9 @@ from ai_platform.portal.control_plane.models import (
     RuntimeGenerationObservationRow,
     RuntimeGenerationRow,
 )
+from ai_platform.portal.control_plane.service import ControlPlaneService
 from ai_platform.portal.control_plane.wh09_bootstrap import (
+    WH09_BOT_NAME,
     WH09_COMPOSE_PROJECT,
     WH09_COMPOSE_SERVICE,
     WH09_RUNTIME_USER,
@@ -25,6 +31,7 @@ from ai_platform.portal.control_plane.wh09_bootstrap import (
     bootstrap_wh09,
 )
 from ai_platform.portal.control_plane.wh09_runtime import (
+    WH09_BOT_ID,
     WH09_EXPECTED_MANIFEST_SHA256,
     WH09_EXPECTED_MODEL_ARTIFACT_SHA256,
     WH09_EXPECTED_MODEL_HASH,
@@ -141,6 +148,41 @@ def test_bootstrap_adopts_existing_wh09_into_one_canonical_generation(
     assert _count(engine, RuntimeGenerationRow) == 1
     assert _count(engine, BotRolloutRow) == 1
     assert _count(engine, RuntimeGenerationObservationRow) == 1
+
+
+def test_bootstrap_refuses_to_promote_preexisting_draft(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database = tmp_path / "portal.sqlite"
+    database_url = f"sqlite+pysqlite:///{database}"
+    engine = build_engine(database_url)
+    create_schema(engine)
+    session_factory = build_session_factory(engine)
+    monkeypatch.setenv("PORTAL_DATABASE_URL", database_url)
+    evidence = _evidence()
+    monkeypatch.setattr(
+        wh09_bootstrap,
+        "configured_wh09_source",
+        lambda: _EvidenceSource(evidence),
+    )
+    service = ControlPlaneService(session_factory)
+    context = wh09_bootstrap._context("tenant-local")
+    service.create_bot(
+        context,
+        WH09_BOT_ID,
+        WH09_BOT_NAME,
+        wh09_bootstrap._spec(evidence),
+    )
+
+    with pytest.raises(Wh09BootstrapError, match="DRAFT revision requires explicit promotion"):
+        bootstrap_wh09(_descriptor())
+
+    assert _count(engine, BotRow) == 1
+    assert _count(engine, BotConfigRevisionRow) == 1
+    assert _count(engine, RuntimeGenerationRow) == 0
+    assert _count(engine, BotRolloutRow) == 0
+    assert _count(engine, RuntimeGenerationObservationRow) == 0
 
 
 def test_bootstrap_fails_closed_before_mutation_for_non_unique_runtime(

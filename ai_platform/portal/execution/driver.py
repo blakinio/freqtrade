@@ -897,24 +897,10 @@ class DockerCliRuntimeDriver:
             )
 
     def _attest_active_log_backend(self, runtime_id: str, plan: RuntimeIsolationPlan) -> None:
-        """Verify durable local-driver state without relying on rotated bootstrap output."""
-        result = self._runner.run(("docker", "inspect", "--format", "{{.LogPath}}", runtime_id))
-        self._require_probe(result, "active-log-path")
-        log_path = result.stdout.strip()
-        if not log_path:
-            raise RuntimeDriverError(
-                "ISOLATION_ATTESTATION_FAILED",
-                "Docker local logging path is unavailable",
-            )
-        usage = self._runner.run(("du", "-sb", str(Path(log_path).parent)))
-        self._require_probe(usage, "active-log-usage")
-        try:
-            retained_bytes = int(usage.stdout.split()[0])
-        except (IndexError, ValueError) as exc:
-            raise RuntimeDriverError(
-                "ISOLATION_ATTESTATION_FAILED",
-                "Docker local logging usage evidence is invalid",
-            ) from exc
+        """Verify currently retained local-driver output after bootstrap markers may rotate."""
+        logs = self._runner.run(("docker", "logs", runtime_id))
+        self._require_probe(logs, "active-bounded-logs")
+        retained_bytes = len(logs.stdout.encode()) + len(logs.stderr.encode())
         ceiling = plan.log_max_bytes * plan.log_rotation_count
         ceiling += self._LOG_RETENTION_TOLERANCE_BYTES
         if retained_bytes > ceiling:

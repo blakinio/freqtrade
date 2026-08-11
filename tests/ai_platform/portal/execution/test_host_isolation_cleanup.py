@@ -34,24 +34,40 @@ def _backend(runner: _Runner, tmp_path: Path) -> LinuxNftablesBtrfsIsolationAtte
     )
 
 
-def test_cleanup_attempts_docker_network_after_nft_failure(tmp_path: Path) -> None:
-    runner = _Runner(
-        CommandResult(1, stderr="nft backend unavailable"),
-        CommandResult(1, stderr="daemon unavailable"),
-    )
+def test_cleanup_retains_firewall_when_docker_network_removal_fails(tmp_path: Path) -> None:
+    runner = _Runner(CommandResult(1, stderr="network has active endpoints"))
 
     with pytest.raises(RuntimeDriverError) as exc_info:
         _backend(runner, tmp_path).cleanup_network("portal-net-1", "runtime-1")
 
     assert exc_info.value.reason_code == "HOST_NETWORK_CLEANUP_FAILED"
-    assert runner.calls[0][:4] == ("nft", "delete", "table", "inet")
-    assert runner.calls[1] == ("docker", "network", "rm", "portal-net-1")
+    assert "retaining nftables policy" in str(exc_info.value)
+    assert runner.calls == [("docker", "network", "rm", "portal-net-1")]
+
+
+def test_cleanup_removes_firewall_only_after_network_teardown(tmp_path: Path) -> None:
+    runner = _Runner(CommandResult(0), CommandResult(0))
+
+    _backend(runner, tmp_path).cleanup_network("portal-net-1", "runtime-1")
+
+    assert runner.calls[0] == ("docker", "network", "rm", "portal-net-1")
+    assert runner.calls[1][:4] == ("nft", "delete", "table", "inet")
+
+
+def test_cleanup_reports_nft_failure_after_network_is_absent(tmp_path: Path) -> None:
+    runner = _Runner(CommandResult(0), CommandResult(1, stderr="nft backend unavailable"))
+
+    with pytest.raises(RuntimeDriverError) as exc_info:
+        _backend(runner, tmp_path).cleanup_network("portal-net-1", "runtime-1")
+
+    assert exc_info.value.reason_code == "HOST_NETWORK_CLEANUP_FAILED"
+    assert len(runner.calls) == 2
 
 
 def test_cleanup_is_idempotent_when_resources_are_already_absent(tmp_path: Path) -> None:
     runner = _Runner(
-        CommandResult(1, stderr="Error: No such file or directory"),
         CommandResult(1, stderr="Error response from daemon: network portal-net-1 not found"),
+        CommandResult(1, stderr="Error: No such file or directory"),
     )
 
     _backend(runner, tmp_path).cleanup_network("portal-net-1", "runtime-1")

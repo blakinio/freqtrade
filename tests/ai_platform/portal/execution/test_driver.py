@@ -324,11 +324,8 @@ def _active_reattest_results(
     plan: RuntimeIsolationPlan,
 ) -> list[CommandResult]:
     results = _reattest_results(spec, plan)
-    # Replace the one-shot readiness/log-output probes with durable backend evidence.
-    results[-2:] = [
-        CommandResult(0, stdout="/var/lib/docker/containers/id/id-local.log\n"),
-        CommandResult(0, stdout="4096\t/var/lib/docker/containers/id\n"),
-    ]
+    # Replace one-shot bootstrap probes with currently retained Docker log output.
+    results[-2:] = [CommandResult(0, stdout="retained active log\n")]
     return results
 
 
@@ -713,7 +710,12 @@ def test_running_generation_rejects_unbounded_active_log_backend(tmp_path: Path)
     results = _active_reattest_results(spec, plan)
     results[-1] = CommandResult(
         0,
-        stdout=f"{plan.log_max_bytes * plan.log_rotation_count + 300_000}\t/path\n",
+        stdout="x"
+        * (
+            plan.log_max_bytes * plan.log_rotation_count
+            + DockerCliRuntimeDriver._LOG_RETENTION_TOLERANCE_BYTES
+            + 1
+        ),
     )
     runner = _Runner(
         CommandResult(0, stdout="running\n"),

@@ -505,17 +505,20 @@ class LinuxNftablesBtrfsIsolationAttestor:
     def cleanup_network(self, network_name: str, runtime_id: str) -> None:
         del runtime_id
         table = self._table_name(network_name)
-        errors: list[str] = []
-        nft_result = self._runner.run(("nft", "delete", "table", "inet", table))
-        if nft_result.returncode != 0 and not self._cleanup_target_absent(nft_result):
-            errors.append(nft_result.stderr.strip() or "nftables table cleanup failed")
         network_result = self._runner.run(("docker", "network", "rm", network_name))
         if network_result.returncode != 0 and not self._cleanup_target_absent(network_result):
-            errors.append(network_result.stderr.strip() or "Docker network cleanup failed")
-        if errors:
             raise RuntimeDriverError(
                 "HOST_NETWORK_CLEANUP_FAILED",
-                "generation network cleanup was incomplete: " + "; ".join(errors),
+                "generation network cleanup was incomplete; retaining nftables policy: "
+                + (network_result.stderr.strip() or "Docker network cleanup failed"),
+            )
+
+        nft_result = self._runner.run(("nft", "delete", "table", "inet", table))
+        if nft_result.returncode != 0 and not self._cleanup_target_absent(nft_result):
+            raise RuntimeDriverError(
+                "HOST_NETWORK_CLEANUP_FAILED",
+                "generation network was removed but nftables table cleanup failed: "
+                + (nft_result.stderr.strip() or "nftables table cleanup failed"),
             )
 
     def _storage_capability(self) -> StorageIsolationBackend | None:

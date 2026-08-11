@@ -1,0 +1,63 @@
+name: Temporary 1089 exact formatter
+
+on:
+  push:
+    branches:
+      - ops/1089-synology-cleanup-20260810
+    paths:
+      - ".github/workflows/zz-temp-1089-format.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: fix/1089-bounded-schema-docker-lifecycle
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.13"
+          check-latest: false
+
+      - name: Install exact formatter
+        shell: bash
+        run: python -m pip install --disable-pip-version-check ruff==0.15.21
+
+      - name: Format and lint task files
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            ai_platform/portal/database/transfer.py
+            deploy/synology/portal-oidc/bounded_schema_lifecycle.py
+            deploy/synology/portal-oidc/cancellation_report_bridge.py
+            deploy/synology/portal-oidc/deploy_entrypoint.py
+            tests/ai_platform/portal/database/test_state_transfer.py
+            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py
+            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_cancellation.py
+            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py
+            tests/ai_platform/portal/deployment/test_portal_oidc_cancellation_report_bridge.py
+          )
+          ruff format "${files[@]}"
+          ruff check "${files[@]}"
+          git diff --check
+          git status --short -- "${files[@]}"
+
+          if git diff --quiet -- "${files[@]}"; then
+            echo "Exact task files already formatter-clean"
+            exit 0
+          fi
+
+          git config user.name "blakinio"
+          git config user.email "75369544+blakinio@users.noreply.github.com"
+          git add -- "${files[@]}"
+          git commit -m "style(portal): apply exact task formatter"
+          git push origin HEAD:fix/1089-bounded-schema-docker-lifecycle

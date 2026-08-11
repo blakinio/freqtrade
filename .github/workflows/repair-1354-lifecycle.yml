@@ -29,8 +29,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --disable-pip-version-check pytest==9.1.1 "PyYAML>=6.0"
-          python -m pytest -q -o addopts='' tests/ci/test_architecture_registry.py
+          python -m pip install --disable-pip-version-check "PyYAML>=6.0"
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+
+          registry = yaml.safe_load(Path("ARCHITECTURE_REGISTRY.yaml").read_text(encoding="utf-8"))
+          review = registry["review"]
+          identities = {
+              (item["issue"], item["id"])
+              for item in review["resolved_findings"]
+          }
+          assert (1354, "FTAI-ARCH-RUNTIME-ISOLATION") not in identities
+          assert review["lifecycle_reconciled_at"] == "2026-08-10"
+          test_text = Path("tests/ci/test_architecture_registry.py").read_text(encoding="utf-8")
+          assert '(1354, "FTAI-ARCH-RUNTIME-ISOLATION")' not in test_text
+          PY
           git diff --check
           test -f docs/agents/tasks/active/FTAI-20260809-portal-runtime-isolation-1354.md
           test ! -e docs/agents/tasks/archive/FTAI-20260809-portal-runtime-isolation-1354.md

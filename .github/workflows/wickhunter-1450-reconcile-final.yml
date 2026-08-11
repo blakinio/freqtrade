@@ -1,0 +1,78 @@
+name: WickHunter 1450 final develop reconciliation
+
+on:
+  push:
+    branches:
+      - fix/wickhunter-1396-synology-recovery-v2
+    paths:
+      - .github/workflows/wickhunter-1450-reconcile-final.yml
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: fix/wickhunter-1396-synology-recovery-v2
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Reconcile exact latest develop and self-clean
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_develop='960610f4607c4a27d402f5be5f12a211991f2fd7'
+          git fetch origin develop
+          actual_develop="$(git rev-parse origin/develop)"
+          test "$actual_develop" = "$expected_develop" || {
+            echo "develop moved: expected=$expected_develop actual=$actual_develop" >&2
+            exit 42
+          }
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git merge --no-ff --no-commit "$expected_develop"
+          git rm .github/workflows/wickhunter-1450-reconcile-final.yml
+          git diff --check --cached
+          git commit -m 'chore(wickhunter): reconcile PR 1450 with latest develop'
+          merge_sha="$(git rev-parse HEAD)"
+          export MERGE_SHA="$merge_sha"
+
+          python3 - <<'PY'
+          import os
+          from datetime import datetime
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+
+          task = Path('docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md')
+          text = task.read_text(encoding='utf-8')
+          merge_sha = os.environ['MERGE_SHA']
+          now = datetime.now(ZoneInfo('Europe/Warsaw')).replace(microsecond=0).isoformat()
+          replacements = {
+              'updated_at: 2026-08-11T10:09:44+02:00': f'updated_at: {now}',
+              'head: 002be13f566e2ef4646b74bd66f8df548be29e73': f'head: {merge_sha}',
+              '  generation: 14': '  generation: 15',
+              '  checkpointed_at: 2026-08-11T10:09:44+02:00': f'  checkpointed_at: {now}',
+              '  last_progress_at: 2026-08-11T10:09:44+02:00': f'  last_progress_at: {now}',
+              '  exact_head_before_checkpoint_commit: 002be13f566e2ef4646b74bd66f8df548be29e73': f'  exact_head_before_checkpoint_commit: {merge_sha}',
+          }
+          for old, new in replacements.items():
+              if text.count(old) != 1:
+                  raise SystemExit(f'checkpoint reconciliation target mismatch: {old}')
+              text = text.replace(old, new, 1)
+          task.write_text(text, encoding='utf-8')
+          PY
+
+          python3 tools/agents/checkpoint.py docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md --require-checkpoint
+          git diff --check
+          git add docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
+          git commit -m 'chore(wickhunter): checkpoint latest develop reconciliation'
+
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" push origin HEAD:fix/wickhunter-1396-synology-recovery-v2

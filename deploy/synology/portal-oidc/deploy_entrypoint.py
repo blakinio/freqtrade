@@ -310,6 +310,10 @@ def main() -> int:
         "portal_oidc_postgresql_copy_on_write",
         DEPLOYMENT_DIR / "postgresql_copy_on_write.py",
     )
+    bounded_schema = _load_module(
+        "portal_oidc_bounded_schema_lifecycle",
+        DEPLOYMENT_DIR / "bounded_schema_lifecycle.py",
+    )
     docker_host_state = _load_module(
         "portal_oidc_docker_host_state",
         DEPLOYMENT_DIR / "docker_host_state.py",
@@ -322,6 +326,7 @@ def main() -> int:
         deploy.DeploymentError
     )
     _install_verified_build_timeout(deploy)
+    bounded_schema.install(deploy)
     docker_host_state.install(deploy)
     _install_docker_host_liquidations_preflight(deploy)
     market_evidence.install(deploy)

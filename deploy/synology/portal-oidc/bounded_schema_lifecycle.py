@@ -134,12 +134,18 @@ def _run_sensitive_workload(
     label = _workload_label(command, module)
     name = _container_name(label)
     create_command = ["docker", "create", "--name", name, *command[3:]]
+
+    # Ownership begins only after this invocation successfully creates the exact
+    # generated name. A pre-existing collision must fail closed without deleting
+    # or otherwise mutating the unowned container.
+    _verify_absent(deploy, name, cwd=cwd)
+
     primary_error: Exception | None = None
     logs: subprocess.CompletedProcess[str] | None = None
     process_exit: str | None = None
+    owned = False
 
     try:
-        _verify_absent(deploy, name, cwd=cwd)
         _stage(
             deploy,
             label=label,
@@ -148,6 +154,7 @@ def _run_sensitive_workload(
             cwd=cwd,
             timeout=CREATE_TIMEOUT_SECONDS,
         )
+        owned = True
         _stage(
             deploy,
             label=label,
@@ -179,10 +186,11 @@ def _run_sensitive_workload(
         primary_error = exc
 
     cleanup_error: Exception | None = None
-    try:
-        _cleanup_owned(deploy, name, cwd=cwd)
-    except Exception as exc:
-        cleanup_error = exc
+    if owned:
+        try:
+            _cleanup_owned(deploy, name, cwd=cwd)
+        except Exception as exc:
+            cleanup_error = exc
 
     if cleanup_error is not None:
         if primary_error is not None:

@@ -15,6 +15,18 @@ from ai_platform.wickhunter.contracts import BotMode
 PositiveDecimal = Annotated[Decimal, Field(gt=0)]
 
 
+def require_authorized_authored_managed_mode(mode: BotMode) -> None:
+    """Reject reserved LIVE terminology at authored bot-command boundaries.
+
+    `LIVE_BLOCKED` intentionally remains representable in durable/internal contracts so
+    historical or defensive state can be read and rejected deterministically. It is not
+    an authorable operating mode and must never become a reachable lifecycle transition.
+    """
+
+    if mode is BotMode.LIVE_BLOCKED:
+        raise ValueError("LIVE managed mode is reserved and cannot be authored")
+
+
 class BotDesiredState(StrEnum):
     CREATED = "CREATED"
     RUNNING = "RUNNING"

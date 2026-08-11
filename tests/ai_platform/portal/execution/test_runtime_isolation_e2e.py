@@ -350,22 +350,22 @@ def test_real_docker_driver_provisions_attested_hardened_quarantine(tmp_path: Pa
         assert state_overflow.returncode != 0
         assert "No space left on device" in state_overflow.stderr
 
-        wget_available = _run(
+        python_available = _run(
             "docker",
             "exec",
             runtime_id,
             "/bin/sh",
             "-ec",
-            "command -v wget",
+            "command -v python || command -v python3",
         )
-        assert wget_available.returncode == 0, wget_available.stderr
+        assert python_available.returncode == 0, python_available.stderr
         public_egress = _run(
             "docker",
             "exec",
             runtime_id,
-            "/bin/sh",
-            "-ec",
-            "wget -q -T 2 -O /dev/null http://1.1.1.1",
+            python_available.stdout.strip(),
+            "-c",
+            "import socket; socket.create_connection(('1.1.1.1', 80), timeout=2)",
             timeout=10,
         )
         assert public_egress.returncode != 0

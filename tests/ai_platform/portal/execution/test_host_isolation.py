@@ -516,8 +516,7 @@ def test_storage_backend_applies_and_attests_btrfs_referenced_limit(tmp_path: Pa
         "--sync",
         "--raw",
         "-r",
-        "-F",
-        str(state.resolve()),
+        str(tmp_path.resolve()),
     )
 
 

@@ -1,4 +1,4 @@
-name: Temporary 1089 Portal snapshot structure
+name: Temporary 1089 Portal live runtime provenance
 
 on:
   push:
@@ -12,12 +12,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: zz-temp-1089-snapshot-structure
+  group: zz-temp-1089-runtime-provenance
   cancel-in-progress: false
 
 jobs:
   inspect:
-    name: Inspect and clean exact timing snapshot
+    name: Inspect live Portal runtime metadata read-only
     runs-on: [freqtrade-staging]
     timeout-minutes: 10
     steps:
@@ -29,212 +29,94 @@ jobs:
             test -z "${!name:-}" || { echo "recognized trading credential present: $name" >&2; exit 1; }
           done
 
-      - name: Inspect through Docker host bind mount and clean exact snapshot
+      - name: Capture secret-free runtime provenance
         shell: bash
         env:
-          REPORT: ${{ runner.temp }}/synology-1089-snapshot-structure.txt
-          CONTROL_IMAGE: sha256:50f2230810559e16acbfe6a57ad5fe1fc8eb087bcb1dd38419129e99315c8cf9
-          PREFIX: portal-pre-postgresql-21427e6b7f1c-
-          WINDOW_START: "1786432497"
-          WINDOW_END: "1786432851"
+          REPORT: ${{ runner.temp }}/synology-1089-runtime-provenance.txt
+          CONTROL: freqtrade-portal-control-plane
+          WEB: freqtrade-portal-staging
+          POSTGRES: freqtrade-portal-postgresql
         run: |
           set -euo pipefail
           python3 - "$REPORT" <<'PY'
-          from __future__ import annotations
-
+          import json
           import os
           import pathlib
           import subprocess
           import sys
-          import textwrap
 
           report = pathlib.Path(sys.argv[1])
-          image = os.environ["CONTROL_IMAGE"]
-          name = f"portal-oidc-1089-snapshot-inspect-{os.environ['GITHUB_RUN_ID']}-{os.environ.get('GITHUB_RUN_ATTEMPT', '1')}"
-          rows: list[str] = []
+          control = os.environ["CONTROL"]
+          rows = []
 
-          def raw(command: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
-              return subprocess.run(
-                  command,
-                  check=False,
-                  text=True,
-                  capture_output=True,
-                  timeout=timeout,
-              )
+          def run(command, timeout=60):
+              return subprocess.run(command, check=False, text=True, capture_output=True, timeout=timeout)
 
-          def exact_absent() -> bool:
-              listed = raw(
-                  ["docker", "ps", "-aq", "--no-trunc", "--filter", f"name=^/{name}$"],
-                  45,
-              )
-              inspected = raw(["docker", "inspect", name], 45)
-              return listed.returncode == 0 and not listed.stdout.strip() and inspected.returncode != 0
+          for name in (control, os.environ["WEB"], os.environ["POSTGRES"]):
+              inspected = run(["docker", "inspect", name])
+              rows.append(f"{name}.inspect_rc={inspected.returncode}")
+              if inspected.returncode != 0:
+                  continue
+              payload = json.loads(inspected.stdout)[0]
+              state = payload.get("State", {})
+              health = (state.get("Health") or {}).get("Status", "none")
+              rows.append(f"{name}.state={state.get('Status','unknown')}|{health}")
+              image_id = payload.get("Image", "")
+              rows.append(f"{name}.image_id={image_id}")
+              image = run(["docker", "image", "inspect", image_id])
+              if image.returncode == 0:
+                  image_payload = json.loads(image.stdout)[0]
+                  labels = (image_payload.get("Config") or {}).get("Labels") or {}
+                  rows.append(f"{name}.revision={labels.get('org.opencontainers.image.revision','missing')}")
+              for mount in payload.get("Mounts") or []:
+                  destination = mount.get("Destination", "")
+                  if destination in {"/state", "/portal-state"}:
+                      source = pathlib.PurePosixPath(mount.get("Source", ""))
+                      rows.append(f"{name}.state_mount_destination={destination}")
+                      rows.append(f"{name}.state_mount_leaf={source.name}")
 
-          if not exact_absent():
-              rows.append("preexisting_task_container=true")
-              report.write_text("\n".join(rows) + "\n", encoding="utf-8")
-              raise SystemExit(4)
+          script = r'''
+          import hashlib
+          import inspect
+          import os
+          import sqlite3
+          from pathlib import Path
+          from ai_platform.portal.control_plane.database import Base
+          import ai_platform.portal.identity.models as identity_models
+          import ai_platform.portal.product.models as product_models
 
-          identity = raw(
-              [
-                  "docker",
-                  "image",
-                  "inspect",
-                  "--format",
-                  '{{.Id}}|{{ index .Config.Labels "org.opencontainers.image.revision" }}',
-                  image,
-              ],
-              45,
-          )
-          expected_identity = f"{image}|21427e6b7f1cbe5e5882a007101ce6fe0c2f5784"
-          rows.append(f"image_identity_match={identity.returncode == 0 and identity.stdout.strip() == expected_identity}")
-          if identity.returncode != 0 or identity.stdout.strip() != expected_identity:
-              report.write_text("\n".join(rows) + "\n", encoding="utf-8")
-              raise SystemExit(5)
+          database_url = os.environ.get('PORTAL_DATABASE_URL', '')
+          print('database_url_is_legacy_sqlite=' + str(database_url == 'sqlite+pysqlite:////state/portal.db'))
+          print('environment=' + os.environ.get('PORTAL_ENVIRONMENT','missing'))
+          print('identity_model_tables=' + ','.join(sorted(table.name for table in Base.metadata.sorted_tables if table.name.startswith('portal_identity') or table.name.startswith('portal_tenant') or table.name.startswith('portal_oidc') or table.name.startswith('portal_session'))))
+          model_path = Path(inspect.getsourcefile(identity_models) or '')
+          if model_path.is_file():
+              print('identity_models_sha256=' + hashlib.sha256(model_path.read_bytes()).hexdigest())
+          if database_url == 'sqlite+pysqlite:////state/portal.db':
+              uri = 'file:/state/portal.db?mode=ro'
+              with sqlite3.connect(uri, uri=True) as conn:
+                  names = [row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'portal_%' ORDER BY name")]
+                  print('actual_portal_tables=' + ','.join(names))
+          '''
+          result = run(["docker", "exec", control, "python", "-c", script], 120)
+          rows.append(f"runtime_probe_rc={result.returncode}")
+          if result.returncode == 0:
+              rows.extend(line for line in result.stdout.splitlines() if line.strip())
+          else:
+              rows.append("runtime_probe_failed=true")
 
-          script = textwrap.dedent(
-              r'''
-              from __future__ import annotations
-              import json
-              import os
-              import pathlib
-              import sqlite3
-              import stat
-
-              backup_dir = pathlib.Path('/portal-state/legacy-backups')
-              prefix = os.environ['PREFIX']
-              start = int(os.environ['WINDOW_START'])
-              end = int(os.environ['WINDOW_END'])
-              lines = []
-              candidates = []
-              for path in backup_dir.glob(f'{prefix}*.db'):
-                  suffix = path.name.removeprefix(prefix).removesuffix('.db')
-                  if not suffix.isdigit():
-                      continue
-                  helper_timestamp = int(suffix)
-                  if not start <= helper_timestamp <= end:
-                      continue
-                  try:
-                      st = path.stat()
-                  except FileNotFoundError:
-                      continue
-                  candidates.append((path, st, helper_timestamp))
-
-              lines.append(f'candidate_count={len(candidates)}')
-              if len(candidates) != 1:
-                  print('\n'.join(lines), flush=True)
-                  raise SystemExit(2)
-
-              path, st, helper_timestamp = candidates[0]
-              lines.extend([
-                  f'snapshot_name={path.name}',
-                  f'snapshot_helper_timestamp={helper_timestamp}',
-                  f'snapshot_size={st.st_size}',
-                  f'snapshot_uid={st.st_uid}',
-                  f'snapshot_gid={st.st_gid}',
-                  f'snapshot_mode={oct(stat.S_IMODE(st.st_mode))}',
-                  f'snapshot_mtime={int(st.st_mtime)}',
-              ])
-              uri = f'file:{path}?mode=ro'
-              try:
-                  with sqlite3.connect(uri, uri=True) as conn:
-                      integrity = conn.execute('PRAGMA integrity_check').fetchone()
-                      lines.append(f"integrity={integrity[0] if integrity else 'missing'}")
-                      table_names = [
-                          row[0]
-                          for row in conn.execute(
-                              "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'portal_%' ORDER BY name"
-                          )
-                      ]
-                      lines.append('portal_tables=' + json.dumps(table_names, separators=(',', ':')))
-                      for table in table_names:
-                          quoted = '"' + table.replace('"', '""') + '"'
-                          columns = [row[1] for row in conn.execute(f'PRAGMA table_info({quoted})')]
-                          lines.append(f'columns.{table}=' + json.dumps(columns, separators=(',', ':')))
-                          count = int(conn.execute(f'SELECT COUNT(*) FROM {quoted}').fetchone()[0])
-                          lines.append(f'rows.{table}={count}')
-                      if 'portal_schema_migrations' in table_names:
-                          migrations = [
-                              {'sequence': row[0], 'revision_id': row[1], 'dialect_name': row[2]}
-                              for row in conn.execute(
-                                  'SELECT sequence, revision_id, dialect_name FROM portal_schema_migrations ORDER BY sequence'
-                              )
-                          ]
-                          lines.append('migrations=' + json.dumps(migrations, sort_keys=True, separators=(',', ':')))
-                      else:
-                          lines.append('migrations=[]')
-                      lines.append('inspection_status=ready')
-              finally:
-                  # The helper embeds the creation epoch in the filename; delete only
-                  # the single exact-SHA candidate created inside run 31467217892.
-                  path.unlink(missing_ok=True)
-                  lines.append(f'cleanup_snapshot_absent={not path.exists()}')
-                  print('\n'.join(lines), flush=True)
-              if path.exists():
-                  raise SystemExit(3)
-              '''
-          ).strip()
-
-          create = [
-              "docker", "create", "--name", name,
-              "--network", "none",
-              "--read-only",
-              "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=32m",
-              "--cap-drop", "ALL",
-              "--security-opt", "no-new-privileges:true",
-              "--pids-limit", "64",
-              "--memory", "256m",
-              "--user", "10001:10001",
-              "--mount", "type=bind,src=/volume1/docker/freqtrade-portal-oidc/data,dst=/portal-state",
-              "--env", f"PREFIX={os.environ['PREFIX']}",
-              "--env", f"WINDOW_START={os.environ['WINDOW_START']}",
-              "--env", f"WINDOW_END={os.environ['WINDOW_END']}",
-              "--entrypoint", "python",
-              image,
-              "-c", script,
-          ]
-          primary_rc = 99
-          cleanup_ok = False
-          try:
-              created = raw(create, 180)
-              rows.append(f"create_rc={created.returncode}")
-              if created.returncode != 0:
-                  raise RuntimeError("create failed")
-              started = raw(["docker", "start", name], 180)
-              rows.append(f"start_rc={started.returncode}")
-              if started.returncode != 0:
-                  raise RuntimeError("start failed")
-              waited = raw(["docker", "wait", name], 180)
-              rows.append(f"wait_rc={waited.returncode}")
-              if waited.returncode != 0 or not waited.stdout.strip().isdigit():
-                  raise RuntimeError("wait failed")
-              primary_rc = int(waited.stdout.strip())
-              rows.append(f"process_exit={primary_rc}")
-              logs = raw(["docker", "logs", name], 120)
-              rows.append(f"logs_rc={logs.returncode}")
-              if logs.returncode != 0:
-                  raise RuntimeError("logs failed")
-              rows.extend(line for line in logs.stdout.splitlines() if line.strip())
-          finally:
-              try:
-                  raw(["docker", "rm", "-f", name], 120)
-              except subprocess.TimeoutExpired:
-                  pass
-              cleanup_ok = exact_absent()
-              rows.append(f"container_absent={cleanup_ok}")
-              daemon = raw(["docker", "version"], 45)
-              rows.append(f"docker_ready={daemon.returncode == 0}")
-              report.write_text("\n".join(rows) + "\n", encoding="utf-8")
-
-          if primary_rc != 0 or not cleanup_ok:
-              raise SystemExit(6)
+          daemon = run(["docker", "version"], 45)
+          rows.append(f"docker_ready={daemon.returncode == 0}")
+          report.write_text("\n".join(rows) + "\n", encoding="utf-8")
+          if result.returncode != 0 or daemon.returncode != 0:
+              raise SystemExit(2)
           PY
 
-      - name: Upload structural evidence
+      - name: Upload runtime provenance evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: synology-1089-snapshot-structure-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/synology-1089-snapshot-structure.txt
-          if-no-files-found: warn
+          name: synology-1089-runtime-provenance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/synology-1089-runtime-provenance.txt
+          if-no-files-found: error
           retention-days: 14

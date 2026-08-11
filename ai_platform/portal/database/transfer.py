@@ -299,9 +299,7 @@ def _source_rows(source_connection: Any, table: Table) -> Any:
     source_column_names = {
         column["name"] for column in inspect(source_connection).get_columns(table.name)
     }
-    selected_columns = [
-        column for column in table.columns if column.name in source_column_names
-    ]
+    selected_columns = [column for column in table.columns if column.name in source_column_names]
     if not selected_columns:
         raise PortalStateTransferError(
             f"legacy SQLite source table {table.name} has no transferable columns"

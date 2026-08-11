@@ -1,0 +1,63 @@
+name: Temporary 1089 focused lifecycle validation
+
+on:
+  push:
+    branches:
+      - ops/1089-synology-cleanup-20260810
+    paths:
+      - ".github/workflows/zz-temp-1089-focused-lifecycle.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact implementation head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: 850a8edc3667e488c887ca64894cf7b8189cb148
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.13"
+          check-latest: false
+
+      - name: Install focused validation tools
+        shell: bash
+        run: python -m pip install --disable-pip-version-check pytest ruff
+
+      - name: Compile focused lifecycle modules
+        shell: bash
+        run: |
+          python -m py_compile deploy/synology/portal-oidc/bounded_schema_lifecycle.py
+          python -m py_compile tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py
+          python -m py_compile tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_cancellation.py
+          python -m py_compile tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py
+
+      - name: Ruff focused lifecycle files
+        shell: bash
+        run: |
+          ruff check \
+            deploy/synology/portal-oidc/bounded_schema_lifecycle.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_cancellation.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py
+          ruff format --check \
+            deploy/synology/portal-oidc/bounded_schema_lifecycle.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_cancellation.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py
+
+      - name: Run focused lifecycle regressions
+        shell: bash
+        run: |
+          python -m pytest -q \
+            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_cancellation.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py

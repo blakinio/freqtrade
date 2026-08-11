@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -97,6 +98,35 @@ def _plan(policy: MarketDataEgressPolicy) -> RuntimeIsolationPlan:
     )
 
 
+def _https_probe(container: str) -> subprocess.CompletedProcess[str]:
+    return _run(
+        "docker",
+        "exec",
+        container,
+        "wget",
+        "--no-check-certificate",
+        "-q",
+        "-T",
+        "5",
+        "-O",
+        "/dev/null",
+        "https://1.1.1.1",
+        timeout=15,
+    )
+
+
+def _dns_probe(container: str) -> subprocess.CompletedProcess[str]:
+    return _run(
+        "docker",
+        "exec",
+        container,
+        "nslookup",
+        "example.com",
+        "1.1.1.1",
+        timeout=15,
+    )
+
+
 def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None:
     mount = _require_host()
     runtime_id = f"portal-linux-e2e-{uuid4().hex[:10]}"
@@ -157,31 +187,15 @@ def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None
         assert started.returncode == 0, started.stderr
         backend.attest_network(plan, network, runtime_id)
 
-        allowed = _run(
-            "docker",
-            "exec",
-            container,
-            "wget",
-            "--no-check-certificate",
-            "-q",
-            "-T",
-            "5",
-            "-O",
-            "/dev/null",
-            "https://1.1.1.1",
-            timeout=15,
-        )
-        assert allowed.returncode == 0, allowed.stderr
+        # Staged final policy is present but deliberately unreachable during quarantine.
+        assert _https_probe(container).returncode != 0
+        assert _dns_probe(container).returncode != 0
 
-        dns = _run(
-            "docker",
-            "exec",
-            container,
-            "nslookup",
-            "example.com",
-            "1.1.1.1",
-            timeout=15,
-        )
+        backend.activate_network(plan, network, runtime_id)
+
+        allowed = _https_probe(container)
+        assert allowed.returncode == 0, allowed.stderr
+        dns = _dns_probe(container)
         assert dns.returncode == 0, dns.stderr
 
         forbidden = _run(
@@ -200,7 +214,7 @@ def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None
         assert forbidden.returncode != 0
 
         table = backend._table_name(network)
-        bridge_info = json_network = _run(
+        bridge_info = _run(
             "docker",
             "network",
             "inspect",
@@ -208,7 +222,7 @@ def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None
             "{{.Id}}",
             network,
         )
-        assert json_network.returncode == 0, json_network.stderr
+        assert bridge_info.returncode == 0, bridge_info.stderr
         bridge = f"br-{bridge_info.stdout.strip()[:12]}"
         tamper = _run(
             "nft",
@@ -223,8 +237,16 @@ def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None
             "accept",
         )
         assert tamper.returncode == 0, tamper.stderr
+        live = _run("nft", "-j", "list", "table", "inet", table)
+        assert live.returncode == 0, live.stderr
         with pytest.raises(RuntimeDriverError) as network_error:
-            backend.attest_network(plan, network, runtime_id)
+            backend._attest_canonical_nftables(
+                json.loads(live.stdout),
+                table,
+                bridge,
+                policy,
+                active=True,
+            )
         assert network_error.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
 
         changed_limit = _run(

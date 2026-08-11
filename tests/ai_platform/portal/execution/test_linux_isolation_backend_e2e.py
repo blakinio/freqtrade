@@ -154,7 +154,7 @@ def _plan(
         market_data_egress_policy_version=policy.policy_version,
         market_data_egress_policy_digest=policy.digest(),
         seccomp_profile_identity="docker-default",
-        runtime_user="65532:65532",
+        runtime_user="1000:1000",
         runtime_image_digest=runtime_image_digest,
         gateway_artifact_digest="2" * 64,
         gateway_contract_version="linux-backend-e2e/v1",
@@ -371,8 +371,6 @@ def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None
         assert resolv_conf.returncode == 0, resolv_conf.stderr
         assert "nameserver 127.0.0.11" in resolv_conf.stdout
 
-        # Staged final policy is present but unreachable while normal Docker DNS and
-        # public market-data egress remain denied during quarantine.
         assert _tcp_probe(container, allowed_ipv4).returncode != 0
         assert _dns_probe(container).returncode != 0
 

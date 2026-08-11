@@ -4,7 +4,7 @@ import { expect, test } from "./fixtures/test.fixture";
 
 test.describe(
   "PAPER G0 product surface availability truth",
-  { tag: [tags.regression] },
+  { tag: [tags.critical, tags.regression] },
   () => {
     test("marks a disconnected capability unavailable in navigation and direct view", async ({
       identity,

@@ -430,6 +430,11 @@ class LinuxNftablesBtrfsIsolationAttestor:
 
     def _approved_state_path(self, state_path: Path) -> Path:
         state = state_path.resolve()
+        if state == self._state_root:
+            raise RuntimeDriverError(
+                "HOST_STORAGE_ISOLATION_UNSUPPORTED",
+                "runtime state path must be a child of the approved state root",
+            )
         try:
             state.relative_to(self._state_root)
         except ValueError as exc:

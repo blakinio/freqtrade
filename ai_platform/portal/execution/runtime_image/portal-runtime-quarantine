@@ -58,6 +58,8 @@ print("Portal PAPER dry-run configuration attested", flush=True)
 PY
 
 child_pid=""
+relay_pid=""
+startup_pipe="$release_dir/application-output"
 forward_signal() {
     if [ -n "$child_pid" ]; then
         kill -TERM "$child_pid" 2>/dev/null || true
@@ -65,23 +67,24 @@ forward_signal() {
 }
 trap forward_signal TERM INT HUP
 
-"$@" &
+rm -f "$startup_pipe"
+mkfifo "$startup_pipe"
+while IFS= read -r line; do
+    printf '%s\n' "$line"
+    case "$line" in
+        *"Initial Pairlist refresh took "*"s")
+            : > "$application_ready"
+            ;;
+    esac
+done < "$startup_pipe" &
+relay_pid=$!
+
+"$@" > "$startup_pipe" 2>&1 &
 child_pid=$!
-i=0
-while [ "$i" -lt 20 ]; do
-    if ! kill -0 "$child_pid" 2>/dev/null; then
-        set +e
-        wait "$child_pid"
-        status=$?
-        set -e
-        exit "$status"
-    fi
-    i=$((i + 1))
-    sleep 0.1
-done
-: > "$application_ready"
 set +e
 wait "$child_pid"
 status=$?
+wait "$relay_pid"
 set -e
+rm -f "$startup_pipe"
 exit "$status"

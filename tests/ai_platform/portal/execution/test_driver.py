@@ -319,6 +319,19 @@ def _reattest_results(
     ]
 
 
+def _active_reattest_results(
+    spec: RuntimeContainerSpec,
+    plan: RuntimeIsolationPlan,
+) -> list[CommandResult]:
+    results = _reattest_results(spec, plan)
+    # Replace the one-shot readiness/log-output probes with durable backend evidence.
+    results[-2:] = [
+        CommandResult(0, stdout="/var/lib/docker/containers/id/id-local.log\n"),
+        CommandResult(0, stdout="4096\t/var/lib/docker/containers/id\n"),
+    ]
+    return results
+
+
 def test_provision_builds_quarantined_hardened_container(tmp_path: Path) -> None:
     plan = _plan()
     spec = _spec(tmp_path)
@@ -636,7 +649,7 @@ def test_running_generation_repeats_current_isolation_attestation(tmp_path: Path
         CommandResult(0, stdout="running\n"),
         CommandResult(0),
         CommandResult(0),
-        *_reattest_results(spec, plan),
+        *_active_reattest_results(spec, plan),
     )
     attestor = _Attestor()
     driver = DockerCliRuntimeDriver(
@@ -692,6 +705,54 @@ def test_running_generation_tamper_fails_closed_and_removes_runtime(tmp_path: Pa
     assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
     assert attestor.cleaned == [_network()]
     assert runner.calls[-1] == ("docker", "rm", "-f", spec.runtime_id)
+
+
+def test_running_generation_rejects_unbounded_active_log_backend(tmp_path: Path) -> None:
+    plan = _plan()
+    spec = _spec(tmp_path)
+    results = _active_reattest_results(spec, plan)
+    results[-1] = CommandResult(
+        0,
+        stdout=f"{plan.log_max_bytes * plan.log_rotation_count + 300_000}\t/path\n",
+    )
+    runner = _Runner(
+        CommandResult(0, stdout="running\n"),
+        CommandResult(0),
+        CommandResult(0),
+        *results,
+        CommandResult(0),
+    )
+    attestor = _Attestor()
+    driver = DockerCliRuntimeDriver(
+        runner,
+        isolation_plans=_provider(plan),
+        external_attestor=attestor,
+        gateway_attestor=attestor,
+    )
+    driver._attested.add(spec.runtime_id)
+    driver._released.add(spec.runtime_id)
+    driver._fingerprints[spec.runtime_id] = driver._fingerprint(spec, plan.digest())
+    driver._networks[spec.runtime_id] = _network()
+    driver._specs[spec.runtime_id] = spec
+    driver._plan_digests[spec.runtime_id] = plan.digest()
+
+    with pytest.raises(RuntimeDriverError, match="log retention"):
+        driver.start(spec.runtime_id)
+
+    assert runner.calls[-1] == ("docker", "rm", "-f", spec.runtime_id)
+
+
+def test_stop_stops_released_runtime_while_application_is_starting() -> None:
+    runner = _Runner(
+        CommandResult(0, stdout="running\n"),
+        CommandResult(0),
+        CommandResult(1),
+        CommandResult(0),
+    )
+    driver = DockerCliRuntimeDriver(runner)
+
+    assert driver.stop("runtime-1") is DriverRuntimeState.STOPPED
+    assert runner.calls[-1] == ("docker", "stop", "runtime-1")
 
 
 def test_paused_foreign_runtime_cannot_be_released() -> None:

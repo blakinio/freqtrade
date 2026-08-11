@@ -459,6 +459,104 @@ def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None
             state_root.rmdir()
 
 
+def test_real_docker_effectively_enforces_memory_pid_and_cpu_bounds() -> None:
+    _require_host()
+    image = os.environ.get("PORTAL_RUNTIME_IMAGE", "").strip()
+    if "@sha256:" not in image:
+        pytest.fail("PORTAL_RUNTIME_IMAGE must be an exact hardened runtime image digest")
+    prefix = f"portal-linux-e2e-resources-{uuid4().hex[:8]}"
+    labels = ("--label", "ai.portal.test=runtime-isolation-e2e")
+
+    memory = _run(
+        "docker",
+        "run",
+        "--rm",
+        "--name",
+        f"{prefix}-memory",
+        *labels,
+        "--memory",
+        "64m",
+        "--memory-swap",
+        "64m",
+        "--entrypoint",
+        "python",
+        image,
+        "-c",
+        "bytearray(96 * 1024 * 1024)",
+        timeout=60,
+    )
+    assert memory.returncode != 0, "memory allocation escaped the cgroup hard limit"
+
+    pids = _run(
+        "docker",
+        "run",
+        "--rm",
+        "--name",
+        f"{prefix}-pids",
+        *labels,
+        "--pids-limit",
+        "16",
+        "--entrypoint",
+        "python",
+        image,
+        "-c",
+        (
+            "import os,time\n"
+            "children=[]\n"
+            "try:\n"
+            "  while len(children) < 64:\n"
+            "    pid=os.fork()\n"
+            "    if pid == 0: time.sleep(30); os._exit(0)\n"
+            "    children.append(pid)\n"
+            "except OSError: pass\n"
+            "print(len(children), flush=True)\n"
+            "for pid in children: os.kill(pid, 9)\n"
+            "for pid in children: os.waitpid(pid, 0)\n"
+        ),
+        timeout=60,
+    )
+    assert pids.returncode == 0, pids.stderr
+    assert 0 < int(pids.stdout.strip()) < 64
+
+    cpu_name = f"{prefix}-cpu"
+    try:
+        started = _run(
+            "docker",
+            "run",
+            "-d",
+            "--name",
+            cpu_name,
+            *labels,
+            "--cpus",
+            "0.25",
+            "--entrypoint",
+            "/bin/sh",
+            image,
+            "-c",
+            "sleep 60",
+        )
+        assert started.returncode == 0, started.stderr
+        before = _run("docker", "exec", cpu_name, "cat", "/sys/fs/cgroup/cpu.stat")
+        assert before.returncode == 0, before.stderr
+        load = _run(
+            "docker",
+            "exec",
+            cpu_name,
+            "python",
+            "-c",
+            "import time\ne=time.monotonic()+3\nwhile time.monotonic()<e: pass",
+            timeout=15,
+        )
+        assert load.returncode == 0, load.stderr
+        after = _run("docker", "exec", cpu_name, "cat", "/sys/fs/cgroup/cpu.stat")
+        assert after.returncode == 0, after.stderr
+        before_values = dict(line.split() for line in before.stdout.splitlines())
+        after_values = dict(line.split() for line in after.stdout.splitlines())
+        assert int(after_values["nr_throttled"]) > int(before_values["nr_throttled"])
+    finally:
+        _run("docker", "rm", "-f", cpu_name)
+
+
 def test_driver_release_runs_through_concrete_linux_isolation_backend() -> None:
     mount = _require_host()
     exact_image = os.environ.get("PORTAL_RUNTIME_IMAGE", "").strip()

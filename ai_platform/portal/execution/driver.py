@@ -530,6 +530,7 @@ class DockerCliRuntimeDriver:
             return current
         if current in {
             DriverRuntimeState.CREATED,
+            DriverRuntimeState.STARTING,
             DriverRuntimeState.RUNNING,
             DriverRuntimeState.PAUSED,
         }:
@@ -865,7 +866,10 @@ class DockerCliRuntimeDriver:
         self._require_probe(mounts, "mounts")
         self._attest_readonly_root(mounts.stdout)
         self._attest_tmpfs(mounts.stdout, plan)
-        self._attest_bounded_logs(spec.runtime_id, plan)
+        if active_network:
+            self._attest_active_log_backend(spec.runtime_id, plan)
+        else:
+            self._attest_bounded_logs(spec.runtime_id, plan)
         self._external.attest_storage(plan, spec.state_path)
         if active_network:
             self._external.attest_active_network(plan, network, spec.runtime_id)
@@ -886,6 +890,33 @@ class DockerCliRuntimeDriver:
             )
         retained_bytes = len(logs.stdout.encode())
         ceiling = plan.log_max_bytes * plan.log_rotation_count + self._LOG_RETENTION_TOLERANCE_BYTES
+        if retained_bytes > ceiling:
+            raise RuntimeDriverError(
+                "ISOLATION_ATTESTATION_FAILED",
+                "effective Docker log retention exceeds the isolation-plan hard ceiling",
+            )
+
+    def _attest_active_log_backend(self, runtime_id: str, plan: RuntimeIsolationPlan) -> None:
+        """Verify durable local-driver state without relying on rotated bootstrap output."""
+        result = self._runner.run(("docker", "inspect", "--format", "{{.LogPath}}", runtime_id))
+        self._require_probe(result, "active-log-path")
+        log_path = result.stdout.strip()
+        if not log_path:
+            raise RuntimeDriverError(
+                "ISOLATION_ATTESTATION_FAILED",
+                "Docker local logging path is unavailable",
+            )
+        usage = self._runner.run(("du", "-sb", str(Path(log_path).parent)))
+        self._require_probe(usage, "active-log-usage")
+        try:
+            retained_bytes = int(usage.stdout.split()[0])
+        except (IndexError, ValueError) as exc:
+            raise RuntimeDriverError(
+                "ISOLATION_ATTESTATION_FAILED",
+                "Docker local logging usage evidence is invalid",
+            ) from exc
+        ceiling = plan.log_max_bytes * plan.log_rotation_count
+        ceiling += self._LOG_RETENTION_TOLERANCE_BYTES
         if retained_bytes > ceiling:
             raise RuntimeDriverError(
                 "ISOLATION_ATTESTATION_FAILED",

@@ -202,6 +202,7 @@ def _inspect(spec: RuntimeContainerSpec, plan: RuntimeIsolationPlan) -> dict[str
             "Env": [f"PORTAL_LOG_PROBE_BYTES={plan.log_max_bytes * (plan.log_rotation_count + 1)}"],
             "Labels": {
                 **spec.labels,
+                "ai.portal.runtime_id": spec.runtime_id,
                 "ai.portal.isolation_plan_digest": plan.digest(),
             },
         },

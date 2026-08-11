@@ -544,6 +544,8 @@ class DockerCliRuntimeDriver:
         args.extend(
             (
                 "--label",
+                f"ai.portal.runtime_id={spec.runtime_id}",
+                "--label",
                 f"ai.portal.isolation_plan_digest={plan.digest()}",
                 "--mount",
                 f"type=bind,source={spec.config_path.parent},target=/runtime/config,readonly",
@@ -601,6 +603,7 @@ class DockerCliRuntimeDriver:
         check(isinstance(labels_raw, dict), "labels")
         for key, value in sorted(spec.labels.items()):
             check(labels.get(key) == value, f"label:{key}")
+        check(labels.get("ai.portal.runtime_id") == spec.runtime_id, "runtime-id-label")
         check(
             labels.get("ai.portal.isolation_plan_digest") == plan.digest(),
             "isolation-plan-label",

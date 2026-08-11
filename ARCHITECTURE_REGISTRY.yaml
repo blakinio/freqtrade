@@ -328,3 +328,8 @@ open_architecture_findings:
     severity: critical
     status: open
     summary: Isolate container-engine authority behind the Runtime Supervisor boundary required by ADR-020.
+  - issue: 1354
+    id: FTAI-ARCH-RUNTIME-ISOLATION
+    severity: high
+    status: open
+    summary: Enforce the ADR-020 runtime isolation profile, resolved-plan identity, effective resource/network/storage/log bounds and attestation for every generation.

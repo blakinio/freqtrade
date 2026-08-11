@@ -4,12 +4,16 @@ import json
 import os
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
 
-from ai_platform.portal.execution.driver import SubprocessCommandRunner
+from ai_platform.portal.execution.driver import (
+    DockerCliRuntimeDriver,
+    SubprocessCommandRunner,
+)
 from ai_platform.portal.execution.errors import RuntimeDriverError
 from ai_platform.portal.execution.host_isolation import (
     LinuxNftablesBtrfsIsolationAttestor,
@@ -19,10 +23,13 @@ from ai_platform.portal.execution.host_isolation import (
 from ai_platform.portal.execution.isolation import (
     CpuIsolationMode,
     LogIsolationBackend,
+    MappingRuntimeIsolationPlanProvider,
     NetworkIsolationBackend,
     RuntimeIsolationPlan,
+    RuntimeIsolationPlanBinding,
     StorageIsolationBackend,
 )
+from ai_platform.portal.execution.runtime import DriverRuntimeState, RuntimeContainerSpec
 
 
 ALPINE_IMAGE = "alpine:3.20"
@@ -67,7 +74,11 @@ def _policy() -> MarketDataEgressPolicy:
     )
 
 
-def _plan(policy: MarketDataEgressPolicy) -> RuntimeIsolationPlan:
+def _plan(
+    policy: MarketDataEgressPolicy,
+    *,
+    runtime_image_digest: str = "1" * 64,
+) -> RuntimeIsolationPlan:
     return RuntimeIsolationPlan(
         plan_schema_version="runtime-isolation-plan/v1",
         resolver_version="linux-backend-e2e/v1",
@@ -91,7 +102,7 @@ def _plan(policy: MarketDataEgressPolicy) -> RuntimeIsolationPlan:
         market_data_egress_policy_digest=policy.digest(),
         seccomp_profile_identity="docker-default",
         runtime_user="65532:65532",
-        runtime_image_digest="1" * 64,
+        runtime_image_digest=runtime_image_digest,
         gateway_artifact_digest="2" * 64,
         gateway_contract_version="linux-backend-e2e/v1",
         gateway_contract_digest="3" * 64,
@@ -130,7 +141,7 @@ def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None
     mount = _require_host()
     runtime_id = f"portal-linux-e2e-{uuid4().hex[:10]}"
     network = f"portal-linux-net-{uuid4().hex[:10]}"
-    container = f"{runtime_id}-probe"
+    container = runtime_id
     state_root = mount / "portal-state"
     state_root.mkdir(exist_ok=True)
     state_path = state_root / runtime_id
@@ -178,6 +189,8 @@ def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None
             container,
             "--label",
             f"ai.portal.runtime_id={runtime_id}",
+            "--label",
+            f"ai.portal.isolation_plan_digest={plan.digest()}",
             "--dns",
             "1.1.1.1",
             "--network",
@@ -276,3 +289,92 @@ def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None
             assert deleted.returncode == 0, deleted.stderr
         if state_root.exists():
             state_root.rmdir()
+
+
+def test_driver_release_runs_through_concrete_linux_isolation_backend() -> None:
+    mount = _require_host()
+    exact_image = os.environ.get("PORTAL_RUNTIME_IMAGE", "").strip()
+    if "@sha256:" not in exact_image:
+        pytest.fail("PORTAL_RUNTIME_IMAGE must be an exact hardened runtime image digest")
+    image_digest = exact_image.rsplit("@sha256:", 1)[1]
+    assert len(image_digest) == 64
+
+    runtime_id = f"portal-isolation-e2e-linux-{uuid4().hex[:10]}"
+    network = DockerCliRuntimeDriver._network_name(runtime_id)
+    state_root = mount / "portal-driver-state"
+    state_root.mkdir(exist_ok=True)
+    state_path = state_root / runtime_id
+    state_path.mkdir()
+    inputs = Path.cwd() / f".{runtime_id}-inputs"
+    inputs.mkdir(mode=0o755)
+    config_path = inputs / "config.json"
+    config_path.write_text("{}\n", encoding="utf-8")
+    config_path.chmod(0o644)
+
+    policy = _policy()
+    plan = _plan(policy, runtime_image_digest=image_digest)
+    backend = LinuxNftablesBtrfsIsolationAttestor(
+        SubprocessCommandRunner(),
+        policy_provider=MappingMarketDataEgressPolicyProvider({policy.digest(): policy}),
+        state_root=state_root,
+        btrfs_mount=mount,
+    )
+    provider = MappingRuntimeIsolationPlanProvider(
+        {
+            runtime_id: RuntimeIsolationPlanBinding(
+                isolation_plan_digest=plan.digest(),
+                plan=plan,
+            )
+        }
+    )
+    spec = RuntimeContainerSpec(
+        runtime_id=runtime_id,
+        image=exact_image,
+        config_path=config_path,
+        state_path=state_path,
+        strategy_name="PortalE2EStrategy",
+        labels={"ai.portal.test": "runtime-isolation-e2e"},
+    )
+    driver = DockerCliRuntimeDriver(
+        isolation_plans=provider,
+        external_attestor=backend,
+    )
+    table = backend._table_name(network)
+
+    try:
+        assert driver.provision(spec) is DriverRuntimeState.CREATED
+        assert driver.inspect(runtime_id) is DriverRuntimeState.CREATED
+
+        assert driver.start(runtime_id) is DriverRuntimeState.RUNNING
+
+        network_info = backend._network_info(network)
+        live = _run("nft", "-j", "list", "table", "inet", table)
+        assert live.returncode == 0, live.stderr
+        backend._attest_canonical_nftables(
+            json.loads(live.stdout),
+            table,
+            backend._bridge_name(network_info),
+            policy,
+            active=True,
+        )
+
+        logs = ""
+        for _ in range(100):
+            observed = _run("docker", "logs", runtime_id)
+            assert observed.returncode == 0, observed.stderr
+            logs = observed.stdout + observed.stderr
+            if "freqtrade" in logs.lower():
+                break
+            time.sleep(0.1)
+        assert "freqtrade" in logs.lower(), logs[-4000:]
+    finally:
+        _run("docker", "rm", "-f", runtime_id)
+        backend.cleanup_network(network, runtime_id)
+        table_absent = _run("nft", "list", "table", "inet", table)
+        assert table_absent.returncode != 0, table_absent.stdout
+        if state_path.exists():
+            deleted = _run("btrfs", "subvolume", "delete", str(state_path))
+            assert deleted.returncode == 0, deleted.stderr
+        if state_root.exists():
+            state_root.rmdir()
+        shutil.rmtree(inputs, ignore_errors=True)

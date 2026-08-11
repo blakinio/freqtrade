@@ -426,13 +426,38 @@ def test_network_attestation_rejects_noncanonical_staged_ruleset(
     assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
 
 
+def test_network_attestation_rejects_copied_runtime_labels_on_wrong_container(
+    tmp_path: Path,
+) -> None:
+    policy = _policy()
+    plan = _plan(policy)
+    network = _network_info()
+    containers = network["Containers"]
+    assert isinstance(containers, dict)
+    containers["container-a"] = {"Name": "copied-label-attacker"}
+    runner = _QueueRunner(
+        CommandResult(0, stdout=json.dumps(network)),
+    )
+    backend = LinuxNftablesBtrfsIsolationAttestor(
+        runner,
+        policy_provider=_provider(policy),
+        state_root=tmp_path / "state",
+        btrfs_mount=tmp_path,
+    )
+
+    with pytest.raises(RuntimeDriverError) as exc_info:
+        backend.attest_network(plan, NETWORK_NAME, "runtime-1")
+
+    assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
+
+
 def test_network_attestation_rejects_unrelated_container(tmp_path: Path) -> None:
     policy = _policy()
     plan = _plan(policy)
     network = _network_info()
     containers = network["Containers"]
     assert isinstance(containers, dict)
-    containers["container-a"] = {}
+    containers["container-a"] = {"Name": "runtime-1"}
     runner = _QueueRunner(
         CommandResult(0, stdout=json.dumps(network)),
         CommandResult(0, stdout=json.dumps({"ai.portal.runtime_id": "runtime-other"})),

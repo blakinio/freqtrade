@@ -464,7 +464,7 @@ class LinuxNftablesBtrfsIsolationAttestor:
                 "ISOLATION_ATTESTATION_FAILED",
                 "generation network identity label does not match runtime",
             )
-        self._attest_network_members(network, runtime_id)
+        self._attest_network_members(network, plan, runtime_id)
         table = self._table_name(network_name)
         result = self._runner.run(("nft", "-j", "list", "table", "inet", table))
         if result.returncode != 0:
@@ -656,14 +656,24 @@ class LinuxNftablesBtrfsIsolationAttestor:
             )
         return payload
 
-    def _attest_network_members(self, network: dict[str, Any], runtime_id: str) -> None:
+    def _attest_network_members(
+        self,
+        network: dict[str, Any],
+        plan: RuntimeIsolationPlan,
+        runtime_id: str,
+    ) -> None:
         containers = network.get("Containers") or {}
-        if not isinstance(containers, dict) or len(containers) > 2:
+        if not isinstance(containers, dict) or len(containers) > 1:
             raise RuntimeDriverError(
                 "ISOLATION_ATTESTATION_FAILED",
                 "generation network has an unexpected container membership",
             )
-        for container_id in containers:
+        for container_id, member in containers.items():
+            if not isinstance(member, dict) or member.get("Name") != runtime_id:
+                raise RuntimeDriverError(
+                    "ISOLATION_ATTESTATION_FAILED",
+                    "generation network member is not the exact runtime container",
+                )
             result = self._runner.run(
                 (
                     "docker",
@@ -689,10 +699,11 @@ class LinuxNftablesBtrfsIsolationAttestor:
             if (
                 not isinstance(member_labels, dict)
                 or member_labels.get("ai.portal.runtime_id") != runtime_id
+                or member_labels.get("ai.portal.isolation_plan_digest") != plan.digest()
             ):
                 raise RuntimeDriverError(
                     "ISOLATION_ATTESTATION_FAILED",
-                    "unrelated container is attached to the generation network",
+                    "generation network member identity does not match the trusted runtime",
                 )
 
     def _attest_canonical_nftables(  # noqa: C901 - exact canonical policy comparison.

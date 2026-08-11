@@ -21,7 +21,6 @@ QUERY_TIMEOUT_SECONDS = 30
 CLEANUP_ATTEMPTS = 3
 OWNERSHIP_VERIFY_ATTEMPTS = 3
 OWNER_LABEL_KEY = "com.freqtrade.portal.bounded-owner"
-OWNER_LABEL_FORMAT = f'{{{{ index .Config.Labels "{OWNER_LABEL_KEY}" }}}}'
 OWNED_IDENTITY_FORMAT = f'{{{{.Id}}}}|{{{{ index .Config.Labels "{OWNER_LABEL_KEY}" }}}}'
 SERVICE_STATE_FORMAT = (
     "{{.State.Status}}|{{.State.Running}}|"
@@ -194,6 +193,60 @@ def _verify_container_id_absent(
         raise deploy.DeploymentError("task-owned Docker identity cleanup failed")
 
 
+def _resolve_owned_cleanup_target(
+    deploy: Any,
+    name: str,
+    owner: str,
+    expected_id: str | None,
+    *,
+    cwd: Path | None,
+) -> str | None:
+    reference = expected_id or name
+    identity = _inspect_owned_identity(deploy, reference, cwd=cwd)
+    if identity is None:
+        if expected_id is None:
+            _verify_absent(deploy, name, cwd=cwd)
+        else:
+            _verify_container_id_absent(deploy, expected_id, cwd=cwd)
+        return None
+
+    current_id, current_owner = identity
+    if current_owner != owner:
+        raise deploy.DeploymentError("current Docker container identity is not owned by this task")
+    if expected_id is not None and current_id != expected_id:
+        raise deploy.DeploymentError(
+            "current Docker container identity changed before task-owned cleanup"
+        )
+    return current_id
+
+
+def _remove_owned_id_once(
+    deploy: Any,
+    container_id: str,
+    *,
+    cwd: Path | None,
+) -> None:
+    remove_error: BaseException | None = None
+    try:
+        removed = _run_bounded(
+            ["docker", "rm", "-f", container_id],
+            cwd=cwd,
+            timeout=REMOVE_TIMEOUT_SECONDS,
+        )
+        if removed.returncode != 0:
+            remove_error = deploy.DeploymentError("task-owned Docker identity removal failed")
+    except subprocess.TimeoutExpired as exc:
+        remove_error = exc
+
+    try:
+        _verify_container_id_absent(deploy, container_id, cwd=cwd)
+    except deploy.DeploymentError as exc:
+        cause = remove_error if remove_error is not None else exc
+        raise deploy.DeploymentError(
+            "task-owned Docker identity removal could not be verified"
+        ) from cause
+
+
 def _cleanup_owned(
     deploy: Any,
     name: str,
@@ -205,51 +258,18 @@ def _cleanup_owned(
     expected_id = container_id
     last_cleanup_error: BaseException | None = None
     for _attempt in range(CLEANUP_ATTEMPTS):
-        reference = expected_id or name
         try:
-            identity = _inspect_owned_identity(deploy, reference, cwd=cwd)
-        except deploy.DeploymentError as exc:
-            last_cleanup_error = exc
-            continue
-
-        if identity is None:
-            try:
-                if expected_id is None:
-                    _verify_absent(deploy, name, cwd=cwd)
-                    return None
-                _verify_container_id_absent(deploy, expected_id, cwd=cwd)
-                return expected_id
-            except deploy.DeploymentError as exc:
-                last_cleanup_error = exc
-                continue
-
-        current_id, current_owner = identity
-        if current_owner != owner:
-            raise deploy.DeploymentError(
-                "current Docker container identity is not owned by this task"
-            )
-        if expected_id is None:
-            expected_id = current_id
-        elif current_id != expected_id:
-            raise deploy.DeploymentError(
-                "current Docker container identity changed before task-owned cleanup"
-            )
-
-        try:
-            removed = _run_bounded(
-                ["docker", "rm", "-f", expected_id],
+            target_id = _resolve_owned_cleanup_target(
+                deploy,
+                name,
+                owner,
+                expected_id,
                 cwd=cwd,
-                timeout=REMOVE_TIMEOUT_SECONDS,
             )
-            if removed.returncode != 0:
-                last_cleanup_error = deploy.DeploymentError(
-                    "task-owned Docker identity removal failed"
-                )
-        except subprocess.TimeoutExpired as exc:
-            last_cleanup_error = exc
-
-        try:
-            _verify_container_id_absent(deploy, expected_id, cwd=cwd)
+            if target_id is None:
+                return expected_id
+            expected_id = target_id
+            _remove_owned_id_once(deploy, expected_id, cwd=cwd)
             return expected_id
         except deploy.DeploymentError as exc:
             last_cleanup_error = exc

@@ -198,8 +198,8 @@ The already-completed historical run `liquid20-20260810T000000Z-1` still require
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-11T00:31:30+02:00
-head: 8fff3183690669645b64bfe7d4c4e03c2b9d27dd
+updated_at: 2026-08-11T09:14:12+02:00
+head: ff8037e03d549f67797a4ffb017841f13f3d2719
 branch: fix/wickhunter-1396-synology-recovery-v2
 pr: 1450
 status: validating
@@ -254,6 +254,7 @@ rejected_hypotheses:
   - WH09 has stopped running or restarted
   - weakening WH09 completed-history row-count validation is an acceptable repair
 changed_paths:
+  - ai_platform/scripts/liquidation_live_stream_okx.py
   - ai_platform/scripts/liquidation_live_stream.py
   - tests/ai_platform_integration/test_liquidation_live_restart_durability.py
   - tests/ai_platform_integration/test_liquidation_okx_live_source.py
@@ -292,8 +293,11 @@ validation:
   - command: Descriptor-anchored restart sealing TOCTOU regression validation
     result: PASS
     evidence: GitHub Actions run 31438601082 passed focused restart and legacy migration tests Ruff check format compile checkpoint and diff hygiene
+  - command: Retained FD lifecycle new-run TOCTOU validation
+    result: PASS
+    evidence: GitHub Actions run 31467075693 passed 25 focused restart and OKX tests plus Ruff check format compile checkpoint and diff hygiene
 blockers: []
-next_action: Run final retained ci:full exact-head CI plus fresh independent Codex review with zero material findings, then squash-merge PR 1450 and continue protected Liquid20 recovery.
+next_action: Reconcile latest develop then run final retained exact-head CI and fresh Codex audit, squash-merge PR 1450, and continue protected Liquid20 recovery.
 ```
 
 ## Recovery checkpoint
@@ -301,7 +305,7 @@ next_action: Run final retained ci:full exact-head CI plus fresh independent Cod
 ```yaml
 recovery:
   policy_version: 1
-  generation: 12
+  generation: 13
   session_id: 2026-08-10T21:37+02:00
   session_started_at: 2026-08-10T21:37:00+02:00
   checkpointed_at: 2026-08-10T23:08:00+02:00

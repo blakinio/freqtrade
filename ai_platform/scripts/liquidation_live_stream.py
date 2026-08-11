@@ -24,7 +24,6 @@ from ai_platform.research.liquidations.bybit import parse_bybit_all_liquidation
 from ai_platform.research.liquidations.contracts import LiquidationEvent
 from ai_platform.research.liquidations.staging import (
     trading_credentials_present_in_environment,
-    write_json_atomic,
 )
 from ai_platform.scripts.liquidation_binance_collector import trading_credentials_present
 
@@ -86,14 +85,34 @@ class AppendOnlyNdjsonWriter:
         *,
         flush_interval_seconds: float = 1.0,
         flush_event_count: int = 100,
+        directory_fd: int | None = None,
     ) -> None:
         if flush_interval_seconds <= 0:
             raise ValueError("flush_interval_seconds must be > 0")
         if flush_event_count < 1:
             raise ValueError("flush_event_count must be >= 1")
-        path.parent.mkdir(parents=True, exist_ok=True)
         self.path = path
-        self._handle = path.open("a", encoding="utf-8")
+        if directory_fd is None:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self._handle = path.open("a", encoding="utf-8")
+        else:
+            nofollow_flag = getattr(os, "O_NOFOLLOW", None)
+            if nofollow_flag is None:
+                raise RuntimeError("secure Liquid20 writer file access is unsupported")
+            descriptor = os.open(
+                path.name,
+                os.O_WRONLY
+                | os.O_CREAT
+                | os.O_APPEND
+                | nofollow_flag
+                | getattr(os, "O_CLOEXEC", 0),
+                0o600,
+                dir_fd=directory_fd,
+            )
+            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                os.close(descriptor)
+                raise RuntimeError("Liquid20 writer target is not a regular file")
+            self._handle = os.fdopen(descriptor, "a", encoding="utf-8")
         self._flush_interval_seconds = flush_interval_seconds
         self._flush_event_count = flush_event_count
         self._pending = 0
@@ -155,6 +174,44 @@ def _open_restart_run_root_fd(data_root: Path, run_id: str) -> int | None:
     finally:
         for descriptor in reversed(opened):
             os.close(descriptor)
+
+
+def _open_live_runtime_fds(data_root: Path) -> tuple[int, int]:
+    flags = _secure_directory_flags()
+    data_fd = os.open(data_root, flags)
+    try:
+        live_fd = os.open("live", flags, dir_fd=data_fd)
+    except BaseException:
+        os.close(data_fd)
+        raise
+    os.close(data_fd)
+    try:
+        runs_fd = os.open("runs", flags, dir_fd=live_fd)
+    except BaseException:
+        os.close(live_fd)
+        raise
+    return live_fd, runs_fd
+
+
+def _open_child_directory_fd(
+    parent_fd: int,
+    name: str,
+    *,
+    label: str,
+    missing_ok: bool = False,
+) -> int | None:
+    try:
+        descriptor = os.open(name, _secure_directory_flags(), dir_fd=parent_fd)
+    except FileNotFoundError:
+        if missing_ok:
+            return None
+        raise RuntimeError(f"{label} is missing") from None
+    except OSError as exc:
+        raise RuntimeError(f"{label} is not a regular directory") from exc
+    if not stat.S_ISDIR(os.fstat(descriptor).st_mode):
+        os.close(descriptor)
+        raise RuntimeError(f"{label} is not a regular directory")
+    return descriptor
 
 
 def _read_json_regular_at(directory_fd: int, file_name: str) -> dict[str, object] | None:
@@ -360,6 +417,9 @@ class LiveRunManager:
         self._last_event_at_ms: int | None = None
         self._last_event_received_at_ms: int | None = None
         self._writers: dict[str, AppendOnlyNdjsonWriter] = {}
+        self._live_root_fd: int | None = None
+        self._runs_root_fd: int | None = None
+        self._run_root_fd: int | None = None
         self.sources = {
             BYBIT_SOURCE: SourceState(configured=True),
             BINANCE_SOURCE: SourceState(configured=True),
@@ -378,6 +438,33 @@ class LiveRunManager:
             raise RuntimeError("live run has not started")
         return self._run_root
 
+    @staticmethod
+    def _require_fd(descriptor: int | None, *, label: str) -> int:
+        if descriptor is None:
+            raise RuntimeError(f"{label} is not open")
+        return descriptor
+
+    def _open_runtime_root_fds(self) -> None:
+        self._close_runtime_root_fds()
+        try:
+            self._live_root_fd, self._runs_root_fd = _open_live_runtime_fds(self.data_root)
+        except OSError as exc:
+            raise RuntimeError("Liquid20 runtime roots are not stable regular directories") from exc
+
+    def _close_run_root_fd(self) -> None:
+        if self._run_root_fd is not None:
+            os.close(self._run_root_fd)
+            self._run_root_fd = None
+
+    def _close_runtime_root_fds(self) -> None:
+        self._close_run_root_fd()
+        if self._runs_root_fd is not None:
+            os.close(self._runs_root_fd)
+            self._runs_root_fd = None
+        if self._live_root_fd is not None:
+            os.close(self._live_root_fd)
+            self._live_root_fd = None
+
     async def start(self) -> None:
         async with self._lock:
             await asyncio.to_thread(
@@ -386,9 +473,17 @@ class LiveRunManager:
                 live_root=self.live_root,
                 runs_root=self.runs_root,
             )
-            await asyncio.to_thread(self._complete_previous_active_run)
-            self._start_new_run(self._now_ms())
-            await asyncio.to_thread(self._write_state)
+            await asyncio.to_thread(self._open_runtime_root_fds)
+            try:
+                await asyncio.to_thread(self._complete_previous_active_run)
+                self._start_new_run(self._now_ms())
+                await asyncio.to_thread(self._write_state)
+            except BaseException:
+                for writer in self._writers.values():
+                    writer.close()
+                self._writers.clear()
+                await asyncio.to_thread(self._close_runtime_root_fds)
+                raise
 
     async def heartbeat(self) -> None:
         async with self._lock:
@@ -468,18 +563,24 @@ class LiveRunManager:
             self._writers.clear()
 
     def _complete_previous_active_run(self) -> None:
-        pointer = self.live_root / LIVE_STATE_FILE
-        if not pointer.exists() or pointer.is_symlink():
-            return
+        live_fd = self._require_fd(self._live_root_fd, label="Liquid20 live root")
+        runs_fd = self._require_fd(self._runs_root_fd, label="Liquid20 runs root")
         try:
-            payload = json.loads(pointer.read_text(encoding="utf-8"))
-            run_id = payload.get("active_run_id")
-            if not isinstance(run_id, str) or not RUN_ID_PATTERN.fullmatch(run_id):
-                return
-        except (OSError, TypeError, ValueError, json.JSONDecodeError):
+            payload = _read_json_regular_at(live_fd, LIVE_STATE_FILE)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return
+        if payload is None:
+            return
+        run_id = payload.get("active_run_id")
+        if not isinstance(run_id, str) or not RUN_ID_PATTERN.fullmatch(run_id):
             return
 
-        run_root_fd = _open_restart_run_root_fd(self.data_root, run_id)
+        run_root_fd = _open_child_directory_fd(
+            runs_fd,
+            run_id,
+            label="previous live run root",
+            missing_ok=True,
+        )
         if run_root_fd is None:
             return
         try:
@@ -489,7 +590,6 @@ class LiveRunManager:
                 return
             if state is None or state.get("run_state") != "active":
                 return
-
             sources = state.get("sources")
             if not isinstance(sources, dict):
                 raise RuntimeError("previous live source state is invalid")
@@ -508,7 +608,6 @@ class LiveRunManager:
                     allow_missing=allow_missing,
                     directory_fd=run_root_fd,
                 )
-
             state["run_state"] = "completed"
             state["data_mode"] = "historical"
             state["completed_at_ms"] = self._now_ms()
@@ -518,15 +617,24 @@ class LiveRunManager:
             os.close(run_root_fd)
 
     def _start_new_run(self, now_ms: int) -> None:
+        runs_fd = self._require_fd(self._runs_root_fd, label="Liquid20 runs root")
         instant = datetime.fromtimestamp(now_ms / 1000, tz=UTC)
         day = instant.strftime("%Y%m%d")
         base = f"liquid20-{day}T000000Z"
         attempt = 0
-        while (self.runs_root / f"{base}-{attempt}").exists():
-            attempt += 1
-        run_id = f"{base}-{attempt}"
+        while True:
+            run_id = f"{base}-{attempt}"
+            try:
+                os.mkdir(run_id, mode=0o700, dir_fd=runs_fd)
+                break
+            except FileExistsError:
+                attempt += 1
+        self._close_run_root_fd()
+        run_root_fd = _open_child_directory_fd(runs_fd, run_id, label="new live run root")
+        if run_root_fd is None:
+            raise RuntimeError("new live run root is missing")
+        self._run_root_fd = run_root_fd
         run_root = self.runs_root / run_id
-        run_root.mkdir(parents=False, exist_ok=False)
         self._run_id = run_id
         self._run_root = run_root
         self._collector_started_at_ms = now_ms
@@ -540,10 +648,12 @@ class LiveRunManager:
             BYBIT_SOURCE: AppendOnlyNdjsonWriter(
                 run_root / "bybit-linear.ndjson",
                 flush_interval_seconds=self._flush_interval_seconds,
+                directory_fd=run_root_fd,
             ),
             BINANCE_SOURCE: AppendOnlyNdjsonWriter(
                 run_root / "binance-usdm.ndjson",
                 flush_interval_seconds=self._flush_interval_seconds,
+                directory_fd=run_root_fd,
             ),
         }
         for state in self.sources.values():
@@ -612,11 +722,13 @@ class LiveRunManager:
         }
 
     def _write_state(self) -> None:
+        run_fd = self._require_fd(self._run_root_fd, label="Liquid20 active run root")
+        live_fd = self._require_fd(self._live_root_fd, label="Liquid20 live root")
         for writer in self._writers.values():
             if not writer.closed:
                 writer.flush()
         payload = self._state_payload()
-        write_json_atomic(self.run_root / RUN_STATE_FILE, payload)
+        _write_json_atomic_at(run_fd, RUN_STATE_FILE, payload)
         for source in (BYBIT_SOURCE, BINANCE_SOURCE):
             source_payload = {
                 "schema_version": 1,
@@ -627,7 +739,7 @@ class LiveRunManager:
                 "trading_credentials_present": False,
                 "execution_enabled": False,
             }
-            write_json_atomic(self.run_root / f"{source}-summary.json", source_payload)
+            _write_json_atomic_at(run_fd, f"{source}-summary.json", source_payload)
         pointer_payload = {
             "schema_version": 1,
             "contract": LIVE_CONTRACT,
@@ -635,7 +747,7 @@ class LiveRunManager:
             "collector_heartbeat_at_ms": payload["collector_heartbeat_at_ms"],
             "state": payload,
         }
-        write_json_atomic(self.live_root / LIVE_STATE_FILE, pointer_payload)
+        _write_json_atomic_at(live_fd, LIVE_STATE_FILE, pointer_payload)
 
 
 def redact_error(error: BaseException | str | None) -> str | None:

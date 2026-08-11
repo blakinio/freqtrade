@@ -21,7 +21,6 @@ from ai_platform.research.liquidations.okx import (
 )
 from ai_platform.research.liquidations.staging import (
     trading_credentials_present_in_environment,
-    write_json_atomic,
 )
 from ai_platform.scripts.liquidation_binance_collector import trading_credentials_present
 from ai_platform.scripts.liquidation_live_stream import (
@@ -33,6 +32,7 @@ from ai_platform.scripts.liquidation_live_stream import (
     LiveRunManager,
     _bounded_backoff_sleep,
     _fetch_json,
+    _write_json_atomic_at,
     discover_binance_symbols,
     discover_bybit_symbols,
     run_binance_source,
@@ -147,8 +147,9 @@ class OkxLiveRunManager(LiveRunManager):
 
     def _write_okx_snapshot(self) -> None:
         if self._okx_instrument_snapshot is not None:
-            write_json_atomic(
-                self.run_root / OKX_INSTRUMENT_SNAPSHOT_FILE,
+            _write_json_atomic_at(
+                self._require_fd(self._run_root_fd, label="Liquid20 active run root"),
+                OKX_INSTRUMENT_SNAPSHOT_FILE,
                 self._okx_instrument_snapshot,
             )
 
@@ -157,6 +158,7 @@ class OkxLiveRunManager(LiveRunManager):
         self._writers[OKX_SOURCE] = AppendOnlyNdjsonWriter(
             self.run_root / "okx-swap.ndjson",
             flush_interval_seconds=self._flush_interval_seconds,
+            directory_fd=self._require_fd(self._run_root_fd, label="Liquid20 active run root"),
         )
         self._write_okx_snapshot()
 
@@ -172,7 +174,11 @@ class OkxLiveRunManager(LiveRunManager):
             "execution_enabled": False,
             "orders_submitted": 0,
         }
-        write_json_atomic(self.run_root / "okx-swap-summary.json", source_payload)
+        _write_json_atomic_at(
+            self._require_fd(self._run_root_fd, label="Liquid20 active run root"),
+            "okx-swap-summary.json",
+            source_payload,
+        )
         self._write_okx_snapshot()
 
     async def connected(self, source: str) -> None:

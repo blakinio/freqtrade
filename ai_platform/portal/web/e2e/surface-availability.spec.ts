@@ -13,9 +13,10 @@ test.describe(
       await identity.setState("authenticated");
       await page.goto("/ai");
 
-      await expect(
-        page.getByRole("link", { name: "AI Overview · Unavailable" }),
-      ).toBeVisible();
+      const navigationLink = page.getByRole("link", { name: "AI Overview", exact: true });
+      await expect(navigationLink).toBeVisible();
+      await expect(navigationLink).toContainText("Unavailable");
+
       const notice = page.locator('[data-surface-availability="DISCONNECTED"]');
       await expect(notice).toBeVisible();
       await expect(notice).toContainText("AI Overview capability unavailable");
@@ -32,7 +33,9 @@ test.describe(
       await identity.setState("authenticated");
       await page.goto("/market/liquidations");
 
-      await expect(page.getByRole("link", { name: "Likwidacje", exact: true })).toBeVisible();
+      const navigationLink = page.getByRole("link", { name: "Likwidacje", exact: true });
+      await expect(navigationLink).toBeVisible();
+      await expect(navigationLink).not.toContainText("Unavailable");
       await expect(page.locator("[data-surface-availability]")).toHaveCount(0);
     });
   },

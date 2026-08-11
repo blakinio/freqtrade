@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 from pathlib import Path
@@ -24,11 +25,11 @@ class PortalStateTransferError(RuntimeError):
     pass
 
 
-# Frozen from the real authoritative public Portal SQLite snapshot on Synology.
-# The profile is intentionally exact: it is not a generic "old schema" escape
-# hatch. Existing tables must still match the current canonical column/index
-# contract through schema_status(), and the transfer is allowed only into the
-# explicitly reviewed target revision below.
+# Frozen from the real authoritative public Portal SQLite snapshot on Synology
+# and its deployed source revision 0e7825bf860cd8011e1bd9207fcb0765baf8d52a.
+# This is deliberately an exact historical profile, not a generic old-schema
+# escape hatch. Any extra/missing table, extra structural drift, or target
+# revision change requires explicit revalidation and fails closed.
 PUBLIC_OIDC_V1_UNVERSIONED_TABLES = frozenset(
     {
         "portal_audit_events",
@@ -43,6 +44,63 @@ PUBLIC_OIDC_V1_UNVERSIONED_TABLES = frozenset(
         "portal_tenant_memberships",
     }
 )
+PUBLIC_OIDC_V1_MISSING_TABLES = frozenset(
+    {
+        "portal_bot_command_history",
+        "portal_bot_command_idempotency_conflicts",
+        "portal_bot_commands",
+        "portal_bot_rollouts",
+        "portal_command_idempotency",
+        "portal_decision_snapshots",
+        "portal_event_inbox",
+        "portal_execution_submissions",
+        "portal_grid_bot_configs",
+        "portal_inference_drift_assessments",
+        "portal_inference_telemetry_source_status",
+        "portal_inference_telemetry_windows",
+        "portal_learning_candidates",
+        "portal_learning_experiments",
+        "portal_learning_hypotheses",
+        "portal_model_promotion_history",
+        "portal_model_promotion_slots",
+        "portal_model_versions",
+        "portal_notification_preferences",
+        "portal_oidc_logout_replays",
+        "portal_operational_orders",
+        "portal_operational_positions",
+        "portal_operational_source_status",
+        "portal_operational_trades",
+        "portal_risk_decisions",
+        "portal_risk_kill_switches",
+        "portal_risk_policies",
+        "portal_runtime_generation_observations",
+        "portal_runtime_generations",
+        "portal_signal_events",
+        "portal_signal_wizard_previews",
+        "portal_signal_wizard_submissions",
+        "portal_strategy_lab_experiments",
+        "portal_trade_analyses",
+        "portal_trade_intents",
+        "portal_trade_outcomes",
+    }
+)
+PUBLIC_OIDC_V1_CHANGED_TABLES = frozenset(
+    {
+        "portal_bot_config_revisions",
+        "portal_bots",
+        "portal_identity_sessions",
+        "portal_tenant_memberships",
+    }
+)
+PUBLIC_OIDC_V1_MISSING_BOT_COLUMNS = frozenset(
+    {
+        "latest_authored_revision_id",
+        "desired_revision_id",
+        "desired_runtime_generation_id",
+        "observed_runtime_generation_id",
+        "state_version",
+    }
+)
 PUBLIC_OIDC_V1_SUPPORTED_TARGET_REVISION = "20260809_04_runtime_isolation_binding"
 PUBLIC_OIDC_V1_AUTHORITY = "unversioned_public_oidc_v1"
 
@@ -53,6 +111,89 @@ def _manifest_tables() -> tuple[Table, ...]:
         table
         for table in Base.metadata.sorted_tables
         if table.name in manifest and table.name != MIGRATION_TABLE_NAME
+    )
+
+
+def _without_named(items: list[dict[str, Any]], names: frozenset[str]) -> list[dict[str, Any]]:
+    return [item for item in items if item.get("name") not in names]
+
+
+def _public_oidc_v1_actual_from_current_expected(
+    table_name: str,
+    expected: dict[str, Any],
+) -> dict[str, Any]:
+    historical = copy.deepcopy(expected)
+    if table_name == "portal_bots":
+        historical["columns"] = [
+            column
+            for column in historical["columns"]
+            if column["name"] not in PUBLIC_OIDC_V1_MISSING_BOT_COLUMNS
+        ]
+        historical["checks"] = _without_named(
+            historical["checks"],
+            frozenset({"ck_portal_bots_current_revision_positive"}),
+        )
+    elif table_name == "portal_bot_config_revisions":
+        historical["checks"] = _without_named(
+            historical["checks"],
+            frozenset({"ck_portal_bot_config_revision_positive"}),
+        )
+        historical["foreign_keys"] = _without_named(
+            historical["foreign_keys"],
+            frozenset({"fk_portal_revision_bot"}),
+        )
+    elif table_name == "portal_tenant_memberships":
+        historical["checks"] = _without_named(
+            historical["checks"],
+            frozenset({"ck_portal_membership_version_positive"}),
+        )
+        historical["foreign_keys"] = _without_named(
+            historical["foreign_keys"],
+            frozenset({"fk_portal_membership_principal"}),
+        )
+        historical["unique_constraints"] = _without_named(
+            historical["unique_constraints"],
+            frozenset({"uq_portal_membership_identity"}),
+        )
+    elif table_name == "portal_identity_sessions":
+        historical["checks"] = _without_named(
+            historical["checks"],
+            frozenset({"ck_portal_session_membership_version_positive"}),
+        )
+        historical["foreign_keys"] = _without_named(
+            historical["foreign_keys"],
+            frozenset({"fk_portal_session_membership_identity"}),
+        )
+    else:
+        raise PortalStateTransferError(
+            "deployed public SQLite structural profile contains an unreviewed changed table"
+        )
+    return historical
+
+
+def _matches_public_oidc_v1(
+    status: dict[str, Any],
+    source_tables: frozenset[str],
+) -> bool:
+    differences = status["differences"]
+    if status["applied_revisions"]:
+        return False
+    if source_tables != PUBLIC_OIDC_V1_UNVERSIONED_TABLES:
+        return False
+    if frozenset(differences["missing_tables"]) != PUBLIC_OIDC_V1_MISSING_TABLES:
+        return False
+    if differences["unexpected_tables"]:
+        return False
+    changed_tables = differences["changed_tables"]
+    if frozenset(changed_tables) != PUBLIC_OIDC_V1_CHANGED_TABLES:
+        return False
+    return all(
+        changed_tables[table_name]["actual"]
+        == _public_oidc_v1_actual_from_current_expected(
+            table_name,
+            changed_tables[table_name]["expected"],
+        )
+        for table_name in PUBLIC_OIDC_V1_CHANGED_TABLES
     )
 
 
@@ -77,12 +218,7 @@ def _source_authority(source: Engine) -> tuple[str, dict[str, Any], frozenset[st
         structurally_safe = not unexpected_tables and not changed_tables
         if structurally_safe and not missing_tables and not revisions:
             authority = "unversioned_structural_current"
-        elif (
-            structurally_safe
-            and not revisions
-            and source_tables == PUBLIC_OIDC_V1_UNVERSIONED_TABLES
-            and bool(missing_tables)
-        ):
+        elif _matches_public_oidc_v1(status, source_tables):
             authority = PUBLIC_OIDC_V1_AUTHORITY
         elif (
             structurally_safe
@@ -155,8 +291,22 @@ def _missing_table_is_transferable(authority: str, table_name: str) -> bool:
     if authority == "structural_pre_logout_replay":
         return table_name == OIDC_LOGOUT_REPLAY_TABLE_NAME
     if authority == PUBLIC_OIDC_V1_AUTHORITY:
-        return table_name not in PUBLIC_OIDC_V1_UNVERSIONED_TABLES
+        return table_name in PUBLIC_OIDC_V1_MISSING_TABLES
     return False
+
+
+def _source_rows(source_connection: Any, table: Table) -> Any:
+    source_column_names = {
+        column["name"] for column in inspect(source_connection).get_columns(table.name)
+    }
+    selected_columns = [
+        column for column in table.columns if column.name in source_column_names
+    ]
+    if not selected_columns:
+        raise PortalStateTransferError(
+            f"legacy SQLite source table {table.name} has no transferable columns"
+        )
+    return source_connection.execute(select(*selected_columns)).mappings()
 
 
 def transfer_portal_state(source: Engine, target: Engine) -> dict[str, Any]:
@@ -188,7 +338,7 @@ def transfer_portal_state(source: Engine, target: Engine) -> dict[str, Any]:
                 raise PortalStateTransferError(
                     f"legacy SQLite source is missing required table {table.name}"
                 )
-            result = source_connection.execute(select(table)).mappings()
+            result = _source_rows(source_connection, table)
             copied = 0
             batch: list[dict[str, Any]] = []
             for row in result:

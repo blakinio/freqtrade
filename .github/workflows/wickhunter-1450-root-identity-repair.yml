@@ -1,0 +1,286 @@
+name: WickHunter PR1450 root identity repair
+
+on:
+  push:
+    branches:
+      - fix/wickhunter-1396-synology-recovery-v2
+    paths:
+      - .github/workflows/wickhunter-1450-root-identity-repair.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-1450-root-identity-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact repair branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: fix/wickhunter-1396-synology-recovery-v2
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Apply bounded product and regression repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source_path = Path("ai_platform/scripts/liquidation_live_stream.py")
+          source = source_path.read_text(encoding="utf-8")
+          helper_marker = "\ndef _read_json_regular_at("
+          if "def _assert_runtime_roots_still_anchored(" in source:
+              raise SystemExit("root identity helper already present")
+          helper = r'''
+          def _assert_runtime_roots_still_anchored(
+              *, data_root: Path, live_fd: int, runs_fd: int
+          ) -> None:
+              flags = _secure_directory_flags()
+              opened: list[int] = []
+              try:
+                  data_fd = os.open(data_root, flags)
+                  opened.append(data_fd)
+                  current_live_fd = os.open("live", flags, dir_fd=data_fd)
+                  opened.append(current_live_fd)
+                  current_runs_fd = os.open("runs", flags, dir_fd=current_live_fd)
+                  opened.append(current_runs_fd)
+                  for anchored_fd, current_fd in (
+                      (live_fd, current_live_fd),
+                      (runs_fd, current_runs_fd),
+                  ):
+                      anchored = os.fstat(anchored_fd)
+                      current = os.fstat(current_fd)
+                      if (anchored.st_dev, anchored.st_ino) != (current.st_dev, current.st_ino):
+                          raise RuntimeError("Liquid20 runtime roots changed after anchoring")
+              except OSError as exc:
+                  raise RuntimeError("Liquid20 runtime roots changed after anchoring") from exc
+              finally:
+                  for descriptor in reversed(opened):
+                      os.close(descriptor)
+          '''.strip("\n")
+          if source.count(helper_marker) != 1:
+              raise SystemExit("unexpected read helper marker count")
+          source = source.replace(
+              helper_marker,
+              "\n" + helper + "\n\ndef _read_json_regular_at(",
+              1,
+          )
+
+          old_header = '''    def _write_state(self) -> None:
+                  run_fd = self._require_fd(self._run_root_fd, label="Liquid20 active run root")
+                  live_fd = self._require_fd(self._live_root_fd, label="Liquid20 live root")
+                  for writer in self._writers.values():
+          '''.replace("                ", "        ")
+          new_header = '''    def _write_state(self) -> None:
+                  run_fd = self._require_fd(self._run_root_fd, label="Liquid20 active run root")
+                  live_fd = self._require_fd(self._live_root_fd, label="Liquid20 live root")
+                  runs_fd = self._require_fd(self._runs_root_fd, label="Liquid20 runs root")
+                  _assert_runtime_roots_still_anchored(
+                      data_root=self.data_root,
+                      live_fd=live_fd,
+                      runs_fd=runs_fd,
+                  )
+                  for writer in self._writers.values():
+          '''.replace("                ", "        ")
+          if source.count(old_header) != 1:
+              raise SystemExit("unexpected _write_state header")
+          source = source.replace(old_header, new_header, 1)
+
+          old_pointer = '''        _write_json_atomic_at(live_fd, LIVE_STATE_FILE, pointer_payload)
+          '''
+          new_pointer = '''        _assert_runtime_roots_still_anchored(
+              data_root=self.data_root,
+              live_fd=live_fd,
+              runs_fd=runs_fd,
+          )
+          _write_json_atomic_at(live_fd, LIVE_STATE_FILE, pointer_payload)
+          '''
+          if source.count(old_pointer) != 1:
+              raise SystemExit("unexpected live pointer write count")
+          source = source.replace(old_pointer, new_pointer, 1)
+          source_path.write_text(source, encoding="utf-8")
+
+          test_path = Path("tests/ai_platform_integration/test_liquidation_live_restart_durability.py")
+          tests = test_path.read_text(encoding="utf-8")
+          start_marker = "def test_new_run_creation_remains_anchored_after_runs_path_swap(tmp_path: Path) -> None:\n"
+          end_marker = "\ndef test_restart_rejects_symlinked_run_root_without_mutating_external_target("
+          start = tests.find(start_marker)
+          end = tests.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit("runs-path swap regression markers not found")
+          replacement = r'''def test_new_run_creation_fails_closed_after_runs_path_swap(tmp_path: Path) -> None:
+              live_root = tmp_path / "live"
+              runs_root = live_root / "runs"
+              external_root = tmp_path / "external-runs"
+              external_root.mkdir()
+              manager = OkxLiveRunManager(
+                  data_root=tmp_path,
+                  collector_commit="d" * 40,
+                  host_id="synology-test",
+                  now_ms=lambda: 1_786_384_683_792,
+              )
+              anchored_runs = live_root / "runs-anchored"
+
+              def swap_runs_path_after_fd_open() -> None:
+                  runs_root.rename(anchored_runs)
+                  runs_root.symlink_to(external_root, target_is_directory=True)
+
+              manager._complete_previous_active_run = swap_runs_path_after_fd_open  # type: ignore[method-assign]
+
+              with pytest.raises(RuntimeError, match="Liquid20 runtime roots changed after anchoring"):
+                  asyncio.run(manager.start())
+
+              assert list(external_root.iterdir()) == []
+              assert not (live_root / LIVE_STATE_FILE).exists()
+              created_runs = list(anchored_runs.iterdir())
+              assert len(created_runs) == 1
+              created = created_runs[0]
+              assert created.is_dir()
+              assert (created / "bybit-linear.ndjson").is_file()
+              assert (created / "binance-usdm.ndjson").is_file()
+              assert (created / "okx-swap.ndjson").is_file()
+              assert not (created / "run-state-v1.json").exists()
+
+
+          def test_new_run_creation_fails_closed_after_live_path_swap(tmp_path: Path) -> None:
+              live_root = tmp_path / "live"
+              external_root = tmp_path / "external-live"
+              external_root.mkdir()
+              manager = OkxLiveRunManager(
+                  data_root=tmp_path,
+                  collector_commit="c" * 40,
+                  host_id="synology-test",
+                  now_ms=lambda: 1_786_384_683_792,
+              )
+              anchored_live = tmp_path / "live-anchored"
+
+              def swap_live_path_after_fd_open() -> None:
+                  live_root.rename(anchored_live)
+                  live_root.symlink_to(external_root, target_is_directory=True)
+
+              manager._complete_previous_active_run = swap_live_path_after_fd_open  # type: ignore[method-assign]
+
+              with pytest.raises(RuntimeError, match="Liquid20 runtime roots changed after anchoring"):
+                  asyncio.run(manager.start())
+
+              assert list(external_root.iterdir()) == []
+              assert not (external_root / LIVE_STATE_FILE).exists()
+              created_runs = list((anchored_live / "runs").iterdir())
+              assert len(created_runs) == 1
+              assert not (created_runs[0] / "run-state-v1.json").exists()
+          '''.replace("          ", "")
+          tests = tests[:start] + replacement + tests[end:]
+          test_path.write_text(tests, encoding="utf-8")
+          PY
+
+      - name: Install focused validation dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check \
+            pytest "pydantic>=2.2" "SQLAlchemy>=2.0.6" "httpx>=0.24.1" \
+            fastapi pyjwt cryptography "PyYAML>=6.0" lightgbm websockets ruff==0.15.20
+
+      - name: Validate product repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            ai_platform/scripts/liquidation_live_stream.py \
+            ai_platform/scripts/liquidation_live_stream_okx.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          python3 -m ruff check \
+            ai_platform/scripts/liquidation_live_stream.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          python3 -m ruff format --check \
+            ai_platform/scripts/liquidation_live_stream.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          python3 -m pytest -q -o addopts='' \
+            --confcutdir=tests/ai_platform_integration \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py \
+            tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          git diff --check
+
+      - name: Commit product repair and checkpoint task
+        shell: bash
+        env:
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            ai_platform/scripts/liquidation_live_stream.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          git commit -m "fix(liquidations): revalidate anchored roots before publish"
+          product_head="$(git rev-parse HEAD)"
+          PRODUCT_HEAD="$product_head" python3 - <<'PY'
+          import os
+          import re
+          from datetime import datetime
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+
+          path = Path("docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md")
+          text = path.read_text(encoding="utf-8")
+          product_head = os.environ["PRODUCT_HEAD"]
+          run_id = os.environ["RUN_ID"]
+          now = datetime.now(ZoneInfo("Europe/Warsaw")).replace(microsecond=0).isoformat()
+          text, count = re.subn(r"updated_at: [^\n]+", f"updated_at: {now}", text, count=1)
+          if count != 1:
+              raise SystemExit("updated_at checkpoint field not found")
+          text, count = re.subn(r"head: [0-9a-f]{40}\nbranch: fix/wickhunter-1396-synology-recovery-v2", f"head: {product_head}\nbranch: fix/wickhunter-1396-synology-recovery-v2", text, count=1)
+          if count != 1:
+              raise SystemExit("checkpoint head field not found")
+          proof_marker = "derived:\n"
+          proof = (
+              "  - exact-head Codex review on 6f00d4360031aebe6afdbfdff7107d2213b6e006 found that a replaced live/runs path could make an anchored new run unreachable from the published canonical pointer; the repair now revalidates canonical live and runs directory identities against retained descriptors before state work and again immediately before pointer publication; focused validation passed in GitHub Actions run "
+              + run_id
+              + "\n"
+          )
+          if proof not in text:
+              if text.count(proof_marker) != 1:
+                  raise SystemExit("derived checkpoint marker not found")
+              text = text.replace(proof_marker, proof + proof_marker, 1)
+          text = text.replace(
+              "  - final exact-head PR 1450 standard CI result after temporary workflow removal\n",
+              "  - final exact-head PR 1450 ci:full result after anchored runtime-root publication repair\n",
+              1,
+          )
+          validation_marker = "blockers: []\n"
+          validation = (
+              "  - command: Anchored runtime-root publication revalidation\n"
+              "    result: PASS\n"
+              f"    evidence: GitHub Actions run {run_id} passed focused restart/OKX tests plus py_compile Ruff check format and diff hygiene\n"
+          )
+          if validation not in text:
+              if text.count(validation_marker) != 1:
+                  raise SystemExit("blockers marker not found")
+              text = text.replace(validation_marker, validation + validation_marker, 1)
+          text = text.replace("  generation: 18\n", "  generation: 19\n", 1)
+          text = re.sub(r"  checkpointed_at: [^\n]+", f"  checkpointed_at: {now}", text, count=1)
+          text = re.sub(r"  last_progress_at: [^\n]+", f"  last_progress_at: {now}", text, count=1)
+          text = text.replace("  phase: pr1450_final_validation\n", "  phase: pr1450_root_identity_revalidation\n", 1)
+          text = re.sub(r"  exact_head_before_checkpoint_commit: [0-9a-f]{40}", f"  exact_head_before_checkpoint_commit: {product_head}", text, count=1)
+          text = text.replace(
+              "  active_operation: final exact-head CI and independent review after current-develop reconciliation\n",
+              "  active_operation: final exact-head CI and independent review after anchored runtime-root publication repair\n",
+              1,
+          )
+          path.write_text(text, encoding="utf-8")
+          PY
+          python3 tools/agents/checkpoint.py \
+            docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md \
+            --require-checkpoint
+          git add docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
+          git rm .github/workflows/wickhunter-1450-root-identity-repair.yml
+          git diff --cached --check
+          git commit -m "docs(wickhunter): checkpoint root identity repair"
+          git push origin HEAD:fix/wickhunter-1396-synology-recovery-v2

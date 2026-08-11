@@ -179,6 +179,144 @@ def test_stop_closes_retained_runtime_directory_descriptors_on_state_write_error
     asyncio.run(scenario())
 
 
+def test_stop_okx_summary_failure_is_restart_recoverable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import ai_platform.scripts.liquidation_live_stream_okx as okx_module
+
+    manager = OkxLiveRunManager(
+        data_root=tmp_path,
+        collector_commit="1" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+
+    async def scenario() -> None:
+        await manager.start()
+        old_run_id = manager.run_id
+        old_run_root = manager.run_root
+        retained = [manager._live_root_fd, manager._runs_root_fd, manager._run_root_fd]
+        real_write = okx_module._write_json_atomic_at
+        failed = False
+
+        def fail_completed_okx_summary_once(
+            directory_fd: int, file_name: str, payload: dict[str, object]
+        ) -> None:
+            nonlocal failed
+            if (
+                not failed
+                and file_name == "okx-swap-summary.json"
+                and payload.get("run_state") == "completed"
+            ):
+                failed = True
+                raise RuntimeError("forced completed OKX summary failure")
+            real_write(directory_fd, file_name, payload)
+
+        monkeypatch.setattr(
+            okx_module,
+            "_write_json_atomic_at",
+            fail_completed_okx_summary_once,
+        )
+        with pytest.raises(RuntimeError, match="forced completed OKX summary failure"):
+            await manager.stop()
+
+        persisted = json.loads((old_run_root / "run-state-v1.json").read_text(encoding="utf-8"))
+        pointer = json.loads((tmp_path / "live" / LIVE_STATE_FILE).read_text(encoding="utf-8"))
+        assert persisted["run_state"] == "active"
+        assert pointer["active_run_id"] == old_run_id
+        assert manager._live_root_fd is None
+        assert manager._runs_root_fd is None
+        assert manager._run_root_fd is None
+        for descriptor in retained:
+            assert descriptor is not None
+            with pytest.raises(OSError):
+                os.fstat(descriptor)
+
+        recovery = OkxLiveRunManager(
+            data_root=tmp_path,
+            collector_commit="2" * 40,
+            host_id="synology-test",
+            now_ms=lambda: 1_786_384_683_793,
+        )
+        await recovery.start()
+        assert recovery.run_id != old_run_id
+        completed = json.loads((old_run_root / "run-state-v1.json").read_text(encoding="utf-8"))
+        assert completed["run_state"] == "completed"
+        assert completed["completion_reason"] == "collector-restart"
+        for source in (BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE):
+            summary = json.loads(
+                (old_run_root / f"{source}-summary.json").read_text(encoding="utf-8")
+            )
+            assert summary["run_id"] == old_run_id
+            assert summary["run_state"] == "completed"
+        new_pointer = json.loads((tmp_path / "live" / LIVE_STATE_FILE).read_text(encoding="utf-8"))
+        assert new_pointer["active_run_id"] == recovery.run_id
+        await recovery.stop()
+
+    asyncio.run(scenario())
+
+
+def test_stop_pointer_failure_leaves_coherent_history_for_restart(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import ai_platform.scripts.liquidation_live_stream as stream_module
+
+    manager = OkxLiveRunManager(
+        data_root=tmp_path,
+        collector_commit="3" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+
+    async def scenario() -> None:
+        await manager.start()
+        old_run_id = manager.run_id
+        old_run_root = manager.run_root
+        real_write = stream_module._write_json_atomic_at
+        failed = False
+
+        def fail_completed_pointer_once(
+            directory_fd: int, file_name: str, payload: dict[str, object]
+        ) -> None:
+            nonlocal failed
+            if not failed and file_name == LIVE_STATE_FILE and payload.get("active_run_id") is None:
+                failed = True
+                raise RuntimeError("forced completed pointer failure")
+            real_write(directory_fd, file_name, payload)
+
+        monkeypatch.setattr(
+            stream_module,
+            "_write_json_atomic_at",
+            fail_completed_pointer_once,
+        )
+        with pytest.raises(RuntimeError, match="forced completed pointer failure"):
+            await manager.stop()
+
+        persisted = json.loads((old_run_root / "run-state-v1.json").read_text(encoding="utf-8"))
+        pointer = json.loads((tmp_path / "live" / LIVE_STATE_FILE).read_text(encoding="utf-8"))
+        assert persisted["run_state"] == "completed"
+        assert pointer["active_run_id"] == old_run_id
+        for source in (BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE):
+            summary = json.loads(
+                (old_run_root / f"{source}-summary.json").read_text(encoding="utf-8")
+            )
+            assert summary["run_state"] == "completed"
+
+        recovery = OkxLiveRunManager(
+            data_root=tmp_path,
+            collector_commit="4" * 40,
+            host_id="synology-test",
+            now_ms=lambda: 1_786_384_683_793,
+        )
+        await recovery.start()
+        assert recovery.run_id != old_run_id
+        new_pointer = json.loads((tmp_path / "live" / LIVE_STATE_FILE).read_text(encoding="utf-8"))
+        assert new_pointer["active_run_id"] == recovery.run_id
+        await recovery.stop()
+
+    asyncio.run(scenario())
+
+
 def test_restart_truncates_only_uncommitted_suffix_before_completion(tmp_path: Path) -> None:
     old_run_id, old_run_root = _write_previous_active_run(
         tmp_path,

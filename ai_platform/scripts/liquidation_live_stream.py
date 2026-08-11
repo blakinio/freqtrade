@@ -616,6 +616,7 @@ class LiveRunManager:
             state["data_mode"] = "historical"
             state["completed_at_ms"] = self._now_ms()
             state["completion_reason"] = "collector-restart"
+            self._write_source_summaries(run_root_fd, state)
             _write_json_atomic_at(run_root_fd, RUN_STATE_FILE, state)
         finally:
             os.close(run_root_fd)
@@ -725,6 +726,29 @@ class LiveRunManager:
             "sources": {source: state.as_json_dict() for source, state in self.sources.items()},
         }
 
+    def _write_source_summaries(self, run_fd: int, payload: dict[str, object]) -> None:
+        sources = payload.get("sources")
+        run_id = payload.get("run_id")
+        run_state = payload.get("run_state")
+        if not isinstance(sources, dict) or not isinstance(run_id, str):
+            raise RuntimeError("Liquid20 source summary payload is invalid")
+        if not isinstance(run_state, str):
+            raise RuntimeError("Liquid20 run-state summary payload is invalid")
+        for source in (BYBIT_SOURCE, BINANCE_SOURCE):
+            stats = sources.get(source)
+            if not isinstance(stats, dict):
+                raise RuntimeError(f"Liquid20 {source} source summary payload is invalid")
+            source_payload = {
+                "schema_version": 1,
+                "source": {"id": source},
+                "run_id": run_id,
+                "run_state": run_state,
+                "stats": stats,
+                "trading_credentials_present": False,
+                "execution_enabled": False,
+            }
+            _write_json_atomic_at(run_fd, f"{source}-summary.json", source_payload)
+
     def _write_state(self) -> None:
         run_fd = self._require_fd(self._run_root_fd, label="Liquid20 active run root")
         live_fd = self._require_fd(self._live_root_fd, label="Liquid20 live root")
@@ -732,18 +756,10 @@ class LiveRunManager:
             if not writer.closed:
                 writer.flush()
         payload = self._state_payload()
+        # Summaries are durable before run-state and pointer publication. A failed
+        # summary therefore leaves the prior active commit boundary recoverable.
+        self._write_source_summaries(run_fd, payload)
         _write_json_atomic_at(run_fd, RUN_STATE_FILE, payload)
-        for source in (BYBIT_SOURCE, BINANCE_SOURCE):
-            source_payload = {
-                "schema_version": 1,
-                "source": {"id": source},
-                "run_id": self.run_id,
-                "run_state": self._run_state,
-                "stats": self.sources[source].as_json_dict(),
-                "trading_credentials_present": False,
-                "execution_enabled": False,
-            }
-            _write_json_atomic_at(run_fd, f"{source}-summary.json", source_payload)
         pointer_payload = {
             "schema_version": 1,
             "contract": LIVE_CONTRACT,

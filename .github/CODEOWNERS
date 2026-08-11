@@ -25,6 +25,8 @@
 # Security-, identity-, risk- and execution-sensitive Portal code.
 /ai_platform/portal/control_plane/ @blakinio
 /ai_platform/portal/execution/ @blakinio
+/ai_platform/portal/execution_submission/ @blakinio
+/ai_platform/portal/bot_operations/ @blakinio
 /ai_platform/portal/identity/ @blakinio
 /ai_platform/portal/security/ @blakinio
 /ai_platform/portal/credentials/ @blakinio

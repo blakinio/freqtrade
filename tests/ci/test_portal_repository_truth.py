@@ -9,7 +9,6 @@ PORTAL_README = REPO_ROOT / "ai_platform" / "portal" / "README.md"
 PORTAL_LEDGER = REPO_ROOT / "tools" / "portal_audit" / "ledger" / "index.json"
 CODEOWNERS = REPO_ROOT / ".github" / "CODEOWNERS"
 EXPECTED_PORTAL_OWNERS = ("@blakinio",)
-_GLOB_META = "*?["
 
 REQUIRED_IMPLEMENTED_ROOTS = (
     "ai_platform/portal/control_plane",
@@ -20,7 +19,7 @@ REQUIRED_IMPLEMENTED_ROOTS = (
     "ai_platform/portal/e2e",
 )
 
-REQUIRED_CODEOWNER_PATTERNS = {
+PORTAL_OWNERSHIP_BLOCK_PATTERNS = {
     "/ai_platform/portal/",
     "/ai_platform/portal/control_plane/",
     "/ai_platform/portal/execution/",
@@ -36,6 +35,9 @@ REQUIRED_CODEOWNER_PATTERNS = {
     "/ai_platform/portal/deploy/",
     "/ai_platform/portal/contracts/",
     "/ai_platform/portal/web/",
+}
+
+REQUIRED_CODEOWNER_PATTERNS = PORTAL_OWNERSHIP_BLOCK_PATTERNS | {
     "/deploy/synology/",
 }
 
@@ -58,57 +60,34 @@ def _codeowner_rules() -> list[tuple[str, tuple[str, ...]]]:
     return rules
 
 
-def _glob_literal_prefix(pattern: str) -> str:
-    indexes = [pattern.find(marker) for marker in _GLOB_META if marker in pattern]
-    return pattern[: min(indexes)] if indexes else pattern
-
-
-def _unsupported_pattern_can_affect_root(pattern: str, protected_root: str) -> bool:
-    # Unanchored CODEOWNERS rules may match at arbitrary path depth. Fail closed
-    # instead of pretending to implement that matching language here.
-    if not pattern.startswith("/"):
-        return True
-
-    prefix = _glob_literal_prefix(pattern)
-    if prefix == pattern:
-        return False
-    # An anchored glob can affect the protected root if its literal prefix is
-    # either an ancestor of the root or a descendant inside it. This catches
-    # broad overrides (`/ai_platform/portal/**`) and child overrides such as
-    # `/ai_platform/portal/control_plane/api*`.
-    return protected_root.startswith(prefix) or prefix.startswith(protected_root)
-
-
-def _matches_codeowner_rule(pattern: str, path: str, protected_root: str) -> bool:
-    if pattern == "*":
-        return True
-    if any(marker in pattern for marker in _GLOB_META):
-        if _unsupported_pattern_can_affect_root(pattern, protected_root):
-            raise AssertionError(
-                "unsupported CODEOWNERS glob may affect protected root: "
-                f"{pattern} -> {protected_root}"
-            )
-        return False
-    if not pattern.startswith("/"):
-        raise AssertionError(
-            f"unsupported unanchored CODEOWNERS rule may affect protected root: {pattern}"
-        )
-    if pattern.endswith("/"):
-        return path.startswith(pattern)
-    return path == pattern
-
-
-def _effective_owners(
+def _assert_terminal_portal_ownership_block(
     rules: list[tuple[str, tuple[str, ...]]],
-    path: str,
-    protected_root: str,
-) -> tuple[str, ...]:
-    owners: tuple[str, ...] | None = None
-    for pattern, rule_owners in rules:
-        if _matches_codeowner_rule(pattern, path, protected_root):
-            owners = rule_owners
-    assert owners is not None, path
-    return owners
+) -> None:
+    patterns = [pattern for pattern, _ in rules]
+
+    assert patterns.count("*") == 1
+    wildcard_index = patterns.index("*")
+    assert rules[wildcard_index][1] == EXPECTED_PORTAL_OWNERS
+
+    assert patterns.count("/ai_platform/portal/") == 1
+    portal_umbrella_index = patterns.index("/ai_platform/portal/")
+    assert wildcard_index < portal_umbrella_index
+
+    portal_block = rules[portal_umbrella_index:]
+    portal_block_patterns = [pattern for pattern, _ in portal_block]
+    assert len(portal_block_patterns) == len(PORTAL_OWNERSHIP_BLOCK_PATTERNS), (
+        "Portal ownership block must be terminal; add unrelated CODEOWNERS rules above "
+        "the /ai_platform/portal/ umbrella"
+    )
+    assert set(portal_block_patterns) == PORTAL_OWNERSHIP_BLOCK_PATTERNS, (
+        "Portal ownership block contains an unexpected, missing or duplicate rule"
+    )
+    assert all(owners == EXPECTED_PORTAL_OWNERS for _, owners in portal_block)
+
+    for required_pattern in REQUIRED_CODEOWNER_PATTERNS:
+        assert patterns.count(required_pattern) == 1, required_pattern
+        rule_index = patterns.index(required_pattern)
+        assert rules[rule_index][1] == EXPECTED_PORTAL_OWNERS, required_pattern
 
 
 def test_portal_readme_uses_current_repository_truth_sources() -> None:
@@ -142,43 +121,28 @@ def test_portal_readme_points_to_living_exact_head_ledger() -> None:
 
 
 def test_codeowners_explicitly_covers_current_sensitive_portal_roots() -> None:
-    rules = _codeowner_rules()
-    patterns = [pattern for pattern, _ in rules]
-
-    assert patterns.count("*") == 1
-    wildcard_index = patterns.index("*")
-    assert patterns.count("/ai_platform/portal/") == 1
-    portal_umbrella_index = patterns.index("/ai_platform/portal/")
-    assert wildcard_index < portal_umbrella_index
-
-    for required_pattern in REQUIRED_CODEOWNER_PATTERNS:
-        assert patterns.count(required_pattern) == 1, required_pattern
-        rule_index = patterns.index(required_pattern)
-        assert wildcard_index < rule_index, required_pattern
-        assert rules[rule_index][1] == EXPECTED_PORTAL_OWNERS, required_pattern
-
-        probe_path = required_pattern + "__ownership_probe__"
-        assert (
-            _effective_owners(rules, probe_path, required_pattern) == EXPECTED_PORTAL_OWNERS
-        ), required_pattern
+    _assert_terminal_portal_ownership_block(_codeowner_rules())
 
 
-def _assert_glob_fails_closed(pattern: str, protected_root: str) -> None:
-    rules = _codeowner_rules()
-    rules.append((pattern, ("@other",)))
-    probe_path = protected_root + "__ownership_probe__"
-
-    try:
-        _effective_owners(rules, probe_path, protected_root)
-    except AssertionError as exc:
-        assert "unsupported CODEOWNERS glob may affect protected root" in str(exc)
-    else:  # pragma: no cover - explicit regression sentinel
-        raise AssertionError(f"protected-root glob must fail closed: {pattern}")
-
-
-def test_effective_owner_guard_rejects_portal_overriding_globs() -> None:
-    _assert_glob_fails_closed("/ai_platform/portal/**", "/ai_platform/portal/execution/")
-    _assert_glob_fails_closed(
+def test_portal_ownership_guard_rejects_any_later_rule() -> None:
+    # GitHub applies the last matching CODEOWNERS rule. The guard deliberately
+    # avoids reimplementing GitHub's pattern language: once the Portal umbrella
+    # begins, only the declared Portal rules may follow. Therefore globs,
+    # slashless directory patterns, duplicate overrides and unrelated later
+    # rules all fail closed before they can change effective Portal ownership.
+    for later_rule in (
+        "/ai_platform/portal/**",
+        "/ai_platform/portal/execution",
         "/ai_platform/portal/control_plane/api*",
-        "/ai_platform/portal/control_plane/",
-    )
+        "*.py",
+        "/docs/**",
+        "*",
+    ):
+        rules = _codeowner_rules()
+        rules.append((later_rule, ("@other",)))
+        try:
+            _assert_terminal_portal_ownership_block(rules)
+        except AssertionError:
+            pass
+        else:  # pragma: no cover - explicit regression sentinel
+            raise AssertionError(f"later CODEOWNERS rule must fail closed: {later_rule}")

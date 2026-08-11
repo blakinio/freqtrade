@@ -46,7 +46,7 @@ The repair/audit cycles found and remediated the following material defects befo
 1. stale Ruff/noqa formatting in the real-Docker E2E;
 2. missing workflow-registry tracking for the new E2E workflow;
 3. `runtime_user` rejected root UID but allowed root GID (`1000:0`); both UID and GID zero are rejected with regression coverage;
-4. Btrfs storage validation allowed the approved state root itself to be converted/replaced; runtime state must be a child path, with a no-host-command regression test;
+4. Btrfs storage validation allowed the approved state root itself to be converted/replaced; runtime state must now be a child path, with a no-host-command regression test;
 5. application release trusted a stale in-memory attestation instead of re-attesting the exact generation immediately before release;
 6. market-data egress had no explicit approved DNS resolver policy or DNS enforcement/attestation;
 7. nftables attestation used substring evidence and could accept unsafe reordered or additional rules;
@@ -105,6 +105,32 @@ closeout:
   task_status: completed
   task_archived: true
   ownership_released: true
+```
+
+## Recovery checkpoint
+
+```yaml
+recovery:
+  policy_version: 1
+  generation: 1
+  session_id: chat-20260811-1155-europe-warsaw
+  session_started_at: 2026-08-11T11:55:00+02:00
+  checkpointed_at: 2026-08-11T12:08:40+02:00
+  last_progress_at: 2026-08-11T12:08:40+02:00
+  phase: validating
+  candidate_head_before_checkpoint: c01981480ade1c0110e3efedb9864e20a62e22aa
+  exact_head: containing_commit
+  pull_request: 1464
+  active_operation: fresh exact-final-head independent audit and required CI/E2E
+  external_run_ids: []
+  operation_started_at: null
+  wait_deadline_at: null
+  check_generation: final-head-after-repair
+  checks_used: 0
+  status: ready
+  safe_to_resume: true
+  resume_condition: current PR head is unchanged and no conflicting writer owns the branch
+  next_action: request fresh Codex review on the containing commit and inspect the first exact-head validation result
 ```
 
 ## Safety boundary

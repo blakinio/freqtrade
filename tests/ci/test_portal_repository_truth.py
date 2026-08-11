@@ -21,6 +21,8 @@ REQUIRED_IMPLEMENTED_ROOTS = (
 REQUIRED_CODEOWNER_PATTERNS = {
     "/ai_platform/portal/control_plane/",
     "/ai_platform/portal/execution/",
+    "/ai_platform/portal/execution_submission/",
+    "/ai_platform/portal/bot_operations/",
     "/ai_platform/portal/identity/",
     "/ai_platform/portal/security/",
     "/ai_platform/portal/credentials/",

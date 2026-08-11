@@ -25,16 +25,49 @@ from ai_platform.portal.execution.host_isolation import MarketDataEgressPolicy
 def test_market_data_policy_rejects_non_public_or_overlapping_cidrs(cidr: str) -> None:
     with pytest.raises(ValueError, match="exclusively public"):
         MarketDataEgressPolicy(
-            policy_version="public-data-v1",
+            policy_version="public-data-v2",
             allowed_ipv4_cidrs=(cidr,),
+            dns_resolver_ipv4_addresses=("1.1.1.1",),
         )
 
 
-def test_market_data_policy_accepts_public_ipv4_cidr() -> None:
+@pytest.mark.parametrize(
+    "resolver",
+    (
+        "10.0.0.53",
+        "127.0.0.53",
+        "169.254.169.254",
+        "192.168.1.1",
+        "203.0.113.53",
+        "::1",
+        "not-an-ip",
+    ),
+)
+def test_market_data_policy_rejects_unapproved_dns_resolvers(resolver: str) -> None:
+    with pytest.raises(ValueError, match="DNS resolvers"):
+        MarketDataEgressPolicy(
+            policy_version="public-data-v2",
+            allowed_ipv4_cidrs=("8.8.8.0/24",),
+            dns_resolver_ipv4_addresses=(resolver,),
+        )
+
+
+def test_market_data_policy_requires_explicit_dns_resolver() -> None:
+    with pytest.raises(ValueError, match="approved public DNS"):
+        MarketDataEgressPolicy(
+            policy_version="public-data-v2",
+            allowed_ipv4_cidrs=("8.8.8.0/24",),
+            dns_resolver_ipv4_addresses=(),
+        )
+
+
+def test_market_data_policy_accepts_public_ipv4_cidr_and_dns() -> None:
     policy = MarketDataEgressPolicy(
-        policy_version="public-data-v1",
+        policy_version="public-data-v2",
         allowed_ipv4_cidrs=("1.1.1.0/24",),
+        dns_resolver_ipv4_addresses=("8.8.8.8",),
         allowed_tcp_ports=(443,),
     )
 
     assert policy.allowed_ipv4_cidrs == ("1.1.1.0/24",)
+    assert policy.dns_resolver_ipv4_addresses == ("8.8.8.8",)

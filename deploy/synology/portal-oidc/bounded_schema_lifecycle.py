@@ -13,6 +13,8 @@ WAIT_TIMEOUT_SECONDS = 300
 LOG_TIMEOUT_SECONDS = 90
 REMOVE_TIMEOUT_SECONDS = 120
 QUERY_TIMEOUT_SECONDS = 30
+OWNER_LABEL_KEY = "com.freqtrade.portal.bounded-owner"
+OWNER_LABEL_FORMAT = f'{{{{ index .Config.Labels "{OWNER_LABEL_KEY}" }}}}'
 _TARGET_MODULES = {
     "ai_platform.portal.database.cli",
     "ai_platform.portal.database.transfer",
@@ -38,9 +40,12 @@ def _workload_label(command: list[str], module: str) -> str:
     return f"schema-{operation}"
 
 
-def _container_name(label: str) -> str:
+def _container_identity(label: str) -> tuple[str, str]:
     safe_label = re.sub(r"[^a-z0-9-]+", "-", label.lower()).strip("-") or "schema"
-    return f"portal-oidc-bounded-{safe_label}-{secrets.token_hex(6)}"
+    token = secrets.token_hex(6)
+    name = f"portal-oidc-bounded-{safe_label}-{token}"
+    owner = f"portal-oidc-bounded:{safe_label}:{token}"
+    return name, owner
 
 
 def _run_bounded(
@@ -122,6 +127,33 @@ def _cleanup_owned(deploy: Any, name: str, *, cwd: Path | None) -> None:
     _verify_absent(deploy, name, cwd=cwd)
 
 
+def _cleanup_ambiguous_create(
+    deploy: Any,
+    name: str,
+    owner: str,
+    *,
+    cwd: Path | None,
+) -> None:
+    try:
+        ownership = _run_bounded(
+            ["docker", "inspect", "--format", OWNER_LABEL_FORMAT, name],
+            cwd=cwd,
+            timeout=QUERY_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise deploy.DeploymentError(
+            "ambiguous Docker create ownership could not be verified"
+        ) from exc
+    if ownership.returncode != 0:
+        _verify_absent(deploy, name, cwd=cwd)
+        return
+    if ownership.stdout.strip() != owner:
+        raise deploy.DeploymentError(
+            "ambiguous Docker create produced a container not owned by this task"
+        )
+    _cleanup_owned(deploy, name, cwd=cwd)
+
+
 def _run_sensitive_workload(
     deploy: Any,
     command: list[str],
@@ -132,18 +164,27 @@ def _run_sensitive_workload(
     if module is None:
         raise deploy.DeploymentError("unsupported bounded Docker workload contract")
     label = _workload_label(command, module)
-    name = _container_name(label)
-    create_command = ["docker", "create", "--name", name, *command[3:]]
+    name, owner = _container_identity(label)
+    create_command = [
+        "docker",
+        "create",
+        "--name",
+        name,
+        "--label",
+        f"{OWNER_LABEL_KEY}={owner}",
+        *command[3:],
+    ]
 
     # A pre-existing collision is not task-owned and must fail closed without
-    # mutation. Once absence is proven, this task owns cleanup for its exact,
-    # collision-resistant name even if `docker create` times out after creating it.
+    # mutation. The create itself carries an ownership label so an ambiguous
+    # timeout/non-zero result can be cleaned only if the daemon proves that the
+    # resulting exact-name container belongs to this invocation.
     _verify_absent(deploy, name, cwd=cwd)
 
     primary_error: Exception | None = None
     logs: subprocess.CompletedProcess[str] | None = None
     process_exit: str | None = None
-    owned = True
+    create_succeeded = False
 
     try:
         _stage(
@@ -154,6 +195,7 @@ def _run_sensitive_workload(
             cwd=cwd,
             timeout=CREATE_TIMEOUT_SECONDS,
         )
+        create_succeeded = True
         _stage(
             deploy,
             label=label,
@@ -185,11 +227,13 @@ def _run_sensitive_workload(
         primary_error = exc
 
     cleanup_error: Exception | None = None
-    if owned:
-        try:
+    try:
+        if create_succeeded:
             _cleanup_owned(deploy, name, cwd=cwd)
-        except Exception as exc:
-            cleanup_error = exc
+        else:
+            _cleanup_ambiguous_create(deploy, name, owner, cwd=cwd)
+    except Exception as exc:
+        cleanup_error = exc
 
     if cleanup_error is not None:
         if primary_error is not None:

@@ -81,7 +81,7 @@ def _owner(label: str, token: str) -> str:
     return f"portal-oidc-bounded:{label}:{token}"
 
 
-def test_schema_workload_uses_named_split_lifecycle_and_removes_immutable_id(monkeypatch) -> None:
+def test_schema_workload_uses_immutable_id_after_named_create(monkeypatch) -> None:
     deploy, delegated = _deploy_stub()
     calls: list[list[str]] = []
     exists = False
@@ -127,9 +127,12 @@ def test_schema_workload_uses_named_split_lifecycle_and_removes_immutable_id(mon
     owner_label = create[create.index("--label") + 1]
     assert name == f"portal-oidc-bounded-schema-migrate-{token}"
     assert owner_label == f"{module.OWNER_LABEL_KEY}={expected_owner}"
-    assert ["docker", "start", name] in calls
-    assert ["docker", "wait", name] in calls
-    assert ["docker", "logs", name] in calls
+    assert ["docker", "start", CONTAINER_ID] in calls
+    assert ["docker", "wait", CONTAINER_ID] in calls
+    assert ["docker", "logs", CONTAINER_ID] in calls
+    assert ["docker", "start", name] not in calls
+    assert ["docker", "wait", name] not in calls
+    assert ["docker", "logs", name] not in calls
     assert ["docker", "rm", "-f", CONTAINER_ID] in calls
     assert ["docker", "rm", "-f", name] not in calls
     assert not exists
@@ -178,6 +181,9 @@ def test_transfer_workload_is_bounded_by_same_lifecycle(monkeypatch) -> None:
     create = next(command for command in calls if command[:2] == ["docker", "create"])
     assert f"portal-oidc-bounded-state-transfer-{token}" in create
     assert "--rm" not in create
+    assert ["docker", "start", CONTAINER_ID] in calls
+    assert ["docker", "wait", CONTAINER_ID] in calls
+    assert ["docker", "logs", CONTAINER_ID] in calls
     assert ["docker", "rm", "-f", CONTAINER_ID] in calls
 
 
@@ -386,6 +392,7 @@ def test_start_timeout_still_cleans_task_owned_container(monkeypatch) -> None:
             exists = True
             return _completed(command, stdout=f"{CONTAINER_ID}\n")
         if command[:2] == ["docker", "start"]:
+            assert command[2] == CONTAINER_ID
             raise subprocess.TimeoutExpired(command, kwargs["timeout"])
         if command[:3] == ["docker", "inspect", "--format"]:
             return _completed(

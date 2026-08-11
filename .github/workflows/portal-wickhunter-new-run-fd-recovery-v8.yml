@@ -107,7 +107,7 @@ jobs:
           curl -fsSL https://bootstrap.pypa.io/get-pip.py -o "$RUNNER_TEMP/get-pip.py"
           python3 "$RUNNER_TEMP/get-pip.py" --target "$deps"
           PYTHONPATH="$deps" python3 -m pip install --disable-pip-version-check --target "$deps" -r requirements.txt
-          PYTHONPATH="$deps" python3 -m pip install --disable-pip-version-check --target "$deps" pytest==9.1.1 ruff==0.15.21
+          PYTHONPATH="$deps" python3 -m pip install --disable-pip-version-check --upgrade --target "$deps" pytest==9.1.1 ruff==0.15.21
           echo "PYTHONPATH=$deps${PYTHONPATH:+:$PYTHONPATH}" >> "$GITHUB_ENV"
           echo "PATH=$deps/bin:$PATH" >> "$GITHUB_ENV"
 

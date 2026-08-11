@@ -107,6 +107,9 @@ def test_schema_workload_uses_named_split_lifecycle_and_returns_logs(monkeypatch
     assert ["docker", "wait", name] in calls
     assert ["docker", "logs", name] in calls
     assert ["docker", "rm", "-f", name] in calls
+    list_commands = [command for command in calls if command[:3] == ["docker", "ps", "-aq"]]
+    assert list_commands
+    assert all(f"name=^/{name}$" in command for command in list_commands)
 
 
 def test_transfer_workload_is_bounded_by_same_lifecycle(monkeypatch) -> None:
@@ -215,6 +218,31 @@ def test_cleanup_failure_overrides_success_and_fails_closed(monkeypatch) -> None
         if command[:2] == ["docker", "inspect"]:
             inspect_calls += 1
             return _completed(command, returncode=1 if inspect_calls == 1 else 0)
+        if command[:2] == ["docker", "wait"]:
+            return _completed(command, stdout="0\n")
+        if command[:2] == ["docker", "logs"]:
+            return _completed(command, stdout='{"status":"ready"}\n')
+        return _completed(command)
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError, match="cleanup failed"):
+        deploy._run(_schema_command(), sensitive=True)
+
+
+def test_cleanup_fails_closed_when_exact_name_is_still_listed(monkeypatch) -> None:
+    deploy, _delegated = _deploy_stub()
+    module.install(deploy)
+    monkeypatch.setattr(module.secrets, "token_hex", lambda _size: "cab005ecafe0")
+    ps_calls = 0
+
+    def fake_run(command, **_kwargs):
+        nonlocal ps_calls
+        if command[:2] == ["docker", "inspect"]:
+            return _completed(command, returncode=1)
+        if command[:3] == ["docker", "ps", "-aq"]:
+            ps_calls += 1
+            return _completed(command, stdout="" if ps_calls == 1 else "deadbeef\n")
         if command[:2] == ["docker", "wait"]:
             return _completed(command, stdout="0\n")
         if command[:2] == ["docker", "logs"]:

@@ -85,6 +85,18 @@ def _exact_runtime_image() -> tuple[str, str]:
     return exact, digest
 
 
+class _BoundGatewayE2EAttestor:
+    def attest(
+        self,
+        artifact_digest: str,
+        contract_version: str,
+        contract_digest: str,
+    ) -> None:
+        assert artifact_digest == "2" * 64
+        assert contract_version == "e2e-v2"
+        assert contract_digest == "3" * 64
+
+
 class _HardDenyE2EAttestor:
     """Ephemeral hard controls for the driver-level quarantine E2E.
 
@@ -283,6 +295,7 @@ def test_real_docker_driver_provisions_attested_hardened_quarantine(tmp_path: Pa
     driver = DockerCliRuntimeDriver(
         isolation_plans=provider,
         external_attestor=attestor,
+        gateway_attestor=_BoundGatewayE2EAttestor(),
     )
 
     try:

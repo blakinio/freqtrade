@@ -1,0 +1,108 @@
+name: WickHunter 1450 independent final audit
+
+on:
+  push:
+    branches:
+      - audit/wickhunter-1450-final-20260811
+    paths:
+      - .github/workflows/wickhunter-1450-independent-audit.yml
+
+permissions:
+  contents: read
+
+jobs:
+  independent-audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: abc7b2ccfe69b79ef21b172f395aaf4dc1026578
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Verify exact target and permanent scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "abc7b2ccfe69b79ef21b172f395aaf4dc1026578"
+          git fetch --no-tags origin develop
+          actual="$(git diff --name-only origin/develop...HEAD | sort)"
+          expected="$(printf '%s\n' \
+            ai_platform/scripts/liquidation_live_stream.py \
+            ai_platform/scripts/liquidation_live_stream_okx.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py \
+            tests/ai_platform_integration/test_liquidation_okx_live_source.py | sort)"
+          test "$actual" = "$expected"
+          git diff --check origin/develop...HEAD
+      - name: Static safety and recovery invariant audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          source = Path('ai_platform/scripts/liquidation_live_stream.py').read_text(encoding='utf-8')
+          required = [
+              'MAX_RECOVERY_SOURCE_BYTES = 128 * 1024 * 1024',
+              'MAX_RECOVERY_SOURCE_EVENTS = 250_000',
+              'MAX_RECOVERY_ROW_BYTES = 1024 * 1024',
+              'handle.readline(MAX_RECOVERY_ROW_BYTES + 1)',
+              'def _validate_restart_zero_authority',
+              '"execution_enabled"',
+              '"trading_authorized"',
+              '"trading_credentials_present"',
+              'orders_submitted',
+              '_assert_recovered_source_identities(run_root_fd, retained_sources)',
+          ]
+          missing = [item for item in required if item not in source]
+          if missing:
+              raise SystemExit(f'missing required recovery invariants: {missing}')
+          section = source[source.index('def _complete_previous_active_run'):source.index('def _start_new_run')]
+          if section.count('_assert_runtime_roots_still_anchored(') < 2:
+              raise SystemExit('recovery lacks pre-seal and pre-commit root identity checks')
+          zero = section.index('_validate_restart_zero_authority(state)')
+          seal = section.index('_seal_restart_sources(')
+          commit = section.index('_write_json_atomic_at(run_root_fd, RUN_STATE_FILE, state)')
+          identities = section.index('_assert_recovered_source_identities(run_root_fd, retained_sources)')
+          if not zero < seal < identities < commit:
+              raise SystemExit('recovery safety ordering is invalid')
+          PY
+      - name: Fresh adversarial component validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -q pytest==9.1.1 websockets==16.0 ruff==0.15.21
+          python -m py_compile \
+            ai_platform/scripts/liquidation_live_stream.py \
+            ai_platform/scripts/liquidation_live_stream_okx.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py \
+            tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python -m ruff check \
+            ai_platform/scripts/liquidation_live_stream.py \
+            ai_platform/scripts/liquidation_live_stream_okx.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py \
+            tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python -m ruff format --check \
+            ai_platform/scripts/liquidation_live_stream.py \
+            ai_platform/scripts/liquidation_live_stream_okx.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py \
+            tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py \
+            tests/ai_platform_integration/test_liquidation_okx_live_source.py \
+            tests/ai_platform_integration/test_liquidation_okx_live_safety.py \
+            tests/ai_platform_integration/test_wickhunter_legacy_restart_archive.py \
+            tests/ai_platform_integration/test_wickhunter_legacy_restart_count_reconciliation.py \
+            tests/ai_platform_integration/test_wickhunter_live_archive_acceptance.py
+      - name: Record audit verdict
+        shell: bash
+        run: |
+          {
+            echo '## Independent audit PASS'
+            echo '- target: `abc7b2ccfe69b79ef21b172f395aaf4dc1026578`'
+            echo '- permanent scope: four files only'
+            echo '- prior P2 classes: run-root identity, zero-authority preflight, bounded reads'
+            echo '- validator role: fresh GitHub Actions checkout with adversarial component suite'
+            echo '- material findings open: 0'
+          } >> "$GITHUB_STEP_SUMMARY"

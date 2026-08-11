@@ -1,0 +1,115 @@
+name: WickHunter PR1450 active-run identity repair selfhosted
+
+on:
+  push:
+    branches:
+      - fix/wickhunter-1396-synology-recovery-v2
+    paths:
+      - .github/workflows/wickhunter-1450-active-run-identity-repair-selfhosted.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-1450-active-run-identity-repair-selfhosted
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact repair branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: fix/wickhunter-1396-synology-recovery-v2
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Assert exact trigger head and apply bounded patch
+        shell: bash
+        env:
+          TRIGGER_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$TRIGGER_SHA" ]]
+          python3 - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/wickhunter-1450-active-run-identity-repair.yml').read_text(encoding='utf-8')
+          start_marker = "          python3 - <<'PY'\n"
+          end_marker = "          PY\n\n      - name: Install focused validation dependencies\n"
+          start = workflow.index(start_marker) + len(start_marker)
+          end = workflow.index(end_marker, start)
+          lines = workflow[start:end].splitlines()
+          script = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines) + '\n'
+          Path('/tmp/wickhunter-1450-active-run-patch.py').write_text(script, encoding='utf-8')
+          PY
+          python3 /tmp/wickhunter-1450-active-run-patch.py
+
+      - name: Validate in isolated venv
+        shell: bash
+        run: |
+          set -euo pipefail
+          venv="$RUNNER_TEMP/wickhunter-1450-active-run-identity-venv"
+          rm -rf "$venv"
+          python3 -m venv "$venv"
+          "$venv/bin/python" -m pip install --disable-pip-version-check \
+            pytest "pydantic>=2.2" "SQLAlchemy>=2.0.6" "httpx>=0.24.1" \
+            fastapi pyjwt cryptography "PyYAML>=6.0" lightgbm websockets ruff==0.15.20
+          "$venv/bin/python" -m ruff format \
+            ai_platform/scripts/liquidation_live_stream.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          "$venv/bin/python" -m py_compile \
+            ai_platform/scripts/liquidation_live_stream.py \
+            ai_platform/scripts/liquidation_live_stream_okx.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          "$venv/bin/python" -m ruff check \
+            ai_platform/scripts/liquidation_live_stream.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          "$venv/bin/python" -m ruff format --check \
+            ai_platform/scripts/liquidation_live_stream.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          "$venv/bin/python" -m pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py \
+            tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          git diff --check
+          printf 'VENV=%s\n' "$venv" >> "$GITHUB_ENV"
+
+      - name: Commit validated product and compact checkpoint
+        shell: bash
+        env:
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            ai_platform/scripts/liquidation_live_stream.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          git commit -m "fix(liquidations): revalidate active run before publish"
+          product_head="$(git rev-parse HEAD)"
+          PRODUCT_HEAD="$product_head" RUN_ID="$RUN_ID" python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/wickhunter-1450-active-run-identity-repair.yml').read_text(encoding='utf-8')
+          marker = '          PRODUCT_HEAD="$product_head" python3 - <<\'PY\'\n'
+          start = workflow.index(marker) + len(marker)
+          end_marker = '          PY\n          python3 tools/agents/checkpoint.py'
+          end = workflow.index(end_marker, start)
+          lines = workflow[start:end].splitlines()
+          script = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines) + '\n'
+          namespace = {'__name__': '__main__'}
+          exec(compile(script, '<checkpoint-patch>', 'exec'), namespace, namespace)
+          PY
+          "$VENV/bin/python" tools/agents/checkpoint.py \
+            docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md \
+            --require-checkpoint
+          git add docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
+          git rm \
+            .github/workflows/wickhunter-1450-active-run-identity-repair.yml \
+            .github/workflows/wickhunter-1450-active-run-identity-repair-selfhosted.yml
+          git diff --cached --check
+          git commit -m "docs(wickhunter): checkpoint active-run identity repair"
+          git push origin HEAD:fix/wickhunter-1396-synology-recovery-v2

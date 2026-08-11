@@ -32,6 +32,7 @@ NETWORK_ID = "a" * 64
 NETWORK_NAME = "portal-net-test"
 BRIDGE = f"br-{NETWORK_ID[:12]}"
 TABLE = f"portal_{hashlib.sha256(NETWORK_NAME.encode()).hexdigest()[:20]}"
+BTRFS_UUID = "11111111-2222-3333-4444-555555555555"
 
 
 class _QueueRunner:
@@ -382,18 +383,29 @@ def test_network_attestation_rejects_unrelated_container(tmp_path: Path) -> None
     assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
 
 
-def _quota_status() -> str:
-    return (
-        "Quotas on /volume:\n"
-        "  Enabled:                 yes\n"
-        "  Mode:                    qgroup (full accounting)\n"
-        "  Inconsistent:            no\n"
-        "  Override limits:         no\n"
-    )
+def _filesystem_show() -> str:
+    return f"Label: none  uuid: {BTRFS_UUID}\n"
 
 
 def _qgroup_output(limit: int) -> str:
     return f"qgroupid rfer excl max_rfer\n-------- ---- ---- --------\n0/256 0 0 {limit}\n"
+
+
+def _qgroup_sysfs(
+    tmp_path: Path,
+    *,
+    enabled: str = "1",
+    inconsistent: str = "0",
+    mode: str | None = "qgroup",
+) -> Path:
+    root = tmp_path / "btrfs-sysfs"
+    qgroups = root / BTRFS_UUID / "qgroups"
+    qgroups.mkdir(parents=True)
+    (qgroups / "enabled").write_text(f"{enabled}\n", encoding="utf-8")
+    (qgroups / "inconsistent").write_text(f"{inconsistent}\n", encoding="utf-8")
+    if mode is not None:
+        (qgroups / "mode").write_text(f"{mode}\n", encoding="utf-8")
+    return root
 
 
 def test_storage_backend_applies_and_attests_btrfs_referenced_limit(tmp_path: Path) -> None:
@@ -402,11 +414,12 @@ def test_storage_backend_applies_and_attests_btrfs_referenced_limit(tmp_path: Pa
     state.mkdir(parents=True)
     policy = _policy()
     plan = _plan(policy)
+    sysfs = _qgroup_sysfs(tmp_path)
     runner = _QueueRunner(
         CommandResult(0, stdout="Subvolume ID: 256\n"),
         CommandResult(0),
         CommandResult(0),
-        CommandResult(0, stdout=_quota_status()),
+        CommandResult(0, stdout=_filesystem_show()),
         CommandResult(0, stdout="Subvolume ID: 256\n"),
         CommandResult(0, stdout=_qgroup_output(plan.durable_state_max_bytes)),
     )
@@ -415,6 +428,7 @@ def test_storage_backend_applies_and_attests_btrfs_referenced_limit(tmp_path: Pa
         policy_provider=_provider(policy),
         state_root=state_root,
         btrfs_mount=tmp_path,
+        btrfs_sysfs_root=sysfs,
     )
 
     backend.prepare_storage(plan, state)
@@ -426,6 +440,16 @@ def test_storage_backend_applies_and_attests_btrfs_referenced_limit(tmp_path: Pa
         str(plan.durable_state_max_bytes),
         str(state.resolve()),
     ) in runner.calls
+    assert runner.calls[-1] == (
+        "btrfs",
+        "qgroup",
+        "show",
+        "--sync",
+        "--raw",
+        "-r",
+        "-F",
+        str(tmp_path.resolve()),
+    )
 
 
 def test_storage_attestation_rejects_missing_effective_limit(tmp_path: Path) -> None:
@@ -434,8 +458,9 @@ def test_storage_attestation_rejects_missing_effective_limit(tmp_path: Path) -> 
     state.mkdir(parents=True)
     policy = _policy()
     plan = _plan(policy)
+    sysfs = _qgroup_sysfs(tmp_path)
     runner = _QueueRunner(
-        CommandResult(0, stdout=_quota_status()),
+        CommandResult(0, stdout=_filesystem_show()),
         CommandResult(0, stdout="Subvolume ID: 256\n"),
         CommandResult(0, stdout=_qgroup_output(1234)),
     )
@@ -444,12 +469,68 @@ def test_storage_attestation_rejects_missing_effective_limit(tmp_path: Path) -> 
         policy_provider=_provider(policy),
         state_root=state_root,
         btrfs_mount=tmp_path,
+        btrfs_sysfs_root=sysfs,
     )
 
     with pytest.raises(RuntimeDriverError) as exc_info:
         backend.attest_storage(plan, state)
 
     assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
+
+
+@pytest.mark.parametrize(
+    ("enabled", "inconsistent", "mode"),
+    (("0", "0", "qgroup"), ("1", "1", "qgroup"), ("1", "0", "squota")),
+)
+def test_storage_attestation_rejects_unenforced_qgroup_state(
+    tmp_path: Path,
+    enabled: str,
+    inconsistent: str,
+    mode: str,
+) -> None:
+    state_root = tmp_path / "state"
+    state = state_root / "generation"
+    state.mkdir(parents=True)
+    policy = _policy()
+    sysfs = _qgroup_sysfs(
+        tmp_path,
+        enabled=enabled,
+        inconsistent=inconsistent,
+        mode=mode,
+    )
+    runner = _QueueRunner(CommandResult(0, stdout=_filesystem_show()))
+    backend = LinuxNftablesBtrfsIsolationAttestor(
+        runner,
+        policy_provider=_provider(policy),
+        state_root=state_root,
+        btrfs_mount=tmp_path,
+        btrfs_sysfs_root=sysfs,
+    )
+
+    with pytest.raises(RuntimeDriverError) as exc_info:
+        backend.attest_storage(_plan(policy), state)
+
+    assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
+
+
+def test_storage_attestation_fails_closed_without_sysfs_qgroup_state(tmp_path: Path) -> None:
+    state_root = tmp_path / "state"
+    state = state_root / "generation"
+    state.mkdir(parents=True)
+    policy = _policy()
+    runner = _QueueRunner(CommandResult(0, stdout=_filesystem_show()))
+    backend = LinuxNftablesBtrfsIsolationAttestor(
+        runner,
+        policy_provider=_provider(policy),
+        state_root=state_root,
+        btrfs_mount=tmp_path,
+        btrfs_sysfs_root=tmp_path / "missing-sysfs",
+    )
+
+    with pytest.raises(RuntimeDriverError) as exc_info:
+        backend.attest_storage(_plan(policy), state)
+
+    assert exc_info.value.reason_code == "HOST_STORAGE_ISOLATION_UNSUPPORTED"
 
 
 def test_storage_backend_rejects_path_escape_before_host_commands(tmp_path: Path) -> None:

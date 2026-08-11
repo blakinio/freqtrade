@@ -105,6 +105,7 @@ class AppendOnlyNdjsonWriter:
                 | os.O_CREAT
                 | os.O_APPEND
                 | nofollow_flag
+                | getattr(os, "O_NONBLOCK", 0)
                 | getattr(os, "O_CLOEXEC", 0),
                 0o640,
                 dir_fd=directory_fd,
@@ -138,6 +139,20 @@ class AppendOnlyNdjsonWriter:
     @property
     def closed(self) -> bool:
         return self._handle.closed
+
+    def assert_canonical_identity(self, directory_fd: int) -> None:
+        if self.closed:
+            return
+        try:
+            current = os.stat(self.path.name, dir_fd=directory_fd, follow_symlinks=False)
+        except OSError as exc:
+            raise RuntimeError("Liquid20 source file changed after writer anchoring") from exc
+        anchored = os.fstat(self._handle.fileno())
+        if not stat.S_ISREG(current.st_mode) or (anchored.st_dev, anchored.st_ino) != (
+            current.st_dev,
+            current.st_ino,
+        ):
+            raise RuntimeError("Liquid20 source file changed after writer anchoring")
 
     def close(self) -> None:
         if not self.closed:
@@ -257,7 +272,10 @@ def _read_json_regular_at(directory_fd: int, file_name: str) -> dict[str, object
     try:
         descriptor = os.open(
             file_name,
-            os.O_RDONLY | nofollow_flag | getattr(os, "O_CLOEXEC", 0),
+            os.O_RDONLY
+            | nofollow_flag
+            | getattr(os, "O_NONBLOCK", 0)
+            | getattr(os, "O_CLOEXEC", 0),
             dir_fd=directory_fd,
         )
     except FileNotFoundError:
@@ -333,7 +351,7 @@ def _open_committed_source_fd(
     try:
         descriptor = os.open(
             file_name,
-            os.O_RDWR | nofollow_flag | getattr(os, "O_CLOEXEC", 0),
+            os.O_RDWR | nofollow_flag | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_CLOEXEC", 0),
             dir_fd=directory_fd,
         )
     except FileNotFoundError:
@@ -595,10 +613,10 @@ class LiveRunManager:
             for state in self.sources.values():
                 state.connected = False
             try:
-                for writer in self._writers.values():
-                    await asyncio.to_thread(writer.close)
                 await asyncio.to_thread(self._write_state)
             finally:
+                for writer in self._writers.values():
+                    await asyncio.to_thread(writer.close)
                 self._writers.clear()
                 await asyncio.to_thread(self._close_runtime_root_fds)
 
@@ -728,9 +746,9 @@ class LiveRunManager:
         self._run_state = "completed"
         self._completion_reason = "daily-rotation"
         self._completed_at_ms = now_ms
+        self._write_state()
         for writer in self._writers.values():
             writer.close()
-        self._write_state()
         self._start_new_run(now_ms)
         # Reconnect and error counters are scoped to the new run epoch created above.
         # Carrying them across rotation would divide an old cumulative count by a new uptime.
@@ -802,9 +820,11 @@ class LiveRunManager:
             if not writer.closed:
                 writer.flush()
         payload = self._state_payload()
-        # Summaries are durable before run-state and pointer publication. A failed
-        # summary therefore leaves the prior active commit boundary recoverable.
+        # Summaries may be rewritten while the prior run-state remains authoritative.
+        # Revalidate source identities immediately before committing that run-state.
         self._write_source_summaries(run_fd, payload)
+        for writer in self._writers.values():
+            writer.assert_canonical_identity(run_fd)
         _write_json_atomic_at(run_fd, RUN_STATE_FILE, payload)
         pointer_payload = {
             "schema_version": 1,
@@ -820,6 +840,8 @@ class LiveRunManager:
             run_id=self.run_id,
             run_fd=run_fd,
         )
+        for writer in self._writers.values():
+            writer.assert_canonical_identity(run_fd)
         _write_json_atomic_at(live_fd, LIVE_STATE_FILE, pointer_payload)
 
 

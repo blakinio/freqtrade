@@ -90,6 +90,54 @@ def test_seal_fsyncs_exact_committed_file_without_truncation(
     assert path.read_bytes() == payload
 
 
+def test_state_commit_rejects_replaced_canonical_source_inode(tmp_path: Path) -> None:
+    manager = LiveRunManager(
+        data_root=tmp_path,
+        collector_commit="7" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+        flush_interval_seconds=3600.0,
+    )
+
+    async def scenario() -> None:
+        await manager.start()
+        source_path = manager.run_root / f"{BYBIT_SOURCE}.ndjson"
+        detached_path = manager.run_root / "bybit-linear-detached.ndjson"
+        source_path.rename(detached_path)
+        source_path.write_bytes(b"")
+        writer = manager._writers[BYBIT_SOURCE]
+        writer._handle.write("{}\n")
+        writer._pending = 1
+        manager.sources[BYBIT_SOURCE].events_written = 1
+
+        with pytest.raises(RuntimeError, match="source file changed after writer anchoring"):
+            manager._write_state()
+
+        persisted = json.loads((manager.run_root / "run-state-v1.json").read_text(encoding="utf-8"))
+        assert persisted["sources"][BYBIT_SOURCE]["events_written"] == 0
+        assert source_path.read_bytes() == b""
+        assert detached_path.read_bytes() == b"{}\n"
+        await manager.stop()
+
+    with pytest.raises(RuntimeError, match="source file changed after writer anchoring"):
+        asyncio.run(scenario())
+
+
+def test_restart_rejects_fifo_metadata_without_blocking(tmp_path: Path) -> None:
+    live_root = tmp_path / "live"
+    (live_root / "runs").mkdir(parents=True)
+    os.mkfifo(live_root / LIVE_STATE_FILE)
+    manager = LiveRunManager(
+        data_root=tmp_path,
+        collector_commit="6" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+
+    with pytest.raises(RuntimeError, match="previous live state path is not a regular file"):
+        asyncio.run(manager.start())
+
+
 def test_state_commit_flushes_pending_ndjson_before_events_written(tmp_path: Path) -> None:
     manager = OkxLiveRunManager(
         data_root=tmp_path,

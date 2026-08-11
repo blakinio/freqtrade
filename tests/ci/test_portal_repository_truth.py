@@ -8,6 +8,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PORTAL_README = REPO_ROOT / "ai_platform" / "portal" / "README.md"
 PORTAL_LEDGER = REPO_ROOT / "tools" / "portal_audit" / "ledger" / "index.json"
 CODEOWNERS = REPO_ROOT / ".github" / "CODEOWNERS"
+EXPECTED_PORTAL_OWNERS = ("@blakinio",)
 
 REQUIRED_IMPLEMENTED_ROOTS = (
     "ai_platform/portal/control_plane",
@@ -45,14 +46,35 @@ STALE_PORTAL_CLAIMS = (
 )
 
 
-def _codeowner_patterns() -> set[str]:
-    patterns: set[str] = set()
+def _codeowner_rules() -> list[tuple[str, tuple[str, ...]]]:
+    rules: list[tuple[str, tuple[str, ...]]] = []
     for raw_line in CODEOWNERS.read_text(encoding="utf-8").splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
-        patterns.add(line.split()[0])
-    return patterns
+        fields = line.split()
+        rules.append((fields[0], tuple(fields[1:])))
+    return rules
+
+
+def _matches_codeowner_rule(pattern: str, path: str) -> bool:
+    if pattern == "*":
+        return True
+    if pattern.startswith("/") and pattern.endswith("/"):
+        return path.startswith(pattern)
+    return path == pattern
+
+
+def _effective_owners(
+    rules: list[tuple[str, tuple[str, ...]]],
+    path: str,
+) -> tuple[str, ...]:
+    owners: tuple[str, ...] | None = None
+    for pattern, rule_owners in rules:
+        if _matches_codeowner_rule(pattern, path):
+            owners = rule_owners
+    assert owners is not None, path
+    return owners
 
 
 def test_portal_readme_uses_current_repository_truth_sources() -> None:
@@ -86,8 +108,24 @@ def test_portal_readme_points_to_living_exact_head_ledger() -> None:
 
 
 def test_codeowners_explicitly_covers_current_sensitive_portal_roots() -> None:
-    patterns = _codeowner_patterns()
+    rules = _codeowner_rules()
+    patterns = [pattern for pattern, _ in rules]
 
-    assert "*" in patterns
-    assert "/ai_platform/portal/" in patterns
-    assert REQUIRED_CODEOWNER_PATTERNS.issubset(patterns)
+    assert patterns.count("*") == 1
+    wildcard_index = patterns.index("*")
+    assert patterns.count("/ai_platform/portal/") == 1
+    portal_umbrella_index = patterns.index("/ai_platform/portal/")
+    assert wildcard_index < portal_umbrella_index
+
+    for required_pattern in REQUIRED_CODEOWNER_PATTERNS:
+        assert patterns.count(required_pattern) == 1, required_pattern
+        rule_index = patterns.index(required_pattern)
+        assert wildcard_index < rule_index, required_pattern
+        assert rules[rule_index][1] == EXPECTED_PORTAL_OWNERS, required_pattern
+
+        probe_path = (
+            required_pattern + "__ownership_probe__"
+            if required_pattern.endswith("/")
+            else required_pattern
+        )
+        assert _effective_owners(rules, probe_path) == EXPECTED_PORTAL_OWNERS, required_pattern

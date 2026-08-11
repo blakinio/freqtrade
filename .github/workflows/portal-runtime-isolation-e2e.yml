@@ -254,6 +254,7 @@ jobs:
         shell: bash
         run: |
           set +e
+          cleanup_failed=0
 
           mapfile -t containers < <(
             docker ps -aq --filter 'label=ai.portal.test=runtime-isolation-e2e'
@@ -261,8 +262,13 @@ jobs:
           for container in "${containers[@]}"; do
             name="$(docker inspect --format '{{.Name}}' "$container" | sed 's#^/##')"
             case "$name" in
-              portal-isolation-e2e-*) docker rm -f "$container" ;;
-              *) echo "refusing cleanup of unexpected container: $name" >&2; exit 1 ;;
+              portal-isolation-e2e-*)
+                docker rm -f "$container" || cleanup_failed=1
+                ;;
+              *)
+                echo "refusing cleanup of unexpected container: $name" >&2
+                cleanup_failed=1
+                ;;
             esac
           done
 
@@ -272,13 +278,58 @@ jobs:
           for network in "${networks[@]}"; do
             runtime_id="$(docker network inspect --format '{{index .Labels "ai.portal.runtime_id"}}' "$network")"
             case "$runtime_id" in
-              portal-isolation-e2e-*|portal-linux-e2e-*) docker network rm "$network" ;;
+              portal-isolation-e2e-*|portal-linux-e2e-*)
+                docker network rm "$network" || cleanup_failed=1
+                ;;
               *) continue ;;
             esac
           done
 
-          sudo umount /mnt/portal-runtime-isolation-btrfs 2>/dev/null
-          sudo rm -rf /mnt/portal-runtime-isolation-btrfs
-          rm -f /tmp/portal-runtime-isolation-btrfs.img
-          docker rm -f portal-runtime-registry >/dev/null 2>&1
-          docker image rm -f portal/freqtrade-runtime:e2e >/dev/null 2>&1
+          if mountpoint -q /mnt/portal-runtime-isolation-btrfs; then
+            sudo umount /mnt/portal-runtime-isolation-btrfs || cleanup_failed=1
+          fi
+          sudo rm -rf /mnt/portal-runtime-isolation-btrfs || cleanup_failed=1
+          rm -f /tmp/portal-runtime-isolation-btrfs.img || cleanup_failed=1
+
+          if docker container inspect portal-runtime-registry >/dev/null 2>&1; then
+            docker rm -f portal-runtime-registry >/dev/null 2>&1 || cleanup_failed=1
+          fi
+
+          if [ -n "${PORTAL_RUNTIME_IMAGE:-}" ]; then
+            docker image rm -f "$PORTAL_RUNTIME_IMAGE" >/dev/null 2>&1 || cleanup_failed=1
+          fi
+          if docker image inspect portal/freqtrade-runtime:e2e >/dev/null 2>&1; then
+            docker image rm -f portal/freqtrade-runtime:e2e >/dev/null 2>&1 || cleanup_failed=1
+          fi
+
+          if docker ps -aq --filter 'label=ai.portal.test=runtime-isolation-e2e' | grep -q .; then
+            echo "task-owned runtime isolation containers remain after cleanup" >&2
+            cleanup_failed=1
+          fi
+          for network in $(docker network ls -q --filter 'label=ai.portal.runtime_id'); do
+            runtime_id="$(docker network inspect --format '{{index .Labels "ai.portal.runtime_id"}}' "$network" 2>/dev/null)"
+            case "$runtime_id" in
+              portal-isolation-e2e-*|portal-linux-e2e-*)
+                echo "task-owned runtime isolation network remains after cleanup: $network" >&2
+                cleanup_failed=1
+                ;;
+            esac
+          done
+          if mountpoint -q /mnt/portal-runtime-isolation-btrfs; then
+            echo "ephemeral Btrfs fixture remains mounted after cleanup" >&2
+            cleanup_failed=1
+          fi
+          if [ -e /tmp/portal-runtime-isolation-btrfs.img ]; then
+            echo "ephemeral Btrfs image remains after cleanup" >&2
+            cleanup_failed=1
+          fi
+          if docker container inspect portal-runtime-registry >/dev/null 2>&1; then
+            echo "task-owned loopback registry remains after cleanup" >&2
+            cleanup_failed=1
+          fi
+          if docker image inspect portal/freqtrade-runtime:e2e >/dev/null 2>&1; then
+            echo "task-owned hardened runtime image remains after cleanup" >&2
+            cleanup_failed=1
+          fi
+
+          exit "$cleanup_failed"

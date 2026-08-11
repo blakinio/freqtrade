@@ -18,8 +18,9 @@ test.describe(
       await expect(navigationLink).toContainText("Unavailable");
       await expect(navigationLink).toHaveAccessibleDescription("Capability unavailable");
 
-      const notice = page.locator('[data-surface-availability="DISCONNECTED"]');
+      const notice = page.getByRole("note", { name: "AI Overview capability availability" });
       await expect(notice).toBeVisible();
+      await expect(notice).toHaveAttribute("data-surface-availability", "DISCONNECTED");
       await expect(notice).toContainText("AI Overview capability unavailable");
       await expect(notice).toContainText(
         "not connected end to end in the canonical product runtime",

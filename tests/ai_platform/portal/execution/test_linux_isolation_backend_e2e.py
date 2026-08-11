@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import socket
 import subprocess
 import time
 from pathlib import Path
@@ -33,6 +34,9 @@ from ai_platform.portal.execution.runtime import DriverRuntimeState, RuntimeCont
 
 
 ALPINE_IMAGE = "alpine:3.20"
+DNS_RESOLVER = "1.1.1.1"
+MARKET_DATA_PROBE_HOSTS = ("api.kraken.com", "api.coinbase.com")
+UNRELATED_PROBE_HOSTS = ("example.com", "www.cloudflare.com")
 
 
 def _run(*args: str, timeout: int = 60) -> subprocess.CompletedProcess[str]:
@@ -65,11 +69,41 @@ def _require_host() -> Path:
     return mount
 
 
-def _policy() -> MarketDataEgressPolicy:
+def _reachable_ipv4(hostnames: tuple[str, ...], *, exclude: frozenset[str] = frozenset()) -> str:
+    failures: list[str] = []
+    for hostname in hostnames:
+        try:
+            addresses = sorted(
+                {
+                    info[4][0]
+                    for info in socket.getaddrinfo(
+                        hostname,
+                        443,
+                        family=socket.AF_INET,
+                        type=socket.SOCK_STREAM,
+                    )
+                    if info[4][0] not in exclude
+                }
+            )
+        except socket.gaierror as exc:
+            failures.append(f"{hostname}: DNS failed: {exc}")
+            continue
+        for address in addresses:
+            try:
+                with socket.create_connection((address, 443), timeout=5):
+                    pass
+            except OSError as exc:
+                failures.append(f"{hostname}/{address}: TCP 443 failed: {exc}")
+                continue
+            return address
+    pytest.fail("no reachable public IPv4 E2E probe target: " + "; ".join(failures))
+
+
+def _policy(allowed_ipv4: str) -> MarketDataEgressPolicy:
     return MarketDataEgressPolicy(
-        policy_version="linux-e2e-v2",
-        allowed_ipv4_cidrs=("1.1.1.1/32",),
-        dns_resolver_ipv4_addresses=("1.1.1.1",),
+        policy_version="linux-e2e-v3",
+        allowed_ipv4_cidrs=(f"{allowed_ipv4}/32",),
+        dns_resolver_ipv4_addresses=(DNS_RESOLVER,),
         allowed_tcp_ports=(443,),
     )
 
@@ -109,19 +143,21 @@ def _plan(
     )
 
 
-def _https_probe(container: str) -> subprocess.CompletedProcess[str]:
+def _tcp_probe(
+    container: str,
+    address: str,
+    port: int = 443,
+) -> subprocess.CompletedProcess[str]:
     return _run(
         "docker",
         "exec",
         container,
-        "wget",
-        "--no-check-certificate",
-        "-q",
-        "-T",
+        "nc",
+        "-z",
+        "-w",
         "5",
-        "-O",
-        "/dev/null",
-        "https://1.1.1.1",
+        address,
+        str(port),
         timeout=15,
     )
 
@@ -139,6 +175,11 @@ def _dns_probe(container: str) -> subprocess.CompletedProcess[str]:
 
 def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None:
     mount = _require_host()
+    allowed_ipv4 = _reachable_ipv4(MARKET_DATA_PROBE_HOSTS)
+    forbidden_ipv4 = _reachable_ipv4(
+        UNRELATED_PROBE_HOSTS,
+        exclude=frozenset({allowed_ipv4}),
+    )
     runtime_id = f"portal-linux-e2e-{uuid4().hex[:10]}"
     network = f"portal-linux-net-{uuid4().hex[:10]}"
     container = runtime_id
@@ -146,7 +187,7 @@ def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None
     state_root.mkdir(exist_ok=True)
     state_path = state_root / runtime_id
     state_path.mkdir()
-    policy = _policy()
+    policy = _policy(allowed_ipv4)
     plan = _plan(policy)
     backend = LinuxNftablesBtrfsIsolationAttestor(
         SubprocessCommandRunner(),
@@ -160,7 +201,7 @@ def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None
         capabilities = backend.capabilities()
         assert capabilities.storage_backend is StorageIsolationBackend.BOUNDED_VOLUME
         assert capabilities.network_backend is NetworkIsolationBackend.NFTABLES
-        assert backend.dns_resolvers(plan) == ("1.1.1.1",)
+        assert backend.dns_resolvers(plan) == (DNS_RESOLVER,)
 
         backend.prepare_storage(plan, state_path)
         backend.attest_storage(plan, state_path)
@@ -192,7 +233,7 @@ def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None
             "--label",
             f"ai.portal.isolation_plan_digest={plan.digest()}",
             "--dns",
-            "1.1.1.1",
+            DNS_RESOLVER,
             "--network",
             network,
             ALPINE_IMAGE,
@@ -208,29 +249,17 @@ def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None
 
         # Staged final policy is present but unreachable while normal Docker DNS and
         # public market-data egress remain denied during quarantine.
-        assert _https_probe(container).returncode != 0
+        assert _tcp_probe(container, allowed_ipv4).returncode != 0
         assert _dns_probe(container).returncode != 0
 
         backend.activate_network(plan, network, runtime_id)
 
-        allowed = _https_probe(container)
+        allowed = _tcp_probe(container, allowed_ipv4)
         assert allowed.returncode == 0, allowed.stderr
         dns = _dns_probe(container)
         assert dns.returncode == 0, dns.stderr
 
-        forbidden = _run(
-            "docker",
-            "exec",
-            container,
-            "wget",
-            "-q",
-            "-T",
-            "2",
-            "-O",
-            "/dev/null",
-            "http://8.8.8.8",
-            timeout=10,
-        )
+        forbidden = _tcp_probe(container, forbidden_ipv4)
         assert forbidden.returncode != 0
 
         bridge_info = _run(
@@ -311,7 +340,8 @@ def test_driver_release_runs_through_concrete_linux_isolation_backend() -> None:
     config_path.write_text("{}\n", encoding="utf-8")
     config_path.chmod(0o644)
 
-    policy = _policy()
+    allowed_ipv4 = _reachable_ipv4(MARKET_DATA_PROBE_HOSTS)
+    policy = _policy(allowed_ipv4)
     plan = _plan(policy, runtime_image_digest=image_digest)
     backend = LinuxNftablesBtrfsIsolationAttestor(
         SubprocessCommandRunner(),

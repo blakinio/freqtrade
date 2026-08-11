@@ -42,4 +42,4 @@ jobs:
             deploy/synology/portal-oidc/bounded_schema_lifecycle.py \
             deploy/synology/portal-oidc/deploy_entrypoint.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py
-          git diff --check HEAD^ HEAD
+          git show --check --oneline --no-renames HEAD >/dev/null

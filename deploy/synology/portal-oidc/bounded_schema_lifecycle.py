@@ -135,15 +135,15 @@ def _run_sensitive_workload(
     name = _container_name(label)
     create_command = ["docker", "create", "--name", name, *command[3:]]
 
-    # Ownership begins only after this invocation successfully creates the exact
-    # generated name. A pre-existing collision must fail closed without deleting
-    # or otherwise mutating the unowned container.
+    # A pre-existing collision is not task-owned and must fail closed without
+    # mutation. Once absence is proven, this task owns cleanup for its exact,
+    # collision-resistant name even if `docker create` times out after creating it.
     _verify_absent(deploy, name, cwd=cwd)
 
     primary_error: Exception | None = None
     logs: subprocess.CompletedProcess[str] | None = None
     process_exit: str | None = None
-    owned = False
+    owned = True
 
     try:
         _stage(
@@ -154,7 +154,6 @@ def _run_sensitive_workload(
             cwd=cwd,
             timeout=CREATE_TIMEOUT_SECONDS,
         )
-        owned = True
         _stage(
             deploy,
             label=label,

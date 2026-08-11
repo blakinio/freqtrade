@@ -83,7 +83,13 @@ class RuntimeIsolationProfile:
         if self.memory_swap_limit_bytes < self.memory_limit_bytes:
             raise ValueError("memory_swap_limit_bytes cannot be lower than memory_limit_bytes")
         user, separator, group = self.runtime_user.partition(":")
-        if separator != ":" or not user.isdigit() or not group.isdigit() or int(user) == 0:
+        if (
+            separator != ":"
+            or not user.isdigit()
+            or not group.isdigit()
+            or int(user) == 0
+            or int(group) == 0
+        ):
             raise ValueError("runtime_user must be a non-root numeric uid:gid")
 
     def digest(self) -> str:

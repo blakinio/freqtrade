@@ -104,9 +104,7 @@ def test_schema_workload_uses_named_split_lifecycle_and_returns_logs(monkeypatch
     name = create[create.index("--name") + 1]
     owner = create[create.index("--label") + 1]
     assert name == "portal-oidc-bounded-schema-migrate-abc123def456"
-    assert owner == (
-        f"{module.OWNER_LABEL_KEY}=portal-oidc-bounded:schema-migrate:abc123def456"
-    )
+    assert owner == (f"{module.OWNER_LABEL_KEY}=portal-oidc-bounded:schema-migrate:abc123def456")
     assert ["docker", "start", name] in calls
     assert ["docker", "wait", name] in calls
     assert ["docker", "logs", name] in calls

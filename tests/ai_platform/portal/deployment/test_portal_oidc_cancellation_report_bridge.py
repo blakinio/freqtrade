@@ -44,9 +44,7 @@ def _deploy_stub(
         raise interrupt
 
     def original_write_report(path: Path, report: dict[str, Any]) -> str:
-        report["bounded_schema_cleanup_evidence"] = list(
-            deploy._bounded_schema_cleanup_evidence
-        )
+        report["bounded_schema_cleanup_evidence"] = list(deploy._bounded_schema_cleanup_evidence)
         reports.append(copy.deepcopy(report))
         return "digest"
 

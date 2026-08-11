@@ -22,6 +22,15 @@ CLEANUP_ATTEMPTS = 3
 OWNERSHIP_VERIFY_ATTEMPTS = 3
 OWNER_LABEL_KEY = "com.freqtrade.portal.bounded-owner"
 OWNER_LABEL_FORMAT = f'{{{{ index .Config.Labels "{OWNER_LABEL_KEY}" }}}}'
+SERVICE_STATE_FORMAT = (
+    "{{.State.Status}}|{{.State.Running}}|"
+    "{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}"
+)
+PROTECTED_SERVICE_ATTRIBUTES = (
+    "PORTAL_CONTAINER",
+    "CONTROL_CONTAINER",
+    "PORTAL_POSTGRES_CONTAINER",
+)
 _TARGET_MODULES = {
     "ai_platform.portal.database.cli",
     "ai_platform.portal.database.transfer",
@@ -190,6 +199,195 @@ def _cleanup_ambiguous_create(
     ) from last_verification_error
 
 
+def _protected_service_names(deploy: Any) -> tuple[str, ...]:
+    names = {
+        value
+        for attribute in PROTECTED_SERVICE_ATTRIBUTES
+        if isinstance((value := getattr(deploy, attribute, None)), str) and value
+    }
+    return tuple(sorted(names))
+
+
+def _protected_service_state(
+    deploy: Any,
+    name: str,
+    *,
+    cwd: Path | None,
+) -> dict[str, object]:
+    exact_name_filter = f"name=^/{name}$"
+    try:
+        listed = _run_bounded(
+            ["docker", "ps", "-aq", "--no-trunc", "--filter", exact_name_filter],
+            cwd=cwd,
+            timeout=QUERY_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise deploy.DeploymentError("protected service health query timed out") from exc
+    if listed.returncode != 0:
+        raise deploy.DeploymentError("protected service inventory query failed")
+    identifiers = [line.strip() for line in listed.stdout.splitlines() if line.strip()]
+    if not identifiers:
+        return {
+            "exists": False,
+            "state": "absent",
+            "running": False,
+            "health": "none",
+        }
+    if len(identifiers) != 1:
+        raise deploy.DeploymentError("protected service exact-name inventory is ambiguous")
+
+    try:
+        inspected = _run_bounded(
+            ["docker", "inspect", "--format", SERVICE_STATE_FORMAT, name],
+            cwd=cwd,
+            timeout=QUERY_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise deploy.DeploymentError("protected service health query timed out") from exc
+    if inspected.returncode != 0:
+        raise deploy.DeploymentError("protected service health inspection failed")
+    state, separator, remainder = inspected.stdout.strip().partition("|")
+    running, second_separator, health = remainder.partition("|")
+    if separator != "|" or second_separator != "|" or running not in {"true", "false"}:
+        raise deploy.DeploymentError("protected service health inspection returned invalid metadata")
+    if not state or not health:
+        raise deploy.DeploymentError("protected service health inspection returned incomplete metadata")
+    return {
+        "exists": True,
+        "state": state,
+        "running": running == "true",
+        "health": health,
+    }
+
+
+def _capture_protected_services(
+    deploy: Any,
+    *,
+    cwd: Path | None,
+) -> dict[str, dict[str, object]]:
+    return {
+        name: _protected_service_state(deploy, name, cwd=cwd)
+        for name in _protected_service_names(deploy)
+    }
+
+
+def _protected_service_regressions(
+    before: dict[str, dict[str, object]],
+    after: dict[str, dict[str, object]],
+) -> list[str]:
+    regressions: list[str] = []
+    for name, baseline in before.items():
+        current = after.get(name)
+        if current is None:
+            regressions.append(f"{name}:unobserved")
+            continue
+        if baseline["exists"] is True and current["exists"] is not True:
+            regressions.append(f"{name}:became_absent")
+            continue
+        if baseline["running"] is True and current["running"] is not True:
+            regressions.append(f"{name}:stopped_running")
+        baseline_health = baseline["health"]
+        current_health = current["health"]
+        if baseline_health == "healthy" and current_health != "healthy":
+            regressions.append(f"{name}:lost_healthy")
+        elif baseline_health == "starting" and current_health not in {"starting", "healthy"}:
+            regressions.append(f"{name}:starting_degraded")
+    return regressions
+
+
+def _record_cleanup_evidence(
+    deploy: Any,
+    *,
+    label: str,
+    before: dict[str, dict[str, object]] | None,
+    after: dict[str, dict[str, object]] | None,
+    regressions: list[str],
+    verification_complete: bool,
+) -> None:
+    evidence = getattr(deploy, "_bounded_schema_cleanup_evidence", None)
+    if not isinstance(evidence, list):
+        evidence = []
+        deploy._bounded_schema_cleanup_evidence = evidence
+    evidence.append(
+        {
+            "workload": label,
+            "protected_before": before,
+            "protected_after": after,
+            "protected_non_regression": verification_complete and not regressions,
+            "regressions": regressions,
+            "verification_complete": verification_complete,
+        }
+    )
+
+
+def _cleanup_with_protected_health(
+    deploy: Any,
+    *,
+    label: str,
+    name: str,
+    owner: str,
+    create_succeeded: bool,
+    cwd: Path | None,
+) -> None:
+    before: dict[str, dict[str, object]] | None = None
+    after: dict[str, dict[str, object]] | None = None
+    health_error: BaseException | None = None
+    cleanup_error: BaseException | None = None
+
+    try:
+        before = _capture_protected_services(deploy, cwd=cwd)
+    except BaseException as exc:
+        health_error = exc
+
+    try:
+        if create_succeeded:
+            _cleanup_owned(deploy, name, cwd=cwd)
+        else:
+            _cleanup_ambiguous_create(deploy, name, owner, cwd=cwd)
+    except BaseException as exc:
+        cleanup_error = exc
+    finally:
+        try:
+            after = _capture_protected_services(deploy, cwd=cwd)
+        except BaseException as exc:
+            if health_error is None:
+                health_error = exc
+
+    regressions = (
+        _protected_service_regressions(before, after)
+        if before is not None and after is not None
+        else []
+    )
+    verification_complete = health_error is None and before is not None and after is not None
+    _record_cleanup_evidence(
+        deploy,
+        label=label,
+        before=before,
+        after=after,
+        regressions=regressions,
+        verification_complete=verification_complete,
+    )
+
+    if health_error is not None:
+        if cleanup_error is not None:
+            raise deploy.DeploymentError(
+                "task-owned cleanup and protected service health verification failed"
+            ) from health_error
+        raise deploy.DeploymentError(
+            "protected service health could not be verified around task-owned cleanup"
+        ) from health_error
+    if regressions:
+        if cleanup_error is not None:
+            raise deploy.DeploymentError(
+                "task-owned cleanup failed and protected service health regressed"
+            ) from cleanup_error
+        raise deploy.DeploymentError(
+            "protected service health regressed during task-owned cleanup"
+        )
+    if cleanup_error is not None:
+        raise cleanup_error
+
+
 def _run_sensitive_workload(
     deploy: Any,
     command: list[str],
@@ -264,10 +462,14 @@ def _run_sensitive_workload(
         primary_error = exc
     finally:
         try:
-            if create_succeeded:
-                _cleanup_owned(deploy, name, cwd=cwd)
-            else:
-                _cleanup_ambiguous_create(deploy, name, owner, cwd=cwd)
+            _cleanup_with_protected_health(
+                deploy,
+                label=label,
+                name=name,
+                owner=owner,
+                create_succeeded=create_succeeded,
+                cwd=cwd,
+            )
         except BaseException as exc:
             cleanup_error = exc
 
@@ -295,6 +497,7 @@ def install(deploy: Any) -> None:
     """Bound only the sensitive Portal schema/transfer `docker run --rm` workloads."""
 
     original_run = deploy._run
+    deploy._bounded_schema_cleanup_evidence = []
 
     def guarded_run(
         command: list[str],

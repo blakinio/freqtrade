@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import copy
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import select, text
 
 from ai_platform.portal.control_plane.database import build_engine
 from ai_platform.portal.database.schema import (
@@ -22,6 +23,7 @@ from ai_platform.portal.database.transfer import (
     PUBLIC_OIDC_V1_UNVERSIONED_TABLES,
     PortalStateTransferError,
     _assert_transfer_target_revision,
+    _backfill_public_oidc_v1_target,
     _manifest_tables,
     _matches_public_oidc_v1,
     _missing_table_is_transferable,
@@ -187,6 +189,66 @@ def test_public_oidc_v1_source_projection_omits_later_nullable_bot_columns(
         assert PUBLIC_OIDC_V1_MISSING_BOT_COLUMNS.isdisjoint(rows[0])
         assert rows[0]["tenant_id"] == "tenant-test"
         assert rows[0]["current_revision"] == 1
+    finally:
+        engine.dispose()
+
+
+def test_public_oidc_v1_target_backfill_matches_runtime_generation_migration(
+    tmp_path: Path,
+) -> None:
+    engine = _sqlite_engine(tmp_path, "public-oidc-v1-backfill.db")
+    bot_table = next(table for table in _manifest_tables() if table.name == "portal_bots")
+    revision_table = next(
+        table for table in _manifest_tables() if table.name == "portal_bot_config_revisions"
+    )
+    try:
+        migrate_database(engine)
+        with engine.begin() as connection:
+            connection.execute(
+                bot_table.insert().values(
+                    tenant_id="tenant-test",
+                    bot_id="bot-test",
+                    name="Bot",
+                    spec_json="{}",
+                    desired_state="stopped",
+                    observed_state="stopped",
+                    current_revision=2,
+                    latest_authored_revision_id=None,
+                    desired_revision_id=None,
+                    desired_runtime_generation_id=None,
+                    observed_runtime_generation_id=None,
+                    state_version=None,
+                )
+            )
+            connection.execute(
+                revision_table.insert().values(
+                    tenant_id="tenant-test",
+                    bot_id="bot-test",
+                    revision=2,
+                    revision_id="revision-2",
+                    revision_json="{}",
+                    created_by_actor_id="actor-test",
+                    created_at=datetime.now(UTC),
+                )
+            )
+
+            _backfill_public_oidc_v1_target(connection)
+
+            row = connection.execute(
+                select(
+                    bot_table.c.latest_authored_revision_id,
+                    bot_table.c.desired_revision_id,
+                    bot_table.c.desired_runtime_generation_id,
+                    bot_table.c.observed_runtime_generation_id,
+                    bot_table.c.state_version,
+                )
+            ).one()
+
+        assert row.latest_authored_revision_id == "revision-2"
+        assert row.desired_revision_id is None
+        assert row.desired_runtime_generation_id is None
+        assert row.observed_runtime_generation_id is None
+        assert row.state_version == 1
     finally:
         engine.dispose()
 

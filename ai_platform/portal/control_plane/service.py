@@ -9,7 +9,9 @@ from ai_platform.portal.contracts.bots import (
     BotConfigRevision,
     BotConfigRevisionState,
     BotDesiredState,
+    BotInstance,
     BotSpec,
+    require_authorized_authored_managed_mode,
 )
 from ai_platform.portal.contracts.identity import Permission
 from ai_platform.portal.contracts.runtime_generation import (
@@ -46,9 +48,67 @@ class ControlPlaneService(_CoreControlPlaneService):
     """ADR-020 control-plane service with WickHunter managed-mode generation binding.
 
     The inherited lifecycle remains the single runtime-generation authority. This facade
-    only specializes immutable revision material and explicit generation activation so
+    specializes immutable revision material and explicit generation activation so
     SHADOW/PAPER identity is resolved from trusted server evidence before persistence.
+    Reserved LIVE state remains readable for fail-closed recovery but is never authorable,
+    promotable or activatable through the canonical Portal service.
     """
+
+    @staticmethod
+    def _require_authored_mode(spec: BotSpec) -> None:
+        require_authorized_authored_managed_mode(spec.managed_mode)
+
+    def create_bot(
+        self,
+        context: RequestContext,
+        bot_id: str,
+        name: str,
+        spec: BotSpec,
+    ) -> BotInstance:
+        require_permission(context.permissions, Permission.BOT_CREATE)
+        self._require_tenant(context, spec.tenant_id)
+        self._require_authored_mode(spec)
+        return super().create_bot(context, bot_id, name, spec)
+
+    def revise_bot(
+        self,
+        context: RequestContext,
+        bot_id: str,
+        spec: BotSpec,
+    ) -> BotInstance:
+        require_permission(context.permissions, Permission.BOT_CREATE)
+        self._require_tenant(context, spec.tenant_id)
+        self._require_authored_mode(spec)
+        return super().revise_bot(context, bot_id, spec)
+
+    def promote_revision(
+        self,
+        context: RequestContext,
+        bot_id: str,
+        revision_id: str,
+        expected_state_version: int,
+    ) -> BotConfigRevision:
+        require_permission(context.permissions, Permission.BOT_CREATE)
+        # A historical/reserved LIVE_BLOCKED revision may still be readable from
+        # durable state, but it must never cross the promotion boundary.
+        with self._session_factory() as session:
+            revision = self._repository.get_revision_by_id(
+                session,
+                context.tenant_id,
+                bot_id,
+                revision_id,
+            )
+        if revision is not None:
+            try:
+                require_authorized_authored_managed_mode(revision.managed_mode)
+            except ValueError as exc:
+                raise ControlPlaneConflictError(str(exc)) from exc
+        return super().promote_revision(
+            context,
+            bot_id,
+            revision_id,
+            expected_state_version,
+        )
 
     def _activate_revision(
         self,

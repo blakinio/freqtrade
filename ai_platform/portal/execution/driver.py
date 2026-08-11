@@ -73,6 +73,13 @@ class ExternalIsolationAttestor(Protocol):
         runtime_id: str,
     ) -> None: ...
 
+    def activate_network(
+        self,
+        plan: RuntimeIsolationPlan,
+        network_name: str,
+        runtime_id: str,
+    ) -> None: ...
+
     def attest_storage(self, plan: RuntimeIsolationPlan, state_path: Path) -> None: ...
 
     def attest_network(
@@ -113,6 +120,18 @@ class FailClosedExternalIsolationAttestor:
         raise RuntimeDriverError(
             "HOST_NETWORK_ISOLATION_UNSUPPORTED",
             "no approved market-data egress enforcement backend is configured",
+        )
+
+    def activate_network(
+        self,
+        plan: RuntimeIsolationPlan,
+        network_name: str,
+        runtime_id: str,
+    ) -> None:
+        del plan, network_name, runtime_id
+        raise RuntimeDriverError(
+            "HOST_NETWORK_ISOLATION_UNSUPPORTED",
+            "market-data egress cannot be activated without an approved backend",
         )
 
     def attest_storage(self, plan: RuntimeIsolationPlan, state_path: Path) -> None:
@@ -362,8 +381,13 @@ class DockerCliRuntimeDriver:
             self._require_success(("docker", "unpause", runtime_id), "DOCKER_UNPAUSE_FAILED")
             return DriverRuntimeState.RUNNING
         if current is DriverRuntimeState.CREATED:
-            self._reattest_before_release(runtime_id)
-            self._release(runtime_id)
+            network = self._networks.get(runtime_id, self._network_name(runtime_id))
+            try:
+                self._reattest_before_release(runtime_id)
+                self._release(runtime_id)
+            except Exception:
+                self._cleanup_failed_runtime(runtime_id, network)
+                raise
             return DriverRuntimeState.RUNNING
         if current is DriverRuntimeState.STOPPED:
             self._release_forbidden(
@@ -463,6 +487,7 @@ class DockerCliRuntimeDriver:
         self._require_plan_matches_spec(plan, spec)
         self._attest_structural(spec, plan, network)
         self._attest_effective(spec, plan, network)
+        self._external.activate_network(plan, network, runtime_id)
 
     def _create_args(
         self,

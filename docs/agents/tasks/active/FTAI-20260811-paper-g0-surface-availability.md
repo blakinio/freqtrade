@@ -20,8 +20,9 @@ paper_gate: G0
 paper_work_item: 7
 live_capital_authorized: false
 protected_production_deployment_authorized: false
-repair_cycles_for_current_gate: 3
+repair_cycles_for_current_gate: 4
 repair_budget_exhausted: true
+repair_budget_exception_authorized: true
 ```
 
 ## Objective
@@ -66,8 +67,8 @@ Forbidden scope remains downstream capability implementation, ledger-status weak
 ## Coordination
 
 - #1452 and closeout #1466 are merged; trusted base is `develop@6577ae896ed5910f82f9e736fe4a007b6dc10e6e`.
-- branch remains `behind_by: 0` before this final formatting repair and bounded to seven logical owned paths.
-- #1396/#1450 and #1354/#1464 are untouched.
+- branch remains bounded to seven logical owned paths and does not touch #1396/#1450 or #1354/#1464 ownership.
+- the owner explicitly authorized repair cycle 4 on 2026-08-11 after the exhausted three-cycle budget, limited to restoring the checkpoint governance contract and its required revalidation.
 
 ## Repair history
 
@@ -86,7 +87,6 @@ repair_cycle_2:
     reviewed_head: bbbbbf606ca6fcb62d2533190fb7f84959286182
     comment_id: 5251459936
     result: PASS
-    note: became stale after repair cycle 3 formatting commit
 repair_cycle_3:
   result: APPLIED
   first_failure:
@@ -98,38 +98,72 @@ repair_cycle_3:
   remediation:
     commit: 667ff0d352c46bb67d8478bd130a64a906a5a56b
     change: applied exactly the ruff-format diff emitted by the failing hook; no semantic product/test behavior changed
+repair_cycle_4:
+  result: APPLIED
+  authorization: explicit owner continuation after exhausted standard repair budget
+  first_failure:
+    review_thread: PRRT_kwDOTdDTU86YLbnu
+    severity: P1
+    marker: context checkpoint violated shared checkpoint contract and could not be consumed by checkpoint.py/resume.py
+  remediation:
+    change: re-encoded Context checkpoint as shared checkpoint contract version 1 with all required fields and supported validation results
 repair_budget_exhausted: true
+repair_budget_exception_authorized: true
 ```
 
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 5
-updated_at: 2026-08-11T09:38:00Z
-head_before_checkpoint: 667ff0d352c46bb67d8478bd130a64a906a5a56b
+checkpoint_version: 1
+updated_at: 2026-08-11T17:45:00Z
+head: fc908158053fa8289829e8f0eaa9537a1ccd8e81
 branch: feat/paper-g0-surface-availability-20260811
 pr: 1470
 status: validating
-invocation_started_at: 2026-08-11T08:54:00Z
-last_progress_at: 2026-08-11T09:38:00Z
-repair_cycles_for_current_gate: 3
-repair_budget_exhausted: true
+context_routes:
+  - docs/agents/GOVERNANCE_CONTRACT.json
+  - tools/agents/checkpoint.py
+  - tools/agents/resume.py
+  - docs/agents/PROMPTING_HANDOVER.md
+owned_paths:
+  - ai_platform/portal/web/lib/product-surface-availability.json
+  - ai_platform/portal/web/components/surface-availability-notice.tsx
+  - ai_platform/portal/web/components/app-shell.tsx
+  - tools/portal_audit/navigation_matrix.py
+  - tests/ci/test_portal_surface_availability.py
+  - ai_platform/portal/web/e2e/specs/surface-availability.spec.ts
+  - docs/agents/tasks/active/FTAI-20260811-paper-g0-surface-availability.md
 proven:
-  - living ledger is the CI-enforced status authority
-  - 16 canonical surfaces are DISCONNECTED or MISSING
-  - final logical diff remains seven owned paths
-  - browser proof is discoverable and critical-routed
-  - accessible unavailable description is present
-  - Codex on semantic repair head bbbbbf606c found no major issues
+  - living navigation ledger is the CI-enforced status authority for product-surface completeness
+  - 16 canonical surfaces are classified overall DISCONNECTED or MISSING
+  - delivery diff is bounded to seven owned paths
+  - browser proof is under configured Playwright testDir and carries critical routing
+  - unavailable navigation status is exposed visually and through an accessible description
+  - all pre-cycle-4 material review threads were resolved
+  - owner explicitly authorized repair cycle 4 after the standard repair budget was exhausted
+derived:
+  - cycle-4 mutation is governance-only and does not change product or LIVE execution behavior
 unknown:
-  - fresh audit disposition for successor exact head containing cycle-3 formatting/checkpoint
-  - exact-head CI/browser result for successor exact head
+  - exact-head CI result after cycle-4 checkpoint repair
+  - fresh exact-head Codex disposition after cycle-4 checkpoint repair
 conflicts: []
+first_failure:
+  marker: final-head Codex P1 found the Context checkpoint was incompatible with the shared checkpoint contract
+  evidence: review thread PRRT_kwDOTdDTU86YLbnu reported wrong checkpoint_version, missing required fields and unsupported validation encoding on fc908158053fa8289829e8f0eaa9537a1ccd8e81
+rejected_hypotheses:
+  - product logic requires another repair; cycle-4 finding is confined to governance checkpoint encoding
+changed_paths:
+  - docs/agents/tasks/active/FTAI-20260811-paper-g0-surface-availability.md
 validation:
-  - result: PASS
-    evidence: all prior material Codex threads resolved after cycle 2
-  - result: FAIL_THEN_REPAIRED
-    evidence: Freqtrade CI 31478064443 / job 93736368185 failed only because ruff-format changed one quote style; emitted diff applied exactly
+  - command: python tools/agents/checkpoint.py docs/agents/tasks/active/FTAI-20260811-paper-g0-surface-availability.md --require-checkpoint
+    result: NOT_RUN
+    evidence: cycle-4 content was encoded directly from docs/agents/GOVERNANCE_CONTRACT.json and tools/agents/checkpoint.py; exact-head CI must execute the repository validator
+  - command: python tools/agents/resume.py docs/agents/tasks/active/FTAI-20260811-paper-g0-surface-availability.md
+    result: NOT_RUN
+    evidence: continuation consumer must be verified on the exact cycle-4 head before merge
+  - command: Codex exact-head review
+    result: NOT_RUN
+    evidence: fresh review must target the successor commit created by this checkpoint repair
 blockers: []
-next_action: Freeze the successor head. Request one fresh exact-head Codex audit and collect successor-head CI. Because the three-cycle repair budget is exhausted, any new material code/test failure is a terminal blocker requiring owner-authorized fresh isolation; do not perform a fourth repair cycle.
+next_action: Run the repository checkpoint and resume validation through exact-head CI, obtain a fresh Codex review of the cycle-4 successor head, resolve the remediated checkpoint thread, then merge PR #1470 only if every required exact-head gate is terminally green.
 ```

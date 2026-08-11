@@ -22,7 +22,9 @@ SPEC.loader.exec_module(module)
 
 
 def _deploy_stub(
-    *, interrupt: BaseException
+    *,
+    interrupt: BaseException,
+    report_status: str = "failed",
 ) -> tuple[SimpleNamespace, list[dict[str, Any]], list[str]]:
     reports: list[dict[str, Any]] = []
     rollback: list[str] = []
@@ -53,7 +55,7 @@ def _deploy_stub(
             "schema_version": 2,
             "request_id": deploy.REQUEST_ID,
             "implementation_sha": args.expected_repository_sha,
-            "status": "failed",
+            "status": report_status,
             "secret_values_recorded": False,
             "live_capital_authorized": False,
         }
@@ -87,6 +89,7 @@ def test_keyboard_interrupt_is_reported_after_canonical_rollback_then_reraised(t
     assert exc_info.value is interrupt
     assert rollback == ["performed"]
     assert len(reports) == 1
+    assert reports[0]["status"] == "failed"
     assert reports[0]["cancellation"] == {
         "type": "KeyboardInterrupt",
         "propagated_after_report": True,
@@ -102,6 +105,29 @@ def test_keyboard_interrupt_is_reported_after_canonical_rollback_then_reraised(t
     ]
     assert reports[0]["secret_values_recorded"] is False
     assert reports[0]["live_capital_authorized"] is False
+
+
+def test_post_activation_success_report_is_failed_before_cancellation_propagates(tmp_path) -> None:
+    interrupt = KeyboardInterrupt()
+    deploy, reports, rollback = _deploy_stub(
+        interrupt=interrupt,
+        report_status="success",
+    )
+    module.install(deploy)
+    args = SimpleNamespace(
+        report=str(tmp_path / "report.json"),
+        expected_repository_sha="c" * 40,
+    )
+
+    with pytest.raises(KeyboardInterrupt) as exc_info:
+        deploy.deploy(args)
+
+    assert exc_info.value is interrupt
+    assert rollback == ["performed"]
+    assert len(reports) == 1
+    assert reports[0]["status"] == "failed"
+    assert reports[0]["cancellation"]["type"] == "KeyboardInterrupt"
+    assert reports[0]["bounded_schema_cleanup_evidence"]
 
 
 def test_ordinary_exception_is_not_reclassified_as_cancellation(tmp_path) -> None:

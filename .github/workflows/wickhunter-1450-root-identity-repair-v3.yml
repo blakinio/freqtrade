@@ -1,0 +1,96 @@
+name: WickHunter PR1450 root identity repair v3
+
+on:
+  push:
+    branches:
+      - fix/wickhunter-1396-synology-recovery-v2
+    paths:
+      - .github/workflows/wickhunter-1450-root-identity-repair-v3.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-1450-root-identity-repair-v3
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact repair branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: fix/wickhunter-1396-synology-recovery-v2
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Reuse bounded v2 patch generator
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/wickhunter-1450-root-identity-repair-v2.yml').read_text(encoding='utf-8')
+          start_marker = "          python3 - <<'PY'\n"
+          end_marker = "          PY\n\n      - name: Install focused validation dependencies\n"
+          start = workflow.index(start_marker) + len(start_marker)
+          end = workflow.index(end_marker, start)
+          body = workflow[start:end]
+          lines = []
+          for line in body.splitlines():
+              if line.startswith('          '):
+                  line = line[10:]
+              lines.append(line)
+          script = '\n'.join(lines) + '\n'
+          Path('/tmp/wickhunter-root-identity-patch.py').write_text(script, encoding='utf-8')
+          PY
+          python3 /tmp/wickhunter-root-identity-patch.py
+
+      - name: Install focused validation dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check \
+            pytest "pydantic>=2.2" "SQLAlchemy>=2.0.6" "httpx>=0.24.1" \
+            fastapi pyjwt cryptography "PyYAML>=6.0" lightgbm websockets ruff==0.15.20
+
+      - name: Format and validate repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m ruff format \
+            ai_platform/scripts/liquidation_live_stream.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          python3 -m py_compile \
+            ai_platform/scripts/liquidation_live_stream.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          python3 -m ruff check \
+            ai_platform/scripts/liquidation_live_stream.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          python3 -m ruff format --check \
+            ai_platform/scripts/liquidation_live_stream.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          python3 -m pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py \
+            tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          git diff --check
+
+      - name: Commit clean validated repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            ai_platform/scripts/liquidation_live_stream.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          git rm \
+            .github/workflows/wickhunter-1450-root-identity-repair.yml \
+            .github/workflows/wickhunter-1450-root-identity-repair-v2.yml \
+            .github/workflows/wickhunter-1450-root-identity-repair-v3.yml
+          git diff --cached --check
+          git commit -m "fix(liquidations): revalidate anchored roots before publish"
+          git push origin HEAD:fix/wickhunter-1396-synology-recovery-v2

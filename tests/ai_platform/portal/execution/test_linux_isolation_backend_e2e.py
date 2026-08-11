@@ -37,6 +37,9 @@ ALPINE_IMAGE = "alpine:3.20"
 DNS_RESOLVER = "1.1.1.1"
 MARKET_DATA_PROBE_HOSTS = ("api.kraken.com", "api.coinbase.com")
 UNRELATED_PROBE_HOSTS = ("example.com", "www.cloudflare.com")
+PAPER_E2E_EXCHANGE = "kraken"
+PAPER_E2E_MARKET_DATA_HOST = "api.kraken.com"
+PAPER_E2E_PAIR = "BTC/USD"
 
 
 def _run(*args: str, timeout: int = 60) -> subprocess.CompletedProcess[str]:
@@ -69,11 +72,10 @@ def _require_host() -> Path:
     return mount
 
 
-def _reachable_ipv4(hostnames: tuple[str, ...], *, exclude: frozenset[str] = frozenset()) -> str:
-    failures: list[str] = []
-    for hostname in hostnames:
-        try:
-            addresses = sorted(
+def _resolved_ipv4(hostname: str) -> tuple[str, ...]:
+    try:
+        return tuple(
+            sorted(
                 {
                     info[4][0]
                     for info in socket.getaddrinfo(
@@ -82,12 +84,17 @@ def _reachable_ipv4(hostnames: tuple[str, ...], *, exclude: frozenset[str] = fro
                         family=socket.AF_INET,
                         type=socket.SOCK_STREAM,
                     )
-                    if info[4][0] not in exclude
                 }
             )
-        except socket.gaierror as exc:
-            failures.append(f"{hostname}: DNS failed: {exc}")
-            continue
+        )
+    except socket.gaierror as exc:
+        pytest.fail(f"{hostname}: DNS failed: {exc}")
+
+
+def _reachable_ipv4(hostnames: tuple[str, ...], *, exclude: frozenset[str] = frozenset()) -> str:
+    failures: list[str] = []
+    for hostname in hostnames:
+        addresses = [address for address in _resolved_ipv4(hostname) if address not in exclude]
         for address in addresses:
             try:
                 with socket.create_connection((address, 443), timeout=5):
@@ -99,10 +106,22 @@ def _reachable_ipv4(hostnames: tuple[str, ...], *, exclude: frozenset[str] = fro
     pytest.fail("no reachable public IPv4 E2E probe target: " + "; ".join(failures))
 
 
-def _policy(allowed_ipv4: str) -> MarketDataEgressPolicy:
+def _reachable_market_data_ipv4(hostname: str) -> tuple[str, ...]:
+    addresses = _resolved_ipv4(hostname)
+    failures: list[str] = []
+    for address in addresses:
+        try:
+            with socket.create_connection((address, 443), timeout=5):
+                return addresses
+        except OSError as exc:
+            failures.append(f"{hostname}/{address}: TCP 443 failed: {exc}")
+    pytest.fail("market-data endpoint has no reachable IPv4: " + "; ".join(failures))
+
+
+def _policy(*allowed_ipv4: str) -> MarketDataEgressPolicy:
     return MarketDataEgressPolicy(
         policy_version="linux-e2e-v3",
-        allowed_ipv4_cidrs=(f"{allowed_ipv4}/32",),
+        allowed_ipv4_cidrs=tuple(f"{address}/32" for address in allowed_ipv4),
         dns_resolver_ipv4_addresses=(DNS_RESOLVER,),
         allowed_tcp_ports=(443,),
     )
@@ -171,6 +190,106 @@ def _dns_probe(container: str) -> subprocess.CompletedProcess[str]:
         "example.com",
         timeout=15,
     )
+
+
+def _write_paper_runtime_inputs(inputs: Path, state_path: Path) -> Path:
+    strategy = inputs / "PortalE2EStrategy.py"
+    strategy.write_text(
+        """from pandas import DataFrame\n"
+        "from freqtrade.strategy import IStrategy\n\n"
+        "class PortalE2EStrategy(IStrategy):\n"
+        "    INTERFACE_VERSION = 3\n"
+        "    timeframe = '5m'\n"
+        "    minimal_roi = {'0': 100.0}\n"
+        "    stoploss = -0.99\n\n"
+        "    def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:\n"
+        "        return dataframe\n\n"
+        "    def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:\n"
+        "        dataframe['enter_long'] = 0\n"
+        "        return dataframe\n\n"
+        "    def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:\n"
+        "        dataframe['exit_long'] = 0\n"
+        "        return dataframe\n"
+        """,
+        encoding="utf-8",
+    )
+    strategy.chmod(0o644)
+
+    config_path = inputs / "config.json"
+    config = {
+        "max_open_trades": 1,
+        "stake_currency": "USD",
+        "stake_amount": 100,
+        "tradable_balance_ratio": 0.99,
+        "fiat_display_currency": "USD",
+        "dry_run": True,
+        "dry_run_wallet": 1000,
+        "cancel_open_orders_on_exit": False,
+        "timeframe": "5m",
+        "trading_mode": "spot",
+        "margin_mode": "",
+        "entry_pricing": {
+            "price_side": "same",
+            "use_order_book": True,
+            "order_book_top": 1,
+        },
+        "exit_pricing": {
+            "price_side": "same",
+            "use_order_book": True,
+            "order_book_top": 1,
+        },
+        "exchange": {
+            "name": PAPER_E2E_EXCHANGE,
+            "key": "",
+            "secret": "",
+            "ccxt_config": {"enableRateLimit": True},
+            "ccxt_async_config": {"enableRateLimit": True},
+            "pair_whitelist": [PAPER_E2E_PAIR],
+            "pair_blacklist": [],
+        },
+        "pairlists": [{"method": "StaticPairList"}],
+        "strategy": "PortalE2EStrategy",
+        "strategy_path": "/runtime/config",
+        "user_data_dir": "/runtime/state",
+        "db_url": "sqlite:////runtime/state/tradesv3.sqlite",
+        "api_server": {"enabled": False},
+        "telegram": {"enabled": False},
+    }
+    config_path.write_text(json.dumps(config, sort_keys=True) + "\n", encoding="utf-8")
+    config_path.chmod(0o644)
+    assert state_path.is_dir()
+    return config_path
+
+
+def _positive_market_data_tcp_counter(payload: dict[str, object]) -> bool:
+    for item in payload.get("nftables", []):  # type: ignore[union-attr]
+        if not isinstance(item, dict):
+            continue
+        rule = item.get("rule")
+        if not isinstance(rule, dict) or rule.get("chain") != "egress":
+            continue
+        tcp_443 = False
+        packets = 0
+        for expression in rule.get("expr", []):
+            if not isinstance(expression, dict):
+                continue
+            match = expression.get("match")
+            if isinstance(match, dict):
+                left = match.get("left")
+                if (
+                    isinstance(left, dict)
+                    and left.get("payload") == {"protocol": "tcp", "field": "dport"}
+                    and match.get("right") == 443
+                ):
+                    tcp_443 = True
+            counter = expression.get("counter")
+            if isinstance(counter, dict):
+                observed = counter.get("packets")
+                if isinstance(observed, int):
+                    packets = observed
+        if tcp_443 and packets > 0:
+            return True
+    return False
 
 
 def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None:
@@ -336,12 +455,10 @@ def test_driver_release_runs_through_concrete_linux_isolation_backend() -> None:
     state_path.mkdir()
     inputs = Path.cwd() / f".{runtime_id}-inputs"
     inputs.mkdir(mode=0o755)
-    config_path = inputs / "config.json"
-    config_path.write_text("{}\n", encoding="utf-8")
-    config_path.chmod(0o644)
+    config_path = _write_paper_runtime_inputs(inputs, state_path)
 
-    allowed_ipv4 = _reachable_ipv4(MARKET_DATA_PROBE_HOSTS)
-    policy = _policy(allowed_ipv4)
+    market_data_ipv4 = _reachable_market_data_ipv4(PAPER_E2E_MARKET_DATA_HOST)
+    policy = _policy(*market_data_ipv4)
     plan = _plan(policy, runtime_image_digest=image_digest)
     backend = LinuxNftablesBtrfsIsolationAttestor(
         SubprocessCommandRunner(),
@@ -389,14 +506,36 @@ def test_driver_release_runs_through_concrete_linux_isolation_backend() -> None:
         )
 
         logs = ""
-        for _ in range(100):
+        market_data_observed = False
+        for _ in range(120):
+            state = _run(
+                "docker",
+                "inspect",
+                "--format",
+                "{{.State.Running}} {{.State.ExitCode}}",
+                runtime_id,
+            )
+            assert state.returncode == 0, state.stderr
+            if not state.stdout.strip().startswith("true "):
+                observed = _run("docker", "logs", runtime_id)
+                pytest.fail(
+                    "released PAPER runtime exited during boot: "
+                    f"state={state.stdout.strip()} logs={(observed.stdout + observed.stderr)[-4000:]}"
+                )
+
             observed = _run("docker", "logs", runtime_id)
             assert observed.returncode == 0, observed.stderr
             logs = observed.stdout + observed.stderr
-            if "freqtrade" in logs.lower():
+            counters = _run("nft", "-j", "list", "table", "inet", table)
+            assert counters.returncode == 0, counters.stderr
+            market_data_observed = _positive_market_data_tcp_counter(json.loads(counters.stdout))
+            if "dry-run" in logs.lower() and market_data_observed:
                 break
-            time.sleep(0.1)
-        assert "freqtrade" in logs.lower(), logs[-4000:]
+            time.sleep(0.5)
+
+        assert "dry-run" in logs.lower(), logs[-4000:]
+        assert market_data_observed, "no approved TCP/443 market-data egress was observed"
+        assert driver.inspect(runtime_id) is DriverRuntimeState.RUNNING
     finally:
         _run("docker", "rm", "-f", runtime_id)
         backend.cleanup_network(network, runtime_id)

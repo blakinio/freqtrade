@@ -18,6 +18,8 @@ from audit_ledger import (
 
 
 APP_SHELL = Path("ai_platform/portal/web/components/app-shell.tsx")
+WEB_AVAILABILITY = Path("ai_platform/portal/web/lib/product-surface-availability.json")
+WEB_UNAVAILABLE_OVERALL_STATUSES = ("DISCONNECTED", "MISSING")
 INVENTORY = Path("artifacts/portal-deep-inventory.json")
 OUTPUT_JSON = Path("artifacts/portal-navigation-completeness-matrix.json")
 OUTPUT_MD = Path("artifacts/portal-navigation-completeness-matrix.md")
@@ -46,6 +48,40 @@ def surfaces(ledger: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     return list(ledger["classifications"]["navigation"])
 
 
+def expected_web_availability(ledger: Mapping[str, Any]) -> dict[str, Any]:
+    unavailable = [
+        {
+            "route": str(item["route"]),
+            "label": str(item["label"]),
+            "status": str(item["overall"]),
+            "issues": str(item["issues"]),
+            "reason": str(item["reason"]),
+        }
+        for item in surfaces(ledger)
+        if item["overall"] in WEB_UNAVAILABLE_OVERALL_STATUSES
+    ]
+    return {
+        "schema_version": "portal-product-surface-availability-v1",
+        "source": "tools/portal_audit/ledger/navigation.json",
+        "ledger_version": str(ledger["ledger_version"]),
+        "unavailable_overall_statuses": list(WEB_UNAVAILABLE_OVERALL_STATUSES),
+        "surfaces": unavailable,
+    }
+
+
+def validate_web_availability(ledger: Mapping[str, Any]) -> None:
+    try:
+        actual = json.loads(WEB_AVAILABILITY.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"cannot load web surface availability projection: {exc}") from exc
+    expected = expected_web_availability(ledger)
+    if actual != expected:
+        raise SystemExit(
+            "web surface availability projection drift requires an explicit ledger-synchronized update: "
+            f"expected {expected!r}, got {actual!r}"
+        )
+
+
 def validate_navigation(data: Mapping[str, Any], ledger: Mapping[str, Any]) -> None:
     expected = tuple((str(item["route"]), str(item["label"])) for item in surfaces(ledger))
     actual = parse_navigation()
@@ -59,6 +95,7 @@ def validate_navigation(data: Mapping[str, Any], ledger: Mapping[str, Any]) -> N
     )
     if missing:
         raise SystemExit(f"navigation pages missing: {missing}")
+    validate_web_availability(ledger)
 
 
 def markdown(data: Mapping[str, Any], ledger: Mapping[str, Any]) -> str:

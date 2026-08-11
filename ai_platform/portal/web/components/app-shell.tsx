@@ -1,10 +1,12 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import availability from "@/lib/product-surface-availability.json";
 import { portalEnvironment } from "@/lib/portal-api";
 import { BfcacheRevalidation } from "./bfcache-revalidation";
 import { EnvironmentBadge } from "./environment-badge";
 import { SessionControls } from "./session-controls";
+import { SurfaceAvailabilityNotice } from "./surface-availability-notice";
 
 const navigationGroups = [
   {
@@ -72,8 +74,13 @@ const navigationGroups = [
   },
 ];
 
+const unavailableRoutes = new Set(availability.surfaces.map((surface) => surface.route));
 const shellStyle = { minWidth: 0, width: "100%" } as const;
 const navigationStyle = { minWidth: 0, maxWidth: "100%" } as const;
+
+function availabilityDescriptionId(route: string): string {
+  return `nav-availability-${route.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "")}`;
+}
 
 export function AppShell({ children }: { children: ReactNode }) {
   const environment = portalEnvironment();
@@ -98,11 +105,25 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="nav-group" key={group.label}>
               <span className="nav-group-title">{group.label}</span>
               <div className="nav-group-links">
-                {group.items.map((item) => (
-                  <Link key={item.href} href={item.href}>
-                    {item.label}
-                  </Link>
-                ))}
+                {group.items.map((item) => {
+                  const unavailable = unavailableRoutes.has(item.href);
+                  const descriptionId = unavailable
+                    ? availabilityDescriptionId(item.href)
+                    : undefined;
+                  return (
+                    <Link key={item.href} href={item.href} aria-describedby={descriptionId}>
+                      {item.label}
+                      {unavailable ? (
+                        <>
+                          <span aria-hidden="true"> · Unavailable</span>
+                          <span id={descriptionId} hidden>
+                            Capability unavailable
+                          </span>
+                        </>
+                      ) : null}
+                    </Link>
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -125,6 +146,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <SessionControls />
         </header>
         <main className="page-content" id="main-content">
+          <SurfaceAvailabilityNotice />
           {children}
         </main>
       </div>

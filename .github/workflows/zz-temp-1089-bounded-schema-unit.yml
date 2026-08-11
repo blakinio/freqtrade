@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           persist-credentials: false
-          fetch-depth: 1
+          fetch-depth: 0
       - name: Install focused validation tools
         run: python3 -m pip install --disable-pip-version-check pytest==9.1.1 ruff==0.15.21
       - name: Validate bounded schema lifecycle candidate
@@ -42,4 +42,4 @@ jobs:
             deploy/synology/portal-oidc/bounded_schema_lifecycle.py \
             deploy/synology/portal-oidc/deploy_entrypoint.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py
-          git show --check --oneline --no-renames HEAD >/dev/null
+          git diff --check 8e519ba16e8d6795d4dddb871ddcfcc013605d55...HEAD

@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from ai_platform.portal.execution.host_isolation import MarketDataEgressPolicy
+from ai_platform.portal.execution.host_isolation import (
+    LinuxNftablesBtrfsIsolationAttestor,
+    MarketDataEgressPolicy,
+)
 
 
 @pytest.mark.parametrize(
@@ -73,3 +76,14 @@ def test_market_data_policy_accepts_public_ipv4_cidr_and_dns() -> None:
 
     assert policy.allowed_ipv4_cidrs == ("1.1.1.0/24",)
     assert policy.dns_resolver_ipv4_addresses == ("8.8.8.8",)
+
+
+def test_nftables_host_prefix_normalization_matches_kernel_json_shape() -> None:
+    backend = LinuxNftablesBtrfsIsolationAttestor
+
+    assert backend._canonical_ipv4_target("1.1.1.1/32") == "1.1.1.1"
+    assert backend._canonical_ipv4_target("8.8.8.0/24") == "8.8.8.0/24"
+    assert (
+        backend._normalize_nft_value({"prefix": {"addr": "1.1.1.1", "len": 32}})
+        == "1.1.1.1"
+    )

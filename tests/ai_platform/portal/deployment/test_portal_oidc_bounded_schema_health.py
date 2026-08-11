@@ -19,6 +19,8 @@ assert SPEC and SPEC.loader
 module = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(module)
 
+CONTAINER_ID = "a" * 64
+
 
 def _state(*, exists: bool, running: bool, health: str, state: str) -> dict[str, object]:
     return {
@@ -38,6 +40,18 @@ def _deploy_stub() -> SimpleNamespace:
     )
 
 
+def _cleanup_call(deploy: SimpleNamespace, *, label: str) -> None:
+    module._cleanup_with_protected_health(
+        deploy,
+        label=label,
+        name="task-container",
+        owner="task-owner",
+        create_succeeded=True,
+        container_id=CONTAINER_ID,
+        cwd=None,
+    )
+
+
 def test_cleanup_records_healthy_protected_service_non_regression(monkeypatch) -> None:
     deploy = _deploy_stub()
     deploy._bounded_schema_cleanup_evidence = []
@@ -54,32 +68,28 @@ def test_cleanup_records_healthy_protected_service_non_regression(monkeypatch) -
     }
     after = {name: dict(value) for name, value in before.items()}
     snapshots = iter((before, after))
-    cleaned: list[str] = []
+    cleaned: list[tuple[str, str, str | None]] = []
 
     monkeypatch.setattr(
         module,
         "_capture_protected_services",
         lambda _deploy, *, cwd: next(snapshots),
     )
-    monkeypatch.setattr(
-        module,
-        "_cleanup_owned",
-        lambda _deploy, name, *, cwd: cleaned.append(name),
-    )
 
-    module._cleanup_with_protected_health(
-        deploy,
-        label="schema-migrate",
-        name="task-container",
-        owner="task-owner",
-        create_succeeded=True,
-        cwd=None,
-    )
+    def cleanup_owned(_deploy, name, owner, *, container_id, cwd):
+        cleaned.append((name, owner, container_id))
+        return container_id
 
-    assert cleaned == ["task-container"]
+    monkeypatch.setattr(module, "_cleanup_owned", cleanup_owned)
+
+    _cleanup_call(deploy, label="schema-migrate")
+
+    assert cleaned == [("task-container", "task-owner", CONTAINER_ID)]
     assert deploy._bounded_schema_cleanup_evidence == [
         {
             "workload": "schema-migrate",
+            "task_container_name": "task-container",
+            "task_container_id": CONTAINER_ID,
             "protected_before": before,
             "protected_after": after,
             "protected_non_regression": True,
@@ -109,20 +119,18 @@ def test_cleanup_fails_when_healthy_postgres_degrades(monkeypatch) -> None:
         "_capture_protected_services",
         lambda _deploy, *, cwd: next(snapshots),
     )
-    monkeypatch.setattr(module, "_cleanup_owned", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        module,
+        "_cleanup_owned",
+        lambda _deploy, name, owner, *, container_id, cwd: container_id,
+    )
 
     with pytest.raises(RuntimeError, match="protected service health regressed"):
-        module._cleanup_with_protected_health(
-            deploy,
-            label="state-transfer",
-            name="task-container",
-            owner="task-owner",
-            create_succeeded=True,
-            cwd=None,
-        )
+        _cleanup_call(deploy, label="state-transfer")
 
     evidence = deploy._bounded_schema_cleanup_evidence[-1]
     assert evidence["protected_non_regression"] is False
+    assert evidence["task_container_id"] == CONTAINER_ID
     assert evidence["regressions"] == [
         "freqtrade-portal-postgresql:stopped_running",
         "freqtrade-portal-postgresql:lost_healthy",
@@ -149,16 +157,13 @@ def test_preexisting_unhealthy_stopped_service_is_recorded_not_repaired(monkeypa
         "_capture_protected_services",
         lambda _deploy, *, cwd: next(snapshots),
     )
-    monkeypatch.setattr(module, "_cleanup_owned", lambda *_args, **_kwargs: None)
-
-    module._cleanup_with_protected_health(
-        deploy,
-        label="schema-check",
-        name="task-container",
-        owner="task-owner",
-        create_succeeded=True,
-        cwd=None,
+    monkeypatch.setattr(
+        module,
+        "_cleanup_owned",
+        lambda _deploy, name, owner, *, container_id, cwd: container_id,
     )
+
+    _cleanup_call(deploy, label="schema-check")
 
     evidence = deploy._bounded_schema_cleanup_evidence[-1]
     assert evidence["protected_non_regression"] is True
@@ -186,17 +191,14 @@ def test_existing_stopped_service_may_not_disappear_during_cleanup(monkeypatch) 
         "_capture_protected_services",
         lambda _deploy, *, cwd: next(snapshots),
     )
-    monkeypatch.setattr(module, "_cleanup_owned", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        module,
+        "_cleanup_owned",
+        lambda _deploy, name, owner, *, container_id, cwd: container_id,
+    )
 
     with pytest.raises(RuntimeError, match="protected service health regressed"):
-        module._cleanup_with_protected_health(
-            deploy,
-            label="schema-check",
-            name="task-container",
-            owner="task-owner",
-            create_succeeded=True,
-            cwd=None,
-        )
+        _cleanup_call(deploy, label="schema-check")
 
     assert deploy._bounded_schema_cleanup_evidence[-1]["regressions"] == [
         "freqtrade-portal-control-plane:became_absent"
@@ -218,7 +220,7 @@ def test_starting_service_may_improve_to_healthy() -> None:
     assert module._protected_service_regressions(before, after) == []
 
 
-def test_install_persists_cleanup_health_evidence_in_deployment_report() -> None:
+def test_install_persists_cleanup_health_and_task_identity_in_deployment_report() -> None:
     reports: list[dict[str, Any]] = []
 
     def original_run(command, *, cwd=None, sensitive=False, check=True):
@@ -234,28 +236,20 @@ def test_install_persists_cleanup_health_evidence_in_deployment_report() -> None
         _write_report=original_write_report,
     )
     module.install(deploy)
-    deploy._bounded_schema_cleanup_evidence.append(
-        {
-            "workload": "schema-migrate",
-            "protected_before": {},
-            "protected_after": {},
-            "protected_non_regression": True,
-            "regressions": [],
-            "verification_complete": True,
-        }
-    )
+    cleanup_evidence = {
+        "workload": "schema-migrate",
+        "task_container_name": "task-container",
+        "task_container_id": CONTAINER_ID,
+        "protected_before": {},
+        "protected_after": {},
+        "protected_non_regression": True,
+        "regressions": [],
+        "verification_complete": True,
+    }
+    deploy._bounded_schema_cleanup_evidence.append(cleanup_evidence)
 
     report: dict[str, Any] = {"status": "success"}
     digest = deploy._write_report(Path("report.json"), report)
 
     assert digest == "digest"
-    assert reports[-1]["bounded_schema_cleanup_evidence"] == [
-        {
-            "workload": "schema-migrate",
-            "protected_before": {},
-            "protected_after": {},
-            "protected_non_regression": True,
-            "regressions": [],
-            "verification_complete": True,
-        }
-    ]
+    assert reports[-1]["bounded_schema_cleanup_evidence"] == [cleanup_evidence]

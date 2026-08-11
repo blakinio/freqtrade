@@ -122,7 +122,6 @@ def _dns_probe(container: str) -> subprocess.CompletedProcess[str]:
         container,
         "nslookup",
         "example.com",
-        "1.1.1.1",
         timeout=15,
     )
 
@@ -178,6 +177,8 @@ def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None
             container,
             "--label",
             f"ai.portal.runtime_id={runtime_id}",
+            "--dns",
+            "1.1.1.1",
             "--network",
             network,
             ALPINE_IMAGE,
@@ -187,7 +188,12 @@ def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None
         assert started.returncode == 0, started.stderr
         backend.attest_network(plan, network, runtime_id)
 
-        # Staged final policy is present but deliberately unreachable during quarantine.
+        resolv_conf = _run("docker", "exec", container, "cat", "/etc/resolv.conf")
+        assert resolv_conf.returncode == 0, resolv_conf.stderr
+        assert "nameserver 127.0.0.11" in resolv_conf.stdout
+
+        # Staged final policy is present but unreachable while normal Docker DNS and
+        # public market-data egress remain denied during quarantine.
         assert _https_probe(container).returncode != 0
         assert _dns_probe(container).returncode != 0
 

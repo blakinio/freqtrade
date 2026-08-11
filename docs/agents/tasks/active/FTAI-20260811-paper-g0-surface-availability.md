@@ -20,7 +20,7 @@ paper_gate: G0
 paper_work_item: 7
 live_capital_authorized: false
 protected_production_deployment_authorized: false
-repair_cycles_for_current_gate: 1
+repair_cycles_for_current_gate: 2
 ```
 
 ## Objective
@@ -38,11 +38,10 @@ Close PAPER G0 work item 7 without implementing later-gate product functionality
 
 - `ai_platform/portal/web/lib/product-surface-availability.json` projects exactly the living-ledger rows whose overall status is `DISCONNECTED` or `MISSING`, preserving route, label, status, linked issues/boundary and canonical reason.
 - `SurfaceAvailabilityNotice` uses the current pathname to show a visible shell-level warning on direct navigation without suppressing useful bounded read-only evidence that a page may still provide.
-- `AppShell` adds a visible `Unavailable` marker to projected navigation routes while keeping the existing accessible link name stable via an `aria-hidden` marker.
-- `navigation_matrix.py` now validates the committed web projection exactly against the living ledger, so a ledger/status/reason/blocker change cannot silently drift from Portal presentation.
-- `tests/ci/test_portal_surface_availability.py` independently reconstructs the projection from raw ledger rows and verifies the shell/notice contract.
-- `surface-availability.spec.ts` proves a disconnected route (`/ai`) receives both navigation and direct-route warnings and a non-disconnected route (`/market/liquidations`) does not.
-- The browser spec is tagged both `@critical` and `@regression`, because normal PR routing invokes the Portal Web critical Chromium subset unless full-browser routing is explicitly selected.
+- `AppShell` adds a visible `Unavailable` marker to projected navigation routes while keeping the existing accessible link name stable; projected links also receive an `aria-describedby` relationship to a hidden `Capability unavailable` description so assistive technology receives the status before navigation.
+- `navigation_matrix.py` validates the committed web projection exactly against the living ledger, so a ledger/status/reason/blocker change cannot silently drift from Portal presentation.
+- `tests/ci/test_portal_surface_availability.py` independently reconstructs the projection from raw ledger rows and verifies the shell/notice/accessibility contract.
+- `ai_platform/portal/web/e2e/specs/surface-availability.spec.ts` is inside the configured Playwright `testDir`, tagged `@critical` and `@regression`, and proves `/ai` receives navigation/direct-route warnings plus an accessible unavailable description while `/market/liquidations` does not.
 
 ## Scope
 
@@ -53,7 +52,7 @@ Owned paths:
 - `ai_platform/portal/web/components/app-shell.tsx`
 - `tools/portal_audit/navigation_matrix.py`
 - `tests/ci/test_portal_surface_availability.py`
-- `ai_platform/portal/web/e2e/surface-availability.spec.ts`
+- `ai_platform/portal/web/e2e/specs/surface-availability.spec.ts`
 - `docs/agents/tasks/active/FTAI-20260811-paper-g0-surface-availability.md`
 
 Forbidden scope:
@@ -68,67 +67,76 @@ Forbidden scope:
 
 - one committed web projection contains exactly the ledger surfaces whose overall status is `DISCONNECTED` or `MISSING`;
 - the projection carries route, label, status, linked blocker/boundary and ledger reason;
-- canonical navigation visibly labels those routes `Unavailable` without pretending their useful read-only evidence is complete and without changing accessible link names;
+- canonical navigation visibly labels those routes `Unavailable` without pretending their useful read-only evidence is complete;
+- assistive technology receives `Capability unavailable` as an accessible description while established accessible link names remain stable;
 - direct navigation renders a visible warning that the capability is not connected end to end in the canonical product runtime;
-- routes not classified `DISCONNECTED`/`MISSING` do not receive that warning;
+- routes not classified `DISCONNECTED`/`MISSING` do not receive that warning or accessible unavailable description;
 - `navigation_matrix.py` and a focused CI test reject projection drift from the living ledger;
-- the browser proof is actually selected by ordinary PR routing, not merely committed but skipped;
-- a browser test proves both an unavailable route and a non-unavailable route in the real shell;
+- the browser proof is inside the configured Playwright `testDir` and selected by ordinary PR `@critical` routing;
 - no product capability, execution authority or LIVE path is added;
 - exact-head CI, fresh independent audit and zero material review threads pass before merge.
 
 ## Coordination
 
-- PR #1452 / PAPER G0 work item 6 is merged; its lifecycle closeout PR #1466 is also merged. Current trusted base is `develop@6577ae896ed5910f82f9e736fe4a007b6dc10e6e`.
-- Branch synchronization used the current `develop` tree as the base and overlaid only the seven owned paths; compare is `behind_by: 0`, and no stale #1452 active record is reintroduced.
-- #1396/#1450 and #1354/#1464 have separate active ownership and are not modified.
+- PR #1452 / PAPER G0 work item 6 and lifecycle closeout #1466 are merged. Trusted base is `develop@6577ae896ed5910f82f9e736fe4a007b6dc10e6e`.
+- Branch synchronization overlaid only owned paths on the current develop tree; no stale #1452 active record is reintroduced.
+- #1396/#1450 and #1354/#1464 have separate ownership and are not modified.
 
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 3
-updated_at: 2026-08-11T09:29:00Z
-head_before_checkpoint: ff5bbdb320c802d47b188ed289ed4ab5801303ab
+checkpoint_version: 4
+updated_at: 2026-08-11T09:34:00Z
+head_before_checkpoint: 6c19962d0b261e1f1d25d652e9ecdfaa0f5651b7
 branch: feat/paper-g0-surface-availability-20260811
 pr: 1470
 status: validating
 invocation_started_at: 2026-08-11T08:54:00Z
-last_progress_at: 2026-08-11T09:29:00Z
+last_progress_at: 2026-08-11T09:34:00Z
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 1
+repair_cycles_for_current_gate: 2
 stall_warnings: 0
 proven:
   - living navigation ledger is CI-enforced status authority
   - 16 canonical surfaces are overall DISCONNECTED or MISSING
-  - pre-change shell did not project those statuses
-  - at least /ai can represent a disconnected producer as ordinary empty state
-  - Strategy Catalog already has a local unavailable failure state, so central shell truth remains additive rather than replacing page-specific handling
-  - branch is synchronized with develop@6577ae896ed5910f82f9e736fe4a007b6dc10e6e and compare contains exactly seven owned paths
-  - visible navigation markers preserve existing accessible link names
-  - ordinary PR Portal Web routing executes `test:e2e:critical`, so the focused browser proof must carry the @critical tag
+  - branch remains bounded to the seven logical owned paths
+  - ordinary PR Portal Web CI executes the @critical subset
+  - playwright.config.ts discovers tests only under ./e2e/specs
 first_failure:
-  marker: focused surface-availability browser proof was tagged only @regression and would not execute in the ordinary PR critical Chromium subset
-  evidence: .github/workflows/portal-web.yml invokes npm run test:e2e:critical when full_browser_e2e is false; package.json filters @critical; initial spec used only tags.regression
-repair:
-  result: APPLIED
+  marker: initial browser proof was outside configured Playwright testDir and only @regression, so it could remain green without executing
+  evidence: Codex P1 discussion_r3756725179 plus playwright.config.ts testDir and portal-web/package routing
+repair_cycle_1:
   head: ff5bbdb320c802d47b188ed289ed4ab5801303ab
-  evidence: surface-availability.spec.ts now uses [tags.critical, tags.regression]
+  result: INCOMPLETE
+  evidence: added @critical tag, but stale-head Codex proved the file itself remained outside testDir
+repair_cycle_2:
+  result: APPLIED
+  evidence:
+    - moved browser proof to ai_platform/portal/web/e2e/specs/surface-availability.spec.ts
+    - preserved @critical and @regression tags
+    - added aria-describedby accessible status relation while preserving link name
+    - added browser assertion for accessible description and focused static accessibility contract checks
+  addressed_findings:
+    - Codex P1 discussion_r3756725179
+    - Codex P2 discussion_r3756725187
 unknown:
-  - fresh independent audit disposition for successor final head
-  - exact-head CI and browser acceptance result for successor final head
+  - fresh independent audit disposition for final successor head
+  - exact-head CI/browser result for final successor head
 conflicts: []
 validation:
-  - command: develop-to-branch compare after tree-overlay synchronization
+  - command: develop-to-branch compare after synchronization
     result: PASS
-    evidence: behind_by=0; exactly seven intended changed paths; no #1452/#1466 lifecycle path drift
-  - command: PR browser routing audit
-    result: PASS_AFTER_REPAIR
-    evidence: focused browser spec now participates in ordinary PR critical Chromium regression
-  - command: runtime/browser acceptance
+    evidence: behind_by=0 before repair; no conflicting ownership paths
+  - command: browser discovery/routing audit
+    result: PASS_AFTER_REPAIR_CYCLE_2
+    evidence: spec now resides below configured testDir and carries @critical
+  - command: assistive navigation-status audit
+    result: PASS_AFTER_REPAIR_CYCLE_2
+    evidence: visible marker is paired with aria-describedby -> hidden Capability unavailable description
+  - command: exact-head runtime/browser acceptance
     result: PENDING
-    evidence: exact successor-head CI will execute the critical-tagged focused Playwright spec
 blockers: []
-next_action: Resolve the successor exact head, refresh PR metadata, request fresh Codex review, and accept only successor-head CI/browser evidence.
+next_action: Resolve final successor head, update PR metadata, reply/resolve remediated review threads, request fresh Codex audit, and accept only final-head CI/browser evidence.
 ```

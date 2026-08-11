@@ -249,6 +249,7 @@ class LinuxNftablesBtrfsIsolationAttestor:
                 "accept;",
                 "}",
             )
+            self._nft("add", "chain", "inet", table, "egress")
             self._nft(
                 "add",
                 "rule",
@@ -280,9 +281,7 @@ class LinuxNftablesBtrfsIsolationAttestor:
                         "rule",
                         "inet",
                         table,
-                        "forward",
-                        "iifname",
-                        bridge,
+                        "egress",
                         "ip",
                         "daddr",
                         cidr,
@@ -301,9 +300,7 @@ class LinuxNftablesBtrfsIsolationAttestor:
                     "rule",
                     "inet",
                     table,
-                    "forward",
-                    "iifname",
-                    bridge,
+                    "egress",
                     "ip",
                     "daddr",
                     resolver,
@@ -318,9 +315,7 @@ class LinuxNftablesBtrfsIsolationAttestor:
                     "rule",
                     "inet",
                     table,
-                    "forward",
-                    "iifname",
-                    bridge,
+                    "egress",
                     "ip",
                     "daddr",
                     resolver,
@@ -355,6 +350,50 @@ class LinuxNftablesBtrfsIsolationAttestor:
                     f"primary={primary}; cleanup={cleanup_error}",
                 ) from cleanup_error
             raise
+
+    def activate_network(
+        self,
+        plan: RuntimeIsolationPlan,
+        network_name: str,
+        runtime_id: str,
+    ) -> None:
+        self.attest_network(plan, network_name, runtime_id)
+        network = self._network_info(network_name)
+        bridge = self._bridge_name(network)
+        table = self._table_name(network_name)
+        self._nft(
+            "insert",
+            "rule",
+            "inet",
+            table,
+            "forward",
+            "iifname",
+            bridge,
+            "counter",
+            "jump",
+            "egress",
+        )
+        result = self._runner.run(("nft", "-j", "list", "table", "inet", table))
+        if result.returncode != 0:
+            self._raise_command(
+                "HOST_NETWORK_ISOLATION_UNSUPPORTED",
+                result,
+                "activated nftables generation policy is unavailable",
+            )
+        try:
+            payload = json.loads(result.stdout)
+        except json.JSONDecodeError as exc:
+            raise RuntimeDriverError(
+                "ISOLATION_ATTESTATION_FAILED",
+                "activated nftables generation policy evidence is invalid JSON",
+            ) from exc
+        self._attest_canonical_nftables(
+            payload,
+            table,
+            bridge,
+            self._policy_for(plan),
+            active=True,
+        )
 
     def attest_storage(self, plan: RuntimeIsolationPlan, state_path: Path) -> None:
         state = self._approved_state_path(state_path)
@@ -625,11 +664,17 @@ class LinuxNftablesBtrfsIsolationAttestor:
         table: str,
         bridge: str,
         policy: MarketDataEgressPolicy,
+        *,
+        active: bool = False,
     ) -> None:
         if not isinstance(payload, dict) or not isinstance(payload.get("nftables"), list):
             self._nft_mismatch()
         chains: dict[str, dict[str, Any]] = {}
-        rules: dict[str, list[tuple[object, ...]]] = {"input": [], "forward": []}
+        rules: dict[str, list[tuple[object, ...]]] = {
+            "input": [],
+            "forward": [],
+            "egress": [],
+        }
         table_count = 0
         for entry in payload["nftables"]:
             if not isinstance(entry, dict):
@@ -669,12 +714,21 @@ class LinuxNftablesBtrfsIsolationAttestor:
                 rules[str(rule["chain"])].append(self._nft_rule_signature(rule))
                 continue
             self._nft_mismatch()
-        if table_count != 1 or set(chains) != {"input", "forward"}:
+        if table_count != 1 or set(chains) != {"input", "forward", "egress"}:
             self._nft_mismatch()
         self._require_chain(chains["input"], hook="input")
         self._require_chain(chains["forward"], hook="forward")
-        expected_input, expected_forward = self._expected_nft_rule_signatures(bridge, policy)
-        if rules["input"] != expected_input or rules["forward"] != expected_forward:
+        self._require_regular_chain(chains["egress"])
+        expected_input, expected_forward, expected_egress = self._expected_nft_rule_signatures(
+            bridge,
+            policy,
+            active=active,
+        )
+        if (
+            rules["input"] != expected_input
+            or rules["forward"] != expected_forward
+            or rules["egress"] != expected_egress
+        ):
             self._nft_mismatch()
 
     @staticmethod
@@ -685,6 +739,11 @@ class LinuxNftablesBtrfsIsolationAttestor:
             or chain.get("prio") != -40
             or chain.get("policy") != "accept"
         ):
+            LinuxNftablesBtrfsIsolationAttestor._nft_mismatch()
+
+    @staticmethod
+    def _require_regular_chain(chain: dict[str, Any]) -> None:
+        if any(key in chain for key in ("hook", "prio", "policy")):
             LinuxNftablesBtrfsIsolationAttestor._nft_mismatch()
 
     @classmethod
@@ -709,6 +768,12 @@ class LinuxNftablesBtrfsIsolationAttestor:
                 continue
             if set(expression) == {"drop"}:
                 signature.append(("verdict", "drop"))
+                continue
+            if set(expression) == {"jump"}:
+                jump = expression["jump"]
+                if not isinstance(jump, dict) or set(jump) != {"target"}:
+                    cls._nft_mismatch()
+                signature.append(("verdict", "jump", str(jump["target"])))
                 continue
             cls._nft_mismatch()
         return tuple(signature)
@@ -772,23 +837,37 @@ class LinuxNftablesBtrfsIsolationAttestor:
         cls,
         bridge: str,
         policy: MarketDataEgressPolicy,
-    ) -> tuple[list[tuple[object, ...]], list[tuple[object, ...]]]:
+        *,
+        active: bool,
+    ) -> tuple[
+        list[tuple[object, ...]],
+        list[tuple[object, ...]],
+        list[tuple[object, ...]],
+    ]:
         input_rules = [
             (("meta", "iifname", "", "==", bridge), ("verdict", "drop"))
         ]
-        forward_rules: list[tuple[object, ...]] = [
-            (
-                ("meta", "iifname", "", "==", bridge),
-                ("meta", "oifname", "", "==", bridge),
-                ("verdict", "accept"),
+        forward_rules: list[tuple[object, ...]] = []
+        if active:
+            forward_rules.append(
+                (("meta", "iifname", "", "==", bridge), ("verdict", "jump", "egress"))
             )
-        ]
+        forward_rules.extend(
+            [
+                (
+                    ("meta", "iifname", "", "==", bridge),
+                    ("meta", "oifname", "", "==", bridge),
+                    ("verdict", "accept"),
+                ),
+                (("meta", "iifname", "", "==", bridge), ("verdict", "drop")),
+            ]
+        )
         states = ("established", "new")
+        egress_rules: list[tuple[object, ...]] = []
         for cidr in policy.allowed_ipv4_cidrs:
             for port in policy.allowed_tcp_ports:
-                forward_rules.append(
+                egress_rules.append(
                     (
-                        ("meta", "iifname", "", "==", bridge),
                         ("payload", "ip", "daddr", "==", cidr),
                         ("payload", "tcp", "dport", "==", port),
                         ("ct", "state", "", "in", states),
@@ -796,27 +875,22 @@ class LinuxNftablesBtrfsIsolationAttestor:
                     )
                 )
         for resolver in policy.dns_resolver_ipv4_addresses:
-            forward_rules.append(
+            egress_rules.append(
                 (
-                    ("meta", "iifname", "", "==", bridge),
                     ("payload", "ip", "daddr", "==", resolver),
                     ("payload", "udp", "dport", "==", 53),
                     ("verdict", "accept"),
                 )
             )
-            forward_rules.append(
+            egress_rules.append(
                 (
-                    ("meta", "iifname", "", "==", bridge),
                     ("payload", "ip", "daddr", "==", resolver),
                     ("payload", "tcp", "dport", "==", 53),
                     ("ct", "state", "", "in", states),
                     ("verdict", "accept"),
                 )
             )
-        forward_rules.append(
-            (("meta", "iifname", "", "==", bridge), ("verdict", "drop"))
-        )
-        return input_rules, forward_rules
+        return input_rules, forward_rules, egress_rules
 
     @staticmethod
     def _nft_mismatch() -> None:

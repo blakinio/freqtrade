@@ -142,6 +142,16 @@ def test_transfer_workload_is_bounded_by_same_lifecycle(monkeypatch) -> None:
     assert "--rm" not in create
 
 
+def test_wait_bounds_are_calibrated_per_workload() -> None:
+    assert module._wait_timeout("schema-migrate") == 600
+    assert module._wait_timeout("state-transfer") == 180
+    assert module._wait_timeout("schema-check") == 180
+    assert module._wait_timeout("schema-schema") == 300
+
+    with pytest.raises(RuntimeError, match="no wait calibration"):
+        module._wait_timeout("unreviewed-workload")
+
+
 def test_non_target_and_check_false_commands_delegate(monkeypatch) -> None:
     deploy, delegated = _deploy_stub()
     module.install(deploy)

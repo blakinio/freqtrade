@@ -23,7 +23,11 @@ def _cancellation_metadata(pending: BaseException) -> dict[str, object]:
 def _fallback_report(deploy: Any, args: Any, pending: BaseException) -> dict[str, Any]:
     return {
         "schema_version": 2,
-        "request_id": getattr(deploy, "REQUEST_ID", "portal-authentik-public-oidc-20260801-v1"),
+        "request_id": getattr(
+            deploy,
+            "REQUEST_ID",
+            "portal-authentik-public-oidc-20260801-v1",
+        ),
         "implementation_sha": str(args.expected_repository_sha),
         "status": "failed",
         "secret_values_recorded": False,

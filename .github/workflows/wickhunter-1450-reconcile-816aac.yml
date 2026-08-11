@@ -60,9 +60,10 @@ jobs:
                   cp[i] = f'head: {delivered}'
               elif line.startswith('next_action:'):
                   cp[i] = 'next_action: Run final exact-head PR 1450 CI and fresh Codex review on the reconciled develop base; if green, squash-merge and continue canonical Liquid20 deployment plus guarded completed-history repair.'
+          derived_index = cp.index('derived:')
           proof = f'  - final reconciliation merged develop commit {base_sha} before exact-head validation'
           if proof not in cp:
-              cp.append(proof)
+              cp.insert(derived_index, proof)
           text = text[:a] + '\n'.join(cp) + text[b:]
 
           rp0 = '## Recovery checkpoint\n\n```yaml\n'

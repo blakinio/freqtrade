@@ -79,7 +79,7 @@ unknown:
 conflicts: []
 first_failure:
   marker: checkpoint lagged the completed repair and instructed removal of an archive already removed
-  evidence: Codex P2 thread PRRT_kwDOTdDTU86YOA9q on exact parent head 0ad048f9b837af317fc5b206a286237b84a97e42
+  evidence: Codex P2 thread PRRT_kwDOTdDTU86YNnek on exact parent head 0ad048f9b837af317fc5b206a286237b84a97e42
 rejected_hypotheses:
   - perform a fourth same-gate parent repair; rejected because the parent repair budget is exhausted at three and this refresh is isolated
   - keep the stale predecessor head and repeated next_action; rejected because resume.py would hand a successor incorrect continuation state

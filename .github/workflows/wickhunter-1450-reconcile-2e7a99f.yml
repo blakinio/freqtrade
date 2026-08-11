@@ -1,0 +1,110 @@
+name: WickHunter PR1450 final reconcile 2e7a99f
+
+on:
+  push:
+    branches:
+      - fix/wickhunter-1396-synology-recovery-v2
+    paths:
+      - .github/workflows/wickhunter-1450-reconcile-2e7a99f.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-1450-reconcile-2e7a99f
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: fix/wickhunter-1396-synology-recovery-v2
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Reconcile current develop and checkpoint
+        shell: bash
+        env:
+          EXPECTED_DEVELOP: 2e7a99f6693469c0f8a009a2c8d00056fc817674
+          VALIDATION_RUN: 31484120393
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch origin develop
+          actual="$(git rev-parse origin/develop)"
+          test "$actual" = "$EXPECTED_DEVELOP"
+          git merge --no-ff -m "chore(wickhunter): reconcile PR 1450 with develop 2e7a99f" origin/develop
+          merge_head="$(git rev-parse HEAD)"
+          MERGE_HEAD="$merge_head" python3 - <<'PY'
+          import os
+          import re
+          from datetime import datetime
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+
+          path = Path('docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md')
+          text = path.read_text(encoding='utf-8')
+          merge_head = os.environ['MERGE_HEAD']
+          run_id = os.environ['VALIDATION_RUN']
+          now = datetime.now(ZoneInfo('Europe/Warsaw')).replace(microsecond=0).isoformat()
+
+          text, n = re.subn(r'updated_at: [^\n]+', f'updated_at: {now}', text, count=1)
+          assert n == 1
+          text, n = re.subn(
+              r'head: [0-9a-f]{40}\nbranch: fix/wickhunter-1396-synology-recovery-v2',
+              f'head: {merge_head}\nbranch: fix/wickhunter-1396-synology-recovery-v2',
+              text,
+              count=1,
+          )
+          assert n == 1
+          old_proven = '  - malformed active source state missing events_written now fails closed before any source truncation with no default zero commit boundary; normal and exceptional stop paths close all retained runtime directory descriptors and repeated stop remains safe; source summaries now commit before run-state and pointer publication so partial finalization failures remain restart-recoverable without retaining directory descriptors; descriptor-hardened runtime creation preserves the production shared-GID contract with 0640 files and 0750 run directories under umask 027; final reconciliation merged develop commit 6577ae896ed5910f82f9e736fe4a007b6dc10e6e before exact-head validation\n'
+          new_proven = old_proven + '  - exact root-identity repair revalidates canonical live and runs directory identities against retained descriptors before state work and immediately before pointer publication; focused validation run 31484120393 passed 31 tests plus py_compile Ruff check format and diff hygiene; final reconciliation merged current develop 2e7a99f6693469c0f8a009a2c8d00056fc817674 before exact-head validation\n'
+          assert old_proven in text
+          text = text.replace(old_proven, new_proven, 1)
+          text = text.replace(
+              '  - final exact-head PR 1450 standard CI result after temporary workflow removal\n',
+              '  - final exact-head PR 1450 ci:full result after root-identity repair and current-develop reconciliation\n',
+              1,
+          )
+          marker = 'blockers: []\n'
+          validation = (
+              '  - command: Anchored runtime-root publication revalidation and current-develop reconciliation\n'
+              '    result: PASS\n'
+              f'    evidence: GitHub Actions run {run_id} passed 31 focused restart and OKX tests plus py_compile Ruff check format and diff hygiene; branch then merged develop 2e7a99f6693469c0f8a009a2c8d00056fc817674 before final validation\n'
+          )
+          assert marker in text
+          text = text.replace(marker, validation + marker, 1)
+          text = text.replace(
+              'next_action: Run final exact-head PR 1450 CI and fresh Codex review on the reconciled develop base; if green, squash-merge and continue canonical Liquid20 deployment plus guarded completed-history repair.',
+              'next_action: Run final exact-head PR 1450 ci:full and fresh Codex review after root-identity repair; if green, squash-merge and continue canonical Liquid20 deployment plus guarded completed-history repair.',
+              1,
+          )
+          text = text.replace('  generation: 18\n', '  generation: 19\n', 1)
+          text = re.sub(r'  checkpointed_at: [^\n]+', f'  checkpointed_at: {now}', text, count=1)
+          text = re.sub(r'  last_progress_at: [^\n]+', f'  last_progress_at: {now}', text, count=1)
+          text = re.sub(r'  exact_head_before_checkpoint_commit: [0-9a-f]{40}', f'  exact_head_before_checkpoint_commit: {merge_head}', text, count=1)
+          text = text.replace(
+              '  active_operation: final exact-head CI and independent review after current-develop reconciliation\n',
+              '  active_operation: final exact-head ci:full and independent review after root-identity repair and current-develop reconciliation\n',
+              1,
+          )
+          text = text.replace(
+              '  next_action: Complete final exact-head CI plus fresh Codex review on PR 1450, then squash-merge and continue canonical Liquid20 recovery.',
+              '  next_action: Complete final exact-head ci:full plus fresh Codex review on PR 1450, then squash-merge and continue canonical Liquid20 recovery.',
+              1,
+          )
+          path.write_text(text, encoding='utf-8')
+          PY
+          python3 tools/agents/checkpoint.py \
+            docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md \
+            --require-checkpoint
+          git rm .github/workflows/wickhunter-1450-reconcile-2e7a99f.yml
+          git add docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
+          git diff --cached --check
+          git commit -m "docs(wickhunter): checkpoint final PR 1450 validation"
+          git push origin HEAD:fix/wickhunter-1396-synology-recovery-v2

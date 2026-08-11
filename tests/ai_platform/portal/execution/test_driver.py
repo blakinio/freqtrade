@@ -35,6 +35,7 @@ from ai_platform.portal.execution.runtime import DriverRuntimeState, RuntimeCont
 NOW = datetime(2026, 8, 9, 20, 0, tzinfo=UTC)
 IMAGE_DIGEST = "1" * 64
 IMAGE = f"freqtradeorg/freqtrade@sha256:{IMAGE_DIGEST}"
+DNS_RESOLVERS = ("1.1.1.1",)
 
 
 class _Runner:
@@ -62,6 +63,10 @@ class _Attestor:
             storage_backend=StorageIsolationBackend.BOUNDED_VOLUME,
             network_backend=NetworkIsolationBackend.CONSTRAINED_PROXY,
         )
+
+    def dns_resolvers(self, plan: RuntimeIsolationPlan) -> tuple[str, ...]:
+        assert plan.market_data_egress_policy_version == "public-data-v1"
+        return DNS_RESOLVERS
 
     def prepare_storage(self, plan: RuntimeIsolationPlan, state_path: Path) -> None:
         assert plan.durable_state_max_bytes > 0
@@ -168,17 +173,17 @@ def _inspect(spec: RuntimeContainerSpec, plan: RuntimeIsolationPlan) -> dict[str
         "Config": {
             "User": plan.runtime_user,
             "Image": spec.image,
-            "Entrypoint": ["/bin/sh"],
+            "Entrypoint": [DockerCliRuntimeDriver._QUARANTINE_ENTRYPOINT],
             "Cmd": [
-                "-ec",
-                DockerCliRuntimeDriver._QUARANTINE,
-                "portal-quarantine",
                 "freqtrade",
                 "trade",
                 "--config",
                 "/runtime/config/config.json",
                 "--strategy",
                 spec.strategy_name,
+            ],
+            "Env": [
+                f"PORTAL_LOG_PROBE_BYTES={plan.log_max_bytes * (plan.log_rotation_count + 1)}"
             ],
             "Labels": {
                 **spec.labels,
@@ -195,6 +200,7 @@ def _inspect(spec: RuntimeContainerSpec, plan: RuntimeIsolationPlan) -> dict[str
             "IpcMode": "private",
             "UTSMode": "",
             "NetworkMode": _network(),
+            "Dns": list(DNS_RESOLVERS),
             "Devices": [],
             "PortBindings": {},
             "RestartPolicy": {"Name": "no"},
@@ -233,16 +239,8 @@ def _inspect(spec: RuntimeContainerSpec, plan: RuntimeIsolationPlan) -> dict[str
     }
 
 
-def _provision_results(
-    spec: RuntimeContainerSpec,
-    plan: RuntimeIsolationPlan,
-) -> list[CommandResult]:
+def _effective_results(plan: RuntimeIsolationPlan) -> list[CommandResult]:
     return [
-        CommandResult(1, stderr="Error: No such object: runtime-1"),
-        CommandResult(0, stdout=json.dumps([f"repo@sha256:{IMAGE_DIGEST}"])),
-        CommandResult(0, stdout="container-id"),
-        CommandResult(0, stdout=json.dumps([_inspect(spec, plan)])),
-        CommandResult(0),
         CommandResult(0),
         CommandResult(
             0,
@@ -261,6 +259,32 @@ def _provision_results(
                 f"tmpfs /run tmpfs rw,nosuid,nodev,noexec,size={plan.run_tmpfs_max_bytes} 0 0\n"
             ),
         ),
+        CommandResult(0),
+        CommandResult(0, stdout=f"retained\n{DockerCliRuntimeDriver._LOG_PROBE_END}\n"),
+    ]
+
+
+def _provision_results(
+    spec: RuntimeContainerSpec,
+    plan: RuntimeIsolationPlan,
+) -> list[CommandResult]:
+    return [
+        CommandResult(1, stderr="Error: No such object: runtime-1"),
+        CommandResult(0, stdout=json.dumps([f"repo@sha256:{IMAGE_DIGEST}"])),
+        CommandResult(0, stdout="container-id"),
+        CommandResult(0, stdout=json.dumps([_inspect(spec, plan)])),
+        CommandResult(0),
+        *_effective_results(plan),
+    ]
+
+
+def _reattest_results(
+    spec: RuntimeContainerSpec,
+    plan: RuntimeIsolationPlan,
+) -> list[CommandResult]:
+    return [
+        CommandResult(0, stdout=json.dumps([_inspect(spec, plan)])),
+        *_effective_results(plan),
     ]
 
 
@@ -288,23 +312,60 @@ def test_provision_builds_quarantined_hardened_container(tmp_path: Path) -> None
         "--cpus",
         "--tmpfs",
         "--log-driver",
+        "--dns",
         "--network",
     ):
         assert flag in create
     assert "no-new-privileges=true" in create
     assert "ALL" in create
+    assert "1.1.1.1" in create
     assert "-p" not in create
     assert "--publish" not in create
+    assert "--entrypoint" not in create
     assert not any("docker.sock" in value for value in create)
     assert "Seccomp:" in runner.calls[5][-1]
     assert "/proc/swaps" in runner.calls[6][-1]
+    assert runner.calls[8][:3] == ("docker", "exec", "runtime-1")
+    assert runner.calls[9] == ("docker", "logs", "runtime-1")
     assert attestor.prepared_storage == [spec.state_path]
     assert attestor.prepared_networks == [_network()]
     assert attestor.attested_storage == [spec.state_path]
     assert attestor.attested_networks == [_network()]
 
 
-def test_release_occurs_only_after_attestation(tmp_path: Path) -> None:
+def test_release_repeats_full_attestation_immediately_before_gate(tmp_path: Path) -> None:
+    plan = _plan()
+    spec = _spec(tmp_path)
+    runner = _Runner(*_provision_results(spec, plan))
+    attestor = _Attestor()
+    driver = DockerCliRuntimeDriver(
+        runner,
+        isolation_plans=_provider(plan),
+        external_attestor=attestor,
+    )
+    driver.provision(spec)
+    initial_attest_count = len(attestor.attested_networks)
+    runner.results.extend(
+        [
+            CommandResult(0, stdout="running\n"),
+            CommandResult(1),
+            *_reattest_results(spec, plan),
+            CommandResult(0),
+        ]
+    )
+
+    assert driver.start("runtime-1") is DriverRuntimeState.RUNNING
+    assert len(attestor.attested_networks) == initial_attest_count + 1
+    assert runner.calls[-1][:5] == (
+        "docker",
+        "exec",
+        "runtime-1",
+        "/bin/sh",
+        "-ec",
+    )
+
+
+def test_release_fails_closed_if_structure_changes_after_initial_attestation(tmp_path: Path) -> None:
     plan = _plan()
     spec = _spec(tmp_path)
     runner = _Runner(*_provision_results(spec, plan))
@@ -314,22 +375,23 @@ def test_release_occurs_only_after_attestation(tmp_path: Path) -> None:
         external_attestor=_Attestor(),
     )
     driver.provision(spec)
+    tampered = _inspect(spec, plan)
+    host = tampered["HostConfig"]
+    assert isinstance(host, dict)
+    host["Privileged"] = True
     runner.results.extend(
         [
             CommandResult(0, stdout="running\n"),
             CommandResult(1),
-            CommandResult(0),
+            CommandResult(0, stdout=json.dumps([tampered])),
         ]
     )
 
-    assert driver.start("runtime-1") is DriverRuntimeState.RUNNING
-    assert runner.calls[-1][:5] == (
-        "docker",
-        "exec",
-        "runtime-1",
-        "/bin/sh",
-        "-ec",
-    )
+    with pytest.raises(RuntimeDriverError) as exc_info:
+        driver.start("runtime-1")
+
+    assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
+    assert all(DockerCliRuntimeDriver._RELEASE not in call for call in runner.calls)
 
 
 def test_missing_plan_fails_before_engine_mutation(tmp_path: Path) -> None:
@@ -351,7 +413,7 @@ def test_missing_storage_backend_fails_before_create(tmp_path: Path) -> None:
     with pytest.raises(RuntimeDriverError) as exc_info:
         driver.provision(_spec(tmp_path))
 
-    assert exc_info.value.reason_code == "HOST_STORAGE_ISOLATION_UNSUPPORTED"
+    assert exc_info.value.reason_code == "HOST_NETWORK_ISOLATION_UNSUPPORTED"
     assert all(call[:2] != ("docker", "create") for call in runner.calls)
 
 
@@ -404,8 +466,8 @@ def test_structural_failure_removes_quarantined_container(tmp_path: Path) -> Non
     assert attestor.cleaned == [_network()]
 
 
-@pytest.mark.parametrize("tampered_field", ["command", "identity"])
-def test_structural_attestation_rejects_tampered_bootstrap_or_identity(
+@pytest.mark.parametrize("tampered_field", ["entrypoint", "identity", "dns"])
+def test_structural_attestation_rejects_tampered_bootstrap_identity_or_dns(
     tmp_path: Path,
     tampered_field: str,
 ) -> None:
@@ -413,13 +475,17 @@ def test_structural_attestation_rejects_tampered_bootstrap_or_identity(
     spec = _spec(tmp_path)
     unsafe = _inspect(spec, plan)
     unsafe_config = unsafe["Config"]
+    unsafe_host = unsafe["HostConfig"]
     assert isinstance(unsafe_config, dict)
-    if tampered_field == "command":
-        unsafe_config["Cmd"] = ["freqtrade", "trade"]
-    else:
+    assert isinstance(unsafe_host, dict)
+    if tampered_field == "entrypoint":
+        unsafe_config["Entrypoint"] = ["freqtrade"]
+    elif tampered_field == "identity":
         labels = unsafe_config["Labels"]
         assert isinstance(labels, dict)
         labels["ai.portal.isolation_plan_digest"] = "f" * 64
+    else:
+        unsafe_host["Dns"] = ["8.8.8.8"]
     results = _provision_results(spec, plan)[:4]
     results[3] = CommandResult(0, stdout=json.dumps([unsafe]))
     results.append(CommandResult(0))
@@ -437,6 +503,43 @@ def test_structural_attestation_rejects_tampered_bootstrap_or_identity(
     assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
     assert runner.calls[-1] == ("docker", "rm", "-f", "runtime-1")
     assert attestor.cleaned == [_network()]
+
+
+def test_bounded_log_attestation_requires_rotation_and_retention_ceiling() -> None:
+    plan = replace(_plan(), log_max_bytes=1024, log_rotation_count=1)
+    success = _Runner(
+        CommandResult(0),
+        CommandResult(0, stdout=f"retained\n{DockerCliRuntimeDriver._LOG_PROBE_END}\n"),
+    )
+    DockerCliRuntimeDriver(success)._attest_bounded_logs("runtime-1", plan)
+
+    stale = _Runner(
+        CommandResult(0),
+        CommandResult(
+            0,
+            stdout=(
+                f"{DockerCliRuntimeDriver._LOG_PROBE_BEGIN}\n"
+                f"{DockerCliRuntimeDriver._LOG_PROBE_END}\n"
+            ),
+        ),
+    )
+    with pytest.raises(RuntimeDriverError) as stale_error:
+        DockerCliRuntimeDriver(stale)._attest_bounded_logs("runtime-1", plan)
+    assert stale_error.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
+
+    oversized = _Runner(
+        CommandResult(0),
+        CommandResult(
+            0,
+            stdout=(
+                "x" * (DockerCliRuntimeDriver._LOG_RETENTION_TOLERANCE_BYTES + 2048)
+                + DockerCliRuntimeDriver._LOG_PROBE_END
+            ),
+        ),
+    )
+    with pytest.raises(RuntimeDriverError) as oversized_error:
+        DockerCliRuntimeDriver(oversized)._attest_bounded_logs("runtime-1", plan)
+    assert oversized_error.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
 
 
 def test_paused_foreign_runtime_cannot_be_released() -> None:

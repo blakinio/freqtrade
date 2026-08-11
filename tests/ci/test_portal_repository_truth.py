@@ -19,6 +19,7 @@ REQUIRED_IMPLEMENTED_ROOTS = (
 )
 
 REQUIRED_CODEOWNER_PATTERNS = {
+    "/ai_platform/portal/",
     "/ai_platform/portal/control_plane/",
     "/ai_platform/portal/execution/",
     "/ai_platform/portal/execution_submission/",
@@ -88,4 +89,5 @@ def test_codeowners_explicitly_covers_current_sensitive_portal_roots() -> None:
     patterns = _codeowner_patterns()
 
     assert "*" in patterns
+    assert "/ai_platform/portal/" in patterns
     assert REQUIRED_CODEOWNER_PATTERNS.issubset(patterns)

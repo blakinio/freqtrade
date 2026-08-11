@@ -63,9 +63,9 @@ def test_runtime_quarantine_is_fixed_fail_closed_bootstrap() -> None:
     assert "PORTAL_LOG_BOUND_PROBE_END" in script
     assert ': > "$log_probe_ready"' in script
     assert 'while [ ! -f "$release_file" ]' in script
-    assert 'application_ready="$release_dir/application-ready"' in script
-    assert '"Bot heartbeat."*"state=\'RUNNING\'"' in script
-    assert '"$@" > "$startup_pipe" 2>&1 &' in script
-    assert 'wait "$child_pid"' in script
+    assert "application-ready" not in script
+    assert "Bot heartbeat." not in script
+    assert "startup_pipe" not in script
+    assert script.rstrip().endswith('exec "$@"')
     assert "curl " not in script
     assert "wget " not in script

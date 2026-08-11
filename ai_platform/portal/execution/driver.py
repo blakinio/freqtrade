@@ -399,7 +399,6 @@ class DockerCliRuntimeDriver:
 
     _RELEASE_DIR = "/run/portal-release"
     _RELEASE_FILE = f"{_RELEASE_DIR}/release"
-    _APPLICATION_READY_FILE = f"{_RELEASE_DIR}/application-ready"
     _LOG_PROBE_READY = f"{_RELEASE_DIR}/log-probe-ready"
     _LOG_PROBE_BEGIN = "PORTAL_LOG_BOUND_PROBE_BEGIN"
     _LOG_PROBE_END = "PORTAL_LOG_BOUND_PROBE_END"
@@ -558,17 +557,9 @@ class DockerCliRuntimeDriver:
                 ("docker", "exec", runtime_id, "test", "-f", self._RELEASE_FILE)
             )
             if gate.returncode == 0:
-                ready = self._runner.run(
-                    ("docker", "exec", runtime_id, "test", "-f", self._APPLICATION_READY_FILE)
-                )
-                if ready.returncode == 0:
+                if self._application_probe(runtime_id):
                     return DriverRuntimeState.RUNNING
-                if ready.returncode == 1:
-                    return DriverRuntimeState.STARTING
-                raise RuntimeDriverError(
-                    "ISOLATION_ATTESTATION_FAILED",
-                    ready.stderr.strip() or "application readiness state is unreadable",
-                )
+                return DriverRuntimeState.STARTING
             if gate.returncode == 1:
                 return DriverRuntimeState.CREATED
             raise RuntimeDriverError(
@@ -589,6 +580,45 @@ class DockerCliRuntimeDriver:
                 "DOCKER_STATE_UNKNOWN",
                 f"unsupported docker runtime state: {state or '<empty>'}",
             ) from exc
+
+    def _application_probe(self, runtime_id: str) -> bool:
+        spec = self._specs.get(runtime_id)
+        if spec is None:
+            return False
+        try:
+            payload = json.loads(spec.config_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return False
+        if not isinstance(payload, dict):
+            return False
+        exchange = payload.get("exchange")
+        quote = payload.get("stake_currency")
+        if not isinstance(exchange, dict) or not isinstance(quote, str) or not quote:
+            return False
+        exchange_name = exchange.get("name")
+        if not isinstance(exchange_name, str) or not exchange_name:
+            return False
+        script = (
+            "set -eu; "
+            "cmd=\"$(tr '\\000' ' ' < /proc/1/cmdline)\"; "
+            'case "$cmd" in *freqtrade*trade*) ;; *) exit 73 ;; esac; '
+            "exec freqtrade list-pairs --config /runtime/config/config.json "
+            '--exchange "$1" --quote "$2" --print-json >/dev/null'
+        )
+        probe = self._runner.run(
+            (
+                "docker",
+                "exec",
+                runtime_id,
+                "/bin/sh",
+                "-ec",
+                script,
+                "portal-readiness",
+                exchange_name,
+                quote,
+            )
+        )
+        return probe.returncode == 0
 
     def _reattest_before_release(self, runtime_id: str, *, active_network: bool = False) -> None:
         if runtime_id not in self._attested:

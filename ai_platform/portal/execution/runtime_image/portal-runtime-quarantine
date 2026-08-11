@@ -3,7 +3,6 @@ set -eu
 
 release_dir=/run/portal-release
 release_file="$release_dir/release"
-application_ready="$release_dir/application-ready"
 log_probe_ready="$release_dir/log-probe-ready"
 log_probe_begin=PORTAL_LOG_BOUND_PROBE_BEGIN
 log_probe_end=PORTAL_LOG_BOUND_PROBE_END
@@ -57,34 +56,4 @@ for field in ("key", "secret", "password", "uid"):
 print("Portal PAPER dry-run configuration attested", flush=True)
 PY
 
-child_pid=""
-relay_pid=""
-startup_pipe="$release_dir/application-output"
-forward_signal() {
-    if [ -n "$child_pid" ]; then
-        kill -TERM "$child_pid" 2>/dev/null || true
-    fi
-}
-trap forward_signal TERM INT HUP
-
-rm -f "$startup_pipe"
-mkfifo "$startup_pipe"
-while IFS= read -r line; do
-    printf '%s\n' "$line"
-    case "$line" in
-        *"Bot heartbeat."*"state='RUNNING'"*)
-            : > "$application_ready"
-            ;;
-    esac
-done < "$startup_pipe" &
-relay_pid=$!
-
-"$@" > "$startup_pipe" 2>&1 &
-child_pid=$!
-set +e
-wait "$child_pid"
-status=$?
-wait "$relay_pid"
-set -e
-rm -f "$startup_pipe"
-exit "$status"
+exec "$@"

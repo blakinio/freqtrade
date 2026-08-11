@@ -182,7 +182,17 @@ def _provider(plan: RuntimeIsolationPlan) -> MappingRuntimeIsolationPlanProvider
 def _spec(tmp_path: Path) -> RuntimeContainerSpec:
     config = tmp_path / "inputs" / "config.json"
     config.parent.mkdir(parents=True)
-    config.write_text("{}\n", encoding="utf-8")
+    config.write_text(
+        json.dumps(
+            {
+                "dry_run": True,
+                "stake_currency": "USD",
+                "exchange": {"name": "kraken", "key": "", "secret": ""},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     state = tmp_path / "state"
     state.mkdir()
     return RuntimeContainerSpec(
@@ -630,13 +640,32 @@ def test_bounded_log_attestation_requires_rotation_and_retention_ceiling() -> No
     assert oversized_error.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
 
 
-def test_released_runtime_is_starting_until_application_ready() -> None:
+def test_released_runtime_is_starting_without_trusted_generation_probe() -> None:
     runner = _Runner(
         CommandResult(0, stdout="running\n"),
         CommandResult(0),
-        CommandResult(1),
     )
     assert DockerCliRuntimeDriver(runner).inspect("runtime-1") is DriverRuntimeState.STARTING
+
+
+def test_strategy_stdout_cannot_spoof_application_readiness(tmp_path: Path) -> None:
+    spec = _spec(tmp_path)
+    runner = _Runner(
+        CommandResult(0, stdout="running\n"),
+        CommandResult(0),
+        CommandResult(
+            1,
+            stdout="Bot heartbeat. PID=999, state='RUNNING'\n",
+            stderr="probe failed",
+        ),
+    )
+    driver = DockerCliRuntimeDriver(runner)
+    driver._specs[spec.runtime_id] = spec
+
+    assert driver.inspect(spec.runtime_id) is DriverRuntimeState.STARTING
+    assert runner.calls[-1][:3] == ("docker", "exec", spec.runtime_id)
+    assert "list-pairs" in runner.calls[-1][5]
+    assert "Bot heartbeat" not in runner.calls[-1][5]
 
 
 def test_running_generation_repeats_current_isolation_attestation(tmp_path: Path) -> None:
@@ -748,7 +777,6 @@ def test_stop_stops_released_runtime_while_application_is_starting() -> None:
     runner = _Runner(
         CommandResult(0, stdout="running\n"),
         CommandResult(0),
-        CommandResult(1),
         CommandResult(0),
     )
     driver = DockerCliRuntimeDriver(runner)

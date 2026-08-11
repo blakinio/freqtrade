@@ -20,7 +20,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 1
-          ref: 782e32465693d3f0e7b823a8004ab09d9ddd1d0a
+          ref: 31c1618ef81d74731b896b4af4388c3580f3d77b
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
@@ -43,11 +43,10 @@ jobs:
           python -m py_compile tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py
           python -m py_compile tests/ai_platform/portal/deployment/test_portal_oidc_cancellation_report_bridge.py
 
-      - name: Ruff focused lifecycle files
+      - name: Ruff focused repair files
         shell: bash
         run: |
           ruff check \
-            deploy/synology/portal-oidc/bounded_schema_lifecycle.py \
             deploy/synology/portal-oidc/cancellation_report_bridge.py \
             deploy/synology/portal-oidc/deploy_entrypoint.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py \

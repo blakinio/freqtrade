@@ -79,6 +79,26 @@ def _parse_container_id(deploy: Any, value: str) -> str:
     return container_id
 
 
+def _remember_cancellation(
+    current: BaseException | None,
+    candidate: BaseException,
+) -> BaseException | None:
+    if current is not None:
+        return current
+    if not isinstance(candidate, Exception):
+        return candidate
+    return None
+
+
+def _raise_preserved_cancellation(
+    cancellation: BaseException,
+    cause: BaseException | None = None,
+) -> None:
+    if cause is not None and cause is not cancellation:
+        raise cancellation from cause
+    raise cancellation
+
+
 def _run_bounded(
     command: list[str],
     *,
@@ -256,6 +276,7 @@ def _cleanup_owned(
     cwd: Path | None,
 ) -> str | None:
     expected_id = container_id
+    cancellation: BaseException | None = None
     last_cleanup_error: BaseException | None = None
     for _attempt in range(CLEANUP_ATTEMPTS):
         try:
@@ -267,13 +288,20 @@ def _cleanup_owned(
                 cwd=cwd,
             )
             if target_id is None:
+                if cancellation is not None:
+                    _raise_preserved_cancellation(cancellation, last_cleanup_error)
                 return expected_id
             expected_id = target_id
             _remove_owned_id_once(deploy, expected_id, cwd=cwd)
+            if cancellation is not None:
+                _raise_preserved_cancellation(cancellation, last_cleanup_error)
             return expected_id
-        except deploy.DeploymentError as exc:
+        except BaseException as exc:
+            cancellation = _remember_cancellation(cancellation, exc)
             last_cleanup_error = exc
 
+    if cancellation is not None:
+        _raise_preserved_cancellation(cancellation, last_cleanup_error)
     raise deploy.DeploymentError(
         "task-owned Docker workload cleanup failed after bounded retries"
     ) from last_cleanup_error
@@ -286,34 +314,48 @@ def _cleanup_ambiguous_create(
     *,
     cwd: Path | None,
 ) -> str | None:
+    cancellation: BaseException | None = None
     last_verification_error: BaseException | None = None
     for _attempt in range(OWNERSHIP_VERIFY_ATTEMPTS):
         try:
             identity = _inspect_owned_identity(deploy, name, cwd=cwd)
-        except deploy.DeploymentError as exc:
-            last_verification_error = exc
-            continue
+            if identity is not None:
+                container_id, current_owner = identity
+                if current_owner != owner:
+                    ownership_error = deploy.DeploymentError(
+                        "ambiguous Docker create produced a container not owned by this task"
+                    )
+                    if cancellation is not None:
+                        _raise_preserved_cancellation(cancellation, ownership_error)
+                    raise ownership_error
+                try:
+                    result = _cleanup_owned(
+                        deploy,
+                        name,
+                        owner,
+                        container_id=container_id,
+                        cwd=cwd,
+                    )
+                except BaseException as exc:
+                    if cancellation is not None and isinstance(exc, Exception):
+                        _raise_preserved_cancellation(cancellation, exc)
+                    raise
+                if cancellation is not None:
+                    _raise_preserved_cancellation(cancellation, last_verification_error)
+                return result
 
-        if identity is not None:
-            container_id, current_owner = identity
-            if current_owner != owner:
-                raise deploy.DeploymentError(
-                    "ambiguous Docker create produced a container not owned by this task"
-                )
-            return _cleanup_owned(
-                deploy,
-                name,
-                owner,
-                container_id=container_id,
-                cwd=cwd,
-            )
-
-        try:
             _verify_absent(deploy, name, cwd=cwd)
+            if cancellation is not None:
+                _raise_preserved_cancellation(cancellation, last_verification_error)
             return None
-        except deploy.DeploymentError as exc:
+        except BaseException as exc:
+            cancellation = _remember_cancellation(cancellation, exc)
             last_verification_error = exc
+            if isinstance(exc, Exception) and not isinstance(exc, deploy.DeploymentError):
+                raise
 
+    if cancellation is not None:
+        _raise_preserved_cancellation(cancellation, last_verification_error)
     raise deploy.DeploymentError(
         "ambiguous Docker create ownership could not be verified after bounded retries"
     ) from last_verification_error
@@ -440,6 +482,7 @@ def _record_cleanup_evidence(
     before: dict[str, dict[str, object]] | None,
     after: dict[str, dict[str, object]] | None,
     regressions: list[str],
+    cleanup_complete: bool,
     verification_complete: bool,
 ) -> None:
     evidence = getattr(deploy, "_bounded_schema_cleanup_evidence", None)
@@ -453,6 +496,7 @@ def _record_cleanup_evidence(
             "task_container_id": container_id,
             "protected_before": before,
             "protected_after": after,
+            "cleanup_complete": cleanup_complete,
             "protected_non_regression": verification_complete and not regressions,
             "regressions": regressions,
             "verification_complete": verification_complete,
@@ -489,6 +533,23 @@ def _raise_cancellation_with_context(
     if cause is not None:
         raise cancellation from cause
     raise cancellation
+
+
+def _cleanup_verified_after_error(
+    deploy: Any,
+    name: str,
+    container_id: str | None,
+    *,
+    cwd: Path | None,
+) -> bool:
+    try:
+        if container_id is not None:
+            _verify_container_id_absent(deploy, container_id, cwd=cwd)
+        else:
+            _verify_absent(deploy, name, cwd=cwd)
+    except (deploy.DeploymentError, subprocess.TimeoutExpired):
+        return False
+    return True
 
 
 def _cleanup_with_protected_health(
@@ -531,12 +592,26 @@ def _cleanup_with_protected_health(
         except BaseException as exc:
             health_error = _prefer_cancellation(health_error, exc)
 
+    cleanup_complete = cleanup_error is None
+    if cleanup_error is not None and not isinstance(cleanup_error, Exception):
+        cleanup_complete = _cleanup_verified_after_error(
+            deploy,
+            name,
+            cleaned_container_id,
+            cwd=cwd,
+        )
+
     regressions = (
         _protected_service_regressions(before, after)
         if before is not None and after is not None
         else []
     )
-    verification_complete = health_error is None and before is not None and after is not None
+    verification_complete = (
+        health_error is None
+        and cleanup_complete
+        and before is not None
+        and after is not None
+    )
     _record_cleanup_evidence(
         deploy,
         label=label,
@@ -545,6 +620,7 @@ def _cleanup_with_protected_health(
         before=before,
         after=after,
         regressions=regressions,
+        cleanup_complete=cleanup_complete,
         verification_complete=verification_complete,
     )
 
@@ -592,8 +668,8 @@ def _run_sensitive_workload(
 
     # A pre-existing collision is not task-owned and must fail closed without
     # mutation. Every destructive cleanup attempt re-reads the immutable ID and
-    # invocation owner label, and removal targets the immutable ID rather than
-    # whichever container may later reuse the generated name.
+    # invocation owner label, and all post-create execution targets the immutable
+    # ID rather than whichever container may later reuse the generated name.
     _verify_absent(deploy, name, cwd=cwd)
 
     primary_error: BaseException | None = None
@@ -618,7 +694,7 @@ def _run_sensitive_workload(
             deploy,
             label=label,
             stage="start",
-            command=["docker", "start", name],
+            command=["docker", "start", created_container_id],
             cwd=cwd,
             timeout=START_TIMEOUT_SECONDS,
         )
@@ -626,7 +702,7 @@ def _run_sensitive_workload(
             deploy,
             label=label,
             stage="wait",
-            command=["docker", "wait", name],
+            command=["docker", "wait", created_container_id],
             cwd=cwd,
             timeout=_wait_timeout(label),
         )
@@ -635,7 +711,7 @@ def _run_sensitive_workload(
             deploy,
             label=label,
             stage="logs",
-            command=["docker", "logs", name],
+            command=["docker", "logs", created_container_id],
             cwd=cwd,
             timeout=LOG_TIMEOUT_SECONDS,
         )

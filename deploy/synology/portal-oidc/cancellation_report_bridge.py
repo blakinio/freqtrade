@@ -67,7 +67,7 @@ def install(deploy: Any) -> None:
                 sensitive=sensitive,
                 check=check,
             )
-        except BaseException as exc:
+        except BaseException as exc:  # noqa: BLE001 - intentional cancellation boundary
             if isinstance(exc, Exception):
                 raise
             if _pending_cancellation(deploy) is None:
@@ -83,7 +83,7 @@ def install(deploy: Any) -> None:
     def guarded_deploy(args: Any) -> int:
         try:
             return_code = int(original_deploy(args))
-        except BaseException as exc:
+        except BaseException as exc:  # noqa: BLE001 - preserve original cancellation
             pending = _pending_cancellation(deploy)
             if pending is None:
                 raise
@@ -92,7 +92,7 @@ def install(deploy: Any) -> None:
                     Path(args.report).resolve(),
                     _fallback_report(deploy, args, pending),
                 )
-            except Exception as report_exc:
+            except Exception as report_exc:  # noqa: BLE001 - fallback must not mask cancellation
                 deploy._portal_pending_cancellation = None
                 raise pending from report_exc
             deploy._portal_pending_cancellation = None

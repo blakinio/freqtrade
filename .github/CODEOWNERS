@@ -22,6 +22,11 @@
 /docker-compose*.yml @blakinio
 /deploy/synology/ @blakinio
 
+# Portal project boundary. More specific rules below may override this as
+# independent maintainers are added, but new Portal roots must never fall back
+# to the repository-wide wildcard implicitly.
+/ai_platform/portal/ @blakinio
+
 # Security-, identity-, risk-, deployment- and execution-sensitive Portal code.
 /ai_platform/portal/control_plane/ @blakinio
 /ai_platform/portal/execution/ @blakinio

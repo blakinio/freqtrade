@@ -224,6 +224,12 @@ jobs:
           sudo mkdir -p "$mount"
           sudo mount -o loop "$image" "$mount"
           sudo chmod 0755 "$mount"
+          sudo btrfs quota enable "$mount"
+          sudo btrfs quota rescan -w "$mount"
+          filesystem_uuid="$(sudo btrfs filesystem show "$mount" | sed -n 's/.*uuid: //p' | head -n1)"
+          test -n "$filesystem_uuid"
+          test "$(cat "/sys/fs/btrfs/$filesystem_uuid/qgroups/enabled")" = "1"
+          test "$(cat "/sys/fs/btrfs/$filesystem_uuid/qgroups/inconsistent")" = "0"
           echo "PORTAL_BTRFS_E2E_ROOT=$mount" >> "$GITHUB_ENV"
 
       - name: Exercise production Linux nftables and Btrfs backend

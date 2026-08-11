@@ -11,7 +11,12 @@ export function SurfaceAvailabilityNotice() {
   if (!surface) return null;
 
   return (
-    <div className="status-banner status-warning" role="status" data-surface-availability={surface.status}>
+    <div
+      className="status-banner status-warning"
+      role="note"
+      aria-label={`${surface.label} capability availability`}
+      data-surface-availability={surface.status}
+    >
       <strong>{surface.label} capability unavailable</strong>
       <span>
         This surface is not connected end to end in the canonical product runtime. {surface.reason}

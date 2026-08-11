@@ -455,7 +455,17 @@ def _filesystem_show() -> str:
 
 
 def _qgroup_output(limit: int) -> str:
-    return f"QGROUPID RFER EXCL MAX_RFER\n-------- ---- ---- --------\n0/256 0 0 {limit}\n"
+    return (
+        "Qgroupid Referenced Exclusive Max referenced Path\n"
+        "-------- ---------- --------- -------------- ----\n"
+        f"0/256 0 0 {limit} generation\n"
+    )
+
+
+def test_qgroup_limit_parser_accepts_legacy_max_rfer_header() -> None:
+    output = "QGROUPID RFER EXCL MAX_RFER\n-------- ---- ---- --------\n0/256 0 0 8192\n"
+
+    assert LinuxNftablesBtrfsIsolationAttestor._qgroup_max_rfer(output, "0/256") == 8192
 
 
 def _qgroup_sysfs(

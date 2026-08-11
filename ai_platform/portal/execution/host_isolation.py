@@ -1020,10 +1020,19 @@ class LinuxNftablesBtrfsIsolationAttestor:
                 continue
             normalized_fields = [field.lower() for field in fields]
             if normalized_fields[0] == "qgroupid":
-                try:
+                if "max_rfer" in normalized_fields:
                     max_rfer_index = normalized_fields.index("max_rfer")
-                except ValueError:
-                    return None
+                else:
+                    max_rfer_index = next(
+                        (
+                            index
+                            for index in range(len(normalized_fields) - 1)
+                            if normalized_fields[index : index + 2] == ["max", "referenced"]
+                        ),
+                        None,
+                    )
+                    if max_rfer_index is None:
+                        return None
                 continue
             if fields[0] != qgroup or max_rfer_index is None:
                 continue

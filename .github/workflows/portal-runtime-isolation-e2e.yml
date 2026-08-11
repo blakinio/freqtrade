@@ -231,6 +231,9 @@ jobs:
           test "$(cat "/sys/fs/btrfs/$filesystem_uuid/qgroups/enabled")" = "1"
           test "$(cat "/sys/fs/btrfs/$filesystem_uuid/qgroups/inconsistent")" = "0"
           echo "PORTAL_BTRFS_E2E_ROOT=$mount" >> "$GITHUB_ENV"
+          inventory="$RUNNER_TEMP/portal-runtime-isolation-nftables-tables"
+          : > "$inventory"
+          echo "PORTAL_NFTABLES_TABLE_INVENTORY=$inventory" >> "$GITHUB_ENV"
 
       - name: Exercise production Linux nftables and Btrfs backend
         shell: bash
@@ -244,6 +247,7 @@ jobs:
             PYTHONPATH="$GITHUB_WORKSPACE" \
             PORTAL_LINUX_ISOLATION_E2E=true \
             PORTAL_BTRFS_E2E_ROOT="$PORTAL_BTRFS_E2E_ROOT" \
+            PORTAL_NFTABLES_TABLE_INVENTORY="$PORTAL_NFTABLES_TABLE_INVENTORY" \
             "$python_path" -m pytest -q -o addopts='' \
             --confcutdir=tests/ai_platform \
             tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py \
@@ -266,12 +270,20 @@ jobs:
           task_tables=()
 
           mapfile -t containers < <(
-            docker ps -aq --filter 'label=ai.portal.test=runtime-isolation-e2e'
+            {
+              docker ps -aq --filter 'label=ai.portal.test=runtime-isolation-e2e'
+              for candidate in $(docker ps -aq --filter 'label=ai.portal.runtime_id'); do
+                runtime_id="$(docker inspect --format '{{index .Config.Labels "ai.portal.runtime_id"}}' "$candidate" 2>/dev/null)"
+                case "$runtime_id" in
+                  portal-linux-e2e-*) echo "$candidate" ;;
+                esac
+              done
+            } | sort -u
           )
           for container in "${containers[@]}"; do
             name="$(docker inspect --format '{{.Name}}' "$container" | sed 's#^/##')"
             case "$name" in
-              portal-isolation-e2e-*)
+              portal-isolation-e2e-*|portal-linux-e2e-*)
                 docker rm -f "$container" || cleanup_failed=1
                 ;;
               *)
@@ -280,6 +292,18 @@ jobs:
                 ;;
             esac
           done
+
+          if [ -n "${PORTAL_NFTABLES_TABLE_INVENTORY:-}" ] && [ -f "$PORTAL_NFTABLES_TABLE_INVENTORY" ]; then
+            while IFS= read -r table; do
+              [ -z "$table" ] && continue
+              if [[ "$table" =~ ^portal_[0-9a-f]{20}$ ]]; then
+                task_tables+=("$table")
+              else
+                echo "refusing unexpected nftables inventory entry: $table" >&2
+                cleanup_failed=1
+              fi
+            done < "$PORTAL_NFTABLES_TABLE_INVENTORY"
+          fi
 
           mapfile -t networks < <(
             docker network ls -q --filter 'label=ai.portal.runtime_id'
@@ -294,13 +318,19 @@ jobs:
                 }
                 table="portal_$(printf '%s' "$network_name" | sha256sum | cut -c1-20)"
                 task_tables+=("$table")
-                if sudo nft list table inet "$table" >/dev/null 2>&1; then
-                  sudo nft delete table inet "$table" || cleanup_failed=1
-                fi
                 docker network rm "$network" || cleanup_failed=1
                 ;;
               *) continue ;;
             esac
+          done
+
+          if [ "${#task_tables[@]}" -gt 0 ]; then
+            mapfile -t task_tables < <(printf '%s\n' "${task_tables[@]}" | sort -u)
+          fi
+          for table in "${task_tables[@]}"; do
+            if sudo nft list table inet "$table" >/dev/null 2>&1; then
+              sudo nft delete table inet "$table" || cleanup_failed=1
+            fi
           done
 
           if mountpoint -q /mnt/portal-runtime-isolation-btrfs; then
@@ -320,10 +350,15 @@ jobs:
             docker image rm -f portal/freqtrade-runtime:e2e >/dev/null 2>&1 || cleanup_failed=1
           fi
 
-          if docker ps -aq --filter 'label=ai.portal.test=runtime-isolation-e2e' | grep -q .; then
-            echo "task-owned runtime isolation containers remain after cleanup" >&2
-            cleanup_failed=1
-          fi
+          for container in $(docker ps -aq --filter 'label=ai.portal.runtime_id'); do
+            runtime_id="$(docker inspect --format '{{index .Config.Labels "ai.portal.runtime_id"}}' "$container" 2>/dev/null)"
+            case "$runtime_id" in
+              portal-isolation-e2e-*|portal-linux-e2e-*)
+                echo "task-owned runtime isolation container remains after cleanup: $container" >&2
+                cleanup_failed=1
+                ;;
+            esac
+          done
           for network in $(docker network ls -q --filter 'label=ai.portal.runtime_id'); do
             runtime_id="$(docker network inspect --format '{{index .Labels "ai.portal.runtime_id"}}' "$network" 2>/dev/null)"
             case "$runtime_id" in

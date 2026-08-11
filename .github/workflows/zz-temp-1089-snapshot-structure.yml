@@ -1,4 +1,4 @@
-name: Temporary 1089 Portal live runtime provenance
+name: Temporary 1089 Portal SQLite schema diff
 
 on:
   push:
@@ -12,12 +12,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: zz-temp-1089-runtime-provenance
+  group: zz-temp-1089-sqlite-schema-diff
   cancel-in-progress: false
 
 jobs:
   inspect:
-    name: Inspect live Portal runtime metadata read-only
+    name: Inspect live SQLite with approved schema code
     runs-on: [freqtrade-staging]
     timeout-minutes: 10
     steps:
@@ -29,13 +29,12 @@ jobs:
             test -z "${!name:-}" || { echo "recognized trading credential present: $name" >&2; exit 1; }
           done
 
-      - name: Capture secret-free runtime provenance
+      - name: Capture secret-free current-schema difference
         shell: bash
         env:
-          REPORT: ${{ runner.temp }}/synology-1089-runtime-provenance.txt
-          CONTROL: freqtrade-portal-control-plane
-          WEB: freqtrade-portal-staging
-          POSTGRES: freqtrade-portal-postgresql
+          REPORT: ${{ runner.temp }}/synology-1089-sqlite-schema-diff.txt
+          IMAGE: sha256:50f2230810559e16acbfe6a57ad5fe1fc8eb087bcb1dd38419129e99315c8cf9
+          EXPECTED_REVISION: 21427e6b7f1cbe5e5882a007101ce6fe0c2f5784
         run: |
           set -euo pipefail
           python3 - "$REPORT" <<'PY'
@@ -46,91 +45,111 @@ jobs:
           import sys
 
           report = pathlib.Path(sys.argv[1])
-          control = os.environ["CONTROL"]
+          image = os.environ["IMAGE"]
+          expected_revision = os.environ["EXPECTED_REVISION"]
+          name = f"portal-oidc-1089-schema-diff-{os.environ['GITHUB_RUN_ID']}-{os.environ.get('GITHUB_RUN_ATTEMPT', '1')}"
           rows = []
-          known_legacy = "/var/lib/freqtrade-staging-state/portal-oidc-public/data"
-          canonical = "/volume1/docker/freqtrade-portal-oidc/data"
 
-          def run(command, timeout=60):
+          def run(command, timeout):
               return subprocess.run(command, check=False, text=True, capture_output=True, timeout=timeout)
 
-          for name in (control, os.environ["WEB"], os.environ["POSTGRES"]):
-              inspected = run(["docker", "inspect", name])
-              rows.append(f"{name}.inspect_rc={inspected.returncode}")
-              if inspected.returncode != 0:
-                  continue
-              payload = json.loads(inspected.stdout)[0]
-              state = payload.get("State", {})
-              health = (state.get("Health") or {}).get("Status", "none")
-              rows.append(f"{name}.state={state.get('Status','unknown')}|{health}")
-              image_id = payload.get("Image", "")
-              rows.append(f"{name}.image_id={image_id}")
-              image = run(["docker", "image", "inspect", image_id])
-              if image.returncode == 0:
-                  image_payload = json.loads(image.stdout)[0]
-                  labels = (image_payload.get("Config") or {}).get("Labels") or {}
-                  rows.append(f"{name}.revision={labels.get('org.opencontainers.image.revision','missing')}")
-              state_mounts = [
-                  mount for mount in (payload.get("Mounts") or [])
-                  if mount.get("Destination") in {"/state", "/portal-state"}
-              ]
-              rows.append(f"{name}.state_mount_count={len(state_mounts)}")
-              for mount in state_mounts:
-                  destination = mount.get("Destination", "")
-                  source_text = mount.get("Source", "")
-                  source = pathlib.PurePosixPath(source_text)
-                  if source_text == known_legacy:
-                      source_class = "known_legacy_public"
-                  elif source_text == canonical:
-                      source_class = "canonical_volume1"
-                  else:
-                      source_class = "unknown"
-                  rows.append(f"{name}.state_mount_destination={destination}")
-                  rows.append(f"{name}.state_mount_leaf={source.name}")
-                  rows.append(f"{name}.state_mount_class={source_class}")
+          def absent():
+              listed = run(["docker", "ps", "-aq", "--no-trunc", "--filter", f"name=^/{name}$"], 45)
+              inspected = run(["docker", "inspect", name], 45)
+              return listed.returncode == 0 and not listed.stdout.strip() and inspected.returncode != 0
+
+          if not absent():
+              rows.append("preexisting_task_container=true")
+              report.write_text("\n".join(rows) + "\n", encoding="utf-8")
+              raise SystemExit(3)
+
+          identity = run([
+              "docker", "image", "inspect", "--format",
+              '{{.Id}}|{{ index .Config.Labels "org.opencontainers.image.revision" }}', image,
+          ], 45)
+          expected = f"{image}|{expected_revision}"
+          rows.append(f"image_identity_match={identity.returncode == 0 and identity.stdout.strip() == expected}")
+          if identity.returncode != 0 or identity.stdout.strip() != expected:
+              report.write_text("\n".join(rows) + "\n", encoding="utf-8")
+              raise SystemExit(4)
 
           script = r'''
-          import hashlib
-          import inspect
-          import os
-          import sqlite3
-          from pathlib import Path
-          from ai_platform.portal.control_plane.database import Base
-          import ai_platform.portal.identity.models as identity_models
-          import ai_platform.portal.product.models as product_models
+          import json
+          from ai_platform.portal.control_plane.database import build_engine
+          from ai_platform.portal.database.schema import schema_status
 
-          database_url = os.environ.get('PORTAL_DATABASE_URL', '')
-          print('database_url_is_legacy_sqlite=' + str(database_url == 'sqlite+pysqlite:////state/portal.db'))
-          print('environment=' + os.environ.get('PORTAL_ENVIRONMENT','missing'))
-          print('identity_model_tables=' + ','.join(sorted(table.name for table in Base.metadata.sorted_tables if table.name.startswith('portal_identity') or table.name.startswith('portal_tenant') or table.name.startswith('portal_oidc') or table.name.startswith('portal_session'))))
-          model_path = Path(inspect.getsourcefile(identity_models) or '')
-          if model_path.is_file():
-              print('identity_models_sha256=' + hashlib.sha256(model_path.read_bytes()).hexdigest())
-          if database_url == 'sqlite+pysqlite:////state/portal.db':
-              uri = 'file:/state/portal.db?mode=ro'
-              with sqlite3.connect(uri, uri=True) as conn:
-                  names = [row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'portal_%' ORDER BY name")]
-                  print('actual_portal_tables=' + ','.join(names))
+          engine = build_engine('sqlite+pysqlite:////state/portal.db')
+          try:
+              status = schema_status(engine)
+              differences = status['differences']
+              payload = {
+                  'status': status['status'],
+                  'applied_revisions': status['applied_revisions'],
+                  'missing_tables': differences['missing_tables'],
+                  'unexpected_tables': differences['unexpected_tables'],
+                  'changed_table_names': sorted(differences['changed_tables']),
+              }
+              print(json.dumps(payload, sort_keys=True, separators=(',', ':')))
+          finally:
+              engine.dispose()
           '''
-          result = run(["docker", "exec", control, "python", "-c", script], 120)
-          rows.append(f"runtime_probe_rc={result.returncode}")
-          if result.returncode == 0:
-              rows.extend(line for line in result.stdout.splitlines() if line.strip())
-          else:
-              rows.append("runtime_probe_failed=true")
+          create = [
+              "docker", "create", "--name", name,
+              "--network", "none",
+              "--read-only",
+              "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=32m",
+              "--cap-drop", "ALL",
+              "--security-opt", "no-new-privileges:true",
+              "--pids-limit", "64",
+              "--memory", "256m",
+              "--user", "10001:10001",
+              "--mount", "type=bind,src=/volume1/docker/freqtrade-portal-oidc/data,dst=/state,readonly",
+              "--entrypoint", "python", image, "-c", script,
+          ]
+          process_exit = 99
+          cleanup_ok = False
+          try:
+              created = run(create, 180)
+              rows.append(f"create_rc={created.returncode}")
+              if created.returncode != 0:
+                  raise RuntimeError("create failed")
+              started = run(["docker", "start", name], 180)
+              rows.append(f"start_rc={started.returncode}")
+              if started.returncode != 0:
+                  raise RuntimeError("start failed")
+              waited = run(["docker", "wait", name], 180)
+              rows.append(f"wait_rc={waited.returncode}")
+              if waited.returncode != 0 or not waited.stdout.strip().isdigit():
+                  raise RuntimeError("wait failed")
+              process_exit = int(waited.stdout.strip())
+              rows.append(f"process_exit={process_exit}")
+              logs = run(["docker", "logs", name], 120)
+              rows.append(f"logs_rc={logs.returncode}")
+              if logs.returncode != 0:
+                  raise RuntimeError("logs failed")
+              if process_exit == 0:
+                  payload = json.loads(logs.stdout.strip())
+                  rows.append("schema_status=" + json.dumps(payload, sort_keys=True, separators=(",", ":")))
+          finally:
+              try:
+                  run(["docker", "rm", "-f", name], 120)
+              except subprocess.TimeoutExpired:
+                  pass
+              cleanup_ok = absent()
+              rows.append(f"container_absent={cleanup_ok}")
+              daemon = run(["docker", "version"], 45)
+              rows.append(f"docker_ready={daemon.returncode == 0}")
+              report.write_text("\n".join(rows) + "\n", encoding="utf-8")
 
-          daemon = run(["docker", "version"], 45)
-          rows.append(f"docker_ready={daemon.returncode == 0}")
-          report.write_text("\n".join(rows) + "\n", encoding="utf-8")
-          if result.returncode != 0 or daemon.returncode != 0:
-              raise SystemExit(2)
+          if process_exit != 0 or not cleanup_ok:
+              raise SystemExit(5)
           PY
 
-      - name: Upload runtime provenance evidence
+      - name: Upload schema difference evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: synology-1089-runtime-provenance-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/synology-1089-runtime-provenance.txt
+          name: synology-1089-sqlite-schema-diff-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/synology-1089-sqlite-schema-diff.txt
           if-no-files-found: error
           retention-days: 14

@@ -27,7 +27,7 @@ from ai_platform.portal.execution.isolation import (
 from ai_platform.portal.execution.runtime import DriverRuntimeState, RuntimeContainerSpec
 
 
-IMAGE_TAG = "alpine:3.20"
+DNS_RESOLVERS = ("1.1.1.1",)
 
 
 def _run(*args: str, timeout: int = 60) -> subprocess.CompletedProcess[str]:
@@ -63,31 +63,33 @@ def _require_e2e_host() -> None:
         pytest.skip("passwordless sudo is unavailable")
 
 
-def _exact_image() -> tuple[str, str]:
-    pulled = _run("docker", "pull", "--quiet", IMAGE_TAG, timeout=180)
-    assert pulled.returncode == 0, pulled.stderr
+def _exact_runtime_image() -> tuple[str, str]:
+    exact = os.environ.get("PORTAL_RUNTIME_IMAGE", "").strip()
+    if not exact or "@sha256:" not in exact:
+        if os.environ.get("CI") == "true":
+            pytest.fail("PORTAL_RUNTIME_IMAGE must be an exact hardened runtime image digest")
+        pytest.skip("exact hardened runtime image is not configured")
     inspected = _run(
         "docker",
         "image",
         "inspect",
         "--format",
         "{{json .RepoDigests}}",
-        IMAGE_TAG,
+        exact,
     )
     assert inspected.returncode == 0, inspected.stderr
     digests = json.loads(inspected.stdout)
-    exact = next(str(value) for value in digests if isinstance(value, str) and "@sha256:" in value)
+    assert exact in digests
     digest = exact.rsplit("@sha256:", 1)[1]
     assert len(digest) == 64
     return exact, digest
 
 
 class _HardDenyE2EAttestor:
-    """Ephemeral hard external controls for real-driver E2E on a CI Linux host.
+    """Ephemeral hard controls for the driver-level quarantine E2E.
 
-    The network is intentionally stricter than the production market-data policy:
-    a Docker internal network denies all public egress while the application stays
-    in quarantine. Production nftables policy semantics are covered separately.
+    This intentionally denies all public egress. The production Linux nftables+Btrfs
+    backend is exercised independently in test_linux_isolation_backend_e2e.py.
     """
 
     def __init__(self, state_root: Path) -> None:
@@ -100,6 +102,10 @@ class _HardDenyE2EAttestor:
             storage_backend=StorageIsolationBackend.BOUNDED_VOLUME,
             network_backend=NetworkIsolationBackend.CONSTRAINED_PROXY,
         )
+
+    def dns_resolvers(self, plan: RuntimeIsolationPlan) -> tuple[str, ...]:
+        del plan
+        return DNS_RESOLVERS
 
     def prepare_storage(self, plan: RuntimeIsolationPlan, state_path: Path) -> None:
         resolved = state_path.resolve()
@@ -200,7 +206,7 @@ def _plan(
     attestor: _HardDenyE2EAttestor,
 ) -> RuntimeIsolationPlan:
     profile = RuntimeIsolationProfile(
-        profile_version="portal-e2e-v1",
+        profile_version="portal-e2e-v2",
         cpu_millis=500,
         memory_limit_bytes=64 * 1024 * 1024,
         memory_swap_limit_bytes=64 * 1024 * 1024,
@@ -238,17 +244,17 @@ def _plan(
         report=report,
         runtime_image_digest=image_digest,
         gateway_artifact_digest="2" * 64,
-        gateway_contract_version="e2e-v1",
+        gateway_contract_version="e2e-v2",
         gateway_contract_digest="3" * 64,
-        market_data_egress_policy_version="e2e-hard-deny-v1",
+        market_data_egress_policy_version="e2e-hard-deny-v2",
         market_data_egress_policy_digest="4" * 64,
         now=report.generated_at,
     )
 
 
-def test_real_docker_driver_provisions_attested_quarantine(tmp_path: Path) -> None:
+def test_real_docker_driver_provisions_attested_hardened_quarantine(tmp_path: Path) -> None:
     _require_e2e_host()
-    exact_image, image_digest = _exact_image()
+    exact_image, image_digest = _exact_runtime_image()
     runtime_id = f"portal-isolation-e2e-{uuid4().hex[:12]}"
     inputs = tmp_path / "inputs"
     inputs.mkdir()
@@ -292,6 +298,27 @@ def test_real_docker_driver_provisions_attested_quarantine(tmp_path: Path) -> No
             "/run/portal-release/release",
         )
         assert release_gate.returncode == 1
+
+        image_entrypoint = _run(
+            "docker",
+            "inspect",
+            "--format",
+            "{{json .Config.Entrypoint}}",
+            runtime_id,
+        )
+        assert image_entrypoint.returncode == 0, image_entrypoint.stderr
+        assert json.loads(image_entrypoint.stdout) == [
+            DockerCliRuntimeDriver._QUARANTINE_ENTRYPOINT
+        ]
+
+        retained_logs = _run("docker", "logs", runtime_id)
+        assert retained_logs.returncode == 0, retained_logs.stderr
+        assert DockerCliRuntimeDriver._LOG_PROBE_END in retained_logs.stdout
+        assert DockerCliRuntimeDriver._LOG_PROBE_BEGIN not in retained_logs.stdout
+        assert len(retained_logs.stdout.encode()) <= (
+            plan.log_max_bytes * plan.log_rotation_count
+            + DockerCliRuntimeDriver._LOG_RETENTION_TOLERANCE_BYTES
+        )
 
         config_write = _run(
             "docker",

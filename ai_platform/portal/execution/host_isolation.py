@@ -5,7 +5,7 @@ import ipaddress
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 from uuid import UUID
 
 from ai_platform.portal.execution.driver import (
@@ -70,7 +70,7 @@ class MarketDataEgressPolicy:
     dns_resolver_ipv4_addresses: tuple[str, ...]
     allowed_tcp_ports: tuple[int, ...] = (443,)
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # noqa: C901 - immutable policy validation boundary.
         if not self.policy_version.strip():
             raise ValueError("policy_version must not be empty")
         if not self.allowed_ipv4_cidrs:
@@ -176,6 +176,15 @@ class LinuxNftablesBtrfsIsolationAttestor:
                 ("btrfs", "subvolume", "create", str(state)),
                 "HOST_STORAGE_ISOLATION_UNSUPPORTED",
             )
+        runtime_uid, runtime_gid = self._runtime_identity(plan)
+        self._require_success(
+            ("chown", f"{runtime_uid}:{runtime_gid}", str(state)),
+            "HOST_STORAGE_ISOLATION_UNSUPPORTED",
+        )
+        self._require_success(
+            ("chmod", "0700", str(state)),
+            "HOST_STORAGE_ISOLATION_UNSUPPORTED",
+        )
         self._require_success(
             ("btrfs", "quota", "enable", str(self._btrfs_mount)),
             "HOST_STORAGE_ISOLATION_UNSUPPORTED",
@@ -398,6 +407,19 @@ class LinuxNftablesBtrfsIsolationAttestor:
     def attest_storage(self, plan: RuntimeIsolationPlan, state_path: Path) -> None:
         state = self._approved_state_path(state_path)
         self._attest_qgroup_accounting()
+        runtime_uid, runtime_gid = self._runtime_identity(plan)
+        ownership = self._runner.run(("stat", "-c", "%u:%g:%a", str(state)))
+        if ownership.returncode != 0:
+            self._raise_command(
+                "HOST_STORAGE_ISOLATION_UNSUPPORTED",
+                ownership,
+                "runtime state ownership evidence is unavailable",
+            )
+        if ownership.stdout.strip() != f"{runtime_uid}:{runtime_gid}:700":
+            raise RuntimeDriverError(
+                "ISOLATION_ATTESTATION_FAILED",
+                "runtime state owner or mode does not match isolation plan",
+            )
         subvolume_id = self._subvolume_id(state)
         result = self._runner.run(
             (
@@ -511,6 +533,22 @@ class LinuxNftablesBtrfsIsolationAttestor:
                 "market-data egress policy version does not match isolation plan",
             )
         return policy
+
+    @staticmethod
+    def _runtime_identity(plan: RuntimeIsolationPlan) -> tuple[int, int]:
+        user, separator, group = plan.runtime_user.partition(":")
+        if (
+            separator != ":"
+            or not user.isdigit()
+            or not group.isdigit()
+            or int(user) == 0
+            or int(group) == 0
+        ):
+            raise RuntimeDriverError(
+                "ISOLATION_PLAN_MISMATCH",
+                "runtime isolation plan must bind a non-root numeric uid:gid",
+            )
+        return int(user), int(group)
 
     def _approved_state_path(self, state_path: Path) -> Path:
         state = state_path.resolve()
@@ -657,7 +695,7 @@ class LinuxNftablesBtrfsIsolationAttestor:
                     "unrelated container is attached to the generation network",
                 )
 
-    def _attest_canonical_nftables(
+    def _attest_canonical_nftables(  # noqa: C901 - exact canonical policy comparison.
         self,
         payload: object,
         table: str,
@@ -854,7 +892,7 @@ class LinuxNftablesBtrfsIsolationAttestor:
         list[tuple[object, ...]],
         list[tuple[object, ...]],
     ]:
-        input_rules = [
+        input_rules: list[tuple[object, ...]] = [
             (("meta", "iifname", "", "==", bridge), ("verdict", "drop"))
         ]
         forward_rules: list[tuple[object, ...]] = []
@@ -904,7 +942,7 @@ class LinuxNftablesBtrfsIsolationAttestor:
         return input_rules, forward_rules, egress_rules
 
     @staticmethod
-    def _nft_mismatch() -> None:
+    def _nft_mismatch() -> NoReturn:
         raise RuntimeDriverError(
             "ISOLATION_ATTESTATION_FAILED",
             "effective nftables generation policy does not match the canonical policy",
@@ -980,9 +1018,10 @@ class LinuxNftablesBtrfsIsolationAttestor:
             fields = line.split()
             if not fields:
                 continue
-            if fields[0] == "qgroupid":
+            normalized_fields = [field.lower() for field in fields]
+            if normalized_fields[0] == "qgroupid":
                 try:
-                    max_rfer_index = fields.index("max_rfer")
+                    max_rfer_index = normalized_fields.index("max_rfer")
                 except ValueError:
                     return None
                 continue

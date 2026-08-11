@@ -83,7 +83,4 @@ def test_nftables_host_prefix_normalization_matches_kernel_json_shape() -> None:
 
     assert backend._canonical_ipv4_target("1.1.1.1/32") == "1.1.1.1"
     assert backend._canonical_ipv4_target("8.8.8.0/24") == "8.8.8.0/24"
-    assert (
-        backend._normalize_nft_value({"prefix": {"addr": "1.1.1.1", "len": 32}})
-        == "1.1.1.1"
-    )
+    assert backend._normalize_nft_value({"prefix": {"addr": "1.1.1.1", "len": 32}}) == "1.1.1.1"

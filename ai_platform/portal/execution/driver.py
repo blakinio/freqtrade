@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, NoReturn, Protocol
 
 from ai_platform.portal.execution.errors import RuntimeDriverError
 from ai_platform.portal.execution.isolation import (
@@ -311,7 +311,7 @@ class DockerCliRuntimeDriver:
     _WAIT_LOG_PROBE = (
         "set -eu; i=0; "
         f"while [ ! -f {_LOG_PROBE_READY} ]; do "
-        "i=$((i + 1)); [ \"$i\" -lt 400 ] || exit 72; sleep 0.05; done"
+        'i=$((i + 1)); [ "$i" -lt 400 ] || exit 72; sleep 0.05; done'
     )
     _MAX_LOG_PROBE_BYTES = 64 * 1024 * 1024
     _LOG_RETENTION_TOLERANCE_BYTES = 256 * 1024
@@ -376,10 +376,9 @@ class DockerCliRuntimeDriver:
                 self._release_forbidden("running runtime has no current release evidence")
             return current
         if current is DriverRuntimeState.PAUSED:
-            if runtime_id not in self._released:
-                self._release_forbidden("paused runtime has no current release evidence")
-            self._require_success(("docker", "unpause", runtime_id), "DOCKER_UNPAUSE_FAILED")
-            return DriverRuntimeState.RUNNING
+            self._release_forbidden(
+                "paused runtime requires reprovisioning before application release"
+            )
         if current is DriverRuntimeState.CREATED:
             network = self._networks.get(runtime_id, self._network_name(runtime_id))
             try:
@@ -742,9 +741,7 @@ class DockerCliRuntimeDriver:
                 "Docker local logging did not demonstrate effective rotation before release",
             )
         retained_bytes = len(logs.stdout.encode())
-        ceiling = (
-            plan.log_max_bytes * plan.log_rotation_count + self._LOG_RETENTION_TOLERANCE_BYTES
-        )
+        ceiling = plan.log_max_bytes * plan.log_rotation_count + self._LOG_RETENTION_TOLERANCE_BYTES
         if retained_bytes > ceiling:
             raise RuntimeDriverError(
                 "ISOLATION_ATTESTATION_FAILED",
@@ -957,7 +954,7 @@ class DockerCliRuntimeDriver:
             )
 
     @staticmethod
-    def _release_forbidden(message: str) -> None:
+    def _release_forbidden(message: str) -> NoReturn:
         raise RuntimeDriverError("APPLICATION_RELEASE_FORBIDDEN", message)
 
     @staticmethod

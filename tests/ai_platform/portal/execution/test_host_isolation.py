@@ -207,9 +207,7 @@ def _nft_payload(policy: MarketDataEgressPolicy, *, active: bool = False) -> dic
     for cidr in policy.allowed_ipv4_cidrs:
         network = cidr.split("/", 1)
         right: object = (
-            {"prefix": {"addr": network[0], "len": int(network[1])}}
-            if len(network) == 2
-            else cidr
+            {"prefix": {"addr": network[0], "len": int(network[1])}} if len(network) == 2 else cidr
         )
         for port in policy.allowed_tcp_ports:
             nftables.append(
@@ -457,7 +455,7 @@ def _filesystem_show() -> str:
 
 
 def _qgroup_output(limit: int) -> str:
-    return f"qgroupid rfer excl max_rfer\n-------- ---- ---- --------\n0/256 0 0 {limit}\n"
+    return f"QGROUPID RFER EXCL MAX_RFER\n-------- ---- ---- --------\n0/256 0 0 {limit}\n"
 
 
 def _qgroup_sysfs(
@@ -488,7 +486,10 @@ def test_storage_backend_applies_and_attests_btrfs_referenced_limit(tmp_path: Pa
         CommandResult(0, stdout="Subvolume ID: 256\n"),
         CommandResult(0),
         CommandResult(0),
+        CommandResult(0),
+        CommandResult(0),
         CommandResult(0, stdout=_filesystem_show()),
+        CommandResult(0, stdout="1000:1000:700\n"),
         CommandResult(0, stdout="Subvolume ID: 256\n"),
         CommandResult(0, stdout=_qgroup_output(plan.durable_state_max_bytes)),
     )
@@ -502,6 +503,8 @@ def test_storage_backend_applies_and_attests_btrfs_referenced_limit(tmp_path: Pa
 
     backend.prepare_storage(plan, state)
 
+    assert ("chown", "1000:1000", str(state.resolve())) in runner.calls
+    assert ("chmod", "0700", str(state.resolve())) in runner.calls
     assert (
         "btrfs",
         "qgroup",
@@ -529,6 +532,7 @@ def test_storage_attestation_rejects_missing_effective_limit(tmp_path: Path) -> 
     sysfs = _qgroup_sysfs(tmp_path)
     runner = _QueueRunner(
         CommandResult(0, stdout=_filesystem_show()),
+        CommandResult(0, stdout="1000:1000:700\n"),
         CommandResult(0, stdout="Subvolume ID: 256\n"),
         CommandResult(0, stdout=_qgroup_output(1234)),
     )
@@ -542,6 +546,30 @@ def test_storage_attestation_rejects_missing_effective_limit(tmp_path: Path) -> 
 
     with pytest.raises(RuntimeDriverError) as exc_info:
         backend.attest_storage(plan, state)
+
+    assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
+
+
+def test_storage_attestation_rejects_wrong_runtime_owner_or_mode(tmp_path: Path) -> None:
+    state_root = tmp_path / "state"
+    state = state_root / "generation"
+    state.mkdir(parents=True)
+    policy = _policy()
+    sysfs = _qgroup_sysfs(tmp_path)
+    runner = _QueueRunner(
+        CommandResult(0, stdout=_filesystem_show()),
+        CommandResult(0, stdout="0:0:755\n"),
+    )
+    backend = LinuxNftablesBtrfsIsolationAttestor(
+        runner,
+        policy_provider=_provider(policy),
+        state_root=state_root,
+        btrfs_mount=tmp_path,
+        btrfs_sysfs_root=sysfs,
+    )
+
+    with pytest.raises(RuntimeDriverError) as exc_info:
+        backend.attest_storage(_plan(policy), state)
 
     assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
 

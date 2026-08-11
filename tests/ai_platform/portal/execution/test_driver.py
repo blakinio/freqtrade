@@ -199,9 +199,7 @@ def _inspect(spec: RuntimeContainerSpec, plan: RuntimeIsolationPlan) -> dict[str
                 "--strategy",
                 spec.strategy_name,
             ],
-            "Env": [
-                f"PORTAL_LOG_PROBE_BYTES={plan.log_max_bytes * (plan.log_rotation_count + 1)}"
-            ],
+            "Env": [f"PORTAL_LOG_PROBE_BYTES={plan.log_max_bytes * (plan.log_rotation_count + 1)}"],
             "Labels": {
                 **spec.labels,
                 "ai.portal.isolation_plan_digest": plan.digest(),
@@ -386,7 +384,9 @@ def test_release_repeats_attestation_then_activates_egress_before_gate(tmp_path:
     assert DockerCliRuntimeDriver._RELEASE in runner.calls[-1]
 
 
-def test_release_fails_closed_if_structure_changes_after_initial_attestation(tmp_path: Path) -> None:
+def test_release_fails_closed_if_structure_changes_after_initial_attestation(
+    tmp_path: Path,
+) -> None:
     plan = _plan()
     spec = _spec(tmp_path)
     runner = _Runner(*_provision_results(spec, plan))
@@ -604,6 +604,18 @@ def test_paused_foreign_runtime_cannot_be_released() -> None:
         DockerCliRuntimeDriver(runner).start("runtime-1")
 
     assert exc_info.value.reason_code == "APPLICATION_RELEASE_FORBIDDEN"
+
+
+def test_paused_released_runtime_requires_reprovision_before_resume() -> None:
+    runner = _Runner(CommandResult(0, stdout="paused\n"))
+    driver = DockerCliRuntimeDriver(runner)
+    driver._released.add("runtime-1")
+
+    with pytest.raises(RuntimeDriverError) as exc_info:
+        driver.start("runtime-1")
+
+    assert exc_info.value.reason_code == "APPLICATION_RELEASE_FORBIDDEN"
+    assert ("docker", "unpause", "runtime-1") not in runner.calls
 
 
 def test_pause_stop_and_unknown_state_are_fail_closed_or_idempotent() -> None:

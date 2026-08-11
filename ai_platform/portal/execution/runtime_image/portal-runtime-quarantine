@@ -6,6 +6,7 @@ release_file="$release_dir/release"
 log_probe_ready="$release_dir/log-probe-ready"
 log_probe_begin=PORTAL_LOG_BOUND_PROBE_BEGIN
 log_probe_end=PORTAL_LOG_BOUND_PROBE_END
+config_file=/runtime/config/config.json
 
 probe_bytes=${PORTAL_LOG_PROBE_BYTES:?PORTAL_LOG_PROBE_BYTES is required}
 case "$probe_bytes" in
@@ -29,5 +30,30 @@ printf '\n%s\n' "$log_probe_end"
 while [ ! -f "$release_file" ]; do
     sleep 0.05
 done
+
+python - "$config_file" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+config_path = Path(sys.argv[1])
+try:
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError) as exc:
+    raise SystemExit(f"Portal runtime release refused: unreadable canonical config: {exc}") from exc
+
+if config.get("dry_run") is not True:
+    raise SystemExit("Portal runtime release refused: PAPER dry_run=true is required")
+exchange = config.get("exchange")
+if not isinstance(exchange, dict):
+    raise SystemExit("Portal runtime release refused: exchange configuration is required")
+for field in ("key", "secret", "password", "uid"):
+    value = exchange.get(field)
+    if value not in (None, ""):
+        raise SystemExit(
+            f"Portal runtime release refused: private exchange credential field {field!r} must be absent"
+        )
+print("Portal PAPER dry-run configuration attested", flush=True)
+PY
 
 exec "$@"

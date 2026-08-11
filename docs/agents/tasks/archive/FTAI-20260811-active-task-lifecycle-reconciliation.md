@@ -26,7 +26,7 @@ The reconciliation removes two demonstrably terminal bounded tasks from `active/
 Archived:
 
 1. `FTAI-20260802-agent-governance-sync.md` — PR #1037 merged; task already declared completed and ownership released.
-2. `FTAI-20260808-wickhunter-unified-runtime-mode.md` — bounded producer PR #1397 merged as `f46d10e30302b7310fe2a6e235c2ca05a0281a0a`; exact final head `5eee605343b2fbcd1e1e6231ed80315195bd5eba` passed Freqtrade CI `31281392431`, Risk-aware component CI `31281392481`, CodeQL `31281392428`, zizmor `31281392432` and final Codex review comment `5228471720` reported no major issues. Broader Issue #1396 remains open programme/consumer work.
+2. `FTAI-20260808-wickhunter-unified-runtime-mode.md` — bounded producer PR #1397 merged as `f46d10e30302b7310fe2a6e235c2ca05a0281a0a`; exact final head `5eee605343b2fbcd1e1e6231ed80315195bd5eba` passed Freqtrade CI `31281392431`, Risk-aware component CI `31281392481`, CodeQL `31281392428`, zizmor `31281392432` and final Codex review comment `5228471720` reported no major issues. The canonical Portal runtime-generation consumer is already integrated; broader Issue #1396 remains open only for its genuinely remaining product-level acceptance.
 
 Preserved active:
 

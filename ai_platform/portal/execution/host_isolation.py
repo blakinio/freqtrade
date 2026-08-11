@@ -6,6 +6,7 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 from ai_platform.portal.execution.driver import (
     CommandResult,
@@ -89,6 +90,8 @@ class MarketDataEgressPolicy:
                 resolver = ipaddress.ip_address(address)
             except ValueError as exc:
                 raise ValueError("approved DNS resolvers must be IPv4 addresses") from exc
+            if not isinstance(resolver, ipaddress.IPv4Address):
+                raise ValueError("approved DNS resolvers must be IPv4 addresses")
             resolver_network = ipaddress.ip_network(f"{resolver}/32", strict=True)
             if not _is_exclusively_public_ipv4_network(resolver_network):
                 raise ValueError(
@@ -138,11 +141,13 @@ class LinuxNftablesBtrfsIsolationAttestor:
         policy_provider: MarketDataEgressPolicyProvider,
         state_root: Path,
         btrfs_mount: Path,
+        btrfs_sysfs_root: Path = Path("/sys/fs/btrfs"),
     ) -> None:
         self._runner = runner
         self._policies = policy_provider
         self._state_root = state_root.resolve()
         self._btrfs_mount = btrfs_mount.resolve()
+        self._btrfs_sysfs_root = btrfs_sysfs_root.resolve()
 
     def capabilities(self) -> ExternalIsolationCapabilities:
         storage = self._storage_capability()
@@ -353,28 +358,19 @@ class LinuxNftablesBtrfsIsolationAttestor:
 
     def attest_storage(self, plan: RuntimeIsolationPlan, state_path: Path) -> None:
         state = self._approved_state_path(state_path)
-        quota_status = self._runner.run(("btrfs", "quota", "status", str(self._btrfs_mount)))
-        if quota_status.returncode != 0:
-            self._raise_command(
-                "HOST_STORAGE_ISOLATION_UNSUPPORTED",
-                quota_status,
-                "Btrfs quota status is unavailable",
-            )
-        status = quota_status.stdout.lower()
-        if (
-            "enabled:" not in status
-            or "enabled:                 yes" not in status
-            or "inconsistent:            no" not in status
-            or "override limits:         no" not in status
-        ):
-            raise RuntimeDriverError(
-                "ISOLATION_ATTESTATION_FAILED",
-                "Btrfs qgroup accounting is not consistently enforcing limits",
-            )
-
+        self._attest_qgroup_accounting()
         subvolume_id = self._subvolume_id(state)
         result = self._runner.run(
-            ("btrfs", "qgroup", "show", "--raw", "-r", "-F", str(self._btrfs_mount))
+            (
+                "btrfs",
+                "qgroup",
+                "show",
+                "--sync",
+                "--raw",
+                "-r",
+                "-F",
+                str(self._btrfs_mount),
+            )
         )
         if result.returncode != 0:
             self._raise_command(
@@ -493,6 +489,72 @@ class LinuxNftablesBtrfsIsolationAttestor:
                 "runtime state path escapes the approved state root",
             ) from exc
         return state
+
+    def _attest_qgroup_accounting(self) -> None:
+        filesystem_uuid = self._filesystem_uuid()
+        qgroups = self._btrfs_sysfs_root / filesystem_uuid / "qgroups"
+        enabled = self._read_qgroup_status(qgroups / "enabled", "enabled")
+        inconsistent = self._read_qgroup_status(qgroups / "inconsistent", "inconsistent")
+        if enabled != "1" or inconsistent != "0":
+            raise RuntimeDriverError(
+                "ISOLATION_ATTESTATION_FAILED",
+                "Btrfs qgroup accounting is disabled or inconsistent",
+            )
+        mode_path = qgroups / "mode"
+        if mode_path.exists():
+            try:
+                mode = mode_path.read_text(encoding="utf-8").strip().lower()
+            except OSError as exc:
+                raise RuntimeDriverError(
+                    "HOST_STORAGE_ISOLATION_UNSUPPORTED",
+                    "Btrfs qgroup accounting mode is unreadable",
+                ) from exc
+            if mode != "qgroup":
+                raise RuntimeDriverError(
+                    "ISOLATION_ATTESTATION_FAILED",
+                    "Btrfs storage isolation requires full qgroup accounting",
+                )
+
+    def _filesystem_uuid(self) -> str:
+        result = self._runner.run(("btrfs", "filesystem", "show", str(self._btrfs_mount)))
+        if result.returncode != 0:
+            self._raise_command(
+                "HOST_STORAGE_ISOLATION_UNSUPPORTED",
+                result,
+                "Btrfs filesystem identity is unavailable",
+            )
+        for line in result.stdout.splitlines():
+            marker = line.lower().find("uuid:")
+            if marker < 0:
+                continue
+            raw = line[marker + len("uuid:") :].strip().split(maxsplit=1)[0]
+            try:
+                return str(UUID(raw))
+            except (ValueError, AttributeError) as exc:
+                raise RuntimeDriverError(
+                    "ISOLATION_ATTESTATION_FAILED",
+                    "Btrfs filesystem UUID is invalid",
+                ) from exc
+        raise RuntimeDriverError(
+            "ISOLATION_ATTESTATION_FAILED",
+            "Btrfs filesystem UUID is missing",
+        )
+
+    @staticmethod
+    def _read_qgroup_status(path: Path, field_name: str) -> str:
+        try:
+            value = path.read_text(encoding="utf-8").strip()
+        except OSError as exc:
+            raise RuntimeDriverError(
+                "HOST_STORAGE_ISOLATION_UNSUPPORTED",
+                f"Btrfs qgroup {field_name} status is unavailable",
+            ) from exc
+        if value not in {"0", "1"}:
+            raise RuntimeDriverError(
+                "ISOLATION_ATTESTATION_FAILED",
+                f"Btrfs qgroup {field_name} status is invalid",
+            )
+        return value
 
     def _network_info(self, network_name: str) -> dict[str, Any]:
         result = self._runner.run(

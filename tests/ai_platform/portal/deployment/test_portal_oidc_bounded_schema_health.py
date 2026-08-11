@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -20,11 +21,25 @@ module = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(module)
 
 CONTAINER_ID = "a" * 64
+PROTECTED_ID = "e" * 64
+REPLACEMENT_ID = "f" * 64
 
 
-def _state(*, exists: bool, running: bool, health: str, state: str) -> dict[str, object]:
+def _completed(command: list[str], *, returncode: int = 0, stdout: str = "") -> Any:
+    return subprocess.CompletedProcess(command, returncode, stdout=stdout, stderr="")
+
+
+def _state(
+    *,
+    exists: bool,
+    running: bool,
+    health: str,
+    state: str,
+    container_id: str = PROTECTED_ID,
+) -> dict[str, object]:
     return {
         "exists": exists,
+        "container_id": container_id if exists else None,
         "state": state,
         "running": running,
         "health": health,
@@ -50,6 +65,36 @@ def _cleanup_call(deploy: SimpleNamespace, *, label: str) -> None:
         container_id=CONTAINER_ID,
         cwd=None,
     )
+
+
+def test_protected_service_snapshot_records_immutable_container_id(monkeypatch) -> None:
+    deploy = _deploy_stub()
+    calls: list[list[str]] = []
+
+    def fake_run(command, **_kwargs):
+        calls.append(list(command))
+        if command[:3] == ["docker", "ps", "-aq"]:
+            return _completed(command, stdout=f"{PROTECTED_ID}\n")
+        if command[:3] == ["docker", "inspect", "--format"]:
+            assert command[-1] == PROTECTED_ID
+            return _completed(command, stdout="running|true|healthy\n")
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    state = module._protected_service_state(
+        deploy,
+        "freqtrade-portal-postgresql",
+        cwd=None,
+    )
+
+    assert state == _state(
+        exists=True,
+        running=True,
+        health="healthy",
+        state="running",
+    )
+    assert ["docker", "inspect", "--format", module.SERVICE_STATE_FORMAT, PROTECTED_ID] in calls
 
 
 def test_cleanup_records_healthy_protected_service_non_regression(monkeypatch) -> None:
@@ -135,6 +180,49 @@ def test_cleanup_fails_when_healthy_postgres_degrades(monkeypatch) -> None:
         "freqtrade-portal-postgresql:stopped_running",
         "freqtrade-portal-postgresql:lost_healthy",
     ]
+
+
+def test_cleanup_fails_when_protected_name_is_replaced_by_new_container(monkeypatch) -> None:
+    deploy = _deploy_stub()
+    deploy._bounded_schema_cleanup_evidence = []
+    before = {
+        "freqtrade-portal-postgresql": _state(
+            exists=True,
+            running=True,
+            health="healthy",
+            state="running",
+            container_id=PROTECTED_ID,
+        )
+    }
+    after = {
+        "freqtrade-portal-postgresql": _state(
+            exists=True,
+            running=True,
+            health="healthy",
+            state="running",
+            container_id=REPLACEMENT_ID,
+        )
+    }
+    snapshots = iter((before, after))
+
+    monkeypatch.setattr(
+        module,
+        "_capture_protected_services",
+        lambda _deploy, *, cwd: next(snapshots),
+    )
+    monkeypatch.setattr(
+        module,
+        "_cleanup_owned",
+        lambda _deploy, name, owner, *, container_id, cwd: container_id,
+    )
+
+    with pytest.raises(RuntimeError, match="protected service health regressed"):
+        _cleanup_call(deploy, label="schema-check")
+
+    evidence = deploy._bounded_schema_cleanup_evidence[-1]
+    assert evidence["protected_before"] == before
+    assert evidence["protected_after"] == after
+    assert evidence["regressions"] == ["freqtrade-portal-postgresql:identity_changed"]
 
 
 def test_preexisting_unhealthy_stopped_service_is_recorded_not_repaired(monkeypatch) -> None:

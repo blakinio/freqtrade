@@ -325,6 +325,18 @@ def _backfill_public_oidc_v1_target(target_connection: Any) -> None:
             """
         )
     )
+    unresolved = int(
+        target_connection.execute(
+            text(
+                "SELECT COUNT(*) FROM portal_bots "
+                "WHERE latest_authored_revision_id IS NULL"
+            )
+        ).scalar_one()
+    )
+    if unresolved:
+        raise PortalStateTransferError(
+            "historical Portal bot current revision did not resolve during state transfer"
+        )
     target_connection.execute(
         text("UPDATE portal_bots SET state_version = 1 WHERE state_version IS NULL")
     )

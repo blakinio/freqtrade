@@ -1,0 +1,64 @@
+name: Repair 1354 qgroup header
+
+on:
+  push:
+    branches:
+      - fix/portal-runtime-isolation-1354
+    paths:
+      - .github/workflows/repair-1354-qgroup-header.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: fix/portal-runtime-isolation-1354
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Apply qgroup parser repair
+        run: python scripts/repair_1354_qgroup_header.py
+
+      - name: Validate focused repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check \
+            ruff==0.15.21 mypy==2.3.0 pytest==9.1.1 jsonschema \
+            "pydantic>=2.2" "SQLAlchemy==2.0.51" "httpx>=0.24.1" \
+            fastapi pyjwt cryptography "PyYAML>=6.0"
+          python -m ruff format \
+            ai_platform/portal/execution/host_isolation.py \
+            tests/ai_platform/portal/execution/test_host_isolation.py
+          python -m ruff check \
+            ai_platform/portal/execution/host_isolation.py \
+            tests/ai_platform/portal/execution/test_host_isolation.py
+          python -m mypy ai_platform/portal/execution/host_isolation.py
+          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform \
+            tests/ai_platform/portal/execution/test_host_isolation.py \
+            tests/ai_platform/portal/execution/test_host_isolation_policy_guardrails.py
+          git diff --check
+
+      - name: Commit source and regression test
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            ai_platform/portal/execution/host_isolation.py \
+            tests/ai_platform/portal/execution/test_host_isolation.py
+          git diff --cached --check
+          git commit -m "fix(portal): parse btrfs qgroup display headers"
+          git push origin HEAD:fix/portal-runtime-isolation-1354

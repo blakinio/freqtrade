@@ -497,6 +497,7 @@ def install(deploy: Any) -> None:
     """Bound only the sensitive Portal schema/transfer `docker run --rm` workloads."""
 
     original_run = deploy._run
+    original_write_report = getattr(deploy, "_write_report", None)
     deploy._bounded_schema_cleanup_evidence = []
 
     def guarded_run(
@@ -515,3 +516,13 @@ def install(deploy: Any) -> None:
         return _run_sensitive_workload(deploy, command, cwd=cwd)
 
     deploy._run = guarded_run
+
+    if callable(original_write_report):
+
+        def write_report(path: Path, report: dict[str, Any]) -> str:
+            report["bounded_schema_cleanup_evidence"] = list(
+                deploy._bounded_schema_cleanup_evidence
+            )
+            return cast(str, original_write_report(path, report))
+
+        deploy._write_report = write_report

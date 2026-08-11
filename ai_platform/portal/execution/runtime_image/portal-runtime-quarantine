@@ -72,7 +72,7 @@ mkfifo "$startup_pipe"
 while IFS= read -r line; do
     printf '%s\n' "$line"
     case "$line" in
-        *"Initial Pairlist refresh took "*"s")
+        *"Bot heartbeat."*"state='RUNNING'"*)
             : > "$application_ready"
             ;;
     esac

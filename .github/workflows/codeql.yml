@@ -15,7 +15,9 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
+  # New commits should supersede older scans of the same PR, while push/schedule
+  # runs remain independent evidence and are never cancelled by this rule.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions: {}
 

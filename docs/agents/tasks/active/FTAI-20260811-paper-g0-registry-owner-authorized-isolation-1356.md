@@ -6,8 +6,8 @@ programme_id: FTAI-PAPER-PLATFORM
 repository: blakinio/freqtrade
 project_lane: freqtrade-portal
 task_kind: repair_isolation
-phase: recovery
-status: implementing
+phase: validation
+status: validating
 priority: high
 execution_mode: github_only
 run_scope: autonomous_program
@@ -63,6 +63,7 @@ This exception:
 - predecessor task `FTAI-20260810-paper-g0-registry-recovery-record-isolation-1356` is blocked with the cumulative G0 repair count preserved at three;
 - fresh Codex review `4903701628` on synchronized head `3446f3b3f6204a8b4c5a1f552eadebfc885dc02e` identified P1 thread `PRRT_kwDOTdDTU86YI18O` because the earlier successor had reset the exhausted gate counter;
 - stop-state commit `945459debd26ccba95c9ef1bf99b6357cf61f342` repaired that record by restoring the exhausted count and persisting the blocker;
+- owner-exception record was materialized in commit `5f7fa653f8c82325948ad6c97fceb25944752f0c`;
 - current trusted `develop` remains `8e519ba16e8d6795d4dddb871ddcfcc013605d55` at isolation start;
 - PR #1447 remains open, mergeable and the only delivery PR for #1356;
 - the owner exception is the only new authority introduced by this invocation.
@@ -84,13 +85,13 @@ feature_scope:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-11T07:22:00Z
-head: 945459debd26ccba95c9ef1bf99b6357cf61f342
+updated_at: 2026-08-11T07:25:45Z
+head: 5f7fa653f8c82325948ad6c97fceb25944752f0c
 branch: fix/architecture-registry-lifecycle-1356
 pr: 1447
-status: implementing
+status: validating
 invocation_started_at: 2026-08-11T07:22:00Z
-last_progress_at: 2026-08-11T07:22:00Z
+last_progress_at: 2026-08-11T07:25:45Z
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 review_checks_for_current_head: 0
@@ -107,13 +108,13 @@ owned_paths:
 proven:
   - The owner explicitly authorized one fresh isolated #1356/G0 recovery path after the predecessor stopped on the exhausted ordinary repair budget.
   - The historical G0 repair count remains three and is not reset by this task.
+  - The owner-exception record exists in commit 5f7fa653f8c82325948ad6c97fceb25944752f0c on PR 1447.
   - PR 1447 remains the sole #1356 delivery PR.
   - PAPER remains the only authorized operational mode and LIVE remains unreachable/fail-closed.
 derived:
   - The fresh isolation may now perform bounded closeout work while preserving the historical exhausted-gate evidence.
 unknown:
-  - Exact successor commit containing this new owner-exception task record.
-  - Fresh exact-head audit and CI results after the owner-exception record is committed.
+  - Fresh exact-head audit and CI results after the owner-exception checkpoint commit.
 conflicts: []
 first_failure:
   marker: ordinary repair budget exhausted before closeout
@@ -127,11 +128,14 @@ validation:
   - command: owner-authorization resolution
     result: PASS
     evidence: explicit current owner response authorizes the fresh isolated #1356/G0 repair path
+  - command: containing-commit resolution
+    result: PASS
+    evidence: owner-exception record materialized at 5f7fa653f8c82325948ad6c97fceb25944752f0c
   - command: runtime/browser E2E
     result: NOT_APPLICABLE
     evidence: registry/governance-only delivery with no runtime or user-facing behavior change
 blockers: []
-next_action: Resolve the new exact PR head, update this checkpoint to that head, then start fresh exact-head audit and required CI without modifying frozen registry/test logic unless new material evidence requires it.
+next_action: Request a fresh independent Codex review and inspect the exact-head required CI once for the current owner-exception candidate; do not modify frozen registry/test logic unless new material evidence requires it.
 ```
 
 ## Recovery checkpoint
@@ -139,22 +143,22 @@ next_action: Resolve the new exact PR head, update this checkpoint to that head,
 ```yaml
 recovery:
   policy_version: 1
-  generation: 1
+  generation: 2
   session_id: paper-20260811-0922-owner-authorized-g0-isolation
   session_started_at: 2026-08-11T07:22:00Z
-  checkpointed_at: 2026-08-11T07:22:00Z
-  last_progress_at: 2026-08-11T07:22:00Z
-  phase: owner_exception_materialization
-  exact_head: 945459debd26ccba95c9ef1bf99b6357cf61f342
+  checkpointed_at: 2026-08-11T07:25:45Z
+  last_progress_at: 2026-08-11T07:25:45Z
+  phase: pre_external_validation_checkpoint
+  exact_head: 5f7fa653f8c82325948ad6c97fceb25944752f0c
   pull_request: 1447
-  active_operation: create the owner-authorized fresh isolation record on the existing PR branch
+  active_operation: none
   external_run_ids: []
-  operation_started_at: 2026-08-11T07:22:00Z
+  operation_started_at: null
   wait_deadline_at: null
-  check_generation: owner_exception_pre_validation
+  check_generation: owner_exception_exact_head_5f7fa653
   checks_used: 0
-  status: active
+  status: ready
   safe_to_resume: true
-  resume_condition: the owner-exception task record exists on PR 1447
-  next_action: Resolve the containing commit and checkpoint it before starting any external validation wait.
+  resume_condition: PR 1447 remains open on the owner-exception candidate lineage and no conflicting writer owns the branch
+  next_action: Request fresh Codex review and inspect exact-head required CI once, then persist any new finding or terminal-validation state.
 ```

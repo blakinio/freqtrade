@@ -380,6 +380,7 @@ class DockerCliRuntimeDriver:
 
     _RELEASE_DIR = "/run/portal-release"
     _RELEASE_FILE = f"{_RELEASE_DIR}/release"
+    _APPLICATION_READY_FILE = f"{_RELEASE_DIR}/application-ready"
     _LOG_PROBE_READY = f"{_RELEASE_DIR}/log-probe-ready"
     _LOG_PROBE_BEGIN = "PORTAL_LOG_BOUND_PROBE_BEGIN"
     _LOG_PROBE_END = "PORTAL_LOG_BOUND_PROBE_END"
@@ -465,6 +466,12 @@ class DockerCliRuntimeDriver:
         if current is DriverRuntimeState.RUNNING:
             if runtime_id not in self._released:
                 self._release_forbidden("running runtime has no current release evidence")
+            network = self._networks.get(runtime_id, self._network_name(runtime_id))
+            try:
+                self._reattest_before_release(runtime_id)
+            except Exception:
+                self._cleanup_failed_runtime(runtime_id, network)
+                raise
             return current
         if current is DriverRuntimeState.PAUSED:
             self._release_forbidden(
@@ -478,7 +485,7 @@ class DockerCliRuntimeDriver:
             except Exception:
                 self._cleanup_failed_runtime(runtime_id, network)
                 raise
-            return DriverRuntimeState.RUNNING
+            return DriverRuntimeState.STARTING
         if current is DriverRuntimeState.STOPPED:
             self._release_forbidden(
                 "stopped runtime requires #1355 durable Supervisor reconciliation"
@@ -531,7 +538,15 @@ class DockerCliRuntimeDriver:
                 ("docker", "exec", runtime_id, "test", "-f", self._RELEASE_FILE)
             )
             if gate.returncode == 0:
-                return DriverRuntimeState.RUNNING
+                ready = self._runner.run(("docker", "exec", runtime_id, "test", "-f", self._APPLICATION_READY_FILE))
+                if ready.returncode == 0:
+                    return DriverRuntimeState.RUNNING
+                if ready.returncode == 1:
+                    return DriverRuntimeState.STARTING
+                raise RuntimeDriverError(
+                    "ISOLATION_ATTESTATION_FAILED",
+                    ready.stderr.strip() or "application readiness state is unreadable",
+                )
             if gate.returncode == 1:
                 return DriverRuntimeState.CREATED
             raise RuntimeDriverError(

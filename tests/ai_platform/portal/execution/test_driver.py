@@ -378,7 +378,7 @@ def test_release_repeats_attestation_then_activates_egress_before_gate(tmp_path:
         ]
     )
 
-    assert driver.start("runtime-1") is DriverRuntimeState.RUNNING
+    assert driver.start("runtime-1") is DriverRuntimeState.STARTING
     assert len(attestor.attested_networks) == initial_attest_count + 1
     assert attestor.activated_networks == [_network()]
     assert runner.calls[-1][:5] == (
@@ -607,6 +607,69 @@ def test_bounded_log_attestation_requires_rotation_and_retention_ceiling() -> No
     with pytest.raises(RuntimeDriverError) as oversized_error:
         DockerCliRuntimeDriver(oversized)._attest_bounded_logs("runtime-1", plan)
     assert oversized_error.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
+
+
+def test_released_runtime_is_starting_until_application_ready() -> None:
+    runner = _Runner(
+        CommandResult(0, stdout="running\n"),
+        CommandResult(0),
+        CommandResult(1),
+    )
+    assert DockerCliRuntimeDriver(runner).inspect("runtime-1") is DriverRuntimeState.STARTING
+
+
+def test_running_generation_repeats_current_isolation_attestation(tmp_path: Path) -> None:
+    plan = _plan()
+    spec = _spec(tmp_path)
+    runner = _Runner(
+        CommandResult(0, stdout="running\n"),
+        CommandResult(0),
+        CommandResult(0),
+        *_reattest_results(spec, plan),
+    )
+    attestor = _Attestor()
+    driver = DockerCliRuntimeDriver(runner, isolation_plans=_provider(plan), external_attestor=attestor, gateway_attestor=attestor)
+    driver._attested.add(spec.runtime_id)
+    driver._released.add(spec.runtime_id)
+    driver._fingerprints[spec.runtime_id] = driver._fingerprint(spec, plan.digest())
+    driver._networks[spec.runtime_id] = _network()
+    driver._specs[spec.runtime_id] = spec
+    driver._plan_digests[spec.runtime_id] = plan.digest()
+
+    assert driver.start(spec.runtime_id) is DriverRuntimeState.RUNNING
+    assert attestor.attested_networks == [_network()]
+    assert attestor.activated_networks == [_network()]
+
+
+def test_running_generation_tamper_fails_closed_and_removes_runtime(tmp_path: Path) -> None:
+    plan = _plan()
+    spec = _spec(tmp_path)
+    tampered = _inspect(spec, plan)
+    host = tampered["HostConfig"]
+    assert isinstance(host, dict)
+    host["Privileged"] = True
+    runner = _Runner(
+        CommandResult(0, stdout="running\n"),
+        CommandResult(0),
+        CommandResult(0),
+        CommandResult(0, stdout=json.dumps([tampered])),
+        CommandResult(0),
+    )
+    attestor = _Attestor()
+    driver = DockerCliRuntimeDriver(runner, isolation_plans=_provider(plan), external_attestor=attestor, gateway_attestor=attestor)
+    driver._attested.add(spec.runtime_id)
+    driver._released.add(spec.runtime_id)
+    driver._fingerprints[spec.runtime_id] = driver._fingerprint(spec, plan.digest())
+    driver._networks[spec.runtime_id] = _network()
+    driver._specs[spec.runtime_id] = spec
+    driver._plan_digests[spec.runtime_id] = plan.digest()
+
+    with pytest.raises(RuntimeDriverError) as exc_info:
+        driver.start(spec.runtime_id)
+
+    assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
+    assert attestor.cleaned == [_network()]
+    assert runner.calls[-1] == ("docker", "rm", "-f", spec.runtime_id)
 
 
 def test_paused_foreign_runtime_cannot_be_released() -> None:

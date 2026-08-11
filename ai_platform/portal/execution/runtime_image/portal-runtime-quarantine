@@ -3,6 +3,7 @@ set -eu
 
 release_dir=/run/portal-release
 release_file="$release_dir/release"
+application_ready="$release_dir/application-ready"
 log_probe_ready="$release_dir/log-probe-ready"
 log_probe_begin=PORTAL_LOG_BOUND_PROBE_BEGIN
 log_probe_end=PORTAL_LOG_BOUND_PROBE_END
@@ -56,4 +57,31 @@ for field in ("key", "secret", "password", "uid"):
 print("Portal PAPER dry-run configuration attested", flush=True)
 PY
 
-exec "$@"
+child_pid=""
+forward_signal() {
+    if [ -n "$child_pid" ]; then
+        kill -TERM "$child_pid" 2>/dev/null || true
+    fi
+}
+trap forward_signal TERM INT HUP
+
+"$@" &
+child_pid=$!
+i=0
+while [ "$i" -lt 20 ]; do
+    if ! kill -0 "$child_pid" 2>/dev/null; then
+        set +e
+        wait "$child_pid"
+        status=$?
+        set -e
+        exit "$status"
+    fi
+    i=$((i + 1))
+    sleep 0.1
+done
+: > "$application_ready"
+set +e
+wait "$child_pid"
+status=$?
+set -e
+exit "$status"

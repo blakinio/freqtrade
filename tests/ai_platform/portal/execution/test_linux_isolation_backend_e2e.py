@@ -86,7 +86,7 @@ def _resolved_ipv4(hostname: str) -> tuple[str, ...]:
         return tuple(
             sorted(
                 {
-                    info[4][0]
+                    str(info[4][0])
                     for info in socket.getaddrinfo(
                         hostname,
                         443,
@@ -98,6 +98,7 @@ def _resolved_ipv4(hostname: str) -> tuple[str, ...]:
         )
     except socket.gaierror as exc:
         pytest.fail(f"{hostname}: DNS failed: {exc}")
+        raise AssertionError("unreachable") from exc
 
 
 def _reachable_ipv4(hostnames: tuple[str, ...], *, exclude: frozenset[str] = frozenset()) -> str:
@@ -113,6 +114,7 @@ def _reachable_ipv4(hostnames: tuple[str, ...], *, exclude: frozenset[str] = fro
                 continue
             return address
     pytest.fail("no reachable public IPv4 E2E probe target: " + "; ".join(failures))
+    raise AssertionError("unreachable")
 
 
 def _reachable_market_data_ipv4(hostname: str) -> tuple[str, ...]:
@@ -125,6 +127,7 @@ def _reachable_market_data_ipv4(hostname: str) -> tuple[str, ...]:
         except OSError as exc:
             failures.append(f"{hostname}/{address}: TCP 443 failed: {exc}")
     pytest.fail("market-data endpoint has no reachable IPv4: " + "; ".join(failures))
+    raise AssertionError("unreachable")
 
 
 def _policy(*allowed_ipv4: str) -> MarketDataEgressPolicy:
@@ -364,6 +367,8 @@ def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None
             "-d",
             "--name",
             container,
+            "--label",
+            "ai.portal.test=runtime-isolation-e2e",
             "--label",
             f"ai.portal.runtime_id={runtime_id}",
             "--label",

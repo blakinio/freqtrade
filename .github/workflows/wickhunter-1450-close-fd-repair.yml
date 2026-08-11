@@ -27,49 +27,48 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          from textwrap import dedent
 
           source = Path('ai_platform/scripts/liquidation_live_stream.py')
           text = source.read_text(encoding='utf-8')
-          old = '''    async def stop(self, *, reason: str = "collector-stopped") -> None:
-              async with self._lock:
-                  if self._run_id is None:
-                      return
-                  self._run_state = "completed"
-                  self._completion_reason = reason
-                  self._completed_at_ms = self._now_ms()
-                  for state in self.sources.values():
-                      state.connected = False
-                  for writer in self._writers.values():
-                      await asyncio.to_thread(writer.close)
-                  await asyncio.to_thread(self._write_state)
-                  self._writers.clear()
-          '''
-          new = '''    async def stop(self, *, reason: str = "collector-stopped") -> None:
-              async with self._lock:
-                  if self._run_id is None or self._run_root_fd is None:
-                      await asyncio.to_thread(self._close_runtime_root_fds)
-                      return
-                  self._run_state = "completed"
-                  self._completion_reason = reason
-                  self._completed_at_ms = self._now_ms()
-                  for state in self.sources.values():
-                      state.connected = False
-                  try:
-                      for writer in self._writers.values():
-                          await asyncio.to_thread(writer.close)
-                      await asyncio.to_thread(self._write_state)
-                  finally:
-                      self._writers.clear()
-                      await asyncio.to_thread(self._close_runtime_root_fds)
-          '''
-          if text.count(old) != 1:
-              raise SystemExit('stop lifecycle patch target mismatch')
-          source.write_text(text.replace(old, new, 1), encoding='utf-8')
+          start_marker = '    async def stop(self, *, reason: str = "collector-stopped") -> None:\n'
+          end_marker = '\n    def _complete_previous_active_run(self) -> None:\n'
+          start = text.index(start_marker)
+          end = text.index(end_marker, start)
+          current = text[start:end]
+          required = (
+              'if self._run_id is None:',
+              'await asyncio.to_thread(writer.close)',
+              'await asyncio.to_thread(self._write_state)',
+              'self._writers.clear()',
+          )
+          if any(marker not in current for marker in required):
+              raise SystemExit('stop lifecycle semantic target mismatch')
+          new = (
+              '    async def stop(self, *, reason: str = "collector-stopped") -> None:\n'
+              '        async with self._lock:\n'
+              '            if self._run_id is None or self._run_root_fd is None:\n'
+              '                await asyncio.to_thread(self._close_runtime_root_fds)\n'
+              '                return\n'
+              '            self._run_state = "completed"\n'
+              '            self._completion_reason = reason\n'
+              '            self._completed_at_ms = self._now_ms()\n'
+              '            for state in self.sources.values():\n'
+              '                state.connected = False\n'
+              '            try:\n'
+              '                for writer in self._writers.values():\n'
+              '                    await asyncio.to_thread(writer.close)\n'
+              '                await asyncio.to_thread(self._write_state)\n'
+              '            finally:\n'
+              '                self._writers.clear()\n'
+              '                await asyncio.to_thread(self._close_runtime_root_fds)\n'
+          )
+          source.write_text(text[:start] + new + text[end:], encoding='utf-8')
 
           tests = Path('tests/ai_platform_integration/test_liquidation_live_restart_durability.py')
           test_text = tests.read_text(encoding='utf-8')
           marker = '\n\ndef test_restart_truncates_only_uncommitted_suffix_before_completion'
-          addition = '''
+          addition = dedent('''
 
           def test_stop_closes_retained_runtime_directory_descriptors(tmp_path: Path) -> None:
               manager = LiveRunManager(
@@ -132,8 +131,7 @@ jobs:
                   await manager.stop()
 
               asyncio.run(scenario())
-          '''
-          addition = '\n'.join(line[10:] if line.startswith('          ') else line for line in addition.splitlines())
+          ''')
           if 'test_stop_closes_retained_runtime_directory_descriptors(' in test_text:
               raise SystemExit('descriptor stop lifecycle tests already present')
           if marker not in test_text:
@@ -178,87 +176,17 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
           git commit -m 'fix(liquidations): close retained directory FDs on stop'
-          repair_sha="$(git rev-parse HEAD)"
-          echo "REPAIR_SHA=$repair_sha" >> "$GITHUB_ENV"
           auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" push origin HEAD:fix/wickhunter-1396-synology-recovery-v2
 
-      - name: Refresh checkpoint and remove temporary workflow
-        env:
-          REPAIR_SHA: ${{ env.REPAIR_SHA }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import os
-          from datetime import datetime
-          from pathlib import Path
-          from zoneinfo import ZoneInfo
-
-          task = Path('docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md')
-          text = task.read_text(encoding='utf-8')
-          repair_sha = os.environ['REPAIR_SHA']
-          run_id = os.environ['GITHUB_RUN_ID']
-          now = datetime.now(ZoneInfo('Europe/Warsaw')).replace(microsecond=0).isoformat()
-
-          prefix = '## Context checkpoint\n\n```yaml\n'
-          suffix = '\n```\n\n## Recovery checkpoint'
-          start = text.index(prefix) + len(prefix)
-          end = text.index(suffix, start)
-          cp = text[start:end]
-          rows = cp.splitlines()
-          for i, line in enumerate(rows):
-              if line.startswith('updated_at:'):
-                  rows[i] = f'updated_at: {now}'
-              elif line.startswith('head:'):
-                  rows[i] = f'head: {repair_sha}'
-              elif line.startswith('next_action:'):
-                  rows[i] = 'next_action: Run final retained exact-head CI and fresh Codex audit on PR 1450; if green, squash-merge and continue canonical Liquid20 deployment plus guarded historical repair.'
-          cp = '\n'.join(rows)
-          proof = '  - normal and exceptional stop paths now close all retained Liquid20 runtime directory descriptors and repeated stop remains safe\n'
-          if proof.strip() not in cp:
-              cp = cp.replace('derived:\n', proof + 'derived:\n', 1)
-          validation = (
-              '  - command: Retained FD stop lifecycle repair validation\n'
-              '    result: PASS\n'
-              f'    evidence: GitHub Actions run {run_id} passed focused restart and OKX tests plus py_compile Ruff check format and diff hygiene\n'
-          )
-          if 'Retained FD stop lifecycle repair validation' not in cp:
-              cp = cp.replace('blockers: []\n', validation + 'blockers: []\n', 1)
-          text = text[:start] + cp + text[end:]
-
-          recovery_prefix = '## Recovery checkpoint\n\n```yaml\n'
-          recovery_suffix = '\n```\n\n## Terminal closeout requirements'
-          rstart = text.index(recovery_prefix) + len(recovery_prefix)
-          rend = text.index(recovery_suffix, rstart)
-          recovery = text[rstart:rend]
-          recovery = recovery.replace('  generation: 13\n', '  generation: 14\n', 1)
-          rrows = recovery.splitlines()
-          for i, line in enumerate(rrows):
-              if line.startswith('  checkpointed_at:'):
-                  rrows[i] = f'  checkpointed_at: {now}'
-              elif line.startswith('  last_progress_at:'):
-                  rrows[i] = f'  last_progress_at: {now}'
-              elif line.startswith('  exact_head_before_checkpoint_commit:'):
-                  rrows[i] = f'  exact_head_before_checkpoint_commit: {repair_sha}'
-              elif line.startswith('  active_operation:'):
-                  rrows[i] = '  active_operation: final exact-head CI and independent review after descriptor stop lifecycle repair'
-              elif line.startswith('  next_action:'):
-                  rrows[i] = '  next_action: Run final retained exact-head CI and fresh Codex review on PR 1450, then merge and continue canonical Liquid20 recovery.'
-          text = text[:rstart] + '\n'.join(rrows) + text[rend:]
-          task.write_text(text, encoding='utf-8')
-          PY
-          python3 tools/agents/checkpoint.py docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md --require-checkpoint
-          git rm .github/workflows/wickhunter-1450-close-fd-repair.yml
-          git diff --check
-
-      - name: Commit checkpoint and workflow cleanup
+      - name: Remove temporary repair workflow after source validation
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          git add docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md .github/workflows/wickhunter-1450-close-fd-repair.yml
-          git commit -m 'chore(wickhunter): checkpoint PR 1450 descriptor stop repair'
+          git rm .github/workflows/wickhunter-1450-close-fd-repair.yml
+          git diff --check
+          git commit -m 'chore(wickhunter): remove temporary retained FD repair workflow'
           auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" push origin HEAD:fix/wickhunter-1396-synology-recovery-v2

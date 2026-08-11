@@ -1,0 +1,172 @@
+name: Temporary GitHub Actions Cache Hygiene V3
+
+on:
+  push:
+    branches:
+      - chore/github-actions-ci-hygiene-20260811
+    paths:
+      - .github/workflows/_tmp-github-actions-cache-hygiene-v3.yml
+
+permissions:
+  actions: write
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: github-actions-cache-hygiene-20260811-v3-fixed-point
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: freqtrade-staging
+    timeout-minutes: 20
+    steps:
+      - name: Verify stable cache inventory, delete exact stale refs, and reverify
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test "${RUNNER_NAME}" = "freqtrade-synology-staging"
+          test "${RUNNER_OS}" = "Linux"
+
+          api="https://api.github.com/repos/${REPO}"
+          auth=(-H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${GH_TOKEN}" -H "X-GitHub-Api-Version: 2022-11-28")
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+
+          scan_once() {
+            local out="$1"
+            local meta="$2"
+            : > "$out"
+            local page=1 total_start="" total_end raw unique
+            while :; do
+              local payload count
+              payload="$(curl -fsS "${auth[@]}" "${api}/actions/caches?per_page=100&page=${page}")"
+              if [[ "$page" -eq 1 ]]; then
+                total_start="$(jq -r '.total_count' <<<"$payload")"
+              fi
+              count="$(jq '.actions_caches | length' <<<"$payload")"
+              [[ "$count" -gt 0 ]] || break
+              jq -r '.actions_caches[] | [.id, .ref, .size_in_bytes] | @tsv' <<<"$payload" >> "$out"
+              page=$((page + 1))
+            done
+
+            total_end="$(curl -fsS "${auth[@]}" "${api}/actions/caches?per_page=1&page=1" | jq -r '.total_count')"
+            raw="$(wc -l < "$out" | tr -d ' ')"
+            unique="$(cut -f1 "$out" | sort -u | wc -l | tr -d ' ')"
+            sort -n -k1,1 "$out" -o "$out"
+            printf 'start=%s end=%s raw=%s unique=%s hash=%s\n' \
+              "$total_start" "$total_end" "$raw" "$unique" "$(sha256sum "$out" | awk '{print $1}')" > "$meta"
+
+            [[ "$total_start" == "$total_end" && "$raw" == "$unique" && "$unique" == "$total_start" ]]
+          }
+
+          stable_snapshot() {
+            local out="$1"
+            local label="$2"
+            local previous="$tmp/${label}.previous.tsv"
+            local previous_meta="$tmp/${label}.previous.meta"
+            local current="$tmp/${label}.current.tsv"
+            local current_meta="$tmp/${label}.current.meta"
+            rm -f "$previous" "$previous_meta"
+
+            for attempt in $(seq 1 8); do
+              if ! scan_once "$current" "$current_meta"; then
+                echo "UNSTABLE_SCAN|label=${label}|attempt=${attempt}|$(cat "$current_meta")"
+                rm -f "$previous" "$previous_meta"
+                sleep 2
+                continue
+              fi
+
+              echo "CONSISTENT_SCAN|label=${label}|attempt=${attempt}|$(cat "$current_meta")"
+              if [[ -f "$previous" ]] && cmp -s "$previous" "$current"; then
+                cp "$current" "$out"
+                echo "FIXED_POINT|label=${label}|attempt=${attempt}|$(cat "$current_meta")"
+                return 0
+              fi
+
+              cp "$current" "$previous"
+              cp "$current_meta" "$previous_meta"
+              sleep 2
+            done
+
+            echo "Could not obtain two consecutive identical complete cache inventories for ${label}" >&2
+            return 1
+          }
+
+          classify_eligible_refs() {
+            local snapshot="$1"
+            local refs_out="$2"
+            : > "$refs_out"
+            cut -f2 "$snapshot" | sort -u | while IFS= read -r ref; do
+              [[ -n "$ref" ]] || continue
+              if [[ "$ref" =~ ^refs/pull/([0-9]+)/merge$ ]]; then
+                pr="${BASH_REMATCH[1]}"
+                state="$(curl -fsS "${auth[@]}" "${api}/pulls/${pr}" | jq -r '.state')"
+                if [[ "$state" != "open" ]]; then
+                  printf '%s\tclosed-pr-%s\n' "$ref" "$pr"
+                fi
+              elif [[ "$ref" =~ ^refs/heads/(.+)$ ]]; then
+                branch="${BASH_REMATCH[1]}"
+                encoded="$(jq -rn --arg v "$branch" '$v|@uri')"
+                status="$(curl -sS -o "$tmp/branch.json" -w '%{http_code}' "${auth[@]}" "${api}/branches/${encoded}")"
+                if [[ "$status" == "404" ]]; then
+                  printf '%s\tdeleted-branch-%s\n' "$ref" "$branch"
+                elif [[ "$status" != "200" ]]; then
+                  echo "Unexpected branch lookup status ${status} for ${branch}" >&2
+                  exit 1
+                fi
+              fi
+            done > "$refs_out"
+          }
+
+          before="$tmp/before.tsv"
+          after="$tmp/after.tsv"
+          eligible_refs="$tmp/eligible-refs.tsv"
+          final_eligible_refs="$tmp/final-eligible-refs.tsv"
+
+          stable_snapshot "$before" before
+          classify_eligible_refs "$before" "$eligible_refs"
+
+          eligible_ref_count="$(wc -l < "$eligible_refs" | tr -d ' ')"
+          deleted_count=0
+          deleted_bytes=0
+          if [[ "$eligible_ref_count" -gt 0 ]]; then
+            while IFS=$'\t' read -r ref reason; do
+              while IFS=$'\t' read -r id item_ref size; do
+                [[ "$item_ref" == "$ref" ]] || continue
+                echo "DELETE_CACHE_FIXED_POINT|id=${id}|ref=${ref}|bytes=${size}|reason=${reason}"
+                curl -fsS -X DELETE "${auth[@]}" "${api}/actions/caches/${id}" >/dev/null
+                deleted_count=$((deleted_count + 1))
+                deleted_bytes=$((deleted_bytes + size))
+              done < "$before"
+            done < "$eligible_refs"
+          fi
+
+          stable_snapshot "$after" after
+          classify_eligible_refs "$after" "$final_eligible_refs"
+          remaining_ref_count="$(wc -l < "$final_eligible_refs" | tr -d ' ')"
+          if [[ "$remaining_ref_count" -ne 0 ]]; then
+            echo "Eligible stale refs remain after fixed-point cleanup:" >&2
+            cat "$final_eligible_refs" >&2
+            exit 1
+          fi
+
+          usage="$(curl -fsS "${auth[@]}" "${api}/actions/cache/usage")"
+          echo "FIXED_POINT_CLEANUP_RESULT|before=$(wc -l < "$before" | tr -d ' ')|eligible_refs=${eligible_ref_count}|deleted=${deleted_count}|deleted_bytes=${deleted_bytes}|after=$(wc -l < "$after" | tr -d ' ')|remaining_eligible_refs=${remaining_ref_count}|usage_count=$(jq -r '.active_caches_count' <<<"$usage")|usage_bytes=$(jq -r '.active_caches_size_in_bytes' <<<"$usage")"
+
+          {
+            echo '## GitHub Actions cache hygiene V3 fixed-point verification'
+            echo
+            echo "- Stable caches before: $(wc -l < "$before" | tr -d ' ')"
+            echo "- Eligible stale refs before: ${eligible_ref_count}"
+            echo "- Deleted cache objects: ${deleted_count}"
+            echo "- Deleted object bytes: ${deleted_bytes}"
+            echo "- Stable caches after: $(wc -l < "$after" | tr -d ' ')"
+            echo "- Remaining eligible stale refs: ${remaining_ref_count}"
+            echo "- Usage endpoint: $(jq -r '.active_caches_count' <<<"$usage") caches / $(jq -r '.active_caches_size_in_bytes' <<<"$usage") bytes"
+            echo
+            echo 'Each accepted inventory had total_count == raw rows == unique cache IDs and was identical in two consecutive full scans. No artifacts or workflow-run evidence was deleted.'
+          } >> "$GITHUB_STEP_SUMMARY"

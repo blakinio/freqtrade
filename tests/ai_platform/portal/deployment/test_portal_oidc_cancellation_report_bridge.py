@@ -21,7 +21,9 @@ module = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(module)
 
 
-def _deploy_stub(*, interrupt: BaseException) -> tuple[SimpleNamespace, list[dict[str, Any]], list[str]]:
+def _deploy_stub(
+    *, interrupt: BaseException
+) -> tuple[SimpleNamespace, list[dict[str, Any]], list[str]]:
     reports: list[dict[str, Any]] = []
     rollback: list[str] = []
     deploy = SimpleNamespace(

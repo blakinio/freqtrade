@@ -61,7 +61,7 @@ def _deploy_stub(
         }
         try:
             deploy._run(["docker", "wait", "task-container"], sensitive=True)
-        except Exception as exc:
+        except RuntimeError as exc:
             rollback.append("performed")
             report["failure"] = {"type": type(exc).__name__, "message": str(exc)}
             deploy._write_report(Path(args.report), report)

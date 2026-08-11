@@ -123,6 +123,67 @@ def test_state_commit_rejects_replaced_canonical_source_inode(tmp_path: Path) ->
         asyncio.run(scenario())
 
 
+@pytest.mark.parametrize(
+    ("field", "value"), [("schema_version", 2), ("contract", "foreign-live-contract-v2")]
+)
+def test_restart_rejects_foreign_pointer_contract_before_sealing(
+    tmp_path: Path, field: str, value: object
+) -> None:
+    old_run_id, old_run_root = _write_previous_active_run(
+        tmp_path,
+        committed_rows={BINANCE_SOURCE: 1, BYBIT_SOURCE: 1, OKX_SOURCE: 0},
+        actual_rows={BINANCE_SOURCE: 2, BYBIT_SOURCE: 2, OKX_SOURCE: 0},
+    )
+    pointer_path = tmp_path / "live" / LIVE_STATE_FILE
+    pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+    pointer[field] = value
+    pointer_path.write_text(json.dumps(pointer), encoding="utf-8")
+    originals = {
+        source: (old_run_root / f"{source}.ndjson").read_bytes()
+        for source in (BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE)
+    }
+    manager = LiveRunManager(
+        data_root=tmp_path,
+        collector_commit="c" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+    with pytest.raises(RuntimeError, match="previous live pointer contract is invalid"):
+        asyncio.run(manager.start())
+    for source, original in originals.items():
+        assert (old_run_root / f"{source}.ndjson").read_bytes() == original
+    persisted = json.loads((old_run_root / "run-state-v1.json").read_text(encoding="utf-8"))
+    assert persisted["run_state"] == "active"
+    assert json.loads(pointer_path.read_text(encoding="utf-8"))["active_run_id"] == old_run_id
+
+
+def test_restart_preflights_all_sources_before_any_truncation(tmp_path: Path) -> None:
+    old_run_id, old_run_root = _write_previous_active_run(
+        tmp_path,
+        committed_rows={BYBIT_SOURCE: 1, BINANCE_SOURCE: 1, OKX_SOURCE: 0},
+        actual_rows={BYBIT_SOURCE: 2, BINANCE_SOURCE: 2, OKX_SOURCE: 0},
+    )
+    state_path = old_run_root / "run-state-v1.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    del state["sources"][BINANCE_SOURCE]["events_written"]
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    bybit_path = old_run_root / f"{BYBIT_SOURCE}.ndjson"
+    original = bybit_path.read_bytes()
+    manager = LiveRunManager(
+        data_root=tmp_path,
+        collector_commit="d" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+    with pytest.raises(RuntimeError, match="binance-usdm events_written is missing"):
+        asyncio.run(manager.start())
+    assert bybit_path.read_bytes() == original
+    persisted = json.loads(state_path.read_text(encoding="utf-8"))
+    assert persisted["run_state"] == "active"
+    pointer = json.loads((tmp_path / "live" / LIVE_STATE_FILE).read_text(encoding="utf-8"))
+    assert pointer["active_run_id"] == old_run_id
+
+
 def test_restart_rejects_fifo_metadata_without_blocking(tmp_path: Path) -> None:
     live_root = tmp_path / "live"
     (live_root / "runs").mkdir(parents=True)
@@ -224,6 +285,40 @@ def test_stop_closes_retained_runtime_directory_descriptors_on_state_write_error
                 os.fstat(descriptor)
 
         await manager.stop()
+
+    asyncio.run(scenario())
+
+
+def test_stop_closes_all_runtime_descriptors_when_writer_close_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manager = LiveRunManager(
+        data_root=tmp_path,
+        collector_commit="e" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+
+    async def scenario() -> None:
+        await manager.start()
+        retained = [manager._live_root_fd, manager._runs_root_fd, manager._run_root_fd]
+        writers = list(manager._writers.values())
+
+        def fail_close() -> None:
+            raise OSError("forced writer close failure")
+
+        monkeypatch.setattr(writers[0], "close", fail_close)
+        with pytest.raises(OSError, match="forced writer close failure"):
+            await manager.stop()
+        assert manager._writers == {}
+        assert manager._live_root_fd is None
+        assert manager._runs_root_fd is None
+        assert manager._run_root_fd is None
+        for descriptor in retained:
+            assert descriptor is not None
+            with pytest.raises(OSError):
+                os.fstat(descriptor)
+        assert all(writer.closed for writer in writers[1:])
 
     asyncio.run(scenario())
 

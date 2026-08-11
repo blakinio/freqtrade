@@ -368,14 +368,14 @@ def _open_committed_source_fd(
     return descriptor
 
 
-def _seal_committed_ndjson(
+def _validate_committed_ndjson_fd(
     path: Path,
     *,
     committed_rows: int,
     source: str,
     allow_missing: bool,
     directory_fd: int | None = None,
-) -> None:
+) -> tuple[int | None, int]:
     if (
         isinstance(committed_rows, bool)
         or not isinstance(committed_rows, int)
@@ -383,6 +383,7 @@ def _seal_committed_ndjson(
     ):
         raise RuntimeError(f"previous {source} events_written is invalid")
     source_directory_fd, owned = _source_directory_fd(path, directory_fd, source)
+    descriptor: int | None = None
     try:
         descriptor = _open_committed_source_fd(
             source_directory_fd,
@@ -392,9 +393,9 @@ def _seal_committed_ndjson(
             allow_missing=allow_missing,
         )
         if descriptor is None:
-            return
-        with os.fdopen(descriptor, "r+b") as handle:
-            committed_end = 0
+            return None, 0
+        committed_end = 0
+        with os.fdopen(os.dup(descriptor), "rb") as handle:
             for _ in range(committed_rows):
                 row = handle.readline()
                 if not row or not row.endswith(b"\n") or not row.strip():
@@ -402,13 +403,66 @@ def _seal_committed_ndjson(
                         f"previous {source} source file has fewer rows than committed"
                     )
                 committed_end = handle.tell()
-            if handle.read(1):
-                handle.truncate(committed_end)
-            handle.flush()
-            os.fsync(handle.fileno())
+        return descriptor, committed_end
+    except BaseException:
+        if descriptor is not None:
+            os.close(descriptor)
+        raise
     finally:
         if owned:
             os.close(source_directory_fd)
+
+
+def _seal_validated_committed_ndjson(descriptor: int, committed_end: int) -> None:
+    with os.fdopen(descriptor, "r+b") as handle:
+        handle.seek(committed_end)
+        if handle.read(1):
+            handle.truncate(committed_end)
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def _seal_committed_ndjson(
+    path: Path,
+    *,
+    committed_rows: int,
+    source: str,
+    allow_missing: bool,
+    directory_fd: int | None = None,
+) -> None:
+    descriptor, committed_end = _validate_committed_ndjson_fd(
+        path,
+        committed_rows=committed_rows,
+        source=source,
+        allow_missing=allow_missing,
+        directory_fd=directory_fd,
+    )
+    if descriptor is not None:
+        _seal_validated_committed_ndjson(descriptor, committed_end)
+
+
+def _seal_restart_sources(run_root: Path, run_root_fd: int, sources: dict[str, object]) -> None:
+    validated: list[tuple[int, int]] = []
+    try:
+        for source in (BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE):
+            committed_rows, allow_missing = _restart_source_commit_state(
+                sources[source], source=source
+            )
+            descriptor, committed_end = _validate_committed_ndjson_fd(
+                run_root / f"{source}.ndjson",
+                committed_rows=committed_rows,
+                source=source,
+                allow_missing=allow_missing,
+                directory_fd=run_root_fd,
+            )
+            if descriptor is not None:
+                validated.append((descriptor, committed_end))
+        while validated:
+            descriptor, committed_end = validated.pop(0)
+            _seal_validated_committed_ndjson(descriptor, committed_end)
+    finally:
+        for descriptor, _ in validated:
+            os.close(descriptor)
 
 
 def _prepare_live_roots(*, data_root: Path, live_root: Path, runs_root: Path) -> None:
@@ -615,10 +669,22 @@ class LiveRunManager:
             try:
                 await asyncio.to_thread(self._write_state)
             finally:
-                for writer in self._writers.values():
-                    await asyncio.to_thread(writer.close)
-                self._writers.clear()
-                await asyncio.to_thread(self._close_runtime_root_fds)
+                await asyncio.to_thread(self._close_writers_and_runtime_fds)
+
+    def _close_writers_and_runtime_fds(self) -> None:
+        cleanup_error: BaseException | None = None
+        try:
+            for writer in self._writers.values():
+                try:
+                    writer.close()
+                except BaseException as exc:
+                    if cleanup_error is None:
+                        cleanup_error = exc
+        finally:
+            self._writers.clear()
+            self._close_runtime_root_fds()
+        if cleanup_error is not None:
+            raise cleanup_error
 
     def _complete_previous_active_run(self) -> None:
         live_fd = self._require_fd(self._live_root_fd, label="Liquid20 live root")
@@ -629,6 +695,8 @@ class LiveRunManager:
             return
         if payload is None:
             return
+        if payload.get("schema_version") != 1 or payload.get("contract") != LIVE_CONTRACT:
+            raise RuntimeError("previous live pointer contract is invalid")
         run_id = payload.get("active_run_id")
         if not isinstance(run_id, str) or not RUN_ID_PATTERN.fullmatch(run_id):
             return
@@ -659,17 +727,7 @@ class LiveRunManager:
             if set(sources) != expected_sources:
                 raise RuntimeError("previous live source set is invalid")
             run_root = self.runs_root / run_id
-            for source in (BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE):
-                committed_rows, allow_missing = _restart_source_commit_state(
-                    sources[source], source=source
-                )
-                _seal_committed_ndjson(
-                    run_root / f"{source}.ndjson",
-                    committed_rows=committed_rows,
-                    source=source,
-                    allow_missing=allow_missing,
-                    directory_fd=run_root_fd,
-                )
+            _seal_restart_sources(run_root, run_root_fd, sources)
             state["run_state"] = "completed"
             state["data_mode"] = "historical"
             state["completed_at_ms"] = self._now_ms()

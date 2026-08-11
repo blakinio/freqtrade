@@ -349,16 +349,20 @@ def _protected_service_state(
     if not identifiers:
         return {
             "exists": False,
+            "container_id": None,
             "state": "absent",
             "running": False,
             "health": "none",
         }
     if len(identifiers) != 1:
         raise deploy.DeploymentError("protected service exact-name inventory is ambiguous")
+    container_id = identifiers[0]
+    if not _CONTAINER_ID_RE.fullmatch(container_id):
+        raise deploy.DeploymentError("protected service inventory returned invalid identity")
 
     try:
         inspected = _run_bounded(
-            ["docker", "inspect", "--format", SERVICE_STATE_FORMAT, name],
+            ["docker", "inspect", "--format", SERVICE_STATE_FORMAT, container_id],
             cwd=cwd,
             timeout=QUERY_TIMEOUT_SECONDS,
         )
@@ -378,6 +382,7 @@ def _protected_service_state(
         )
     return {
         "exists": True,
+        "container_id": container_id,
         "state": state,
         "running": running == "true",
         "health": health,
@@ -407,6 +412,13 @@ def _protected_service_regressions(
             continue
         if baseline["exists"] is True and current["exists"] is not True:
             regressions.append(f"{name}:became_absent")
+            continue
+        if (
+            baseline["exists"] is True
+            and current["exists"] is True
+            and baseline.get("container_id") != current.get("container_id")
+        ):
+            regressions.append(f"{name}:identity_changed")
             continue
         if baseline["running"] is True and current["running"] is not True:
             regressions.append(f"{name}:stopped_running")
@@ -448,6 +460,37 @@ def _record_cleanup_evidence(
     )
 
 
+def _cancellation_error(*errors: BaseException | None) -> BaseException | None:
+    return next(
+        (error for error in errors if error is not None and not isinstance(error, Exception)),
+        None,
+    )
+
+
+def _prefer_cancellation(
+    current: BaseException | None,
+    candidate: BaseException,
+) -> BaseException:
+    if current is None:
+        return candidate
+    if isinstance(current, Exception) and not isinstance(candidate, Exception):
+        return candidate
+    return current
+
+
+def _raise_cancellation_with_context(
+    cancellation: BaseException,
+    *errors: BaseException | None,
+) -> None:
+    cause = next(
+        (error for error in errors if error is not None and error is not cancellation),
+        None,
+    )
+    if cause is not None:
+        raise cancellation from cause
+    raise cancellation
+
+
 def _cleanup_with_protected_health(
     deploy: Any,
     *,
@@ -467,7 +510,7 @@ def _cleanup_with_protected_health(
     try:
         before = _capture_protected_services(deploy, cwd=cwd)
     except BaseException as exc:
-        health_error = exc
+        health_error = _prefer_cancellation(health_error, exc)
 
     try:
         if create_succeeded:
@@ -486,8 +529,7 @@ def _cleanup_with_protected_health(
         try:
             after = _capture_protected_services(deploy, cwd=cwd)
         except BaseException as exc:
-            if health_error is None:
-                health_error = exc
+            health_error = _prefer_cancellation(health_error, exc)
 
     regressions = (
         _protected_service_regressions(before, after)
@@ -506,6 +548,9 @@ def _cleanup_with_protected_health(
         verification_complete=verification_complete,
     )
 
+    cancellation = _cancellation_error(health_error, cleanup_error)
+    if cancellation is not None:
+        _raise_cancellation_with_context(cancellation, health_error, cleanup_error)
     if health_error is not None:
         if cleanup_error is not None:
             raise deploy.DeploymentError(
@@ -612,13 +657,14 @@ def _run_sensitive_workload(
         except BaseException as exc:
             cleanup_error = exc
 
+    cancellation = _cancellation_error(primary_error, cleanup_error)
+    if cancellation is not None:
+        _raise_cancellation_with_context(cancellation, primary_error, cleanup_error)
     if cleanup_error is not None:
         if primary_error is not None:
-            if isinstance(primary_error, Exception):
-                raise deploy.DeploymentError(
-                    f"sensitive Docker workload and cleanup failed: {label}"
-                ) from cleanup_error
-            raise primary_error from cleanup_error
+            raise deploy.DeploymentError(
+                f"sensitive Docker workload and cleanup failed: {label}"
+            ) from cleanup_error
         raise cleanup_error
     if primary_error is not None:
         raise primary_error

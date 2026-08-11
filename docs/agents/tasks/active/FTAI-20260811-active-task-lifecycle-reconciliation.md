@@ -18,7 +18,7 @@ production_deployment_authorized: false
 
 ## Objective
 
-Reconcile `docs/agents/tasks/active/` against live GitHub state and archive only bounded task records whose own acceptance is already terminal. Preserve genuinely waiting or continuous programme records as active. This reconciliation itself remains active until PR #1474 has a clean exact-head audit, required CI, merge, and post-merge lifecycle closeout.
+Reconcile `docs/agents/tasks/active/` against live GitHub state and archive only bounded task records whose own acceptance is already terminal. Preserve genuinely waiting or continuous programme records as active. This reconciliation itself remains active until PR #1474 has a clean final audit, required CI, merge, and post-merge lifecycle closeout.
 
 ## Reconciled terminal records
 
@@ -37,8 +37,8 @@ Reconcile `docs/agents/tasks/active/` against live GitHub state and archive only
 - only the two proven terminal bounded records move from `active/` to `archive/`;
 - waiting/continuous/externally-unproven records remain active;
 - this reconciliation remains active and owned until delivery PR #1474 is actually merged;
-- fresh exact-head independent review has zero material findings;
-- exact-head Freqtrade CI, Risk-aware component CI, CodeQL and zizmor pass;
+- fresh final independent review has zero material findings;
+- final Freqtrade CI, Risk-aware component CI, CodeQL and zizmor pass for the delivery head;
 - post-merge closeout archives this reconciliation with actual terminal evidence and releases ownership;
 - no product, workflow, runtime, deployment, credential or trading behavior changes.
 
@@ -46,8 +46,8 @@ Reconcile `docs/agents/tasks/active/` against live GitHub state and archive only
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-11T14:01:00+02:00
-head: 0ad048f9b837af317fc5b206a286237b84a97e42
+updated_at: 2026-08-11T14:18:00+02:00
+head: LIVE_BRANCH_HEAD_REQUIRED
 branch: docs/active-task-lifecycle-reconciliation-20260811
 pr: 1474
 status: validating
@@ -69,20 +69,24 @@ proven:
   - Issue 1137 protected acceptance remains separately authorized and nonterminal
   - liquidations operational post-merge acceptance is not proven by this reconciliation
   - continuous assurance remains intentionally nonterminal
-  - predecessor 0ad048f9 already restored this reconciliation under active and removed the premature archive
+  - isolation PR 1475 was clean-reviewed and merged into the parent
+  - parent head 0e474402bc2c60d451cfa416c2d6955ec2ced969 passed Freqtrade CI, Risk-aware component CI, CodeQL and zizmor before the final audit
+  - final audit of parent head 0e474402bc2c60d451cfa416c2d6955ec2ced969 found only checkpoint continuation drift
 derived:
   - the two stale bounded records can be archived without weakening or closing their broader programme work
   - this reconciliation must remain active until its own terminal gates and merge are real
+  - an embedded checkpoint cannot contain its own future commit SHA; the live branch ref is therefore authoritative whenever head is LIVE_BRANCH_HEAD_REQUIRED
 unknown:
-  - exact containing parent head after this isolated checkpoint refresh is merged
-  - final exact-head audit and CI disposition for that containing parent head
+  - final audit disposition for the containing parent head after this isolation merges
+  - parent merge commit and post-merge archival evidence
 conflicts: []
 first_failure:
-  marker: checkpoint lagged the completed repair and instructed removal of an archive already removed
-  evidence: Codex P2 thread PRRT_kwDOTdDTU86YNnek on exact parent head 0ad048f9b837af317fc5b206a286237b84a97e42
+  marker: checkpoint still told a successor to merge isolation 1475 after that isolation was already merged
+  evidence: Codex P2 thread PRRT_kwDOTdDTU86YOBlU on parent head 0e474402bc2c60d451cfa416c2d6955ec2ced969
 rejected_hypotheses:
-  - perform a fourth same-gate parent repair; rejected because the parent repair budget is exhausted at three and this refresh is isolated
-  - keep the stale predecessor head and repeated next_action; rejected because resume.py would hand a successor incorrect continuation state
+  - persist the containing commit SHA inside the same commit; rejected as self-referential and impossible without another successor commit
+  - perform a fourth same-gate parent repair; rejected because the parent repair budget is exhausted at three
+  - keep a stale predecessor SHA; rejected because resume.py would present stale continuation state
 changed_paths:
   - docs/agents/tasks/active/FTAI-20260802-agent-governance-sync.md
   - docs/agents/tasks/archive/FTAI-20260802-agent-governance-sync.md
@@ -96,14 +100,17 @@ validation:
   - command: current develop inspection of ControlPlaneService managed-runtime mode binding
     result: PASS
     evidence: ManagedRuntimeModeRequest is resolved and its digests are persisted into RuntimeGeneration
-  - command: independent Codex review of parent head 0ad048f9b837af317fc5b206a286237b84a97e42
+  - command: exact-head CI on parent 0e474402bc2c60d451cfa416c2d6955ec2ced969
+    result: PASS
+    evidence: Freqtrade 31490002083; Risk-aware 31490002319; CodeQL 31489636010; zizmor 31489635852
+  - command: independent Codex review of parent 0e474402bc2c60d451cfa416c2d6955ec2ced969
     result: FAIL
-    evidence: P2 identified stale checkpoint head and next_action after the lifecycle repair; this isolated successor refreshes both
+    evidence: only P2 PRRT_kwDOTdDTU86YOBlU identified stale continuation after merged isolation; this fresh isolation repairs it
   - command: product/runtime E2E
     result: NOT_APPLICABLE
     evidence: task-record lifecycle reconciliation only; no product runtime API UI or deployment behavior changes
 blockers: []
-next_action: Review and merge this isolated checkpoint refresh into PR 1474; then resolve the containing parent head, collect one final exact-head Codex audit plus required CI, squash-merge PR 1474 if green, and perform lifecycle-only post-merge archival with actual terminal evidence.
+next_action: Resolve the current live head of branch docs/active-task-lifecycle-reconciliation-20260811, verify this checkpoint isolation is merged and all material threads are resolved, obtain one final independent audit for that live parent head, squash-merge PR 1474 if clean and current against develop, then perform lifecycle-only post-merge archival with actual terminal evidence.
 ```
 
 ## Safety

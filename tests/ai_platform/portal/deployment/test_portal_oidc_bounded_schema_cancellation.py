@@ -70,6 +70,7 @@ def test_keyboard_interrupt_runs_owned_cleanup_before_reraise(monkeypatch) -> No
             exists = True
             return _completed(command, stdout=f"{CONTAINER_ID}\n")
         if command[:2] == ["docker", "wait"]:
+            assert command[2] == CONTAINER_ID
             raise KeyboardInterrupt
         if command[:3] == ["docker", "inspect", "--format"]:
             return _completed(
@@ -130,6 +131,7 @@ def test_before_health_snapshot_interrupt_is_recorded_then_reraised(monkeypatch)
     assert exc_info.value is interrupt
     assert cleaned == [CONTAINER_ID]
     evidence = deploy._bounded_schema_cleanup_evidence[-1]
+    assert evidence["cleanup_complete"] is True
     assert evidence["verification_complete"] is False
     assert evidence["task_container_id"] == CONTAINER_ID
     assert evidence["protected_before"] is None
@@ -169,6 +171,7 @@ def test_after_health_snapshot_interrupt_is_recorded_then_reraised(monkeypatch) 
 
     assert exc_info.value is interrupt
     evidence = deploy._bounded_schema_cleanup_evidence[-1]
+    assert evidence["cleanup_complete"] is True
     assert evidence["verification_complete"] is False
     assert evidence["protected_before"] == {}
     assert evidence["protected_after"] is None
@@ -219,6 +222,92 @@ def test_owned_cleanup_retries_after_ambiguous_remove_timeout(monkeypatch) -> No
     assert remove_calls == 2
     assert not exists
     assert sum(command[:3] == ["docker", "rm", "-f"] for command in calls) == 2
+
+
+def test_cleanup_interrupt_during_identity_query_retries_then_reraises(monkeypatch) -> None:
+    deploy = _deploy_stub()
+    exists = True
+    identity_calls = 0
+    interrupt = KeyboardInterrupt()
+    owner = "task-owner"
+
+    def fake_run(command, **_kwargs):
+        nonlocal exists, identity_calls
+        if command[:3] == ["docker", "inspect", "--format"]:
+            identity_calls += 1
+            if identity_calls == 1:
+                raise interrupt
+            return _completed(
+                command,
+                returncode=0 if exists else 1,
+                stdout=f"{CONTAINER_ID}|{owner}\n" if exists else "",
+            )
+        if command[:3] == ["docker", "rm", "-f"]:
+            exists = False
+            return _completed(command)
+        if command[:2] == ["docker", "inspect"]:
+            return _completed(command, returncode=0 if exists else 1)
+        if command[:2] == ["docker", "version"]:
+            return _completed(command)
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    with pytest.raises(KeyboardInterrupt) as exc_info:
+        module._cleanup_owned(
+            deploy,
+            "task-container",
+            owner,
+            container_id=CONTAINER_ID,
+            cwd=None,
+        )
+
+    assert exc_info.value is interrupt
+    assert identity_calls >= 2
+    assert not exists
+
+
+def test_cleanup_interrupt_during_remove_retries_then_reraises(monkeypatch) -> None:
+    deploy = _deploy_stub()
+    exists = True
+    remove_calls = 0
+    interrupt = KeyboardInterrupt()
+    owner = "task-owner"
+
+    def fake_run(command, **_kwargs):
+        nonlocal exists, remove_calls
+        if command[:3] == ["docker", "inspect", "--format"]:
+            return _completed(
+                command,
+                returncode=0 if exists else 1,
+                stdout=f"{CONTAINER_ID}|{owner}\n" if exists else "",
+            )
+        if command[:3] == ["docker", "rm", "-f"]:
+            remove_calls += 1
+            if remove_calls == 1:
+                raise interrupt
+            exists = False
+            return _completed(command)
+        if command[:2] == ["docker", "inspect"]:
+            return _completed(command, returncode=0 if exists else 1)
+        if command[:2] == ["docker", "version"]:
+            return _completed(command)
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    with pytest.raises(KeyboardInterrupt) as exc_info:
+        module._cleanup_owned(
+            deploy,
+            "task-container",
+            owner,
+            container_id=CONTAINER_ID,
+            cwd=None,
+        )
+
+    assert exc_info.value is interrupt
+    assert remove_calls == 2
+    assert not exists
 
 
 def test_name_reuse_after_remove_timeout_never_removes_replacement(monkeypatch) -> None:

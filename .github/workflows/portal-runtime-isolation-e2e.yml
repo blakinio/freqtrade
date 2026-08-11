@@ -16,6 +16,7 @@ on:
       - "tests/ai_platform/portal/execution/test_host_isolation_policy_guardrails.py"
       - "tests/ai_platform/portal/execution/test_isolation.py"
       - "tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py"
+      - "tests/ai_platform/portal/execution/test_linux_isolation_state_owner_e2e.py"
       - "tests/ai_platform/portal/execution/test_runtime_image.py"
       - "tests/ai_platform/portal/execution/test_runtime_isolation_e2e.py"
   workflow_dispatch:
@@ -239,7 +240,8 @@ jobs:
             PORTAL_BTRFS_E2E_ROOT="$PORTAL_BTRFS_E2E_ROOT" \
             "$python_path" -m pytest -q -o addopts='' \
             --confcutdir=tests/ai_platform \
-            tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py
+            tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py \
+            tests/ai_platform/portal/execution/test_linux_isolation_state_owner_e2e.py
 
       - name: Upload runtime isolation evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -255,6 +257,7 @@ jobs:
         run: |
           set +e
           cleanup_failed=0
+          task_tables=()
 
           mapfile -t containers < <(
             docker ps -aq --filter 'label=ai.portal.test=runtime-isolation-e2e'
@@ -279,6 +282,15 @@ jobs:
             runtime_id="$(docker network inspect --format '{{index .Labels "ai.portal.runtime_id"}}' "$network")"
             case "$runtime_id" in
               portal-isolation-e2e-*|portal-linux-e2e-*)
+                network_name="$(docker network inspect --format '{{.Name}}' "$network")" || {
+                  cleanup_failed=1
+                  continue
+                }
+                table="portal_$(printf '%s' "$network_name" | sha256sum | cut -c1-20)"
+                task_tables+=("$table")
+                if sudo nft list table inet "$table" >/dev/null 2>&1; then
+                  sudo nft delete table inet "$table" || cleanup_failed=1
+                fi
                 docker network rm "$network" || cleanup_failed=1
                 ;;
               *) continue ;;
@@ -314,6 +326,12 @@ jobs:
                 cleanup_failed=1
                 ;;
             esac
+          done
+          for table in "${task_tables[@]}"; do
+            if sudo nft list table inet "$table" >/dev/null 2>&1; then
+              echo "task-owned nftables table remains after cleanup: $table" >&2
+              cleanup_failed=1
+            fi
           done
           if mountpoint -q /mnt/portal-runtime-isolation-btrfs; then
             echo "ephemeral Btrfs fixture remains mounted after cleanup" >&2

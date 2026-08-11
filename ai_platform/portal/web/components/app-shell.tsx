@@ -1,10 +1,12 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import availability from "@/lib/product-surface-availability.json";
 import { portalEnvironment } from "@/lib/portal-api";
 import { BfcacheRevalidation } from "./bfcache-revalidation";
 import { EnvironmentBadge } from "./environment-badge";
 import { SessionControls } from "./session-controls";
+import { SurfaceAvailabilityNotice } from "./surface-availability-notice";
 
 const navigationGroups = [
   {
@@ -72,6 +74,7 @@ const navigationGroups = [
   },
 ];
 
+const unavailableRoutes = new Set(availability.surfaces.map((surface) => surface.route));
 const shellStyle = { minWidth: 0, width: "100%" } as const;
 const navigationStyle = { minWidth: 0, maxWidth: "100%" } as const;
 
@@ -101,6 +104,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {group.items.map((item) => (
                   <Link key={item.href} href={item.href}>
                     {item.label}
+                    {unavailableRoutes.has(item.href) ? " · Unavailable" : ""}
                   </Link>
                 ))}
               </div>
@@ -125,6 +129,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <SessionControls />
         </header>
         <main className="page-content" id="main-content">
+          <SurfaceAvailabilityNotice />
           {children}
         </main>
       </div>

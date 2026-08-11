@@ -31,6 +31,10 @@ review:
       id: FTAI-ARCH-BOT-REVISION-STATE
       status: completed
       evidence_pr: 1388
+    - issue: 1356
+      id: FTAI-ARCH-REGISTRY-LIFECYCLE-GUARD
+      status: completed
+      evidence_pr: 1447
 
 latest_architecture_change:
   accepted_at: "2026-08-10"
@@ -164,10 +168,6 @@ system_domains:
     implementation_status: partially_implemented
     release_branch_overlay: ADR-021
     paper_mode_overlay: ADR-022
-    open_findings:
-      - issue: 1356
-        id: FTAI-ARCH-REGISTRY-LIFECYCLE-GUARD
-        summary: Add a bounded validator that prevents closed/completed architecture findings from remaining in the registry open-finding set.
 
 documents:
   - path: ARCHITECTURE_REGISTRY.yaml
@@ -333,8 +333,3 @@ open_architecture_findings:
     severity: high
     status: open
     summary: Enforce the ADR-020 runtime isolation profile, resolved-plan identity, effective resource/network/storage/log bounds and attestation for every generation.
-  - issue: 1356
-    id: FTAI-ARCH-REGISTRY-LIFECYCLE-GUARD
-    severity: medium
-    status: open
-    summary: Add a bounded validator that prevents closed/completed architecture findings from remaining in the registry open-finding set.

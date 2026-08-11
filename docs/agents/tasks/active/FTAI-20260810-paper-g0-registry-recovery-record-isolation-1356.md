@@ -22,20 +22,20 @@ isolation_reason: previous isolation exhausted three material repair cycles and 
 paper_gate: G0
 live_capital_authorized: false
 protected_production_deployment_authorized: false
-repair_cycles_for_gate: 1
+repair_cycles_for_gate: 2
 ```
 
 ## Objective
 
-Reuse PR #1447 and repair only durable closeout/recovery evidence. Registry and lifecycle-test logic remain frozen. The prior exhausted successor now uses supported checkpoint validation enums, explicitly transfers ownership here and has a separate Recovery checkpoint; this task carries the new external-validation wait.
+Reuse PR #1447 and repair only durable closeout/recovery evidence. Registry and lifecycle-test logic remain frozen. The prior exhausted successor uses supported checkpoint validation enums, explicitly transferred ownership here and now has a separate Recovery checkpoint. The only fresh finding on exact head `6d5455aa8cd514c4991300891a426784e41522c6` is a P2 timestamp defect in this record.
 
 ## Acceptance
 
 - prior successor uses only PASS, FAIL, BLOCKED, NOT_RUN or NOT_APPLICABLE validation results;
 - prior successor has a separate Recovery checkpoint and no active external wait after ownership transfer;
-- this fresh isolation has parser-valid Context and Recovery checkpoints before new external validation;
+- this isolation has parser-valid Context and Recovery checkpoints before each external validation wait;
 - no `ARCHITECTURE_REGISTRY.yaml` or `tests/ci/test_architecture_registry.py` change is made by this isolation;
-- fresh Codex review has no material finding and all review threads are resolved;
+- fresh Codex review has no material finding and all review threads are resolved before merge;
 - exact-head required CI passes before archival/merge;
 - runtime/browser E2E remains NOT_APPLICABLE because the repair is durable governance evidence only;
 - PAPER remains the only authorized operational mode and LIVE remains unreachable/fail-closed.
@@ -43,30 +43,33 @@ Reuse PR #1447 and repair only durable closeout/recovery evidence. Registry and 
 ## Evidence
 
 - P1 `PRRT_kwDOTdDTU86YCDd6`: missing Recovery checkpoint — remediated by explicit inactive handoff recovery on the exhausted successor and active recovery state here.
-- P1 `PRRT_kwDOTdDTU86YCDd-`: unsupported validation enums — remediated with `PASS` and `NOT_RUN` plus precise evidence.
-- no new material architecture-registry logic finding was reported on the reviewed candidate.
+- P1 `PRRT_kwDOTdDTU86YCDd-`: unsupported validation enums — remediated with supported `PASS` and `NOT_RUN` values.
+- P1 `PRRT_kwDOTdDTU86YBjJm`: required autonomous Recovery checkpoint — the current exhausted-successor record contains a separate `## Recovery checkpoint`; the remaining action is thread closeout.
+- P2 `PRRT_kwDOTdDTU86YC0Nt`: the previous record used `2026-08-10T21:42:00Z`, later than commit `6d5455aa8cd514c4991300891a426784e41522c6` created at `2026-08-10T21:36:44Z`; this successor replaces that inaccurate historical wait state with a current checkpoint created before the new validation cycle.
+- Exact-head CI for `6d5455aa8cd514c4991300891a426784e41522c6` completed successfully: Freqtrade CI `31434652342`, Risk-aware component CI `31434653393`, CodeQL `31434652361`, zizmor `31434652357`; Pre-commit Types update `31434652334` was skipped by workflow routing.
+- No new architecture-registry logic finding was reported on the reviewed candidate.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-10T21:42:00Z
-head: c550dbe29988cccff5dfd5d708bc41b550453911
+updated_at: 2026-08-11T06:43:00Z
+head: 6d5455aa8cd514c4991300891a426784e41522c6
 branch: fix/architecture-registry-lifecycle-1356
 pr: 1447
 status: validating
-invocation_started_at: 2026-08-10T21:07:00Z
-last_progress_at: 2026-08-10T21:42:00Z
-ci_checks_for_current_head: 0
+invocation_started_at: 2026-08-11T06:35:00Z
+last_progress_at: 2026-08-11T06:43:00Z
+ci_checks_for_current_head: 1
 unchanged_state_checks: 0
-review_checks_for_current_head: 0
+review_checks_for_current_head: 1
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 1
+repair_cycles_for_current_gate: 2
 context_reconstruction_attempts: 0
 stall_warnings: 0
 context_routes:
   - PAPER G0 registry lifecycle closeout
-  - durable recovery record repair
+  - durable recovery-record repair
 owned_paths:
   - docs/agents/tasks/active/FTAI-20260810-paper-g0-registry-terminal-inventory-isolation-1356.md
   - docs/agents/tasks/active/FTAI-20260810-paper-g0-registry-recovery-record-isolation-1356.md
@@ -74,32 +77,36 @@ proven:
   - PR 1447 registry/test logic has no new material finding on fresh review.
   - Previous isolation exhausted three repair cycles and transferred ownership here rather than taking a fourth repair.
   - Unsupported validation result values were removed from the exhausted successor.
-  - The exhausted successor now contains a separate Recovery checkpoint with historical run IDs and inactive handoff state.
-  - Neither ARCHITECTURE_REGISTRY.yaml nor tests/ci/test_architecture_registry.py was modified by this fresh isolation.
+  - The exhausted successor contains a separate Recovery checkpoint with historical run IDs and inactive handoff state.
+  - Exact-head CI on 6d5455aa8cd514c4991300891a426784e41522c6 passed Freqtrade CI, Risk-aware component CI, CodeQL and zizmor.
+  - Fresh review on 6d5455aa8cd514c4991300891a426784e41522c6 found only an inaccurate future checkpoint timestamp in this record.
+  - Neither ARCHITECTURE_REGISTRY.yaml nor tests/ci/test_architecture_registry.py is modified by this repair isolation.
   - PAPER remains the only authorized operational mode and LIVE remains unreachable/fail-closed.
 derived:
-  - Only exact-head CI, fresh review, archival and merge remain if the record repair is accepted.
+  - After this record-only repair, only fresh exact-head CI, fresh review, thread closeout, archival and merge remain for PR 1447 if no new finding appears.
 unknown:
-  - Exact-head CI and fresh Codex disposition on the checkpoint-successor head.
+  - Exact-head CI and fresh Codex disposition on the timestamp-repair successor head.
 conflicts: []
 first_failure:
-  marker: previous external wait lacked durable Recovery state and used unsupported validation result enums
-  evidence: PRRT_kwDOTdDTU86YCDd6 and PRRT_kwDOTdDTU86YCDd-
+  marker: durable checkpoint timestamp was later than the commit that contained it
+  evidence: PRRT_kwDOTdDTU86YC0Nt and commit 6d5455aa8cd514c4991300891a426784e41522c6 created at 2026-08-10T21:36:44Z
 rejected_hypotheses:
-  - Repair registry/test logic again; rejected because fresh review identified only record defects.
-  - Invent an unknown historical wait deadline; rejected in favor of an explicit inactive handoff with known run IDs and a fresh bounded wait owned by this successor.
+  - Repair registry/test logic again; rejected because fresh review identified only a record timestamp defect.
+  - Preserve or retroactively invent the old external-wait timing; rejected because that would keep inaccurate durable state.
 changed_paths:
-  - docs/agents/tasks/active/FTAI-20260810-paper-g0-registry-terminal-inventory-isolation-1356.md
   - docs/agents/tasks/active/FTAI-20260810-paper-g0-registry-recovery-record-isolation-1356.md
 validation:
+  - command: exact-head GitHub Actions for 6d5455aa8cd514c4991300891a426784e41522c6
+    result: PASS
+    evidence: Freqtrade CI 31434652342, Risk-aware component CI 31434653393, CodeQL 31434652361 and zizmor 31434652357 succeeded
+  - command: independent Codex review of 6d5455aa8cd514c4991300891a426784e41522c6
+    result: FAIL
+    evidence: P2 PRRT_kwDOTdDTU86YC0Nt identified only the inaccurate future checkpoint timestamp repaired by this successor
   - command: runtime/browser E2E
     result: NOT_APPLICABLE
     evidence: task-record/recovery-only repair; no runtime or user-facing behavior changes
-  - command: fresh Codex review and exact-head CI
-    result: NOT_RUN
-    evidence: checkpoint commit intentionally creates the final validation successor
 blockers: []
-next_action: Resolve the live PR 1447 checkpoint-successor head once, request fresh Codex review, resolve the two record-only threads as remediated, and inspect the first aggregate exact-head CI snapshot.
+next_action: Validate the timestamp-repair successor head with exact-head CI and fresh review, close remediated threads, then archive and merge PR 1447 if terminal gates are green.
 ```
 
 ## Recovery checkpoint
@@ -107,22 +114,22 @@ next_action: Resolve the live PR 1447 checkpoint-successor head once, request fr
 ```yaml
 recovery:
   policy_version: 1
-  generation: 2
-  session_id: paper-20260810-2307-registry-recovery
-  session_started_at: 2026-08-10T21:38:00Z
-  checkpointed_at: 2026-08-10T21:42:00Z
-  last_progress_at: 2026-08-10T21:42:00Z
-  phase: final_exact_head_validation
-  exact_head: c550dbe29988cccff5dfd5d708bc41b550453911
+  generation: 3
+  session_id: paper-20260811-0843-registry-recovery
+  session_started_at: 2026-08-11T06:35:00Z
+  checkpointed_at: 2026-08-11T06:43:00Z
+  last_progress_at: 2026-08-11T06:43:00Z
+  phase: recovery_record_timestamp_repair
+  exact_head: 6d5455aa8cd514c4991300891a426784e41522c6
   pull_request: 1447
-  active_operation: fresh Codex review and exact-head CI on checkpoint successor
+  active_operation: apply the reviewed P2 timestamp correction before starting the next external validation wait
   external_run_ids: []
-  operation_started_at: 2026-08-10T21:42:00Z
-  wait_deadline_at: 2026-08-10T22:27:00Z
-  check_generation: recovery_record_pre_checkpoint
+  operation_started_at: null
+  wait_deadline_at: null
+  check_generation: timestamp_repair_pre_validation
   checks_used: 0
-  status: ready
+  status: active
   safe_to_resume: true
-  resume_condition: PR 1447 checkpoint-successor head exists after this commit
-  next_action: Resolve live PR 1447 head once, request fresh Codex review, then inspect one aggregate exact-head CI snapshot.
+  resume_condition: timestamp-repair successor commit exists on PR 1447
+  next_action: Resolve the new PR head once, then begin a fresh bounded exact-head CI and Codex review cycle without changing registry/test logic.
 ```

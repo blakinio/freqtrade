@@ -62,6 +62,8 @@ class ExternalIsolationAttestor(Protocol):
 
     def capabilities(self) -> ExternalIsolationCapabilities: ...
 
+    def dns_resolvers(self, plan: RuntimeIsolationPlan) -> tuple[str, ...]: ...
+
     def prepare_storage(self, plan: RuntimeIsolationPlan, state_path: Path) -> None: ...
 
     def prepare_network(
@@ -86,6 +88,13 @@ class ExternalIsolationAttestor(Protocol):
 class FailClosedExternalIsolationAttestor:
     def capabilities(self) -> ExternalIsolationCapabilities:
         return ExternalIsolationCapabilities()
+
+    def dns_resolvers(self, plan: RuntimeIsolationPlan) -> tuple[str, ...]:
+        del plan
+        raise RuntimeDriverError(
+            "HOST_NETWORK_ISOLATION_UNSUPPORTED",
+            "no approved DNS policy is configured",
+        )
 
     def prepare_storage(self, plan: RuntimeIsolationPlan, state_path: Path) -> None:
         del plan, state_path
@@ -271,17 +280,22 @@ class DockerHostCapabilityProbe:
 
 
 class DockerCliRuntimeDriver:
-    """Transitional #1354 engine with a fixed pre-application quarantine."""
+    """Transitional #1354 engine with an immutable pre-application quarantine."""
 
     _RELEASE_DIR = "/run/portal-release"
     _RELEASE_FILE = f"{_RELEASE_DIR}/release"
-    _QUARANTINE = (
-        "set -eu; "
-        f"mkdir -p {_RELEASE_DIR}; "
-        f"while [ ! -f {_RELEASE_FILE} ]; do sleep 0.05; done; "
-        'exec "$@"'
-    )
+    _LOG_PROBE_READY = f"{_RELEASE_DIR}/log-probe-ready"
+    _LOG_PROBE_BEGIN = "PORTAL_LOG_BOUND_PROBE_BEGIN"
+    _LOG_PROBE_END = "PORTAL_LOG_BOUND_PROBE_END"
+    _QUARANTINE_ENTRYPOINT = "/usr/local/bin/portal-runtime-quarantine"
     _RELEASE = f"set -eu; umask 077; : > {_RELEASE_FILE}"
+    _WAIT_LOG_PROBE = (
+        "set -eu; i=0; "
+        f"while [ ! -f {_LOG_PROBE_READY} ]; do "
+        "i=$((i + 1)); [ \"$i\" -lt 400 ] || exit 72; sleep 0.05; done"
+    )
+    _MAX_LOG_PROBE_BYTES = 64 * 1024 * 1024
+    _LOG_RETENTION_TOLERANCE_BYTES = 256 * 1024
 
     def __init__(
         self,
@@ -297,11 +311,15 @@ class DockerCliRuntimeDriver:
         self._released: set[str] = set()
         self._fingerprints: dict[str, str] = {}
         self._networks: dict[str, str] = {}
+        self._specs: dict[str, RuntimeContainerSpec] = {}
+        self._plan_digests: dict[str, str] = {}
 
     def provision(self, spec: RuntimeContainerSpec) -> DriverRuntimeState:
         binding = self._plans.resolve(spec.runtime_id)
         plan = binding.plan
         self._require_plan_matches_spec(plan, spec)
+        self._dns_resolvers(plan)
+        self._log_probe_bytes(plan)
         fingerprint = self._fingerprint(spec, binding.isolation_plan_digest)
         current = self.inspect(spec.runtime_id)
         if current is not DriverRuntimeState.MISSING:
@@ -328,6 +346,8 @@ class DockerCliRuntimeDriver:
         self._attested.add(spec.runtime_id)
         self._fingerprints[spec.runtime_id] = fingerprint
         self._networks[spec.runtime_id] = network
+        self._specs[spec.runtime_id] = spec
+        self._plan_digests[spec.runtime_id] = binding.isolation_plan_digest
         return DriverRuntimeState.CREATED
 
     def start(self, runtime_id: str) -> DriverRuntimeState:
@@ -342,8 +362,7 @@ class DockerCliRuntimeDriver:
             self._require_success(("docker", "unpause", runtime_id), "DOCKER_UNPAUSE_FAILED")
             return DriverRuntimeState.RUNNING
         if current is DriverRuntimeState.CREATED:
-            if runtime_id not in self._attested:
-                self._release_forbidden("runtime has no successful isolation attestation")
+            self._reattest_before_release(runtime_id)
             self._release(runtime_id)
             return DriverRuntimeState.RUNNING
         if current is DriverRuntimeState.STOPPED:
@@ -375,8 +394,7 @@ class DockerCliRuntimeDriver:
             DriverRuntimeState.PAUSED,
         }:
             self._require_success(("docker", "stop", runtime_id), "DOCKER_STOP_FAILED")
-            self._released.discard(runtime_id)
-            self._attested.discard(runtime_id)
+            self._clear_generation_evidence(runtime_id)
             return DriverRuntimeState.STOPPED
         if current is DriverRuntimeState.MISSING:
             raise RuntimeDriverError("RUNTIME_MISSING", "runtime container does not exist")
@@ -420,6 +438,31 @@ class DockerCliRuntimeDriver:
                 "DOCKER_STATE_UNKNOWN",
                 f"unsupported docker runtime state: {state or '<empty>'}",
             ) from exc
+
+    def _reattest_before_release(self, runtime_id: str) -> None:
+        if runtime_id not in self._attested:
+            self._release_forbidden("runtime has no successful isolation attestation")
+        spec = self._specs.get(runtime_id)
+        network = self._networks.get(runtime_id)
+        expected_plan_digest = self._plan_digests.get(runtime_id)
+        expected_fingerprint = self._fingerprints.get(runtime_id)
+        if (
+            spec is None
+            or network is None
+            or expected_plan_digest is None
+            or expected_fingerprint is None
+        ):
+            self._release_forbidden("runtime has no exact in-session generation evidence")
+        binding = self._plans.resolve(runtime_id)
+        if binding.isolation_plan_digest != expected_plan_digest:
+            self._release_forbidden("trusted isolation plan changed after provisioning")
+        fingerprint = self._fingerprint(spec, binding.isolation_plan_digest)
+        if fingerprint != expected_fingerprint:
+            self._release_forbidden("trusted generation spec changed after provisioning")
+        plan = binding.plan
+        self._require_plan_matches_spec(plan, spec)
+        self._attest_structural(spec, plan, network)
+        self._attest_effective(spec, plan, network)
 
     def _create_args(
         self,
@@ -465,10 +508,13 @@ class DockerCliRuntimeDriver:
                 f"max-size={plan.log_max_bytes}",
                 "--log-opt",
                 f"max-file={plan.log_rotation_count}",
-                "--network",
-                network,
+                "--env",
+                f"PORTAL_LOG_PROBE_BYTES={self._log_probe_bytes(plan)}",
             )
         )
+        for resolver in self._dns_resolvers(plan):
+            args.extend(("--dns", resolver))
+        args.extend(("--network", network))
         for key, value in sorted(spec.labels.items()):
             args.extend(("--label", f"{key}={value}"))
         args.extend(
@@ -479,12 +525,7 @@ class DockerCliRuntimeDriver:
                 f"type=bind,source={spec.config_path.parent},target=/runtime/config,readonly",
                 "--mount",
                 f"type=bind,source={spec.state_path},target=/runtime/state",
-                "--entrypoint",
-                "/bin/sh",
                 spec.image,
-                "-ec",
-                self._QUARANTINE,
-                "portal-quarantine",
                 "freqtrade",
                 "trade",
                 "--config",
@@ -513,10 +554,8 @@ class DockerCliRuntimeDriver:
         security = {str(value).lower() for value in host.get("SecurityOpt") or []}
         labels_raw = config.get("Labels")
         labels = labels_raw if isinstance(labels_raw, dict) else {}
+        environment = config.get("Env") or []
         expected_command = [
-            "-ec",
-            self._QUARANTINE,
-            "portal-quarantine",
             "freqtrade",
             "trade",
             "--config",
@@ -526,8 +565,15 @@ class DockerCliRuntimeDriver:
         ]
         check(config.get("User") == plan.runtime_user, "non-root-user")
         check(config.get("Image") == spec.image, "exact-image")
-        check(config.get("Entrypoint") == ["/bin/sh"], "quarantine-entrypoint")
+        check(
+            config.get("Entrypoint") == [self._QUARANTINE_ENTRYPOINT],
+            "quarantine-entrypoint",
+        )
         check(config.get("Cmd") == expected_command, "quarantine-command")
+        check(
+            f"PORTAL_LOG_PROBE_BYTES={self._log_probe_bytes(plan)}" in environment,
+            "log-probe-env",
+        )
         check(isinstance(labels_raw, dict), "labels")
         for key, value in sorted(spec.labels.items()):
             check(labels.get(key) == value, f"label:{key}")
@@ -545,6 +591,7 @@ class DockerCliRuntimeDriver:
         check(host.get("IpcMode") != "host", "private-ipc")
         check(host.get("UTSMode") != "host", "private-uts")
         check(host.get("NetworkMode") == network, "generation-network")
+        check(host.get("Dns") == list(self._dns_resolvers(plan)), "approved-dns")
         check(not host.get("Devices"), "no-devices")
         check(not host.get("PortBindings"), "no-published-ports")
         check((host.get("RestartPolicy") or {}).get("Name") in {"", "no"}, "restart=no")
@@ -615,7 +662,7 @@ class DockerCliRuntimeDriver:
                 "/bin/sh",
                 "-ec",
                 (
-                    'test "$(id -u)" != 0; '
+                    'test "$(id -u)" != 0; test "$(id -g)" != 0; '
                     "grep -Eq '^NoNewPrivs:[[:space:]]*1$' /proc/1/status; "
                     "grep -Eq '^Seccomp:[[:space:]]*2$' /proc/1/status; "
                     "grep -Eq '^CapEff:[[:space:]]*0+$' /proc/1/status; "
@@ -653,8 +700,31 @@ class DockerCliRuntimeDriver:
         self._require_probe(mounts, "mounts")
         self._attest_readonly_root(mounts.stdout)
         self._attest_tmpfs(mounts.stdout, plan)
+        self._attest_bounded_logs(spec.runtime_id, plan)
         self._external.attest_storage(plan, spec.state_path)
         self._external.attest_network(plan, network, spec.runtime_id)
+
+    def _attest_bounded_logs(self, runtime_id: str, plan: RuntimeIsolationPlan) -> None:
+        ready = self._runner.run(
+            ("docker", "exec", runtime_id, "/bin/sh", "-ec", self._WAIT_LOG_PROBE)
+        )
+        self._require_probe(ready, "bounded-log-probe")
+        logs = self._runner.run(("docker", "logs", runtime_id))
+        self._require_probe(logs, "bounded-logs")
+        if self._LOG_PROBE_END not in logs.stdout or self._LOG_PROBE_BEGIN in logs.stdout:
+            raise RuntimeDriverError(
+                "ISOLATION_ATTESTATION_FAILED",
+                "Docker local logging did not demonstrate effective rotation before release",
+            )
+        retained_bytes = len(logs.stdout.encode())
+        ceiling = (
+            plan.log_max_bytes * plan.log_rotation_count + self._LOG_RETENTION_TOLERANCE_BYTES
+        )
+        if retained_bytes > ceiling:
+            raise RuntimeDriverError(
+                "ISOLATION_ATTESTATION_FAILED",
+                "effective Docker log retention exceeds the isolation-plan hard ceiling",
+            )
 
     def _attest_cgroup(self, output: str, plan: RuntimeIsolationPlan) -> None:
         values = dict(line.split("=", 1) for line in output.splitlines() if "=" in line)
@@ -812,15 +882,38 @@ class DockerCliRuntimeDriver:
         except Exception as exc:  # pragma: no cover - concrete backends are unit-tested
             errors.append(f"network cleanup raised {type(exc).__name__}: {exc}")
         finally:
-            self._attested.discard(runtime_id)
-            self._released.discard(runtime_id)
-            self._fingerprints.pop(runtime_id, None)
-            self._networks.pop(runtime_id, None)
+            self._clear_generation_evidence(runtime_id)
         if errors:
             raise RuntimeDriverError(
                 "RUNTIME_CLEANUP_FAILED",
                 "runtime cleanup was incomplete: " + "; ".join(errors),
             )
+
+    def _clear_generation_evidence(self, runtime_id: str) -> None:
+        self._attested.discard(runtime_id)
+        self._released.discard(runtime_id)
+        self._fingerprints.pop(runtime_id, None)
+        self._networks.pop(runtime_id, None)
+        self._specs.pop(runtime_id, None)
+        self._plan_digests.pop(runtime_id, None)
+
+    def _dns_resolvers(self, plan: RuntimeIsolationPlan) -> tuple[str, ...]:
+        resolvers = self._external.dns_resolvers(plan)
+        if not resolvers or len(set(resolvers)) != len(resolvers):
+            raise RuntimeDriverError(
+                "HOST_NETWORK_ISOLATION_UNSUPPORTED",
+                "approved DNS policy is empty or ambiguous",
+            )
+        return resolvers
+
+    def _log_probe_bytes(self, plan: RuntimeIsolationPlan) -> int:
+        probe_bytes = plan.log_max_bytes * (plan.log_rotation_count + 1)
+        if probe_bytes > self._MAX_LOG_PROBE_BYTES:
+            raise RuntimeDriverError(
+                "HOST_LOG_ISOLATION_UNSUPPORTED",
+                "bounded-log enforcement probe would exceed its fail-closed safety ceiling",
+            )
+        return probe_bytes
 
     def _require_success(self, args: Sequence[str], reason_code: str) -> None:
         result = self._runner.run(args)
@@ -844,6 +937,7 @@ class DockerCliRuntimeDriver:
 
     @staticmethod
     def _fingerprint(spec: RuntimeContainerSpec, plan_digest: str) -> str:
+        labels = json.dumps(dict(sorted(spec.labels.items())), separators=(",", ":"))
         payload = "\0".join(
             (
                 spec.runtime_id,
@@ -851,6 +945,7 @@ class DockerCliRuntimeDriver:
                 str(spec.config_path.resolve()),
                 str(spec.state_path.resolve()),
                 spec.strategy_name,
+                labels,
                 plan_digest,
             )
         )

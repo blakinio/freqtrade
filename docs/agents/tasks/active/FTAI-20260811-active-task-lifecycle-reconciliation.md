@@ -46,7 +46,7 @@ Reconcile `docs/agents/tasks/active/` against live GitHub state and archive only
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-11T14:18:00+02:00
+updated_at: 2026-08-11T14:24:00+02:00
 head: LIVE_BRANCH_HEAD_REQUIRED
 branch: docs/active-task-lifecycle-reconciliation-20260811
 pr: 1474
@@ -77,16 +77,16 @@ derived:
   - this reconciliation must remain active until its own terminal gates and merge are real
   - an embedded checkpoint cannot contain its own future commit SHA; the live branch ref is therefore authoritative whenever head is LIVE_BRANCH_HEAD_REQUIRED
 unknown:
-  - final audit disposition for the containing parent head after this isolation merges
+  - final independent audit and required CI disposition for the resolved containing parent head after this isolation merges
   - parent merge commit and post-merge archival evidence
 conflicts: []
 first_failure:
-  marker: checkpoint still told a successor to merge isolation 1475 after that isolation was already merged
-  evidence: Codex P2 thread PRRT_kwDOTdDTU86YOBlU on parent head 0e474402bc2c60d451cfa416c2d6955ec2ced969
+  marker: checkpoint continuation omitted required CI verification after resolving the post-isolation live parent head
+  evidence: Codex P2 thread PRRT_kwDOTdDTU86YOJuq on isolation head a2f26ee32017efcae223a800b20b8d2e13689b53
 rejected_hypotheses:
   - persist the containing commit SHA inside the same commit; rejected as self-referential and impossible without another successor commit
   - perform a fourth same-gate parent repair; rejected because the parent repair budget is exhausted at three
-  - keep a stale predecessor SHA; rejected because resume.py would present stale continuation state
+  - reuse green CI from predecessor 0e474402 after the delivery head changes; rejected because final CI must belong to the resolved final head
 changed_paths:
   - docs/agents/tasks/active/FTAI-20260802-agent-governance-sync.md
   - docs/agents/tasks/archive/FTAI-20260802-agent-governance-sync.md
@@ -103,14 +103,14 @@ validation:
   - command: exact-head CI on parent 0e474402bc2c60d451cfa416c2d6955ec2ced969
     result: PASS
     evidence: Freqtrade 31490002083; Risk-aware 31490002319; CodeQL 31489636010; zizmor 31489635852
-  - command: independent Codex review of parent 0e474402bc2c60d451cfa416c2d6955ec2ced969
+  - command: independent Codex review of isolation a2f26ee32017efcae223a800b20b8d2e13689b53
     result: FAIL
-    evidence: only P2 PRRT_kwDOTdDTU86YOBlU identified stale continuation after merged isolation; this fresh isolation repairs it
+    evidence: P2 PRRT_kwDOTdDTU86YOJuq required final CI verification for the newly resolved live parent head; this repair adds that gate
   - command: product/runtime E2E
     result: NOT_APPLICABLE
     evidence: task-record lifecycle reconciliation only; no product runtime API UI or deployment behavior changes
 blockers: []
-next_action: Resolve the current live head of branch docs/active-task-lifecycle-reconciliation-20260811, verify this checkpoint isolation is merged and all material threads are resolved, obtain one final independent audit for that live parent head, squash-merge PR 1474 if clean and current against develop, then perform lifecycle-only post-merge archival with actual terminal evidence.
+next_action: Resolve the current live head of branch docs/active-task-lifecycle-reconciliation-20260811 after this isolation merges; verify all material threads are resolved; obtain one final independent audit and Freqtrade CI, Risk-aware component CI, CodeQL and zizmor for that exact resolved head; if all are green and the branch is current against develop, squash-merge PR 1474; then perform lifecycle-only post-merge archival with actual terminal evidence.
 ```
 
 ## Safety

@@ -237,6 +237,18 @@ class FailClosedExternalIsolationAttestor:
             "market-data egress enforcement cannot be attested",
         )
 
+    def attest_active_network(
+        self,
+        plan: RuntimeIsolationPlan,
+        network_name: str,
+        runtime_id: str,
+    ) -> None:
+        del plan, network_name, runtime_id
+        raise RuntimeDriverError(
+            "HOST_NETWORK_ISOLATION_UNSUPPORTED",
+            "active market-data egress enforcement cannot be attested",
+        )
+
     def cleanup_network(self, network_name: str, runtime_id: str) -> None:
         del network_name, runtime_id
 

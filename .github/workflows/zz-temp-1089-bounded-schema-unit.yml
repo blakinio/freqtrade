@@ -1,0 +1,45 @@
+name: Temporary 1089 bounded schema lifecycle unit validation
+
+on:
+  push:
+    branches:
+      - fix/1089-bounded-schema-docker-lifecycle
+    paths:
+      - ".github/workflows/zz-temp-1089-bounded-schema-unit.yml"
+      - "deploy/synology/portal-oidc/bounded_schema_lifecycle.py"
+      - "deploy/synology/portal-oidc/deploy_entrypoint.py"
+      - "tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py"
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Install focused validation tools
+        run: python3 -m pip install --disable-pip-version-check pytest==9.1.1 ruff==0.15.21
+      - name: Validate bounded schema lifecycle candidate
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            deploy/synology/portal-oidc/bounded_schema_lifecycle.py \
+            deploy/synology/portal-oidc/deploy_entrypoint.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py
+          python3 -m pytest -q -o addopts='' --confcutdir=tests/ai_platform/portal/deployment \
+            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_public_deploy.py
+          python3 -m ruff check \
+            deploy/synology/portal-oidc/bounded_schema_lifecycle.py \
+            deploy/synology/portal-oidc/deploy_entrypoint.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py
+          python3 -m ruff format --check \
+            deploy/synology/portal-oidc/bounded_schema_lifecycle.py \
+            deploy/synology/portal-oidc/deploy_entrypoint.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py
+          git diff --check HEAD^ HEAD

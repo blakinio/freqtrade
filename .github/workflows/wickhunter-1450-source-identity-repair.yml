@@ -1,0 +1,112 @@
+name: WickHunter 1450 source identity repair
+
+on:
+  push:
+    branches:
+      - fix/wickhunter-1396-synology-recovery-v2
+    paths:
+      - .github/workflows/wickhunter-1450-source-identity-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: fix/wickhunter-1396-synology-recovery-v2
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Apply fail-closed source identity and nonblocking special-file hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          source_path = Path('ai_platform/scripts/liquidation_live_stream.py')
+          source = source_path.read_text(encoding='utf-8')
+
+          source = source.replace(
+              '                | nofollow_flag\n                | getattr(os, "O_CLOEXEC", 0),\n                0o640,\n                dir_fd=directory_fd,\n',
+              '                | nofollow_flag\n                | getattr(os, "O_NONBLOCK", 0)\n                | getattr(os, "O_CLOEXEC", 0),\n                0o640,\n                dir_fd=directory_fd,\n',
+              1,
+          )
+
+          writer_anchor = '''    @property\n    def closed(self) -> bool:\n        return self._handle.closed\n\n    def close(self) -> None:\n'''
+          writer_replacement = '''    @property\n    def closed(self) -> bool:\n        return self._handle.closed\n\n    def assert_canonical_identity(self, directory_fd: int) -> None:\n        if self.closed:\n            return\n        try:\n            current = os.stat(self.path.name, dir_fd=directory_fd, follow_symlinks=False)\n        except OSError as exc:\n            raise RuntimeError("Liquid20 source file changed after writer anchoring") from exc\n        anchored = os.fstat(self._handle.fileno())\n        if (\n            not stat.S_ISREG(current.st_mode)\n            or (anchored.st_dev, anchored.st_ino) != (current.st_dev, current.st_ino)\n        ):\n            raise RuntimeError("Liquid20 source file changed after writer anchoring")\n\n    def close(self) -> None:\n'''
+          if source.count(writer_anchor) != 1:
+              raise SystemExit(f'writer anchor count={source.count(writer_anchor)}')
+          source = source.replace(writer_anchor, writer_replacement, 1)
+
+          read_old = '            os.O_RDONLY | nofollow_flag | getattr(os, "O_CLOEXEC", 0),\n'
+          read_new = '            os.O_RDONLY | nofollow_flag | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_CLOEXEC", 0),\n'
+          if source.count(read_old) < 1:
+              raise SystemExit('JSON read open anchor missing')
+          source = source.replace(read_old, read_new, 1)
+
+          committed_old = '            os.O_RDWR | nofollow_flag | getattr(os, "O_CLOEXEC", 0),\n'
+          committed_new = '            os.O_RDWR | nofollow_flag | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_CLOEXEC", 0),\n'
+          if source.count(committed_old) != 1:
+              raise SystemExit(f'committed source open anchor count={source.count(committed_old)}')
+          source = source.replace(committed_old, committed_new, 1)
+
+          rotate_old = '''        for writer in self._writers.values():\n            writer.close()\n        self._write_state()\n        self._start_new_run(now_ms)\n'''
+          rotate_new = '''        self._write_state()\n        for writer in self._writers.values():\n            writer.close()\n        self._start_new_run(now_ms)\n'''
+          if source.count(rotate_old) != 1:
+              raise SystemExit(f'rotation anchor count={source.count(rotate_old)}')
+          source = source.replace(rotate_old, rotate_new, 1)
+
+          stop_old = '''            try:\n                for writer in self._writers.values():\n                    await asyncio.to_thread(writer.close)\n                await asyncio.to_thread(self._write_state)\n            finally:\n                self._writers.clear()\n                await asyncio.to_thread(self._close_runtime_root_fds)\n'''
+          stop_new = '''            try:\n                await asyncio.to_thread(self._write_state)\n            finally:\n                for writer in self._writers.values():\n                    await asyncio.to_thread(writer.close)\n                self._writers.clear()\n                await asyncio.to_thread(self._close_runtime_root_fds)\n'''
+          if source.count(stop_old) != 1:
+              raise SystemExit(f'stop anchor count={source.count(stop_old)}')
+          source = source.replace(stop_old, stop_new, 1)
+
+          state_old = '''        for writer in self._writers.values():\n            if not writer.closed:\n                writer.flush()\n        payload = self._state_payload()\n        # Summaries are durable before run-state and pointer publication. A failed\n        # summary therefore leaves the prior active commit boundary recoverable.\n        self._write_source_summaries(run_fd, payload)\n        _write_json_atomic_at(run_fd, RUN_STATE_FILE, payload)\n'''
+          state_new = '''        for writer in self._writers.values():\n            if not writer.closed:\n                writer.flush()\n        payload = self._state_payload()\n        # Summaries may be rewritten while the prior run-state remains authoritative.\n        # Revalidate source identities immediately before committing that run-state.\n        self._write_source_summaries(run_fd, payload)\n        for writer in self._writers.values():\n            writer.assert_canonical_identity(run_fd)\n        _write_json_atomic_at(run_fd, RUN_STATE_FILE, payload)\n'''
+          if source.count(state_old) != 1:
+              raise SystemExit(f'state anchor count={source.count(state_old)}')
+          source = source.replace(state_old, state_new, 1)
+
+          pointer_old = '''        _assert_runtime_roots_still_anchored(\n            data_root=self.data_root,\n            live_fd=live_fd,\n            runs_fd=runs_fd,\n            run_id=self.run_id,\n            run_fd=run_fd,\n        )\n        _write_json_atomic_at(live_fd, LIVE_STATE_FILE, pointer_payload)\n'''
+          pointer_new = '''        _assert_runtime_roots_still_anchored(\n            data_root=self.data_root,\n            live_fd=live_fd,\n            runs_fd=runs_fd,\n            run_id=self.run_id,\n            run_fd=run_fd,\n        )\n        for writer in self._writers.values():\n            writer.assert_canonical_identity(run_fd)\n        _write_json_atomic_at(live_fd, LIVE_STATE_FILE, pointer_payload)\n'''
+          if source.count(pointer_old) != 1:
+              raise SystemExit(f'pointer anchor count={source.count(pointer_old)}')
+          source = source.replace(pointer_old, pointer_new, 1)
+          source_path.write_text(source, encoding='utf-8')
+
+          test_path = Path('tests/ai_platform_integration/test_liquidation_live_restart_durability.py')
+          tests = test_path.read_text(encoding='utf-8')
+          anchor = '''def test_state_commit_flushes_pending_ndjson_before_events_written(tmp_path: Path) -> None:\n'''
+          regression = '''def test_state_commit_rejects_replaced_canonical_source_inode(tmp_path: Path) -> None:\n    manager = LiveRunManager(\n        data_root=tmp_path,\n        collector_commit="7" * 40,\n        host_id="synology-test",\n        now_ms=lambda: 1_786_384_683_792,\n        flush_interval_seconds=3600.0,\n    )\n\n    async def scenario() -> None:\n        await manager.start()\n        source_path = manager.run_root / f"{BYBIT_SOURCE}.ndjson"\n        detached_path = manager.run_root / "bybit-linear-detached.ndjson"\n        source_path.rename(detached_path)\n        source_path.write_bytes(b"")\n        writer = manager._writers[BYBIT_SOURCE]\n        writer._handle.write("{}\\n")\n        writer._pending = 1\n        manager.sources[BYBIT_SOURCE].events_written = 1\n\n        with pytest.raises(RuntimeError, match="source file changed after writer anchoring"):\n            manager._write_state()\n\n        persisted = json.loads(\n            (manager.run_root / "run-state-v1.json").read_text(encoding="utf-8")\n        )\n        assert persisted["sources"][BYBIT_SOURCE]["events_written"] == 0\n        assert source_path.read_bytes() == b""\n        assert detached_path.read_bytes() == b"{}\\n"\n        await manager.stop()\n\n    with pytest.raises(RuntimeError, match="source file changed after writer anchoring"):\n        asyncio.run(scenario())\n\n\ndef test_restart_rejects_fifo_metadata_without_blocking(tmp_path: Path) -> None:\n    live_root = tmp_path / "live"\n    (live_root / "runs").mkdir(parents=True)\n    os.mkfifo(live_root / LIVE_STATE_FILE)\n    manager = LiveRunManager(\n        data_root=tmp_path,\n        collector_commit="6" * 40,\n        host_id="synology-test",\n        now_ms=lambda: 1_786_384_683_792,\n    )\n\n    with pytest.raises(RuntimeError, match="previous live state path is not a regular file"):\n        asyncio.run(manager.start())\n\n\n'''
+          if tests.count(anchor) != 1:
+              raise SystemExit(f'test anchor count={tests.count(anchor)}')
+          tests = tests.replace(anchor, regression + anchor, 1)
+          test_path.write_text(tests, encoding='utf-8')
+          PY
+      - name: Validate focused hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -q pytest==9.1.1 websockets==16.0 ruff==0.15.21
+          python -m ruff format ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          python -m ruff check --fix ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          python -m py_compile ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          python -m ruff check ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          python -m ruff format --check ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          git diff --check
+      - name: Commit permanent repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          git commit -m 'fix(liquidations): anchor active source identities'
+          git push origin HEAD:fix/wickhunter-1396-synology-recovery-v2

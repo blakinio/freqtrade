@@ -9,6 +9,7 @@ PORTAL_README = REPO_ROOT / "ai_platform" / "portal" / "README.md"
 PORTAL_LEDGER = REPO_ROOT / "tools" / "portal_audit" / "ledger" / "index.json"
 CODEOWNERS = REPO_ROOT / ".github" / "CODEOWNERS"
 EXPECTED_PORTAL_OWNERS = ("@blakinio",)
+_GLOB_META = "*?["
 
 REQUIRED_IMPLEMENTED_ROOTS = (
     "ai_platform/portal/control_plane",
@@ -57,10 +58,40 @@ def _codeowner_rules() -> list[tuple[str, tuple[str, ...]]]:
     return rules
 
 
+def _glob_literal_prefix(pattern: str) -> str:
+    indexes = [pattern.find(marker) for marker in _GLOB_META if marker in pattern]
+    return pattern[: min(indexes)] if indexes else pattern
+
+
+def _unsupported_pattern_can_affect_path(pattern: str, path: str) -> bool:
+    # Unanchored CODEOWNERS rules may match at arbitrary path depth. We deliberately
+    # fail closed rather than pretending to implement that matching language here.
+    if not pattern.startswith("/"):
+        return True
+
+    prefix = _glob_literal_prefix(pattern)
+    if prefix == pattern:
+        return False
+    # For anchored glob rules, a literal prefix that contains or is contained by
+    # the protected probe path can affect its effective owner. Reject it until the
+    # guard gains an explicitly tested implementation of that glob syntax.
+    return path.startswith(prefix) or prefix.startswith(path.rstrip("/") + "/")
+
+
 def _matches_codeowner_rule(pattern: str, path: str) -> bool:
     if pattern == "*":
         return True
-    if pattern.startswith("/") and pattern.endswith("/"):
+    if any(marker in pattern for marker in _GLOB_META):
+        if _unsupported_pattern_can_affect_path(pattern, path):
+            raise AssertionError(
+                f"unsupported CODEOWNERS glob may affect protected path: {pattern} -> {path}"
+            )
+        return False
+    if not pattern.startswith("/"):
+        raise AssertionError(
+            f"unsupported unanchored CODEOWNERS rule may affect protected path: {pattern}"
+        )
+    if pattern.endswith("/"):
         return path.startswith(pattern)
     return path == pattern
 
@@ -129,3 +160,16 @@ def test_codeowners_explicitly_covers_current_sensitive_portal_roots() -> None:
             else required_pattern
         )
         assert _effective_owners(rules, probe_path) == EXPECTED_PORTAL_OWNERS, required_pattern
+
+
+def test_effective_owner_guard_rejects_portal_overriding_globs() -> None:
+    rules = _codeowner_rules()
+    rules.append(("/ai_platform/portal/**", ("@other",)))
+
+    probe_path = "/ai_platform/portal/execution/__ownership_probe__"
+    try:
+        _effective_owners(rules, probe_path)
+    except AssertionError as exc:
+        assert "unsupported CODEOWNERS glob may affect protected path" in str(exc)
+    else:  # pragma: no cover - explicit regression sentinel
+        raise AssertionError("Portal-overriding glob must fail closed")

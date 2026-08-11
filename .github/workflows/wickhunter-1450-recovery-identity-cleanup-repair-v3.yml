@@ -1,0 +1,87 @@
+name: WickHunter 1450 recovery identity cleanup repair v3
+
+on:
+  push:
+    branches:
+      - fix/wickhunter-1396-synology-recovery-v2
+    paths:
+      - .github/workflows/wickhunter-1450-recovery-identity-cleanup-repair-v3.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: fix/wickhunter-1396-synology-recovery-v2
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Apply bounded recovery identity and startup cleanup repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          source_path = Path('ai_platform/scripts/liquidation_live_stream.py')
+          source = source_path.read_text(encoding='utf-8')
+
+          old = '''def _seal_restart_sources(run_root: Path, run_root_fd: int, sources: dict[str, object]) -> None:\n    validated: list[tuple[int, int]] = []\n    try:\n        for source in (BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE):\n            committed_rows, allow_missing = _restart_source_commit_state(\n                sources[source], source=source\n            )\n            descriptor, committed_end = _validate_committed_ndjson_fd(\n                run_root / f"{source}.ndjson",\n                committed_rows=committed_rows,\n                source=source,\n                allow_missing=allow_missing,\n                directory_fd=run_root_fd,\n            )\n            if descriptor is not None:\n                validated.append((descriptor, committed_end))\n        while validated:\n            descriptor, committed_end = validated.pop(0)\n            _seal_validated_committed_ndjson(descriptor, committed_end)\n    finally:\n        for descriptor, _ in validated:\n            os.close(descriptor)\n'''
+          new = '''def _seal_restart_sources(\n    run_root: Path, run_root_fd: int, sources: dict[str, object]\n) -> list[tuple[str, int | None]]:\n    validated: list[tuple[str, int | None, int]] = []\n    retained: list[tuple[str, int | None]] = []\n    try:\n        for source in (BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE):\n            committed_rows, allow_missing = _restart_source_commit_state(\n                sources[source], source=source\n            )\n            descriptor, committed_end = _validate_committed_ndjson_fd(\n                run_root / f"{source}.ndjson",\n                committed_rows=committed_rows,\n                source=source,\n                allow_missing=allow_missing,\n                directory_fd=run_root_fd,\n            )\n            validated.append((source, descriptor, committed_end))\n        for source, descriptor, committed_end in validated:\n            if descriptor is not None:\n                _seal_validated_committed_ndjson(os.dup(descriptor), committed_end)\n            retained.append((source, descriptor))\n        return retained\n    except BaseException:\n        for _, descriptor, _ in validated:\n            if descriptor is not None:\n                os.close(descriptor)\n        raise\n\n\ndef _assert_recovered_source_identities(\n    run_root_fd: int, retained: Sequence[tuple[str, int | None]]\n) -> None:\n    for source, descriptor in retained:\n        name = f"{source}.ndjson"\n        if descriptor is None:\n            try:\n                os.stat(name, dir_fd=run_root_fd, follow_symlinks=False)\n            except FileNotFoundError:\n                continue\n            except OSError as exc:\n                raise RuntimeError("previous live source changed during recovery") from exc\n            raise RuntimeError("previous live source changed during recovery")\n        try:\n            current = os.stat(name, dir_fd=run_root_fd, follow_symlinks=False)\n        except OSError as exc:\n            raise RuntimeError("previous live source changed during recovery") from exc\n        anchored = os.fstat(descriptor)\n        if not stat.S_ISREG(current.st_mode) or (current.st_dev, current.st_ino) != (\n            anchored.st_dev,\n            anchored.st_ino,\n        ):\n            raise RuntimeError("previous live source changed during recovery")\n\n\ndef _close_recovered_source_descriptors(\n    retained: Sequence[tuple[str, int | None]],\n) -> None:\n    for _, descriptor in retained:\n        if descriptor is not None:\n            os.close(descriptor)\n'''
+          if source.count(old) != 1:
+              raise SystemExit(f'recovery helper anchor count={source.count(old)}')
+          source = source.replace(old, new, 1)
+
+          old = '''            except BaseException:\n                for writer in self._writers.values():\n                    writer.close()\n                self._writers.clear()\n                await asyncio.to_thread(self._close_runtime_root_fds)\n                raise\n'''
+          new = '''            except BaseException as startup_error:\n                try:\n                    await asyncio.to_thread(self._close_writers_and_runtime_fds)\n                except BaseException as cleanup_error:\n                    startup_error.add_note(\n                        "Liquid20 startup cleanup also failed: "\n                        f"{type(cleanup_error).__name__}"\n                    )\n                raise\n'''
+          if source.count(old) != 1:
+              raise SystemExit(f'start cleanup anchor count={source.count(old)}')
+          source = source.replace(old, new, 1)
+
+          old = '''            run_root = self.runs_root / run_id\n            _seal_restart_sources(run_root, run_root_fd, sources)\n            state["run_state"] = "completed"\n            state["data_mode"] = "historical"\n            state["completed_at_ms"] = self._now_ms()\n            state["completion_reason"] = "collector-restart"\n            self._write_source_summaries(run_root_fd, state)\n            _write_json_atomic_at(run_root_fd, RUN_STATE_FILE, state)\n'''
+          new = '''            run_root = self.runs_root / run_id\n            retained_sources = _seal_restart_sources(run_root, run_root_fd, sources)\n            try:\n                state["run_state"] = "completed"\n                state["data_mode"] = "historical"\n                state["completed_at_ms"] = self._now_ms()\n                state["completion_reason"] = "collector-restart"\n                self._write_source_summaries(run_root_fd, state)\n                _assert_recovered_source_identities(run_root_fd, retained_sources)\n                _write_json_atomic_at(run_root_fd, RUN_STATE_FILE, state)\n            finally:\n                _close_recovered_source_descriptors(retained_sources)\n'''
+          if source.count(old) != 1:
+              raise SystemExit(f'completion anchor count={source.count(old)}')
+          source_path.write_text(source.replace(old, new, 1), encoding='utf-8')
+
+          tests_path = Path('tests/ai_platform_integration/test_liquidation_live_restart_durability.py')
+          tests = tests_path.read_text(encoding='utf-8')
+          anchor = '''@pytest.mark.parametrize(\n    ("field", "value"), [("schema_version", 2), ("contract", "foreign-live-contract-v2")]\n)\ndef test_restart_rejects_foreign_run_contract_before_sealing(\n'''
+          regression = '''def test_restart_revalidates_source_identity_before_completed_state(\n    tmp_path: Path, monkeypatch: pytest.MonkeyPatch\n) -> None:\n    old_run_id, old_run_root = _write_previous_active_run(\n        tmp_path,\n        committed_rows={BYBIT_SOURCE: 1, BINANCE_SOURCE: 1, OKX_SOURCE: 0},\n        actual_rows={BYBIT_SOURCE: 2, BINANCE_SOURCE: 1, OKX_SOURCE: 0},\n    )\n    source_path = old_run_root / f"{BYBIT_SOURCE}.ndjson"\n    replacement = old_run_root / "replacement.ndjson"\n    replacement.write_bytes(b"{}\\n{}\\n{}\\n")\n    original_write_summaries = LiveRunManager._write_source_summaries\n\n    def swap_before_completion(\n        self: LiveRunManager, run_fd: int, payload: dict[str, object]\n    ) -> None:\n        original_write_summaries(self, run_fd, payload)\n        source_path.rename(old_run_root / "detached.ndjson")\n        replacement.rename(source_path)\n\n    monkeypatch.setattr(LiveRunManager, "_write_source_summaries", swap_before_completion)\n    manager = LiveRunManager(\n        data_root=tmp_path,\n        collector_commit="f" * 40,\n        host_id="synology-test",\n        now_ms=lambda: 1_786_384_683_792,\n    )\n    with pytest.raises(RuntimeError, match="previous live source changed during recovery"):\n        asyncio.run(manager.start())\n    state = json.loads((old_run_root / "run-state-v1.json").read_text(encoding="utf-8"))\n    assert state["run_state"] == "active"\n    assert source_path.read_bytes() == b"{}\\n{}\\n{}\\n"\n    pointer = json.loads((tmp_path / "live" / LIVE_STATE_FILE).read_text(encoding="utf-8"))\n    assert pointer["active_run_id"] == old_run_id\n\n\n'''
+          if tests.count(anchor) != 1:
+              raise SystemExit(f'recovery identity test anchor count={tests.count(anchor)}')
+          tests = tests.replace(anchor, regression + anchor, 1)
+
+          anchor = '''def test_stop_closes_all_runtime_descriptors_when_writer_close_fails(\n'''
+          regression = '''def test_start_failure_closes_all_runtime_descriptors_when_writer_close_fails(\n    tmp_path: Path, monkeypatch: pytest.MonkeyPatch\n) -> None:\n    manager = LiveRunManager(\n        data_root=tmp_path,\n        collector_commit="1" * 40,\n        host_id="synology-test",\n        now_ms=lambda: 1_786_384_683_792,\n    )\n    captured: dict[str, object] = {}\n\n    def fail_initial_state(self: LiveRunManager) -> None:\n        captured["fds"] = [self._live_root_fd, self._runs_root_fd, self._run_root_fd]\n        writers = list(self._writers.values())\n        captured["writers"] = writers\n\n        def fail_close() -> None:\n            raise OSError("forced startup writer close failure")\n\n        monkeypatch.setattr(writers[0], "close", fail_close)\n        raise OSError("forced initial state failure")\n\n    monkeypatch.setattr(LiveRunManager, "_write_state", fail_initial_state)\n    with pytest.raises(OSError, match="forced initial state failure"):\n        asyncio.run(manager.start())\n    assert manager._writers == {}\n    assert manager._live_root_fd is None\n    assert manager._runs_root_fd is None\n    assert manager._run_root_fd is None\n    for descriptor in captured["fds"]:\n        assert descriptor is not None\n        with pytest.raises(OSError):\n            os.fstat(descriptor)\n    writers = captured["writers"]\n    assert all(writer.closed for writer in writers[1:])\n\n\n'''
+          if tests.count(anchor) != 1:
+              raise SystemExit(f'start cleanup test anchor count={tests.count(anchor)}')
+          tests_path.write_text(tests.replace(anchor, regression + anchor, 1), encoding='utf-8')
+          PY
+      - name: Validate focused repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -q pytest==9.1.1 websockets==16.0 ruff==0.15.21
+          python -m ruff format ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          python -m ruff check --fix ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          python -m py_compile ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          python -m ruff check ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          python -m ruff format --check ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          git diff --check
+      - name: Commit permanent repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          git commit -m 'fix(liquidations): revalidate recovered source identity'
+          git push origin HEAD:fix/wickhunter-1396-synology-recovery-v2

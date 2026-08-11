@@ -51,12 +51,14 @@ class _Runner:
 
 
 class _Attestor:
-    def __init__(self) -> None:
+    def __init__(self, *, fail_activation: bool = False) -> None:
         self.prepared_storage: list[Path] = []
         self.prepared_networks: list[str] = []
         self.attested_storage: list[Path] = []
         self.attested_networks: list[str] = []
+        self.activated_networks: list[str] = []
         self.cleaned: list[str] = []
+        self.fail_activation = fail_activation
 
     def capabilities(self) -> ExternalIsolationCapabilities:
         return ExternalIsolationCapabilities(
@@ -81,6 +83,21 @@ class _Attestor:
         assert runtime_id == "runtime-1"
         assert plan.network_backend is NetworkIsolationBackend.CONSTRAINED_PROXY
         self.prepared_networks.append(network_name)
+
+    def activate_network(
+        self,
+        plan: RuntimeIsolationPlan,
+        network_name: str,
+        runtime_id: str,
+    ) -> None:
+        assert runtime_id == "runtime-1"
+        assert plan.market_data_egress_policy_version == "public-data-v1"
+        if self.fail_activation:
+            raise RuntimeDriverError(
+                "HOST_NETWORK_ISOLATION_UNSUPPORTED",
+                "activation failed",
+            )
+        self.activated_networks.append(network_name)
 
     def attest_storage(self, plan: RuntimeIsolationPlan, state_path: Path) -> None:
         assert plan.storage_backend is StorageIsolationBackend.BOUNDED_VOLUME
@@ -331,9 +348,10 @@ def test_provision_builds_quarantined_hardened_container(tmp_path: Path) -> None
     assert attestor.prepared_networks == [_network()]
     assert attestor.attested_storage == [spec.state_path]
     assert attestor.attested_networks == [_network()]
+    assert attestor.activated_networks == []
 
 
-def test_release_repeats_full_attestation_immediately_before_gate(tmp_path: Path) -> None:
+def test_release_repeats_attestation_then_activates_egress_before_gate(tmp_path: Path) -> None:
     plan = _plan()
     spec = _spec(tmp_path)
     runner = _Runner(*_provision_results(spec, plan))
@@ -345,6 +363,7 @@ def test_release_repeats_full_attestation_immediately_before_gate(tmp_path: Path
     )
     driver.provision(spec)
     initial_attest_count = len(attestor.attested_networks)
+    assert attestor.activated_networks == []
     runner.results.extend(
         [
             CommandResult(0, stdout="running\n"),
@@ -356,6 +375,7 @@ def test_release_repeats_full_attestation_immediately_before_gate(tmp_path: Path
 
     assert driver.start("runtime-1") is DriverRuntimeState.RUNNING
     assert len(attestor.attested_networks) == initial_attest_count + 1
+    assert attestor.activated_networks == [_network()]
     assert runner.calls[-1][:5] == (
         "docker",
         "exec",
@@ -363,16 +383,18 @@ def test_release_repeats_full_attestation_immediately_before_gate(tmp_path: Path
         "/bin/sh",
         "-ec",
     )
+    assert DockerCliRuntimeDriver._RELEASE in runner.calls[-1]
 
 
 def test_release_fails_closed_if_structure_changes_after_initial_attestation(tmp_path: Path) -> None:
     plan = _plan()
     spec = _spec(tmp_path)
     runner = _Runner(*_provision_results(spec, plan))
+    attestor = _Attestor()
     driver = DockerCliRuntimeDriver(
         runner,
         isolation_plans=_provider(plan),
-        external_attestor=_Attestor(),
+        external_attestor=attestor,
     )
     driver.provision(spec)
     tampered = _inspect(spec, plan)
@@ -384,6 +406,7 @@ def test_release_fails_closed_if_structure_changes_after_initial_attestation(tmp
             CommandResult(0, stdout="running\n"),
             CommandResult(1),
             CommandResult(0, stdout=json.dumps([tampered])),
+            CommandResult(0),
         ]
     )
 
@@ -391,6 +414,38 @@ def test_release_fails_closed_if_structure_changes_after_initial_attestation(tmp
         driver.start("runtime-1")
 
     assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
+    assert attestor.activated_networks == []
+    assert attestor.cleaned == [_network()]
+    assert all(DockerCliRuntimeDriver._RELEASE not in call for call in runner.calls)
+
+
+def test_release_activation_failure_removes_runtime_before_application_gate(tmp_path: Path) -> None:
+    plan = _plan()
+    spec = _spec(tmp_path)
+    runner = _Runner(*_provision_results(spec, plan))
+    attestor = _Attestor(fail_activation=True)
+    driver = DockerCliRuntimeDriver(
+        runner,
+        isolation_plans=_provider(plan),
+        external_attestor=attestor,
+    )
+    driver.provision(spec)
+    runner.results.extend(
+        [
+            CommandResult(0, stdout="running\n"),
+            CommandResult(1),
+            *_reattest_results(spec, plan),
+            CommandResult(0),
+        ]
+    )
+
+    with pytest.raises(RuntimeDriverError) as exc_info:
+        driver.start("runtime-1")
+
+    assert exc_info.value.reason_code == "HOST_NETWORK_ISOLATION_UNSUPPORTED"
+    assert attestor.activated_networks == []
+    assert attestor.cleaned == [_network()]
+    assert runner.calls[-1] == ("docker", "rm", "-f", "runtime-1")
     assert all(DockerCliRuntimeDriver._RELEASE not in call for call in runner.calls)
 
 

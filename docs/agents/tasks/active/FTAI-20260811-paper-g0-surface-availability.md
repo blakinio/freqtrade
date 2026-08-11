@@ -15,11 +15,12 @@ continuation_policy: continue_until_real_stop
 base_branch: develop
 trusted_base_sha: 6577ae896ed5910f82f9e736fe4a007b6dc10e6e
 delivery_branch: feat/paper-g0-surface-availability-20260811
+delivery_pr: 1470
 paper_gate: G0
 paper_work_item: 7
 live_capital_authorized: false
 protected_production_deployment_authorized: false
-repair_cycles_for_current_gate: 0
+repair_cycles_for_current_gate: 1
 ```
 
 ## Objective
@@ -41,6 +42,7 @@ Close PAPER G0 work item 7 without implementing later-gate product functionality
 - `navigation_matrix.py` now validates the committed web projection exactly against the living ledger, so a ledger/status/reason/blocker change cannot silently drift from Portal presentation.
 - `tests/ci/test_portal_surface_availability.py` independently reconstructs the projection from raw ledger rows and verifies the shell/notice contract.
 - `surface-availability.spec.ts` proves a disconnected route (`/ai`) receives both navigation and direct-route warnings and a non-disconnected route (`/market/liquidations`) does not.
+- The browser spec is tagged both `@critical` and `@regression`, because normal PR routing invokes the Portal Web critical Chromium subset unless full-browser routing is explicitly selected.
 
 ## Scope
 
@@ -70,6 +72,7 @@ Forbidden scope:
 - direct navigation renders a visible warning that the capability is not connected end to end in the canonical product runtime;
 - routes not classified `DISCONNECTED`/`MISSING` do not receive that warning;
 - `navigation_matrix.py` and a focused CI test reject projection drift from the living ledger;
+- the browser proof is actually selected by ordinary PR routing, not merely committed but skipped;
 - a browser test proves both an unavailable route and a non-unavailable route in the real shell;
 - no product capability, execution authority or LIVE path is added;
 - exact-head CI, fresh independent audit and zero material review threads pass before merge.
@@ -83,17 +86,18 @@ Forbidden scope:
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 2
-updated_at: 2026-08-11T09:24:00Z
-head_before_checkpoint: 391b4209f9ce4855e49ccb039fe1a21b1bc0080b
+checkpoint_version: 3
+updated_at: 2026-08-11T09:29:00Z
+head_before_checkpoint: ff5bbdb320c802d47b188ed289ed4ab5801303ab
 branch: feat/paper-g0-surface-availability-20260811
+pr: 1470
 status: validating
 invocation_started_at: 2026-08-11T08:54:00Z
-last_progress_at: 2026-08-11T09:24:00Z
+last_progress_at: 2026-08-11T09:29:00Z
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 0
+repair_cycles_for_current_gate: 1
 stall_warnings: 0
 proven:
   - living navigation ledger is CI-enforced status authority
@@ -101,19 +105,30 @@ proven:
   - pre-change shell did not project those statuses
   - at least /ai can represent a disconnected producer as ordinary empty state
   - Strategy Catalog already has a local unavailable failure state, so central shell truth remains additive rather than replacing page-specific handling
-  - branch is synchronized with develop@6577ae896ed5910f82f9e736fe4a007b6dc10e6e and final compare contains exactly seven owned paths
+  - branch is synchronized with develop@6577ae896ed5910f82f9e736fe4a007b6dc10e6e and compare contains exactly seven owned paths
   - visible navigation markers preserve existing accessible link names
+  - ordinary PR Portal Web routing executes `test:e2e:critical`, so the focused browser proof must carry the @critical tag
+first_failure:
+  marker: focused surface-availability browser proof was tagged only @regression and would not execute in the ordinary PR critical Chromium subset
+  evidence: .github/workflows/portal-web.yml invokes npm run test:e2e:critical when full_browser_e2e is false; package.json filters @critical; initial spec used only tags.regression
+repair:
+  result: APPLIED
+  head: ff5bbdb320c802d47b188ed289ed4ab5801303ab
+  evidence: surface-availability.spec.ts now uses [tags.critical, tags.regression]
 unknown:
-  - fresh independent audit disposition
-  - exact-head CI and browser acceptance result
+  - fresh independent audit disposition for successor final head
+  - exact-head CI and browser acceptance result for successor final head
 conflicts: []
 validation:
   - command: develop-to-branch compare after tree-overlay synchronization
     result: PASS
     evidence: behind_by=0; exactly seven intended changed paths; no #1452/#1466 lifecycle path drift
+  - command: PR browser routing audit
+    result: PASS_AFTER_REPAIR
+    evidence: focused browser spec now participates in ordinary PR critical Chromium regression
   - command: runtime/browser acceptance
     result: PENDING
-    evidence: focused Playwright regression spec added; final routed CI pending
+    evidence: exact successor-head CI will execute the critical-tagged focused Playwright spec
 blockers: []
-next_action: Open the single bounded delivery PR, request fresh Codex review, collect exact-head routed CI/browser evidence, and repair only evidence-backed material findings.
+next_action: Resolve the successor exact head, refresh PR metadata, request fresh Codex review, and accept only successor-head CI/browser evidence.
 ```

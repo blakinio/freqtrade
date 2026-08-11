@@ -192,14 +192,14 @@ The already-completed historical run `liquid20-20260810T000000Z-1` still require
 
 ## Temporary workflow
 
-`.github/workflows/portal-wickhunter-buildkit-cache-recovery.yml` was used only for bounded recovery diagnostics and focused repository validation. Exact focused validation passed in run `31433026457` / job `93600693019` after the final durability and formatting repairs. The temporary workflow is intentionally absent from the permanent merge diff and cannot serve as final merge evidence.
+`.github/workflows/portal-wickhunter-buildkit-cache-recovery.yml` was used only for bounded recovery diagnostics and focused repository validation. Exact focused validation passed in run `31433026457` / job `93600693019` after the final durability and formatting repairs. The temporary workflow is intentionally absent from the permanent merge diff and cannot serve as final merge evidence. Final retained-descriptor lifecycle repair was validated by temporary workflow `wickhunter-1450-close-fd-repair.yml` in run `31470901848` / job `93713775781`; it passed 27 focused tests plus compile/Ruff/diff hygiene and was removed again in commit `002be13f566e2ef4646b74bd66f8df548be29e73`.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-11T09:14:12+02:00
-head: ff8037e03d549f67797a4ffb017841f13f3d2719
+updated_at: 2026-08-11T10:09:44+02:00
+head: 002be13f566e2ef4646b74bd66f8df548be29e73
 branch: fix/wickhunter-1396-synology-recovery-v2
 pr: 1450
 status: validating
@@ -233,7 +233,7 @@ proven:
   - durable-state repair now flushes and fsyncs every open NDJSON writer before persisting state containing events_written and safely skips closed writers during stop and rotation
   - exact focused validation passed on head 2c3cb8387c22e3fb3864abeea312aa79476c84b1 with seven restart-durability tests plus Ruff check format and producer-consumer contract assertions
   - full ci:full compatibility testing exposed a stale legacy migration fixture that declared configured zero-row Bybit and Binance sources without their regular empty files; the fixture now models the valid historical contract without weakening production fail-closed behavior
-  - malformed active source state missing events_written now fails closed before any source truncation; no default zero commit boundary is accepted
+  - malformed active source state missing events_written now fails closed before any source truncation with no default zero commit boundary; normal and exceptional stop paths close all retained runtime directory descriptors and repeated stop remains safe
 derived:
   - after the permanent producer fix is integrated a guarded repair of only the already completed inconsistent history should allow WH09 to recover naturally without weakening fail-closed behavior
 unknown:
@@ -293,11 +293,11 @@ validation:
   - command: Descriptor-anchored restart sealing TOCTOU regression validation
     result: PASS
     evidence: GitHub Actions run 31438601082 passed focused restart and legacy migration tests Ruff check format compile checkpoint and diff hygiene
-  - command: Retained FD lifecycle new-run TOCTOU validation
+  - command: Retained FD lifecycle and stop validation
     result: PASS
-    evidence: GitHub Actions run 31467075693 passed 25 focused restart and OKX tests plus Ruff check format compile checkpoint and diff hygiene
+    evidence: GitHub Actions run 31467075693 passed 25 focused new-run descriptor tests and run 31470901848 job 93713775781 passed 27 focused restart and OKX tests including normal and exceptional stop descriptor closure plus py_compile Ruff check format and diff hygiene
 blockers: []
-next_action: Reconcile latest develop then run final retained exact-head CI and fresh Codex audit, squash-merge PR 1450, and continue protected Liquid20 recovery.
+next_action: Run final retained exact-head PR 1450 CI and fresh Codex audit; if green, squash-merge and continue canonical Liquid20 deployment plus guarded completed-history repair.
 ```
 
 ## Recovery checkpoint
@@ -305,15 +305,15 @@ next_action: Reconcile latest develop then run final retained exact-head CI and 
 ```yaml
 recovery:
   policy_version: 1
-  generation: 13
+  generation: 14
   session_id: 2026-08-10T21:37+02:00
   session_started_at: 2026-08-10T21:37:00+02:00
-  checkpointed_at: 2026-08-10T23:08:00+02:00
-  last_progress_at: 2026-08-10T23:08:00+02:00
+  checkpointed_at: 2026-08-11T10:09:44+02:00
+  last_progress_at: 2026-08-11T10:09:44+02:00
   phase: pr1450_final_validation
-  exact_head_before_checkpoint_commit: 2c3cb8387c22e3fb3864abeea312aa79476c84b1
+  exact_head_before_checkpoint_commit: 002be13f566e2ef4646b74bd66f8df548be29e73
   pull_request: 1450
-  active_operation: final retained CI and independent review
+  active_operation: final exact-head CI and independent review after descriptor stop lifecycle repair
   external_run_ids:
     - 31425261462
     - 31425883292
@@ -321,7 +321,7 @@ recovery:
   status: active
   safe_to_resume: true
   resume_condition: permanent repair and focused tests validated
-  next_action: Delete the temporary recovery workflow, complete retained exact-head CI plus fresh Codex review, merge PR 1450, then continue canonical Liquid20 deployment and exact historical repair.
+  next_action: Complete retained exact-head CI plus fresh Codex review on PR 1450, merge it, then continue canonical Liquid20 deployment and exact historical repair.
 ```
 
 ## Terminal closeout requirements

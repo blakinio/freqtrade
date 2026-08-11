@@ -12,8 +12,7 @@ permissions:
   issues: read
 
 jobs:
-  apply-repair:
-    if: ${{ !contains(github.event.head_commit.message, '[applied-1354-codex-patch]') }}
+  materialize-workflow:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -21,19 +20,18 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           ref: fix/portal-runtime-isolation-1354
-          fetch-depth: 3
+          fetch-depth: 2
 
-      - name: Apply verified Codex repair payload excluding workflow file
+      - name: Materialize final retained workflow as ordinary file
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          EXPECTED_PARENT: b3592478cdb03a64e4fdb1a9af6350569d0d3e26
+          EXPECTED_PARENT: 0c3d5a862ecd487e015bef9b37fdf958473602ea
           COMMENT_ID: '5257126241'
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
           test "$(git diff --name-only HEAD^..HEAD)" = ".github/workflows/apply-runtime-isolation-1354-repair.yml"
-
           gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" --jq .body > /tmp/comment.md
           python - <<'PY'
           from pathlib import Path
@@ -41,27 +39,20 @@ jobs:
 
           body = Path('/tmp/comment.md').read_text(encoding='utf-8')
           marker = '### Complete unified diff against `718ce7140f15810e1ade7b2e07dd17cef3565ce3`'
-          if marker not in body:
-              raise SystemExit('expected exact-base diff marker missing')
           tail = body.split(marker, 1)[1]
           match = re.search(r'```diff\n(.*?)\n```', tail, flags=re.S)
           if not match:
               raise SystemExit('complete diff fence missing')
-          patch = match.group(1) + '\n'
-          Path('/tmp/repair.diff').write_text(patch, encoding='utf-8')
+          Path('/tmp/repair.diff').write_text(match.group(1) + '\n', encoding='utf-8')
           PY
-
-          git apply --check /tmp/repair.diff
-          git apply /tmp/repair.diff
+          git apply --check --include=.github/workflows/portal-runtime-isolation-e2e.yml /tmp/repair.diff
+          git apply --include=.github/workflows/portal-runtime-isolation-e2e.yml /tmp/repair.diff
+          mkdir -p docs/agents/evidence
+          cp .github/workflows/portal-runtime-isolation-e2e.yml docs/agents/evidence/FTAI-1354-portal-runtime-isolation-e2e.final.yml
           git restore --source=HEAD -- .github/workflows/portal-runtime-isolation-e2e.yml
-          git diff --check
-
+          git add docs/agents/evidence/FTAI-1354-portal-runtime-isolation-e2e.final.yml
+          git diff --cached --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add ai_platform/portal/execution/driver.py \
-            tests/ai_platform/portal/execution/test_driver.py \
-            tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py \
-            docs/agents/tasks/active/FTAI-20260809-portal-runtime-isolation-1354.md
-          git diff --cached --check
-          git commit -m 'fix(portal): close remaining runtime isolation gaps (#1354) [applied-1354-codex-patch]'
+          git commit -m 'ci(portal): materialize final #1354 workflow content'
           git push origin HEAD:fix/portal-runtime-isolation-1354

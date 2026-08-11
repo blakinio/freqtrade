@@ -106,7 +106,7 @@ class AppendOnlyNdjsonWriter:
                 | os.O_APPEND
                 | nofollow_flag
                 | getattr(os, "O_CLOEXEC", 0),
-                0o600,
+                0o640,
                 dir_fd=directory_fd,
             )
             if not stat.S_ISREG(os.fstat(descriptor).st_mode):
@@ -249,7 +249,7 @@ def _write_json_atomic_at(directory_fd: int, file_name: str, payload: dict[str, 
         descriptor = os.open(
             temporary_name,
             os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow_flag | getattr(os, "O_CLOEXEC", 0),
-            0o600,
+            0o640,
             dir_fd=directory_fd,
         )
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
@@ -630,7 +630,7 @@ class LiveRunManager:
         while True:
             run_id = f"{base}-{attempt}"
             try:
-                os.mkdir(run_id, mode=0o700, dir_fd=runs_fd)
+                os.mkdir(run_id, mode=0o750, dir_fd=runs_fd)
                 break
             except FileExistsError:
                 attempt += 1

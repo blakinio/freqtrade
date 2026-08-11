@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import stat
 from pathlib import Path
 
 import pytest
@@ -315,6 +316,35 @@ def test_stop_pointer_failure_leaves_coherent_history_for_restart(
         await recovery.stop()
 
     asyncio.run(scenario())
+
+
+def test_runtime_artifacts_preserve_shared_gid_modes(tmp_path: Path) -> None:
+    manager = LiveRunManager(
+        data_root=tmp_path,
+        collector_commit="5" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+
+    async def scenario() -> None:
+        await manager.start()
+        assert stat.S_IMODE(manager.run_root.stat().st_mode) == 0o750
+        for path in (
+            manager.run_root / "bybit-linear.ndjson",
+            manager.run_root / "binance-usdm.ndjson",
+            manager.run_root / "run-state-v1.json",
+            manager.run_root / "bybit-linear-summary.json",
+            manager.run_root / "binance-usdm-summary.json",
+            tmp_path / "live" / LIVE_STATE_FILE,
+        ):
+            assert stat.S_IMODE(path.stat().st_mode) == 0o640, path
+        await manager.stop()
+
+    previous_umask = os.umask(0o027)
+    try:
+        asyncio.run(scenario())
+    finally:
+        os.umask(previous_umask)
 
 
 def test_restart_truncates_only_uncommitted_suffix_before_completion(tmp_path: Path) -> None:

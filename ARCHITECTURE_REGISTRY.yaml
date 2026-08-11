@@ -15,7 +15,7 @@ review:
   review_pr: 1255
   review_report: docs/ai_platform/reviews/2026-08-05-architecture-ci-review.md
   status: completed
-  lifecycle_reconciled_at: "2026-08-10"
+  lifecycle_reconciled_at: "2026-08-11"
   resolved_findings:
     - issue: 1251
       id: FTAI-ARCH-001
@@ -35,6 +35,10 @@ review:
       id: FTAI-ARCH-REGISTRY-LIFECYCLE-GUARD
       status: completed
       evidence_pr: 1447
+    - issue: 1354
+      id: FTAI-ARCH-RUNTIME-ISOLATION
+      status: completed
+      evidence_pr: 1464
 
 latest_architecture_change:
   accepted_at: "2026-08-10"
@@ -328,8 +332,3 @@ open_architecture_findings:
     severity: critical
     status: open
     summary: Isolate container-engine authority behind the Runtime Supervisor boundary required by ADR-020.
-  - issue: 1354
-    id: FTAI-ARCH-RUNTIME-ISOLATION
-    severity: high
-    status: open
-    summary: Enforce the ADR-020 runtime isolation profile, resolved-plan identity, effective resource/network/storage/log bounds and attestation for every generation.

@@ -8,7 +8,11 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
-from ai_platform.portal.contracts.bots import BotConfigRevision, BotSpec
+from ai_platform.portal.contracts.bots import (
+    BotConfigRevision,
+    BotConfigRevisionState,
+    BotSpec,
+)
 from ai_platform.portal.contracts.environment import Environment, ExecutionMode
 from ai_platform.portal.contracts.identity import ActorType, Permission
 from ai_platform.portal.contracts.runtime_generation import RuntimeGenerationMaterial
@@ -26,11 +30,16 @@ from ai_platform.portal.control_plane.models import (
     RuntimeGenerationRow,
 )
 from ai_platform.portal.control_plane.repository import BotRepository
-from ai_platform.portal.control_plane.service import ControlPlaneService
+from ai_platform.portal.control_plane.service import (
+    ControlPlaneConflictError,
+    ControlPlaneService,
+)
 from ai_platform.wickhunter.contracts import BotMode
 from ai_platform.wickhunter.runtime_mode import (
+    ManagedRuntimeModeRequest,
     RuntimeModeRejectionReason,
     RuntimeModeResolutionError,
+    resolve_managed_runtime_mode,
 )
 
 
@@ -251,11 +260,98 @@ def test_save_paper_does_not_roll_out_and_apply_preserves_observed_until_reconci
     assert observed is not None and observed.managed_mode is BotMode.SHADOW
 
 
+def test_live_mode_is_rejected_before_authored_persistence(
+    session_factory: SessionFactory,
+) -> None:
+    context = _context()
+    service = _service(session_factory)
+
+    with pytest.raises(ValueError, match="LIVE managed mode is reserved"):
+        service.create_bot(
+            context,
+            "bot-1",
+            "Blocked LIVE bot",
+            _spec(mode=BotMode.LIVE_BLOCKED),
+        )
+
+    assert service.list_bots(context) == ()
+    assert _activation_counts(session_factory) == (0, 0)
+
+    client = TestClient(create_app(session_factory, lambda: context))
+    payload = _spec().model_dump(mode="json")
+    payload["managed_mode"] = BotMode.LIVE_BLOCKED.value
+    response = client.post(
+        "/v1/bots",
+        json={"bot_id": "bot-1", "name": "Blocked LIVE bot", "spec": payload},
+    )
+
+    assert response.status_code == 422
+    assert "LIVE managed mode is reserved" in str(response.json()["detail"])
+    assert service.list_bots(context) == ()
+
+
+def test_live_mode_is_rejected_on_revision_and_legacy_promotion(
+    session_factory: SessionFactory,
+) -> None:
+    context = _context()
+    service = _service(session_factory)
+    created = service.create_bot(context, "bot-1", "Managed bot", _spec())
+
+    with pytest.raises(ValueError, match="LIVE managed mode is reserved"):
+        service.revise_bot(context, "bot-1", _spec(2, BotMode.LIVE_BLOCKED))
+    assert service.get_bot(context, "bot-1").state_version == created.state_version
+
+    repository = BotRepository()
+    with session_factory() as session, session.begin():
+        initial = repository.get_revision_by_id(
+            session,
+            context.tenant_id,
+            "bot-1",
+            created.latest_authored_revision_id or "",
+        )
+        assert initial is not None
+        legacy_live = initial.model_copy(
+            update={
+                "revision_id": "legacy-live-revision",
+                "revision": 2,
+                "managed_mode": BotMode.LIVE_BLOCKED,
+                "state": BotConfigRevisionState.DRAFT,
+                "revision_content_digest": None,
+            }
+        )
+        repository.add_revision(session, legacy_live)
+
+    with pytest.raises(ControlPlaneConflictError, match="LIVE managed mode is reserved"):
+        service.promote_revision(
+            context,
+            "bot-1",
+            "legacy-live-revision",
+            created.state_version,
+        )
+
+    with session_factory() as session:
+        stored = repository.get_revision_by_id(
+            session,
+            context.tenant_id,
+            "bot-1",
+            "legacy-live-revision",
+        )
+    assert stored is not None and stored.state is BotConfigRevisionState.DRAFT
+    assert service.get_bot(context, "bot-1").state_version == created.state_version
+    assert _activation_counts(session_factory) == (0, 0)
+
+
+def test_runtime_resolver_keeps_reserved_live_mode_fail_closed() -> None:
+    with pytest.raises(RuntimeModeResolutionError) as caught:
+        resolve_managed_runtime_mode(ManagedRuntimeModeRequest(mode=BotMode.LIVE_BLOCKED))
+
+    assert caught.value.reason is RuntimeModeRejectionReason.LIVE_CAPITAL_NOT_AUTHORIZED
+
+
 @pytest.mark.parametrize(
     ("mode", "reason"),
     [
         (BotMode.PAPER, RuntimeModeRejectionReason.PAPER_ELIGIBILITY_REQUIRED),
-        (BotMode.LIVE_BLOCKED, RuntimeModeRejectionReason.LIVE_CAPITAL_NOT_AUTHORIZED),
         (BotMode.RESEARCH, RuntimeModeRejectionReason.RESEARCH_MODE_NOT_MANAGED_RUNTIME),
     ],
 )

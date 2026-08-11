@@ -64,5 +64,8 @@ def test_portal_shell_exposes_projected_unavailable_state() -> None:
 
     assert 'import availability from "@/lib/product-surface-availability.json"' in notice
     assert "usePathname()" in notice
+    assert 'role="note"' in notice
+    assert "aria-label={`${surface.label} capability availability`}" in notice
+    assert 'role="status"' not in notice
     assert "capability unavailable" in notice
     assert "not connected end to end in the canonical product runtime" in notice

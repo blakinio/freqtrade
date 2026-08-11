@@ -8,7 +8,7 @@ priority: high
 repository: blakinio/freqtrade
 base_branch: develop
 branch: docs/portal-repository-truth-1468
-related_pr: null
+related_pr: 1469
 issue: 1468
 created: 2026-08-11
 updated: 2026-08-11
@@ -51,10 +51,10 @@ Runtime/browser E2E is `NOT_APPLICABLE`: no product/runtime/deployment behavior 
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-11T09:07:00Z
-head: aadaa95671bc167fea1032c3c7302c637a005235
+updated_at: 2026-08-11T09:08:00Z
+head: 143d03850470a6e497d1d50595b97039284b3497
 branch: docs/portal-repository-truth-1468
-pr: none
+pr: 1469
 status: validating
 context_routes:
   - Portal repository truth
@@ -68,11 +68,12 @@ proven:
   - develop@816aac5018b785f750ab9eaffd5de9033f988999 contains a living exact-head Portal completeness ledger.
   - the prior Portal README falsely described implemented Portal surfaces as future/unimplemented.
   - CODEOWNERS retained historical Portal backend/infra path-specific entries instead of current sensitive roots.
+  - PR 1469 is the sole delivery PR for Issue 1468 and was zero commits behind develop when opened.
   - PAPER remains the only currently authorized operational mode and LIVE remains unreachable/fail-closed.
 derived:
   - documentation truth must defer implementation completeness to exact-head evidence rather than package presence.
 unknown:
-  - exact-head CI result and independent review disposition for the delivery PR.
+  - exact-head CI result and independent review disposition for PR 1469.
 conflicts: []
 first_failure:
   marker: stale Portal implementation boundary documentation
@@ -83,15 +84,19 @@ changed_paths:
   - ai_platform/portal/README.md
   - .github/CODEOWNERS
   - tests/ci/test_portal_repository_truth.py
+  - docs/agents/tasks/active/FTAI-20260811-portal-repository-truth-1468.md
 validation:
   - command: exact file/state inspection on develop@816aac5018b785f750ab9eaffd5de9033f988999
     result: PASS
     evidence: verified stale README, living ledger and CODEOWNERS mismatch before mutation
+  - command: branch compare at PR creation
+    result: PASS
+    evidence: docs/portal-repository-truth-1468 was ahead by 4 and behind by 0 versus develop
   - command: runtime/browser E2E
     result: NOT_APPLICABLE
     evidence: documentation and network-free CI-governance repair only
 blockers: []
-next_action: Open the bounded PR to develop, collect exact-head CI and fresh independent review, repair only evidence-backed findings, then close out Issue 1468.
+next_action: Collect exact-head CI and fresh independent review on PR 1469; repair only evidence-backed material findings, then merge and close out Issue 1468.
 ```
 
 ## Safety boundary

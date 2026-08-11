@@ -42,6 +42,9 @@ DEFAULT_BINANCE_ENDPOINT = "wss://fstream.binance.com/market/ws"
 DEFAULT_BINANCE_EXCHANGE_INFO_URL = "https://fapi.binance.com/fapi/v1/exchangeInfo"
 EXPECTED_CONNECTION_EXCEPTIONS = (OSError, ValueError, WebSocketException)
 REDACTED = "[redacted]"
+MAX_RECOVERY_SOURCE_BYTES = 128 * 1024 * 1024
+MAX_RECOVERY_SOURCE_EVENTS = 250_000
+MAX_RECOVERY_ROW_BYTES = 1024 * 1024
 
 
 @dataclass(slots=True)
@@ -380,6 +383,7 @@ def _validate_committed_ndjson_fd(
         isinstance(committed_rows, bool)
         or not isinstance(committed_rows, int)
         or committed_rows < 0
+        or committed_rows > MAX_RECOVERY_SOURCE_EVENTS
     ):
         raise RuntimeError(f"previous {source} events_written is invalid")
     source_directory_fd, owned = _source_directory_fd(path, directory_fd, source)
@@ -394,10 +398,14 @@ def _validate_committed_ndjson_fd(
         )
         if descriptor is None:
             return None, 0
+        if os.fstat(descriptor).st_size > MAX_RECOVERY_SOURCE_BYTES:
+            raise RuntimeError(f"previous {source} source file exceeds recovery size bound")
         committed_end = 0
         with os.fdopen(os.dup(descriptor), "rb") as handle:
             for _ in range(committed_rows):
-                row = handle.readline()
+                row = handle.readline(MAX_RECOVERY_ROW_BYTES + 1)
+                if len(row) > MAX_RECOVERY_ROW_BYTES:
+                    raise RuntimeError(f"previous {source} source row exceeds recovery bound")
                 if not row or not row.endswith(b"\n") or not row.strip():
                     raise RuntimeError(
                         f"previous {source} source file has fewer rows than committed"
@@ -520,6 +528,18 @@ def _prepare_live_roots(*, data_root: Path, live_root: Path, runs_root: Path) ->
             item = path.lstat()
         if not stat.S_ISDIR(item.st_mode) or stat.S_ISLNK(item.st_mode):
             raise RuntimeError(f"{label} is not a regular directory")
+
+
+def _validate_restart_zero_authority(state: dict[str, object]) -> None:
+    for field_name in (
+        "execution_enabled",
+        "trading_authorized",
+        "trading_credentials_present",
+    ):
+        if state.get(field_name) is not False:
+            raise RuntimeError(f"previous live run must keep {field_name}=false")
+    if state.get("orders_submitted", 0) != 0:
+        raise RuntimeError("previous live run must keep orders_submitted=0")
 
 
 def _restart_source_commit_state(source_state: object, *, source: str) -> tuple[int, bool]:
@@ -761,6 +781,14 @@ class LiveRunManager:
                 raise RuntimeError("previous live run contract is invalid")
             if state.get("run_id") != run_id:
                 raise RuntimeError("previous live run_id does not match active pointer")
+            _validate_restart_zero_authority(state)
+            _assert_runtime_roots_still_anchored(
+                data_root=self.data_root,
+                live_fd=live_fd,
+                runs_fd=runs_fd,
+                run_id=run_id,
+                run_fd=run_root_fd,
+            )
             sources = state.get("sources")
             if not isinstance(sources, dict):
                 raise RuntimeError("previous live source state is invalid")
@@ -776,6 +804,13 @@ class LiveRunManager:
                 state["completion_reason"] = "collector-restart"
                 self._write_source_summaries(run_root_fd, state)
                 _assert_recovered_source_identities(run_root_fd, retained_sources)
+                _assert_runtime_roots_still_anchored(
+                    data_root=self.data_root,
+                    live_fd=live_fd,
+                    runs_fd=runs_fd,
+                    run_id=run_id,
+                    run_fd=run_root_fd,
+                )
                 _write_json_atomic_at(run_root_fd, RUN_STATE_FILE, state)
             finally:
                 _close_recovered_source_descriptors(retained_sources)

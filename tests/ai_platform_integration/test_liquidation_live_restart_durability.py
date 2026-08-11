@@ -555,6 +555,100 @@ def test_restart_truncates_only_uncommitted_suffix_before_completion(tmp_path: P
     assert (old_run_root / f"{OKX_SOURCE}.ndjson").read_bytes() == b""
 
 
+def test_restart_revalidates_run_identity_before_completed_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    old_run_id, old_run_root = _write_previous_active_run(
+        tmp_path,
+        committed_rows={BYBIT_SOURCE: 1, BINANCE_SOURCE: 1, OKX_SOURCE: 0},
+        actual_rows={BYBIT_SOURCE: 2, BINANCE_SOURCE: 1, OKX_SOURCE: 0},
+    )
+    runs_root = tmp_path / "live" / "runs"
+    detached_root = runs_root / "detached-old-run"
+    replacement_root = runs_root / "replacement-old-run"
+    replacement_root.mkdir()
+    original_write_summaries = LiveRunManager._write_source_summaries
+
+    def swap_before_completion(
+        self: LiveRunManager, run_fd: int, payload: dict[str, object]
+    ) -> None:
+        original_write_summaries(self, run_fd, payload)
+        old_run_root.rename(detached_root)
+        replacement_root.rename(old_run_root)
+
+    monkeypatch.setattr(LiveRunManager, "_write_source_summaries", swap_before_completion)
+    manager = LiveRunManager(
+        data_root=tmp_path,
+        collector_commit="e" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+    with pytest.raises(RuntimeError, match="runtime roots changed after anchoring"):
+        asyncio.run(manager.start())
+    state = json.loads((detached_root / "run-state-v1.json").read_text(encoding="utf-8"))
+    assert state["run_state"] == "active"
+    assert list(old_run_root.iterdir()) == []
+    pointer = json.loads((tmp_path / "live" / LIVE_STATE_FILE).read_text(encoding="utf-8"))
+    assert pointer["active_run_id"] == old_run_id
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    ["execution_enabled", "trading_authorized", "trading_credentials_present"],
+)
+def test_restart_rejects_nonzero_authority_before_sealing(tmp_path: Path, field_name: str) -> None:
+    old_run_id, old_run_root = _write_previous_active_run(
+        tmp_path,
+        committed_rows={BYBIT_SOURCE: 1, BINANCE_SOURCE: 1, OKX_SOURCE: 0},
+        actual_rows={BYBIT_SOURCE: 2, BINANCE_SOURCE: 2, OKX_SOURCE: 0},
+    )
+    state_path = old_run_root / "run-state-v1.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state[field_name] = True
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    originals = {
+        source: (old_run_root / f"{source}.ndjson").read_bytes()
+        for source in (BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE)
+    }
+    manager = LiveRunManager(
+        data_root=tmp_path,
+        collector_commit="d" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+    with pytest.raises(RuntimeError, match=f"previous live run must keep {field_name}=false"):
+        asyncio.run(manager.start())
+    for source, original in originals.items():
+        assert (old_run_root / f"{source}.ndjson").read_bytes() == original
+    assert json.loads(state_path.read_text(encoding="utf-8"))["run_state"] == "active"
+    pointer = json.loads((tmp_path / "live" / LIVE_STATE_FILE).read_text(encoding="utf-8"))
+    assert pointer["active_run_id"] == old_run_id
+
+
+def test_restart_rejects_oversized_committed_row_without_unbounded_read(tmp_path: Path) -> None:
+    old_run_id, old_run_root = _write_previous_active_run(
+        tmp_path,
+        committed_rows={BYBIT_SOURCE: 1, BINANCE_SOURCE: 0, OKX_SOURCE: 0},
+        actual_rows={BYBIT_SOURCE: 1, BINANCE_SOURCE: 0, OKX_SOURCE: 0},
+    )
+    source_path = old_run_root / f"{BYBIT_SOURCE}.ndjson"
+    source_path.write_bytes(b"x" * (1024 * 1024 + 1) + b"\n")
+    original = source_path.read_bytes()
+    manager = LiveRunManager(
+        data_root=tmp_path,
+        collector_commit="c" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+    with pytest.raises(RuntimeError, match="source row exceeds recovery bound"):
+        asyncio.run(manager.start())
+    assert source_path.read_bytes() == original
+    state = json.loads((old_run_root / "run-state-v1.json").read_text(encoding="utf-8"))
+    assert state["run_state"] == "active"
+    pointer = json.loads((tmp_path / "live" / LIVE_STATE_FILE).read_text(encoding="utf-8"))
+    assert pointer["active_run_id"] == old_run_id
+
+
 def test_restart_revalidates_source_identity_before_completed_state(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

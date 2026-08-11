@@ -22,6 +22,7 @@ CLEANUP_ATTEMPTS = 3
 OWNERSHIP_VERIFY_ATTEMPTS = 3
 OWNER_LABEL_KEY = "com.freqtrade.portal.bounded-owner"
 OWNER_LABEL_FORMAT = f'{{{{ index .Config.Labels "{OWNER_LABEL_KEY}" }}}}'
+OWNED_IDENTITY_FORMAT = f'{{{{.Id}}}}|{{{{ index .Config.Labels "{OWNER_LABEL_KEY}" }}}}'
 SERVICE_STATE_FORMAT = (
     "{{.State.Status}}|{{.State.Running}}|"
     "{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}"
@@ -35,6 +36,7 @@ _TARGET_MODULES = {
     "ai_platform.portal.database.cli",
     "ai_platform.portal.database.transfer",
 }
+_CONTAINER_ID_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 def _target_module(command: list[str]) -> str | None:
@@ -69,6 +71,13 @@ def _container_identity(label: str) -> tuple[str, str]:
     name = f"portal-oidc-bounded-{safe_label}-{token}"
     owner = f"portal-oidc-bounded:{safe_label}:{token}"
     return name, owner
+
+
+def _parse_container_id(deploy: Any, value: str) -> str:
+    container_id = value.strip()
+    if not _CONTAINER_ID_RE.fullmatch(container_id):
+        raise deploy.DeploymentError("Docker create returned an invalid container identity")
+    return container_id
 
 
 def _run_bounded(
@@ -138,21 +147,110 @@ def _verify_absent(deploy: Any, name: str, *, cwd: Path | None) -> None:
         raise deploy.DeploymentError("task-owned Docker workload cleanup failed")
 
 
-def _cleanup_owned(deploy: Any, name: str, *, cwd: Path | None) -> None:
+def _inspect_owned_identity(
+    deploy: Any,
+    reference: str,
+    *,
+    cwd: Path | None,
+) -> tuple[str, str] | None:
+    try:
+        inspected = _run_bounded(
+            ["docker", "inspect", "--format", OWNED_IDENTITY_FORMAT, reference],
+            cwd=cwd,
+            timeout=QUERY_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise deploy.DeploymentError("task-owned Docker identity query timed out") from exc
+    if inspected.returncode != 0:
+        return None
+    container_id, separator, owner = inspected.stdout.strip().partition("|")
+    if separator != "|" or not _CONTAINER_ID_RE.fullmatch(container_id):
+        raise deploy.DeploymentError("task-owned Docker identity query returned invalid metadata")
+    return container_id, owner
+
+
+def _verify_container_id_absent(
+    deploy: Any,
+    container_id: str,
+    *,
+    cwd: Path | None,
+) -> None:
+    try:
+        inspected = _run_bounded(
+            ["docker", "inspect", container_id],
+            cwd=cwd,
+            timeout=QUERY_TIMEOUT_SECONDS,
+        )
+        version = _run_bounded(
+            ["docker", "version"],
+            cwd=cwd,
+            timeout=QUERY_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise deploy.DeploymentError(
+            "task-owned Docker identity cleanup could not be verified"
+        ) from exc
+    if version.returncode != 0 or inspected.returncode == 0:
+        raise deploy.DeploymentError("task-owned Docker identity cleanup failed")
+
+
+def _cleanup_owned(
+    deploy: Any,
+    name: str,
+    owner: str,
+    *,
+    container_id: str | None,
+    cwd: Path | None,
+) -> str | None:
+    expected_id = container_id
     last_cleanup_error: BaseException | None = None
     for _attempt in range(CLEANUP_ATTEMPTS):
+        reference = expected_id or name
         try:
-            _run_bounded(
-                ["docker", "rm", "-f", name],
+            identity = _inspect_owned_identity(deploy, reference, cwd=cwd)
+        except deploy.DeploymentError as exc:
+            last_cleanup_error = exc
+            continue
+
+        if identity is None:
+            try:
+                if expected_id is None:
+                    _verify_absent(deploy, name, cwd=cwd)
+                    return None
+                _verify_container_id_absent(deploy, expected_id, cwd=cwd)
+                return expected_id
+            except deploy.DeploymentError as exc:
+                last_cleanup_error = exc
+                continue
+
+        current_id, current_owner = identity
+        if current_owner != owner:
+            raise deploy.DeploymentError(
+                "current Docker container identity is not owned by this task"
+            )
+        if expected_id is None:
+            expected_id = current_id
+        elif current_id != expected_id:
+            raise deploy.DeploymentError(
+                "current Docker container identity changed before task-owned cleanup"
+            )
+
+        try:
+            removed = _run_bounded(
+                ["docker", "rm", "-f", expected_id],
                 cwd=cwd,
                 timeout=REMOVE_TIMEOUT_SECONDS,
             )
+            if removed.returncode != 0:
+                last_cleanup_error = deploy.DeploymentError(
+                    "task-owned Docker identity removal failed"
+                )
         except subprocess.TimeoutExpired as exc:
             last_cleanup_error = exc
 
         try:
-            _verify_absent(deploy, name, cwd=cwd)
-            return
+            _verify_container_id_absent(deploy, expected_id, cwd=cwd)
+            return expected_id
         except deploy.DeploymentError as exc:
             last_cleanup_error = exc
 
@@ -167,30 +265,32 @@ def _cleanup_ambiguous_create(
     owner: str,
     *,
     cwd: Path | None,
-) -> None:
+) -> str | None:
     last_verification_error: BaseException | None = None
     for _attempt in range(OWNERSHIP_VERIFY_ATTEMPTS):
         try:
-            ownership = _run_bounded(
-                ["docker", "inspect", "--format", OWNER_LABEL_FORMAT, name],
-                cwd=cwd,
-                timeout=QUERY_TIMEOUT_SECONDS,
-            )
-        except subprocess.TimeoutExpired as exc:
+            identity = _inspect_owned_identity(deploy, name, cwd=cwd)
+        except deploy.DeploymentError as exc:
             last_verification_error = exc
             continue
 
-        if ownership.returncode == 0:
-            if ownership.stdout.strip() != owner:
+        if identity is not None:
+            container_id, current_owner = identity
+            if current_owner != owner:
                 raise deploy.DeploymentError(
                     "ambiguous Docker create produced a container not owned by this task"
                 )
-            _cleanup_owned(deploy, name, cwd=cwd)
-            return
+            return _cleanup_owned(
+                deploy,
+                name,
+                owner,
+                container_id=container_id,
+                cwd=cwd,
+            )
 
         try:
             _verify_absent(deploy, name, cwd=cwd)
-            return
+            return None
         except deploy.DeploymentError as exc:
             last_verification_error = exc
 
@@ -303,6 +403,8 @@ def _record_cleanup_evidence(
     deploy: Any,
     *,
     label: str,
+    name: str,
+    container_id: str | None,
     before: dict[str, dict[str, object]] | None,
     after: dict[str, dict[str, object]] | None,
     regressions: list[str],
@@ -315,6 +417,8 @@ def _record_cleanup_evidence(
     evidence.append(
         {
             "workload": label,
+            "task_container_name": name,
+            "task_container_id": container_id,
             "protected_before": before,
             "protected_after": after,
             "protected_non_regression": verification_complete and not regressions,
@@ -331,10 +435,12 @@ def _cleanup_with_protected_health(
     name: str,
     owner: str,
     create_succeeded: bool,
+    container_id: str | None,
     cwd: Path | None,
 ) -> None:
     before: dict[str, dict[str, object]] | None = None
     after: dict[str, dict[str, object]] | None = None
+    cleaned_container_id = container_id
     health_error: BaseException | None = None
     cleanup_error: BaseException | None = None
 
@@ -345,9 +451,15 @@ def _cleanup_with_protected_health(
 
     try:
         if create_succeeded:
-            _cleanup_owned(deploy, name, cwd=cwd)
+            cleaned_container_id = _cleanup_owned(
+                deploy,
+                name,
+                owner,
+                container_id=container_id,
+                cwd=cwd,
+            )
         else:
-            _cleanup_ambiguous_create(deploy, name, owner, cwd=cwd)
+            cleaned_container_id = _cleanup_ambiguous_create(deploy, name, owner, cwd=cwd)
     except BaseException as exc:
         cleanup_error = exc
     finally:
@@ -366,6 +478,8 @@ def _cleanup_with_protected_health(
     _record_cleanup_evidence(
         deploy,
         label=label,
+        name=name,
+        container_id=cleaned_container_id,
         before=before,
         after=after,
         regressions=regressions,
@@ -412,9 +526,9 @@ def _run_sensitive_workload(
     ]
 
     # A pre-existing collision is not task-owned and must fail closed without
-    # mutation. The create itself carries an ownership label so an ambiguous
-    # timeout/non-zero result can be cleaned only if the daemon proves that the
-    # resulting exact-name container belongs to this invocation.
+    # mutation. Every destructive cleanup attempt re-reads the immutable ID and
+    # invocation owner label, and removal targets the immutable ID rather than
+    # whichever container may later reuse the generated name.
     _verify_absent(deploy, name, cwd=cwd)
 
     primary_error: BaseException | None = None
@@ -422,9 +536,10 @@ def _run_sensitive_workload(
     logs: subprocess.CompletedProcess[str] | None = None
     process_exit: str | None = None
     create_succeeded = False
+    created_container_id: str | None = None
 
     try:
-        _stage(
+        created = _stage(
             deploy,
             label=label,
             stage="create",
@@ -433,6 +548,7 @@ def _run_sensitive_workload(
             timeout=CREATE_TIMEOUT_SECONDS,
         )
         create_succeeded = True
+        created_container_id = _parse_container_id(deploy, created.stdout)
         _stage(
             deploy,
             label=label,
@@ -470,6 +586,7 @@ def _run_sensitive_workload(
                 name=name,
                 owner=owner,
                 create_succeeded=create_succeeded,
+                container_id=created_container_id,
                 cwd=cwd,
             )
         except BaseException as exc:

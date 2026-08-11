@@ -1,0 +1,246 @@
+name: WickHunter PR1450 active-run identity repair v2
+
+on:
+  push:
+    branches:
+      - fix/wickhunter-1396-synology-recovery-v2
+    paths:
+      - .github/workflows/wickhunter-1450-active-run-identity-repair-v2.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-1450-active-run-identity-repair-v2
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: fix/wickhunter-1396-synology-recovery-v2
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Reconcile develop and apply bounded repair
+        shell: bash
+        env:
+          EXPECTED_DEVELOP: 5bb32ac998188
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch origin develop
+          actual="$(git rev-parse origin/develop)"
+          [[ "$actual" == "$EXPECTED_DEVELOP"* ]]
+          git merge --no-ff -m "chore(wickhunter): reconcile PR 1450 with develop 5bb32ac" origin/develop
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source_path = Path("ai_platform/scripts/liquidation_live_stream.py")
+          source = source_path.read_text(encoding="utf-8")
+          start = source.index("def _assert_runtime_roots_still_anchored(")
+          end = source.index("\ndef _read_json_regular_at(", start)
+          helper = '''def _assert_runtime_roots_still_anchored(
+              *,
+              data_root: Path,
+              live_fd: int,
+              runs_fd: int,
+              run_id: str | None = None,
+              run_fd: int | None = None,
+          ) -> None:
+              if (run_id is None) != (run_fd is None):
+                  raise ValueError("run_id and run_fd must be provided together")
+              flags = _secure_directory_flags()
+              opened: list[int] = []
+              try:
+                  data_fd = os.open(data_root, flags)
+                  opened.append(data_fd)
+                  current_live_fd = os.open("live", flags, dir_fd=data_fd)
+                  opened.append(current_live_fd)
+                  current_runs_fd = os.open("runs", flags, dir_fd=current_live_fd)
+                  opened.append(current_runs_fd)
+                  comparisons = [
+                      (live_fd, current_live_fd),
+                      (runs_fd, current_runs_fd),
+                  ]
+                  if run_id is not None and run_fd is not None:
+                      current_run_fd = os.open(run_id, flags, dir_fd=current_runs_fd)
+                      opened.append(current_run_fd)
+                      comparisons.append((run_fd, current_run_fd))
+                  for anchored_fd, current_fd in comparisons:
+                      anchored = os.fstat(anchored_fd)
+                      current = os.fstat(current_fd)
+                      if (anchored.st_dev, anchored.st_ino) != (current.st_dev, current.st_ino):
+                          raise RuntimeError("Liquid20 runtime roots changed after anchoring")
+              except OSError as exc:
+                  raise RuntimeError("Liquid20 runtime roots changed after anchoring") from exc
+              finally:
+                  for descriptor in reversed(opened):
+                      os.close(descriptor)
+          '''.replace("          ", "").rstrip("\n")
+          source = source[:start] + helper + source[end:]
+
+          needle = """        _assert_runtime_roots_still_anchored(
+              data_root=self.data_root,
+              live_fd=live_fd,
+              runs_fd=runs_fd,
+          )"""
+          replacement = """        _assert_runtime_roots_still_anchored(
+              data_root=self.data_root,
+              live_fd=live_fd,
+              runs_fd=runs_fd,
+              run_id=self.run_id,
+              run_fd=run_fd,
+          )"""
+          if source.count(needle) != 2:
+              raise SystemExit(f"unexpected root guard count: {source.count(needle)}")
+          source = source.replace(needle, replacement)
+          source_path.write_text(source, encoding="utf-8")
+
+          test_path = Path("tests/ai_platform_integration/test_liquidation_live_restart_durability.py")
+          tests = test_path.read_text(encoding="utf-8")
+          marker = "\ndef test_restart_rejects_symlinked_run_root_without_mutating_external_target(\n"
+          regression = r'''
+          def test_new_run_creation_fails_closed_after_active_run_path_swap(tmp_path: Path) -> None:
+              live_root = tmp_path / "live"
+              manager = OkxLiveRunManager(
+                  data_root=tmp_path,
+                  collector_commit="e" * 40,
+                  host_id="synology-test",
+                  now_ms=lambda: 1_786_384_683_792,
+              )
+              original_start_new_run = manager._start_new_run
+              detached_run: Path | None = None
+
+              def start_and_swap_active_run(now_ms: int) -> None:
+                  nonlocal detached_run
+                  original_start_new_run(now_ms)
+                  canonical_run = manager.run_root
+                  detached_run = canonical_run.with_name(f"{canonical_run.name}-anchored")
+                  canonical_run.rename(detached_run)
+                  canonical_run.mkdir(mode=0o750)
+
+              manager._start_new_run = start_and_swap_active_run  # type: ignore[method-assign]
+
+              with pytest.raises(RuntimeError, match="Liquid20 runtime roots changed after anchoring"):
+                  asyncio.run(manager.start())
+
+              assert detached_run is not None
+              assert list(manager.run_root.iterdir()) == []
+              assert not (live_root / LIVE_STATE_FILE).exists()
+              assert (detached_run / "bybit-linear.ndjson").is_file()
+              assert (detached_run / "binance-usdm.ndjson").is_file()
+              assert (detached_run / "okx-swap.ndjson").is_file()
+              assert not (detached_run / "run-state-v1.json").exists()
+
+          '''.replace("          ", "")
+          if "def test_new_run_creation_fails_closed_after_active_run_path_swap(" not in tests:
+              if tests.count(marker) != 1:
+                  raise SystemExit("unexpected active-run regression insertion marker")
+              tests = tests.replace(marker, "\n" + regression + marker.lstrip("\n"), 1)
+          test_path.write_text(tests, encoding="utf-8")
+          PY
+
+      - name: Validate focused repair in isolated venv
+        shell: bash
+        run: |
+          set -euo pipefail
+          venv="$RUNNER_TEMP/wickhunter-1450-active-run-v2-venv"
+          rm -rf "$venv"
+          python3 -m venv "$venv"
+          "$venv/bin/python" -m pip install --disable-pip-version-check \
+            pytest "pydantic>=2.2" "SQLAlchemy>=2.0.6" "httpx>=0.24.1" \
+            fastapi pyjwt cryptography "PyYAML>=6.0" lightgbm websockets ruff==0.15.20
+          "$venv/bin/python" -m ruff format \
+            ai_platform/scripts/liquidation_live_stream.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          "$venv/bin/python" -m py_compile \
+            ai_platform/scripts/liquidation_live_stream.py \
+            ai_platform/scripts/liquidation_live_stream_okx.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          "$venv/bin/python" -m ruff check \
+            ai_platform/scripts/liquidation_live_stream.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          "$venv/bin/python" -m ruff format --check \
+            ai_platform/scripts/liquidation_live_stream.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          "$venv/bin/python" -m pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py \
+            tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          git diff --check
+          printf 'VENV=%s\n' "$venv" >> "$GITHUB_ENV"
+
+      - name: Commit validated repair and checkpoint
+        shell: bash
+        env:
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_restart_durability.py
+          git commit -m "fix(liquidations): revalidate active run before publish"
+          product_head="$(git rev-parse HEAD)"
+          PRODUCT_HEAD="$product_head" python3 - <<'PY'
+          import os
+          import re
+          from datetime import datetime
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+
+          path = Path("docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md")
+          text = path.read_text(encoding="utf-8")
+          product_head = os.environ["PRODUCT_HEAD"]
+          run_id = os.environ["RUN_ID"]
+          now = datetime.now(ZoneInfo("Europe/Warsaw")).replace(microsecond=0).isoformat()
+          text = re.sub(r"updated_at: [^\n]+", f"updated_at: {now}", text, count=1)
+          text = re.sub(
+              r"head: [0-9a-f]{40}\nbranch: fix/wickhunter-1396-synology-recovery-v2",
+              f"head: {product_head}\nbranch: fix/wickhunter-1396-synology-recovery-v2",
+              text,
+              count=1,
+          )
+          old = "  - final exact-head PR 1450 ci:full result after root-identity repair and current-develop reconciliation\n"
+          text = text.replace(old, "  - final exact-head PR 1450 ci:full result after active-run identity repair and current-develop reconciliation\n", 1)
+          anchor = "before exact-head validation\n"
+          pos = text.index(anchor, text.index("proven:\n"))
+          text = text[:pos] + f"; active-run identity is now revalidated against canonical runs/<run_id> before state and pointer publication, focused validation run {run_id} passed the repaired regression and full focused suite; final reconciliation includes develop 5bb32ac998188" + text[pos:]
+          text = text.replace(
+              "next_action: Run final exact-head PR 1450 ci:full and fresh Codex review after root-identity repair; if green, squash-merge and continue canonical Liquid20 deployment plus guarded completed-history repair.",
+              "next_action: Run final exact-head PR 1450 ci:full and fresh Codex review after active-run identity repair; if green, squash-merge and continue canonical Liquid20 deployment plus guarded completed-history repair.",
+              1,
+          )
+          text = text.replace("  generation: 19\n", "  generation: 20\n", 1)
+          text = re.sub(r"  checkpointed_at: [^\n]+", f"  checkpointed_at: {now}", text, count=1)
+          text = re.sub(r"  last_progress_at: [^\n]+", f"  last_progress_at: {now}", text, count=1)
+          text = text.replace("  phase: pr1450_final_validation\n", "  phase: pr1450_active_run_identity_revalidation\n", 1)
+          text = re.sub(r"  exact_head_before_checkpoint_commit: [0-9a-f]{40}", f"  exact_head_before_checkpoint_commit: {product_head}", text, count=1)
+          text = text.replace(
+              "  active_operation: final exact-head ci:full and independent review after root-identity repair and current-develop reconciliation\n",
+              "  active_operation: final exact-head ci:full and independent review after active-run identity repair and current-develop reconciliation\n",
+              1,
+          )
+          text = text.replace(
+              "  next_action: Complete final exact-head ci:full plus fresh Codex review on PR 1450, then squash-merge and continue canonical Liquid20 recovery.",
+              "  next_action: Complete final exact-head ci:full plus fresh Codex review after active-run identity repair on PR 1450, then squash-merge and continue canonical Liquid20 recovery.",
+              1,
+          )
+          path.write_text(text, encoding="utf-8")
+          PY
+          "$VENV/bin/python" tools/agents/checkpoint.py docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md --require-checkpoint
+          git add docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
+          for file in \
+            .github/workflows/wickhunter-1450-active-run-identity-repair.yml \
+            .github/workflows/wickhunter-1450-active-run-identity-repair-selfhosted.yml \
+            .github/workflows/wickhunter-1450-active-run-identity-repair-v2.yml; do
+            [[ -f "$file" ]] && git rm "$file" || true
+          done
+          git diff --cached --check
+          git commit -m "docs(wickhunter): checkpoint active-run identity repair"
+          git push origin HEAD:fix/wickhunter-1396-synology-recovery-v2

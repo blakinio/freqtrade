@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -68,6 +68,12 @@ def test_profile_and_plan_are_immutable_and_digest_stable() -> None:
     assert plan.digest() == _plan().digest()
     with pytest.raises(FrozenInstanceError):
         plan.pids_limit = 999
+
+
+@pytest.mark.parametrize("runtime_user", ["0:1000", "1000:0", "root:1000", "1000:root", "1000", "1000:"])
+def test_profile_rejects_root_or_non_numeric_runtime_identity(runtime_user: str) -> None:
+    with pytest.raises(ValueError, match="non-root numeric uid:gid"):
+        replace(baseline_portal_isolation_profile(), runtime_user=runtime_user)
 
 
 def test_plan_binding_rejects_digest_mismatch() -> None:

@@ -56,6 +56,7 @@ class _Attestor:
         self.prepared_networks: list[str] = []
         self.attested_storage: list[Path] = []
         self.attested_networks: list[str] = []
+        self.attested_active_networks: list[str] = []
         self.activated_networks: list[str] = []
         self.cleaned: list[str] = []
         self.fail_activation = fail_activation
@@ -116,6 +117,16 @@ class _Attestor:
         assert runtime_id == "runtime-1"
         assert plan.market_data_egress_policy_version == "public-data-v1"
         self.attested_networks.append(network_name)
+
+    def attest_active_network(
+        self,
+        plan: RuntimeIsolationPlan,
+        network_name: str,
+        runtime_id: str,
+    ) -> None:
+        assert runtime_id == "runtime-1"
+        assert plan.market_data_egress_policy_version == "public-data-v1"
+        self.attested_active_networks.append(network_name)
 
     def cleanup_network(self, network_name: str, runtime_id: str) -> None:
         assert runtime_id == "runtime-1"
@@ -637,8 +648,9 @@ def test_running_generation_repeats_current_isolation_attestation(tmp_path: Path
     driver._plan_digests[spec.runtime_id] = plan.digest()
 
     assert driver.start(spec.runtime_id) is DriverRuntimeState.RUNNING
-    assert attestor.attested_networks == [_network()]
-    assert attestor.activated_networks == [_network()]
+    assert attestor.attested_networks == []
+    assert attestor.attested_active_networks == [_network()]
+    assert attestor.activated_networks == []
 
 
 def test_running_generation_tamper_fails_closed_and_removes_runtime(tmp_path: Path) -> None:

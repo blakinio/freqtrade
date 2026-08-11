@@ -545,6 +545,16 @@ def test_driver_release_runs_through_concrete_linux_isolation_backend() -> None:
         assert public_data.returncode == 0, public_data.stdout + public_data.stderr
         assert PAPER_E2E_PAIR in public_data.stdout
 
+        for _ in range(40):
+            state = driver.inspect(runtime_id)
+            if state is DriverRuntimeState.RUNNING:
+                break
+            assert state is DriverRuntimeState.STARTING
+            time.sleep(0.25)
+        else:
+            pytest.fail("released PAPER runtime did not reach application readiness")
+        assert driver.start(runtime_id) is DriverRuntimeState.RUNNING
+
         network_info = backend._network_info(network)
         live = _run("nft", "-j", "list", "table", "inet", table)
         assert live.returncode == 0, live.stderr

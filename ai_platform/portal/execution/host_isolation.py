@@ -451,6 +451,24 @@ class LinuxNftablesBtrfsIsolationAttestor:
         network_name: str,
         runtime_id: str,
     ) -> None:
+        self._attest_network_state(plan, network_name, runtime_id, active=False)
+
+    def attest_active_network(
+        self,
+        plan: RuntimeIsolationPlan,
+        network_name: str,
+        runtime_id: str,
+    ) -> None:
+        self._attest_network_state(plan, network_name, runtime_id, active=True)
+
+    def _attest_network_state(
+        self,
+        plan: RuntimeIsolationPlan,
+        network_name: str,
+        runtime_id: str,
+        *,
+        active: bool,
+    ) -> None:
         policy = self._policy_for(plan)
         network = self._network_info(network_name)
         if bool(network.get("EnableIPv6", False)):
@@ -480,7 +498,9 @@ class LinuxNftablesBtrfsIsolationAttestor:
                 "ISOLATION_ATTESTATION_FAILED",
                 "nftables generation policy evidence is invalid JSON",
             ) from exc
-        self._attest_canonical_nftables(payload, table, self._bridge_name(network), policy)
+        self._attest_canonical_nftables(
+            payload, table, self._bridge_name(network), policy, active=active
+        )
 
     def cleanup_network(self, network_name: str, runtime_id: str) -> None:
         del runtime_id

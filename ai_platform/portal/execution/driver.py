@@ -89,6 +89,13 @@ class ExternalIsolationAttestor(Protocol):
         runtime_id: str,
     ) -> None: ...
 
+    def attest_active_network(
+        self,
+        plan: RuntimeIsolationPlan,
+        network_name: str,
+        runtime_id: str,
+    ) -> None: ...
+
     def cleanup_network(self, network_name: str, runtime_id: str) -> None: ...
 
 
@@ -468,7 +475,7 @@ class DockerCliRuntimeDriver:
                 self._release_forbidden("running runtime has no current release evidence")
             network = self._networks.get(runtime_id, self._network_name(runtime_id))
             try:
-                self._reattest_before_release(runtime_id)
+                self._reattest_before_release(runtime_id, active_network=True)
             except Exception:
                 self._cleanup_failed_runtime(runtime_id, network)
                 raise
@@ -568,7 +575,9 @@ class DockerCliRuntimeDriver:
                 f"unsupported docker runtime state: {state or '<empty>'}",
             ) from exc
 
-    def _reattest_before_release(self, runtime_id: str) -> None:
+    def _reattest_before_release(
+        self, runtime_id: str, *, active_network: bool = False
+    ) -> None:
         if runtime_id not in self._attested:
             self._release_forbidden("runtime has no successful isolation attestation")
         spec = self._specs.get(runtime_id)
@@ -592,8 +601,9 @@ class DockerCliRuntimeDriver:
         self._require_plan_matches_spec(plan, spec)
         self._attest_gateway(plan)
         self._attest_structural(spec, plan, network)
-        self._attest_effective(spec, plan, network)
-        self._external.activate_network(plan, network, runtime_id)
+        self._attest_effective(spec, plan, network, active_network=active_network)
+        if not active_network:
+            self._external.activate_network(plan, network, runtime_id)
 
     def _attest_gateway(self, plan: RuntimeIsolationPlan) -> None:
         self._gateway.attest(
@@ -794,6 +804,8 @@ class DockerCliRuntimeDriver:
         spec: RuntimeContainerSpec,
         plan: RuntimeIsolationPlan,
         network: str,
+        *,
+        active_network: bool = False,
     ) -> None:
         process = self._runner.run(
             (
@@ -843,7 +855,10 @@ class DockerCliRuntimeDriver:
         self._attest_tmpfs(mounts.stdout, plan)
         self._attest_bounded_logs(spec.runtime_id, plan)
         self._external.attest_storage(plan, spec.state_path)
-        self._external.attest_network(plan, network, spec.runtime_id)
+        if active_network:
+            self._external.attest_active_network(plan, network, spec.runtime_id)
+        else:
+            self._external.attest_network(plan, network, spec.runtime_id)
 
     def _attest_bounded_logs(self, runtime_id: str, plan: RuntimeIsolationPlan) -> None:
         ready = self._runner.run(

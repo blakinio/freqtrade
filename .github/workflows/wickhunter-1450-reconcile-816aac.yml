@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           ref: fix/wickhunter-1396-synology-recovery-v2
-          fetch-depth: 50
+          fetch-depth: 0
           persist-credentials: false
       - name: Merge fetched develop tip and checkpoint
         env:
@@ -47,6 +47,7 @@ jobs:
           delivered = os.environ['DELIVERED']
           base_sha = os.environ['BASE_SHA']
           now = datetime.now(ZoneInfo('Europe/Warsaw')).replace(microsecond=0).isoformat()
+
           cp0 = '## Context checkpoint\n\n```yaml\n'
           cp1 = '\n```\n\n## Recovery checkpoint'
           a = text.index(cp0) + len(cp0)
@@ -59,10 +60,9 @@ jobs:
                   cp[i] = f'head: {delivered}'
               elif line.startswith('next_action:'):
                   cp[i] = 'next_action: Run final exact-head PR 1450 CI and fresh Codex review on the reconciled develop base; if green, squash-merge and continue canonical Liquid20 deployment plus guarded completed-history repair.'
-          marker = '  - descriptor-hardened runtime creation preserves the production shared-GID contract with 0640 files and 0750 run directories under umask 027'
-          if marker not in cp:
-              cp.append(marker)
-          cp.append(f'  - final reconciliation merged develop commit {base_sha} before exact-head validation')
+          proof = f'  - final reconciliation merged develop commit {base_sha} before exact-head validation'
+          if proof not in cp:
+              cp.append(proof)
           text = text[:a] + '\n'.join(cp) + text[b:]
 
           rp0 = '## Recovery checkpoint\n\n```yaml\n'

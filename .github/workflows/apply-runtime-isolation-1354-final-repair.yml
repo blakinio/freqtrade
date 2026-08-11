@@ -1,0 +1,175 @@
+name: Apply runtime isolation 1354 final repair
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/apply-runtime-isolation-1354-final-repair.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply-repair:
+    if: >-
+      github.event.pull_request.number == 1464 &&
+      github.event.pull_request.head.ref == 'fix/portal-runtime-isolation-1354' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact task branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: fix/portal-runtime-isolation-1354
+          persist-credentials: true
+
+      - name: Apply exact bounded repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one replacement target, found {count}")
+              target.write_text(text.replace(old, new), encoding="utf-8")
+
+          driver = "ai_platform/portal/execution/driver.py"
+          replace_once(
+              driver,
+              '    _RELEASE_FILE = f"{_RELEASE_DIR}/release"\n    _LOG_PROBE_READY = f"{_RELEASE_DIR}/log-probe-ready"\n',
+              '    _RELEASE_FILE = f"{_RELEASE_DIR}/release"\n    _APPLICATION_READY_FILE = f"{_RELEASE_DIR}/application-ready"\n    _LOG_PROBE_READY = f"{_RELEASE_DIR}/log-probe-ready"\n',
+          )
+          replace_once(
+              driver,
+              '''        if current is DriverRuntimeState.RUNNING:\n            if runtime_id not in self._released:\n                self._release_forbidden("running runtime has no current release evidence")\n            return current\n''',
+              '''        if current is DriverRuntimeState.RUNNING:\n            if runtime_id not in self._released:\n                self._release_forbidden("running runtime has no current release evidence")\n            network = self._networks.get(runtime_id, self._network_name(runtime_id))\n            try:\n                self._reattest_before_release(runtime_id)\n            except Exception:\n                self._cleanup_failed_runtime(runtime_id, network)\n                raise\n            return current\n''',
+          )
+          replace_once(
+              driver,
+              '''            return DriverRuntimeState.RUNNING\n        if current is DriverRuntimeState.STOPPED:\n''',
+              '''            return DriverRuntimeState.STARTING\n        if current is DriverRuntimeState.STOPPED:\n''',
+          )
+          replace_once(
+              driver,
+              '''            if gate.returncode == 0:\n                return DriverRuntimeState.RUNNING\n            if gate.returncode == 1:\n                return DriverRuntimeState.CREATED\n''',
+              '''            if gate.returncode == 0:\n                ready = self._runner.run(\n                    ("docker", "exec", runtime_id, "test", "-f", self._APPLICATION_READY_FILE)\n                )\n                if ready.returncode == 0:\n                    return DriverRuntimeState.RUNNING\n                if ready.returncode == 1:\n                    return DriverRuntimeState.STARTING\n                raise RuntimeDriverError(\n                    "ISOLATION_ATTESTATION_FAILED",\n                    ready.stderr.strip() or "application readiness state is unreadable",\n                )\n            if gate.returncode == 1:\n                return DriverRuntimeState.CREATED\n''',
+          )
+
+          quarantine = "ai_platform/portal/execution/runtime_image/portal-runtime-quarantine"
+          replace_once(
+              quarantine,
+              'release_file="$release_dir/release"\nlog_probe_ready="$release_dir/log-probe-ready"\n',
+              'release_file="$release_dir/release"\napplication_ready="$release_dir/application-ready"\nlog_probe_ready="$release_dir/log-probe-ready"\n',
+          )
+          replace_once(
+              quarantine,
+              '''exec "$@"\n''',
+              '''child_pid=""\nforward_signal() {\n    if [ -n "$child_pid" ]; then\n        kill -TERM "$child_pid" 2>/dev/null || true\n    fi\n}\ntrap forward_signal TERM INT HUP\n\n"$@" &\nchild_pid=$!\ni=0\nwhile [ "$i" -lt 20 ]; do\n    if ! kill -0 "$child_pid" 2>/dev/null; then\n        set +e\n        wait "$child_pid"\n        status=$?\n        set -e\n        exit "$status"\n    fi\n    i=$((i + 1))\n    sleep 0.1\ndone\n: > "$application_ready"\nset +e\nwait "$child_pid"\nstatus=$?\nset -e\nexit "$status"\n''',
+          )
+
+          e2e = "tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py"
+          replace_once(e2e, '                    info[4][0]\n', '                    str(info[4][0])\n')
+          replace_once(
+              e2e,
+              '    except socket.gaierror as exc:\n        pytest.fail(f"{hostname}: DNS failed: {exc}")\n\n\ndef _reachable_ipv4',
+              '    except socket.gaierror as exc:\n        pytest.fail(f"{hostname}: DNS failed: {exc}")\n        raise AssertionError("unreachable") from exc\n\n\ndef _reachable_ipv4',
+          )
+          replace_once(
+              e2e,
+              '    pytest.fail("no reachable public IPv4 E2E probe target: " + "; ".join(failures))\n\n\ndef _reachable_market_data_ipv4',
+              '    pytest.fail("no reachable public IPv4 E2E probe target: " + "; ".join(failures))\n    raise AssertionError("unreachable")\n\n\ndef _reachable_market_data_ipv4',
+          )
+          replace_once(
+              e2e,
+              '    pytest.fail("market-data endpoint has no reachable IPv4: " + "; ".join(failures))\n\n\ndef _policy',
+              '    pytest.fail("market-data endpoint has no reachable IPv4: " + "; ".join(failures))\n    raise AssertionError("unreachable")\n\n\ndef _policy',
+          )
+          replace_once(
+              e2e,
+              '            "--label",\n            f"ai.portal.runtime_id={runtime_id}",\n            "--label",\n            f"ai.portal.isolation_plan_digest={plan.digest()}",\n',
+              '            "--label",\n            "ai.portal.test=runtime-isolation-e2e",\n            "--label",\n            f"ai.portal.runtime_id={runtime_id}",\n            "--label",\n            f"ai.portal.isolation_plan_digest={plan.digest()}",\n',
+          )
+
+          tests = "tests/ai_platform/portal/execution/test_driver.py"
+          replace_once(
+              tests,
+              '    assert driver.start("runtime-1") is DriverRuntimeState.RUNNING\n    assert len(attestor.attested_networks) == initial_attest_count + 1\n',
+              '    assert driver.start("runtime-1") is DriverRuntimeState.STARTING\n    assert len(attestor.attested_networks) == initial_attest_count + 1\n',
+          )
+          marker = '''\ndef test_paused_foreign_runtime_cannot_be_released() -> None:\n'''
+          addition = '''\ndef test_released_runtime_is_starting_until_application_ready() -> None:\n    runner = _Runner(\n        CommandResult(0, stdout="running\\n"),\n        CommandResult(0),\n        CommandResult(1),\n    )\n    assert DockerCliRuntimeDriver(runner).inspect("runtime-1") is DriverRuntimeState.STARTING\n\n\ndef test_running_generation_repeats_current_isolation_attestation(tmp_path: Path) -> None:\n    plan = _plan()\n    spec = _spec(tmp_path)\n    runner = _Runner(\n        CommandResult(0, stdout="running\\n"),\n        CommandResult(0),\n        CommandResult(0),\n        *_reattest_results(spec, plan),\n    )\n    attestor = _Attestor()\n    driver = DockerCliRuntimeDriver(\n        runner,\n        isolation_plans=_provider(plan),\n        external_attestor=attestor,\n        gateway_attestor=attestor,\n    )\n    driver._attested.add(spec.runtime_id)\n    driver._released.add(spec.runtime_id)\n    driver._fingerprints[spec.runtime_id] = driver._fingerprint(spec, plan.digest())\n    driver._networks[spec.runtime_id] = _network()\n    driver._specs[spec.runtime_id] = spec\n    driver._plan_digests[spec.runtime_id] = plan.digest()\n\n    assert driver.start(spec.runtime_id) is DriverRuntimeState.RUNNING\n    assert attestor.attested_networks == [_network()]\n    assert attestor.activated_networks == [_network()]\n\n\ndef test_running_generation_tamper_fails_closed_and_removes_runtime(tmp_path: Path) -> None:\n    plan = _plan()\n    spec = _spec(tmp_path)\n    tampered = _inspect(spec, plan)\n    host = tampered["HostConfig"]\n    assert isinstance(host, dict)\n    host["Privileged"] = True\n    runner = _Runner(\n        CommandResult(0, stdout="running\\n"),\n        CommandResult(0),\n        CommandResult(0),\n        CommandResult(0, stdout=json.dumps([tampered])),\n        CommandResult(0),\n    )\n    attestor = _Attestor()\n    driver = DockerCliRuntimeDriver(\n        runner,\n        isolation_plans=_provider(plan),\n        external_attestor=attestor,\n        gateway_attestor=attestor,\n    )\n    driver._attested.add(spec.runtime_id)\n    driver._released.add(spec.runtime_id)\n    driver._fingerprints[spec.runtime_id] = driver._fingerprint(spec, plan.digest())\n    driver._networks[spec.runtime_id] = _network()\n    driver._specs[spec.runtime_id] = spec\n    driver._plan_digests[spec.runtime_id] = plan.digest()\n\n    with pytest.raises(RuntimeDriverError) as exc_info:\n        driver.start(spec.runtime_id)\n\n    assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"\n    assert attestor.cleaned == [_network()]\n    assert runner.calls[-1] == ("docker", "rm", "-f", spec.runtime_id)\n\n'''
+          replace_once(tests, marker, addition + marker)
+
+          workflow = ".github/workflows/portal-runtime-isolation-e2e.yml"
+          replace_once(
+              workflow,
+              '          echo "PORTAL_BTRFS_E2E_ROOT=$mount" >> "$GITHUB_ENV"\n',
+              '          echo "PORTAL_BTRFS_E2E_ROOT=$mount" >> "$GITHUB_ENV"\n          inventory="$RUNNER_TEMP/portal-runtime-isolation-nftables-tables"\n          : > "$inventory"\n          echo "PORTAL_NFTABLES_TABLE_INVENTORY=$inventory" >> "$GITHUB_ENV"\n',
+          )
+          replace_once(
+              workflow,
+              '            PORTAL_BTRFS_E2E_ROOT="$PORTAL_BTRFS_E2E_ROOT" \\\n            "$python_path" -m pytest',
+              '            PORTAL_BTRFS_E2E_ROOT="$PORTAL_BTRFS_E2E_ROOT" \\\n            PORTAL_NFTABLES_TABLE_INVENTORY="$PORTAL_NFTABLES_TABLE_INVENTORY" \\\n            "$python_path" -m pytest',
+          )
+          replace_once(
+              workflow,
+              '''          mapfile -t containers < <(\n            docker ps -aq --filter 'label=ai.portal.test=runtime-isolation-e2e'\n          )\n''',
+              '''          mapfile -t containers < <(\n            {\n              docker ps -aq --filter 'label=ai.portal.test=runtime-isolation-e2e'\n              for candidate in $(docker ps -aq --filter 'label=ai.portal.runtime_id'); do\n                runtime_id="$(docker inspect --format '{{index .Config.Labels "ai.portal.runtime_id"}}' "$candidate" 2>/dev/null)"\n                case "$runtime_id" in\n                  portal-linux-e2e-*) echo "$candidate" ;;\n                esac\n              done\n            } | sort -u\n          )\n''',
+          )
+          replace_once(
+              workflow,
+              '              portal-isolation-e2e-*)\n',
+              '              portal-isolation-e2e-*|portal-linux-e2e-*)\n',
+          )
+          replace_once(
+              workflow,
+              '''          mapfile -t networks < <(\n            docker network ls -q --filter 'label=ai.portal.runtime_id'\n          )\n''',
+              '''          if [ -n "${PORTAL_NFTABLES_TABLE_INVENTORY:-}" ] && [ -f "$PORTAL_NFTABLES_TABLE_INVENTORY" ]; then\n            while IFS= read -r table; do\n              [ -z "$table" ] && continue\n              if [[ "$table" =~ ^portal_[0-9a-f]{20}$ ]]; then\n                task_tables+=("$table")\n              else\n                echo "refusing unexpected nftables inventory entry: $table" >&2\n                cleanup_failed=1\n              fi\n            done < "$PORTAL_NFTABLES_TABLE_INVENTORY"\n          fi\n\n          mapfile -t networks < <(\n            docker network ls -q --filter 'label=ai.portal.runtime_id'\n          )\n''',
+          )
+          replace_once(
+              workflow,
+              '''                if sudo nft list table inet "$table" >/dev/null 2>&1; then\n                  sudo nft delete table inet "$table" || cleanup_failed=1\n                fi\n                docker network rm "$network" || cleanup_failed=1\n''',
+              '''                docker network rm "$network" || cleanup_failed=1\n''',
+          )
+          replace_once(
+              workflow,
+              '''          done\n\n          if mountpoint -q /mnt/portal-runtime-isolation-btrfs; then\n''',
+              '''          done\n\n          if [ "${#task_tables[@]}" -gt 0 ]; then\n            mapfile -t task_tables < <(printf '%s\\n' "${task_tables[@]}" | sort -u)\n          fi\n          for table in "${task_tables[@]}"; do\n            if sudo nft list table inet "$table" >/dev/null 2>&1; then\n              sudo nft delete table inet "$table" || cleanup_failed=1\n            fi\n          done\n\n          if mountpoint -q /mnt/portal-runtime-isolation-btrfs; then\n''',
+          )
+          replace_once(
+              workflow,
+              '''          if docker ps -aq --filter 'label=ai.portal.test=runtime-isolation-e2e' | grep -q .; then\n            echo "task-owned runtime isolation containers remain after cleanup" >&2\n            cleanup_failed=1\n          fi\n''',
+              '''          for container in $(docker ps -aq --filter 'label=ai.portal.runtime_id'); do\n            runtime_id="$(docker inspect --format '{{index .Config.Labels "ai.portal.runtime_id"}}' "$container" 2>/dev/null)"\n            case "$runtime_id" in\n              portal-isolation-e2e-*|portal-linux-e2e-*)\n                echo "task-owned runtime isolation container remains after cleanup: $container" >&2\n                cleanup_failed=1\n                ;;\n            esac\n          done\n''',
+          )
+          PY
+
+          python -m compileall -q ai_platform/portal/execution tests/ai_platform/portal/execution
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+          yaml.safe_load(Path('.github/workflows/portal-runtime-isolation-e2e.yml').read_text())
+          PY
+          git diff --check
+
+      - name: Commit and push repaired exact branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            ai_platform/portal/execution/driver.py \
+            ai_platform/portal/execution/runtime_image/portal-runtime-quarantine \
+            tests/ai_platform/portal/execution/test_driver.py \
+            tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py \
+            .github/workflows/portal-runtime-isolation-e2e.yml
+          git diff --cached --check
+          git commit -m "fix(portal): close final runtime isolation gaps"
+          git push origin HEAD:fix/portal-runtime-isolation-1354

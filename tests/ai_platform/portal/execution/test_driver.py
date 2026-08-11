@@ -639,7 +639,12 @@ def test_running_generation_repeats_current_isolation_attestation(tmp_path: Path
         *_reattest_results(spec, plan),
     )
     attestor = _Attestor()
-    driver = DockerCliRuntimeDriver(runner, isolation_plans=_provider(plan), external_attestor=attestor, gateway_attestor=attestor)
+    driver = DockerCliRuntimeDriver(
+        runner,
+        isolation_plans=_provider(plan),
+        external_attestor=attestor,
+        gateway_attestor=attestor,
+    )
     driver._attested.add(spec.runtime_id)
     driver._released.add(spec.runtime_id)
     driver._fingerprints[spec.runtime_id] = driver._fingerprint(spec, plan.digest())
@@ -668,7 +673,12 @@ def test_running_generation_tamper_fails_closed_and_removes_runtime(tmp_path: Pa
         CommandResult(0),
     )
     attestor = _Attestor()
-    driver = DockerCliRuntimeDriver(runner, isolation_plans=_provider(plan), external_attestor=attestor, gateway_attestor=attestor)
+    driver = DockerCliRuntimeDriver(
+        runner,
+        isolation_plans=_provider(plan),
+        external_attestor=attestor,
+        gateway_attestor=attestor,
+    )
     driver._attested.add(spec.runtime_id)
     driver._released.add(spec.runtime_id)
     driver._fingerprints[spec.runtime_id] = driver._fingerprint(spec, plan.digest())

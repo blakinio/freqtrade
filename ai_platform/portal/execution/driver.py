@@ -545,7 +545,9 @@ class DockerCliRuntimeDriver:
                 ("docker", "exec", runtime_id, "test", "-f", self._RELEASE_FILE)
             )
             if gate.returncode == 0:
-                ready = self._runner.run(("docker", "exec", runtime_id, "test", "-f", self._APPLICATION_READY_FILE))
+                ready = self._runner.run(
+                    ("docker", "exec", runtime_id, "test", "-f", self._APPLICATION_READY_FILE)
+                )
                 if ready.returncode == 0:
                     return DriverRuntimeState.RUNNING
                 if ready.returncode == 1:
@@ -575,9 +577,7 @@ class DockerCliRuntimeDriver:
                 f"unsupported docker runtime state: {state or '<empty>'}",
             ) from exc
 
-    def _reattest_before_release(
-        self, runtime_id: str, *, active_network: bool = False
-    ) -> None:
+    def _reattest_before_release(self, runtime_id: str, *, active_network: bool = False) -> None:
         if runtime_id not in self._attested:
             self._release_forbidden("runtime has no successful isolation attestation")
         spec = self._specs.get(runtime_id)

@@ -172,7 +172,7 @@ def _public_oidc_v1_actual_from_current_expected(
 
 
 def _matches_public_oidc_v1(
-    status: dict[str,Any],
+    status: dict[str, Any],
     source_tables: frozenset[str],
 ) -> bool:
     differences = status["differences"]

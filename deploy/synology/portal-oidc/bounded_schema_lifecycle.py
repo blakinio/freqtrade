@@ -607,10 +607,7 @@ def _cleanup_with_protected_health(
         else []
     )
     verification_complete = (
-        health_error is None
-        and cleanup_complete
-        and before is not None
-        and after is not None
+        health_error is None and cleanup_complete and before is not None and after is not None
     )
     _record_cleanup_evidence(
         deploy,

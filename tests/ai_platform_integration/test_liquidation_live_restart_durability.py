@@ -116,6 +116,69 @@ def test_state_commit_flushes_pending_ndjson_before_events_written(tmp_path: Pat
     asyncio.run(scenario())
 
 
+def test_stop_closes_retained_runtime_directory_descriptors(tmp_path: Path) -> None:
+    manager = LiveRunManager(
+        data_root=tmp_path,
+        collector_commit="e" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+
+    async def scenario() -> None:
+        await manager.start()
+        retained = [manager._live_root_fd, manager._runs_root_fd, manager._run_root_fd]
+        assert all(isinstance(descriptor, int) for descriptor in retained)
+
+        await manager.stop()
+
+        assert manager._live_root_fd is None
+        assert manager._runs_root_fd is None
+        assert manager._run_root_fd is None
+        for descriptor in retained:
+            assert descriptor is not None
+            with pytest.raises(OSError):
+                os.fstat(descriptor)
+
+        await manager.stop()
+
+    asyncio.run(scenario())
+
+
+def test_stop_closes_retained_runtime_directory_descriptors_on_state_write_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manager = LiveRunManager(
+        data_root=tmp_path,
+        collector_commit="f" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+
+    async def scenario() -> None:
+        await manager.start()
+        retained = [manager._live_root_fd, manager._runs_root_fd, manager._run_root_fd]
+        assert all(isinstance(descriptor, int) for descriptor in retained)
+
+        def fail_state_write() -> None:
+            raise RuntimeError("forced final state write failure")
+
+        monkeypatch.setattr(manager, "_write_state", fail_state_write)
+        with pytest.raises(RuntimeError, match="forced final state write failure"):
+            await manager.stop()
+
+        assert manager._live_root_fd is None
+        assert manager._runs_root_fd is None
+        assert manager._run_root_fd is None
+        for descriptor in retained:
+            assert descriptor is not None
+            with pytest.raises(OSError):
+                os.fstat(descriptor)
+
+        await manager.stop()
+
+    asyncio.run(scenario())
+
+
 def test_restart_truncates_only_uncommitted_suffix_before_completion(tmp_path: Path) -> None:
     old_run_id, old_run_root = _write_previous_active_run(
         tmp_path,

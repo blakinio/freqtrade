@@ -550,17 +550,21 @@ class LiveRunManager:
 
     async def stop(self, *, reason: str = "collector-stopped") -> None:
         async with self._lock:
-            if self._run_id is None:
+            if self._run_id is None or self._run_root_fd is None:
+                await asyncio.to_thread(self._close_runtime_root_fds)
                 return
             self._run_state = "completed"
             self._completion_reason = reason
             self._completed_at_ms = self._now_ms()
             for state in self.sources.values():
                 state.connected = False
-            for writer in self._writers.values():
-                await asyncio.to_thread(writer.close)
-            await asyncio.to_thread(self._write_state)
-            self._writers.clear()
+            try:
+                for writer in self._writers.values():
+                    await asyncio.to_thread(writer.close)
+                await asyncio.to_thread(self._write_state)
+            finally:
+                self._writers.clear()
+                await asyncio.to_thread(self._close_runtime_root_fds)
 
     def _complete_previous_active_run(self) -> None:
         live_fd = self._require_fd(self._live_root_fd, label="Liquid20 live root")

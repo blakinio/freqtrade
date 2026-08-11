@@ -29,7 +29,7 @@ def _completed(command: list[str], returncode: int = 0, stdout: str = "ok\n") ->
     return subprocess.CompletedProcess(command, returncode, stdout=stdout, stderr="")
 
 
-def test_runtime_preflight_proves_disposable_container_start(
+def test_runtime_preflight_proves_disposable_container_lifecycle(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     module = _load_preflight()
@@ -39,6 +39,8 @@ def test_runtime_preflight_proves_disposable_container_start(
         commands.append(command)
         if command[:3] == ["docker", "info", "--format"]:
             return _completed(command, stdout="27.5.1\n")
+        if command[:2] == ["docker", "wait"]:
+            return _completed(command, stdout="0\n")
         return _completed(command)
 
     monkeypatch.setattr(module, "_run", fake_run)
@@ -52,8 +54,12 @@ def test_runtime_preflight_proves_disposable_container_start(
         "secret_values_recorded": False,
         "live_capital_authorized": False,
     }
-    assert any(command[:2] == ["docker", "run"] for command in commands)
+    assert any(command[:2] == ["docker", "create"] for command in commands)
+    assert any(command[:2] == ["docker", "start"] for command in commands)
+    assert any(command[:2] == ["docker", "wait"] for command in commands)
+    assert not any(command[:2] == ["docker", "run"] for command in commands)
     assert any("--network" in command and "none" in command for command in commands)
+    assert sum(command[:3] == ["docker", "rm", "-f"] for command in commands) == 2
 
 
 def test_runtime_preflight_fails_closed_when_container_start_times_out(
@@ -66,13 +72,54 @@ def test_runtime_preflight_fails_closed_when_container_start_times_out(
             return _completed(command, stdout="27.5.1\n")
         if command[:3] == ["docker", "image", "inspect"]:
             return _completed(command)
-        if command[:2] == ["docker", "run"]:
+        if command[:2] == ["docker", "start"]:
             raise module.PreflightError("docker runtime command timed out")
         return _completed(command)
 
     monkeypatch.setattr(module, "_run", fake_run)
 
-    with pytest.raises(module.PreflightError, match="recover Synology Container Manager"):
+    with pytest.raises(module.PreflightError, match=r"cannot start.*bounded timeout"):
+        module.check_runtime()
+
+
+def test_runtime_preflight_fails_closed_on_nonzero_probe_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_preflight()
+
+    def fake_run(command: list[str], *, timeout: int) -> Any:
+        if command[:3] == ["docker", "info", "--format"]:
+            return _completed(command, stdout="27.5.1\n")
+        if command[:2] == ["docker", "wait"]:
+            return _completed(command, stdout="1\n")
+        return _completed(command)
+
+    monkeypatch.setattr(module, "_run", fake_run)
+
+    with pytest.raises(module.PreflightError, match="probe exited non-zero"):
+        module.check_runtime()
+
+
+def test_runtime_preflight_fails_closed_when_final_cleanup_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_preflight()
+    remove_calls = 0
+
+    def fake_run(command: list[str], *, timeout: int) -> Any:
+        nonlocal remove_calls
+        if command[:3] == ["docker", "info", "--format"]:
+            return _completed(command, stdout="27.5.1\n")
+        if command[:2] == ["docker", "wait"]:
+            return _completed(command, stdout="0\n")
+        if command[:3] == ["docker", "rm", "-f"]:
+            remove_calls += 1
+            return _completed(command, returncode=0 if remove_calls == 1 else 1)
+        return _completed(command)
+
+    monkeypatch.setattr(module, "_run", fake_run)
+
+    with pytest.raises(module.PreflightError, match="cannot remove"):
         module.check_runtime()
 
 

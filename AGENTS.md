@@ -43,6 +43,17 @@ The repository, current Git state, active pull requests, CI results, and files i
 - Do not enable withdrawals in exchange API credentials.
 - Any future live-capital change requires an explicit, separately reviewed owner-approved work package and does not inherit authority from PAPER work.
 
+### Container lifecycle hygiene
+
+- Any temporary container or other Docker resource created by an agent or task must be uniquely attributable to that task through a deterministic name and/or ownership labels.
+- The task that creates a temporary Docker resource owns its cleanup. Remove task-owned temporary Docker resources as soon as they are no longer required, including failure and cancellation paths when automation supports unconditional cleanup such as `if: always()` or shell traps.
+- One-shot cleanup automation must itself be lifecycle-bounded. A temporary cleanup workflow or script committed solely for an operational cleanup must be constrained to a single authorized invocation and removed or disabled immediately after use; never leave destructive cleanup on a general push or recurring trigger.
+- Cleanup must be bounded to resources either proven to be owned by the current task or explicitly covered by the current task's cleanup scope with exact identity and obsolescence evidence. Never use broad destructive cleanup such as `docker system prune`, `docker container prune`, or equivalent host-wide pruning on shared Synology, CI, staging, or production hosts.
+- Do not remove persistent/shared deployment containers, databases, runners, portal/control-plane services, bot runtimes, evidence stores, volumes, images, or networks merely because they are stopped or old. Removal requires explicit task scope plus evidence that the exact resource is obsolete.
+- If ownership or continued use is uncertain, leave the resource in place and record it as unresolved instead of deleting it.
+- Docker-resource cleanup must not implicitly remove persistent data. Do not use volume-removing flags or delete volumes containing persistent/evidence state unless persistent-data deletion is explicitly authorized and separately verified.
+- Before cleanup, capture the applicable health signals for protected/current services. After cleanup, verify that every intended authorized resource is gone and that protected/current services did not degrade relative to that baseline; record pre-existing stopped or unhealthy states rather than requiring unrelated cleanup to repair them. Use declared Docker health checks and/or service-level probes where available, because process `running` state alone is not sufficient when a stronger health signal exists. Record exact resource names/IDs and the pre/post health evidence in the task closeout.
+
 ## Strategy lifecycle
 
 Strategies use the PAPER-first lifecycle:

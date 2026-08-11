@@ -214,7 +214,16 @@ def _open_child_directory_fd(
     return descriptor
 
 
-def _assert_runtime_roots_still_anchored(*, data_root: Path, live_fd: int, runs_fd: int) -> None:
+def _assert_runtime_roots_still_anchored(
+    *,
+    data_root: Path,
+    live_fd: int,
+    runs_fd: int,
+    run_id: str | None = None,
+    run_fd: int | None = None,
+) -> None:
+    if (run_id is None) != (run_fd is None):
+        raise ValueError("run_id and run_fd must be provided together")
     flags = _secure_directory_flags()
     opened: list[int] = []
     try:
@@ -224,10 +233,12 @@ def _assert_runtime_roots_still_anchored(*, data_root: Path, live_fd: int, runs_
         opened.append(current_live_fd)
         current_runs_fd = os.open("runs", flags, dir_fd=current_live_fd)
         opened.append(current_runs_fd)
-        for anchored_fd, current_fd in (
-            (live_fd, current_live_fd),
-            (runs_fd, current_runs_fd),
-        ):
+        comparisons = [(live_fd, current_live_fd), (runs_fd, current_runs_fd)]
+        if run_id is not None and run_fd is not None:
+            current_run_fd = os.open(run_id, flags, dir_fd=current_runs_fd)
+            opened.append(current_run_fd)
+            comparisons.append((run_fd, current_run_fd))
+        for anchored_fd, current_fd in comparisons:
             anchored = os.fstat(anchored_fd)
             current = os.fstat(current_fd)
             if (anchored.st_dev, anchored.st_ino) != (current.st_dev, current.st_ino):
@@ -782,6 +793,8 @@ class LiveRunManager:
             data_root=self.data_root,
             live_fd=live_fd,
             runs_fd=runs_fd,
+            run_id=self.run_id,
+            run_fd=run_fd,
         )
         for writer in self._writers.values():
             if not writer.closed:
@@ -802,6 +815,8 @@ class LiveRunManager:
             data_root=self.data_root,
             live_fd=live_fd,
             runs_fd=runs_fd,
+            run_id=self.run_id,
+            run_fd=run_fd,
         )
         _write_json_atomic_at(live_fd, LIVE_STATE_FILE, pointer_payload)
 

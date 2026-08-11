@@ -643,6 +643,37 @@ def test_new_run_creation_fails_closed_after_live_path_swap(tmp_path: Path) -> N
     assert not (created_runs[0] / "run-state-v1.json").exists()
 
 
+def test_new_run_creation_fails_closed_after_active_run_path_swap(tmp_path: Path) -> None:
+    live_root = tmp_path / "live"
+    manager = OkxLiveRunManager(
+        data_root=tmp_path,
+        collector_commit="e" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+    original_start_new_run = manager._start_new_run
+    detached_run: Path | None = None
+
+    def start_and_swap_active_run(now_ms: int) -> None:
+        nonlocal detached_run
+        original_start_new_run(now_ms)
+        canonical_run = manager.run_root
+        detached_run = canonical_run.with_name(f"{canonical_run.name}-anchored")
+        canonical_run.rename(detached_run)
+        canonical_run.mkdir(mode=0o750)
+
+    manager._start_new_run = start_and_swap_active_run  # type: ignore[method-assign]
+    with pytest.raises(RuntimeError, match="Liquid20 runtime roots changed after anchoring"):
+        asyncio.run(manager.start())
+    assert detached_run is not None
+    assert list(manager.run_root.iterdir()) == []
+    assert not (live_root / LIVE_STATE_FILE).exists()
+    assert (detached_run / "bybit-linear.ndjson").is_file()
+    assert (detached_run / "binance-usdm.ndjson").is_file()
+    assert (detached_run / "okx-swap.ndjson").is_file()
+    assert not (detached_run / "run-state-v1.json").exists()
+
+
 def test_restart_rejects_symlinked_run_root_without_mutating_external_target(
     tmp_path: Path,
 ) -> None:

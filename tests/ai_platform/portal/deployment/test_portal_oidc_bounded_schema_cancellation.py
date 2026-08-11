@@ -95,6 +95,85 @@ def test_keyboard_interrupt_runs_owned_cleanup_before_reraise(monkeypatch) -> No
     assert not exists
 
 
+def test_before_health_snapshot_interrupt_is_recorded_then_reraised(monkeypatch) -> None:
+    deploy = _deploy_stub()
+    deploy._bounded_schema_cleanup_evidence = []
+    interrupt = KeyboardInterrupt()
+    captures = 0
+    cleaned: list[str | None] = []
+
+    def capture(_deploy, *, cwd):
+        nonlocal captures
+        captures += 1
+        if captures == 1:
+            raise interrupt
+        return {}
+
+    def cleanup(_deploy, name, owner, *, container_id, cwd):
+        cleaned.append(container_id)
+        return container_id
+
+    monkeypatch.setattr(module, "_capture_protected_services", capture)
+    monkeypatch.setattr(module, "_cleanup_owned", cleanup)
+
+    with pytest.raises(KeyboardInterrupt) as exc_info:
+        module._cleanup_with_protected_health(
+            deploy,
+            label="schema-migrate",
+            name="task-container",
+            owner="task-owner",
+            create_succeeded=True,
+            container_id=CONTAINER_ID,
+            cwd=None,
+        )
+
+    assert exc_info.value is interrupt
+    assert cleaned == [CONTAINER_ID]
+    evidence = deploy._bounded_schema_cleanup_evidence[-1]
+    assert evidence["verification_complete"] is False
+    assert evidence["task_container_id"] == CONTAINER_ID
+    assert evidence["protected_before"] is None
+    assert evidence["protected_after"] == {}
+
+
+def test_after_health_snapshot_interrupt_is_recorded_then_reraised(monkeypatch) -> None:
+    deploy = _deploy_stub()
+    deploy._bounded_schema_cleanup_evidence = []
+    interrupt = KeyboardInterrupt()
+    captures = 0
+
+    def capture(_deploy, *, cwd):
+        nonlocal captures
+        captures += 1
+        if captures == 2:
+            raise interrupt
+        return {}
+
+    monkeypatch.setattr(module, "_capture_protected_services", capture)
+    monkeypatch.setattr(
+        module,
+        "_cleanup_owned",
+        lambda _deploy, name, owner, *, container_id, cwd: container_id,
+    )
+
+    with pytest.raises(KeyboardInterrupt) as exc_info:
+        module._cleanup_with_protected_health(
+            deploy,
+            label="schema-check",
+            name="task-container",
+            owner="task-owner",
+            create_succeeded=True,
+            container_id=CONTAINER_ID,
+            cwd=None,
+        )
+
+    assert exc_info.value is interrupt
+    evidence = deploy._bounded_schema_cleanup_evidence[-1]
+    assert evidence["verification_complete"] is False
+    assert evidence["protected_before"] == {}
+    assert evidence["protected_after"] is None
+
+
 def test_owned_cleanup_retries_after_ambiguous_remove_timeout(monkeypatch) -> None:
     deploy = _deploy_stub()
     calls: list[list[str]] = []

@@ -198,8 +198,8 @@ The already-completed historical run `liquid20-20260810T000000Z-1` still require
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-11T10:45:37+02:00
-head: b3a5f773295c9a739df14d8a585e39d83214664b
+updated_at: 2026-08-11T11:10:15+02:00
+head: 0e2658364e07f9d82480fa20eb040030af92d3cc
 branch: fix/wickhunter-1396-synology-recovery-v2
 pr: 1450
 status: validating
@@ -233,7 +233,7 @@ proven:
   - durable-state repair now flushes and fsyncs every open NDJSON writer before persisting state containing events_written and safely skips closed writers during stop and rotation
   - exact focused validation passed on head 2c3cb8387c22e3fb3864abeea312aa79476c84b1 with seven restart-durability tests plus Ruff check format and producer-consumer contract assertions
   - full ci:full compatibility testing exposed a stale legacy migration fixture that declared configured zero-row Bybit and Binance sources without their regular empty files; the fixture now models the valid historical contract without weakening production fail-closed behavior
-  - malformed active source state missing events_written now fails closed before any source truncation with no default zero commit boundary; normal and exceptional stop paths close all retained runtime directory descriptors and repeated stop remains safe; source summaries now commit before run-state and pointer publication so partial finalization failures remain restart-recoverable without retaining directory descriptors
+  - malformed active source state missing events_written now fails closed before any source truncation with no default zero commit boundary; normal and exceptional stop paths close all retained runtime directory descriptors and repeated stop remains safe; source summaries now commit before run-state and pointer publication so partial finalization failures remain restart-recoverable without retaining directory descriptors; descriptor-hardened runtime creation preserves the production shared-GID contract with 0640 files and 0750 run directories under umask 027
 derived:
   - after the permanent producer fix is integrated a guarded repair of only the already completed inconsistent history should allow WH09 to recover naturally without weakening fail-closed behavior
 unknown:
@@ -295,9 +295,9 @@ validation:
     evidence: GitHub Actions run 31438601082 passed focused restart and legacy migration tests Ruff check format compile checkpoint and diff hygiene
   - command: Retained FD lifecycle stop and recoverable finalization validation
     result: PASS
-    evidence: GitHub Actions run 31467075693 passed 25 focused new-run descriptor tests and run 31470901848 job 93713775781 passed 27 focused restart and OKX tests including normal and exceptional stop descriptor closure plus py_compile Ruff check format and diff hygiene; run 31474479928 passed recoverable OKX-summary and completed-pointer failure restart tests plus the full focused restart and OKX suite
+    evidence: GitHub Actions run 31467075693 passed 25 focused new-run descriptor tests and run 31470901848 job 93713775781 passed 27 focused restart and OKX tests including normal and exceptional stop descriptor closure plus py_compile Ruff check format and diff hygiene; run 31474479928 passed recoverable OKX-summary and completed-pointer failure restart tests plus the full focused restart and OKX suite; run 31475928342 job 93729519994 passed 30 focused tests including production-umask shared-GID mode regression plus py_compile Ruff check format and diff hygiene
 blockers: []
-next_action: Run final exact-head PR 1450 CI and fresh Codex audit after recoverable multi-file finalization repair; if green, squash-merge and continue canonical Liquid20 deployment plus guarded completed-history repair.
+next_action: Run final exact-head PR 1450 CI and fresh Codex audit after shared-GID mode preservation; if green, squash-merge and continue canonical Liquid20 deployment plus guarded completed-history repair.
 ```
 
 ## Recovery checkpoint
@@ -305,15 +305,15 @@ next_action: Run final exact-head PR 1450 CI and fresh Codex audit after recover
 ```yaml
 recovery:
   policy_version: 1
-  generation: 16
+  generation: 17
   session_id: 2026-08-10T21:37+02:00
   session_started_at: 2026-08-10T21:37:00+02:00
-  checkpointed_at: 2026-08-11T10:45:37+02:00
-  last_progress_at: 2026-08-11T10:45:37+02:00
+  checkpointed_at: 2026-08-11T11:10:15+02:00
+  last_progress_at: 2026-08-11T11:10:15+02:00
   phase: pr1450_final_validation
-  exact_head_before_checkpoint_commit: b3a5f773295c9a739df14d8a585e39d83214664b
+  exact_head_before_checkpoint_commit: 0e2658364e07f9d82480fa20eb040030af92d3cc
   pull_request: 1450
-  active_operation: final exact-head CI and independent review after recoverable multi-file finalization repair
+  active_operation: final exact-head CI and independent review after shared-GID mode preservation
   external_run_ids:
     - 31425261462
     - 31425883292

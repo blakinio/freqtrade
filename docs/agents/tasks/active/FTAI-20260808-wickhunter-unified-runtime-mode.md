@@ -198,8 +198,8 @@ The already-completed historical run `liquid20-20260810T000000Z-1` still require
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-11T10:09:44+02:00
-head: 002be13f566e2ef4646b74bd66f8df548be29e73
+updated_at: 2026-08-11T10:14:48+02:00
+head: fe076ea158cf3adf7a7c4218be0e16d7401b95df
 branch: fix/wickhunter-1396-synology-recovery-v2
 pr: 1450
 status: validating
@@ -305,13 +305,13 @@ next_action: Run final retained exact-head PR 1450 CI and fresh Codex audit; if 
 ```yaml
 recovery:
   policy_version: 1
-  generation: 14
+  generation: 15
   session_id: 2026-08-10T21:37+02:00
   session_started_at: 2026-08-10T21:37:00+02:00
-  checkpointed_at: 2026-08-11T10:09:44+02:00
-  last_progress_at: 2026-08-11T10:09:44+02:00
+  checkpointed_at: 2026-08-11T10:14:48+02:00
+  last_progress_at: 2026-08-11T10:14:48+02:00
   phase: pr1450_final_validation
-  exact_head_before_checkpoint_commit: 002be13f566e2ef4646b74bd66f8df548be29e73
+  exact_head_before_checkpoint_commit: fe076ea158cf3adf7a7c4218be0e16d7401b95df
   pull_request: 1450
   active_operation: final exact-head CI and independent review after descriptor stop lifecycle repair
   external_run_ids:

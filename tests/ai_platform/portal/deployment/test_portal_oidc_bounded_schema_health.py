@@ -102,13 +102,22 @@ def test_cleanup_records_healthy_protected_service_non_regression(monkeypatch) -
     deploy._bounded_schema_cleanup_evidence = []
     before = {
         "freqtrade-portal-control-plane": _state(
-            exists=True, running=False, health="healthy", state="exited"
+            exists=True,
+            running=False,
+            health="healthy",
+            state="exited",
         ),
         "freqtrade-portal-postgresql": _state(
-            exists=True, running=True, health="healthy", state="running"
+            exists=True,
+            running=True,
+            health="healthy",
+            state="running",
         ),
         "freqtrade-portal-staging": _state(
-            exists=True, running=False, health="healthy", state="exited"
+            exists=True,
+            running=False,
+            health="healthy",
+            state="exited",
         ),
     }
     after = {name: dict(value) for name, value in before.items()}
@@ -137,6 +146,7 @@ def test_cleanup_records_healthy_protected_service_non_regression(monkeypatch) -
             "task_container_id": CONTAINER_ID,
             "protected_before": before,
             "protected_after": after,
+            "cleanup_complete": True,
             "protected_non_regression": True,
             "regressions": [],
             "verification_complete": True,
@@ -149,12 +159,18 @@ def test_cleanup_fails_when_healthy_postgres_degrades(monkeypatch) -> None:
     deploy._bounded_schema_cleanup_evidence = []
     before = {
         "freqtrade-portal-postgresql": _state(
-            exists=True, running=True, health="healthy", state="running"
+            exists=True,
+            running=True,
+            health="healthy",
+            state="running",
         )
     }
     after = {
         "freqtrade-portal-postgresql": _state(
-            exists=True, running=False, health="unhealthy", state="exited"
+            exists=True,
+            running=False,
+            health="unhealthy",
+            state="exited",
         )
     }
     snapshots = iter((before, after))
@@ -174,6 +190,7 @@ def test_cleanup_fails_when_healthy_postgres_degrades(monkeypatch) -> None:
         _cleanup_call(deploy, label="state-transfer")
 
     evidence = deploy._bounded_schema_cleanup_evidence[-1]
+    assert evidence["cleanup_complete"] is True
     assert evidence["protected_non_regression"] is False
     assert evidence["task_container_id"] == CONTAINER_ID
     assert evidence["regressions"] == [
@@ -220,6 +237,7 @@ def test_cleanup_fails_when_protected_name_is_replaced_by_new_container(monkeypa
         _cleanup_call(deploy, label="schema-check")
 
     evidence = deploy._bounded_schema_cleanup_evidence[-1]
+    assert evidence["cleanup_complete"] is True
     assert evidence["protected_before"] == before
     assert evidence["protected_after"] == after
     assert evidence["regressions"] == ["freqtrade-portal-postgresql:identity_changed"]
@@ -230,12 +248,18 @@ def test_preexisting_unhealthy_stopped_service_is_recorded_not_repaired(monkeypa
     deploy._bounded_schema_cleanup_evidence = []
     before = {
         "freqtrade-portal-control-plane": _state(
-            exists=True, running=False, health="unhealthy", state="exited"
+            exists=True,
+            running=False,
+            health="unhealthy",
+            state="exited",
         )
     }
     after = {
         "freqtrade-portal-control-plane": _state(
-            exists=True, running=False, health="unhealthy", state="exited"
+            exists=True,
+            running=False,
+            health="unhealthy",
+            state="exited",
         )
     }
     snapshots = iter((before, after))
@@ -254,6 +278,7 @@ def test_preexisting_unhealthy_stopped_service_is_recorded_not_repaired(monkeypa
     _cleanup_call(deploy, label="schema-check")
 
     evidence = deploy._bounded_schema_cleanup_evidence[-1]
+    assert evidence["cleanup_complete"] is True
     assert evidence["protected_non_regression"] is True
     assert evidence["protected_before"] == before
     assert evidence["protected_after"] == after
@@ -264,12 +289,18 @@ def test_existing_stopped_service_may_not_disappear_during_cleanup(monkeypatch) 
     deploy._bounded_schema_cleanup_evidence = []
     before = {
         "freqtrade-portal-control-plane": _state(
-            exists=True, running=False, health="none", state="exited"
+            exists=True,
+            running=False,
+            health="none",
+            state="exited",
         )
     }
     after = {
         "freqtrade-portal-control-plane": _state(
-            exists=False, running=False, health="none", state="absent"
+            exists=False,
+            running=False,
+            health="none",
+            state="absent",
         )
     }
     snapshots = iter((before, after))
@@ -288,20 +319,52 @@ def test_existing_stopped_service_may_not_disappear_during_cleanup(monkeypatch) 
     with pytest.raises(RuntimeError, match="protected service health regressed"):
         _cleanup_call(deploy, label="schema-check")
 
-    assert deploy._bounded_schema_cleanup_evidence[-1]["regressions"] == [
-        "freqtrade-portal-control-plane:became_absent"
-    ]
+    evidence = deploy._bounded_schema_cleanup_evidence[-1]
+    assert evidence["cleanup_complete"] is True
+    assert evidence["regressions"] == ["freqtrade-portal-control-plane:became_absent"]
+
+
+def test_cleanup_failure_is_recorded_as_incomplete_verification(monkeypatch) -> None:
+    deploy = _deploy_stub()
+    deploy._bounded_schema_cleanup_evidence = []
+    snapshots = iter(({}, {}))
+
+    monkeypatch.setattr(
+        module,
+        "_capture_protected_services",
+        lambda _deploy, *, cwd: next(snapshots),
+    )
+
+    def fail_cleanup(_deploy, name, owner, *, container_id, cwd):
+        raise RuntimeError("cleanup failed")
+
+    monkeypatch.setattr(module, "_cleanup_owned", fail_cleanup)
+
+    with pytest.raises(RuntimeError, match="cleanup failed"):
+        _cleanup_call(deploy, label="schema-check")
+
+    evidence = deploy._bounded_schema_cleanup_evidence[-1]
+    assert evidence["cleanup_complete"] is False
+    assert evidence["verification_complete"] is False
+    assert evidence["protected_non_regression"] is False
+    assert evidence["regressions"] == []
 
 
 def test_starting_service_may_improve_to_healthy() -> None:
     before = {
         "freqtrade-portal-postgresql": _state(
-            exists=True, running=True, health="starting", state="running"
+            exists=True,
+            running=True,
+            health="starting",
+            state="running",
         )
     }
     after = {
         "freqtrade-portal-postgresql": _state(
-            exists=True, running=True, health="healthy", state="running"
+            exists=True,
+            running=True,
+            health="healthy",
+            state="running",
         )
     }
 
@@ -330,6 +393,7 @@ def test_install_persists_cleanup_health_and_task_identity_in_deployment_report(
         "task_container_id": CONTAINER_ID,
         "protected_before": {},
         "protected_after": {},
+        "cleanup_complete": True,
         "protected_non_regression": True,
         "regressions": [],
         "verification_complete": True,

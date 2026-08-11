@@ -198,8 +198,8 @@ The already-completed historical run `liquid20-20260810T000000Z-1` still require
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-11T11:10:15+02:00
-head: 0e2658364e07f9d82480fa20eb040030af92d3cc
+updated_at: 2026-08-11T11:30:00+02:00
+head: 85ceb563a735115895a17b3e3ba572b1c6f7f4f7
 branch: fix/wickhunter-1396-synology-recovery-v2
 pr: 1450
 status: validating
@@ -233,7 +233,7 @@ proven:
   - durable-state repair now flushes and fsyncs every open NDJSON writer before persisting state containing events_written and safely skips closed writers during stop and rotation
   - exact focused validation passed on head 2c3cb8387c22e3fb3864abeea312aa79476c84b1 with seven restart-durability tests plus Ruff check format and producer-consumer contract assertions
   - full ci:full compatibility testing exposed a stale legacy migration fixture that declared configured zero-row Bybit and Binance sources without their regular empty files; the fixture now models the valid historical contract without weakening production fail-closed behavior
-  - malformed active source state missing events_written now fails closed before any source truncation with no default zero commit boundary; normal and exceptional stop paths close all retained runtime directory descriptors and repeated stop remains safe; source summaries now commit before run-state and pointer publication so partial finalization failures remain restart-recoverable without retaining directory descriptors; descriptor-hardened runtime creation preserves the production shared-GID contract with 0640 files and 0750 run directories under umask 027
+  - malformed active source state missing events_written now fails closed before any source truncation with no default zero commit boundary; normal and exceptional stop paths close all retained runtime directory descriptors and repeated stop remains safe; source summaries now commit before run-state and pointer publication so partial finalization failures remain restart-recoverable without retaining directory descriptors; descriptor-hardened runtime creation preserves the production shared-GID contract with 0640 files and 0750 run directories under umask 027; final reconciliation merged develop commit 6577ae896ed5910f82f9e736fe4a007b6dc10e6e before exact-head validation
 derived:
   - after the permanent producer fix is integrated a guarded repair of only the already completed inconsistent history should allow WH09 to recover naturally without weakening fail-closed behavior
 unknown:
@@ -297,7 +297,7 @@ validation:
     result: PASS
     evidence: GitHub Actions run 31467075693 passed 25 focused new-run descriptor tests and run 31470901848 job 93713775781 passed 27 focused restart and OKX tests including normal and exceptional stop descriptor closure plus py_compile Ruff check format and diff hygiene; run 31474479928 passed recoverable OKX-summary and completed-pointer failure restart tests plus the full focused restart and OKX suite; run 31475928342 job 93729519994 passed 30 focused tests including production-umask shared-GID mode regression plus py_compile Ruff check format and diff hygiene
 blockers: []
-next_action: Run final exact-head PR 1450 CI and fresh Codex audit after shared-GID mode preservation; if green, squash-merge and continue canonical Liquid20 deployment plus guarded completed-history repair.
+next_action: Run final exact-head PR 1450 CI and fresh Codex review on the reconciled develop base; if green, squash-merge and continue canonical Liquid20 deployment plus guarded completed-history repair.
 ```
 
 ## Recovery checkpoint
@@ -305,15 +305,15 @@ next_action: Run final exact-head PR 1450 CI and fresh Codex audit after shared-
 ```yaml
 recovery:
   policy_version: 1
-  generation: 17
+  generation: 18
   session_id: 2026-08-10T21:37+02:00
   session_started_at: 2026-08-10T21:37:00+02:00
-  checkpointed_at: 2026-08-11T11:10:15+02:00
-  last_progress_at: 2026-08-11T11:10:15+02:00
+  checkpointed_at: 2026-08-11T11:30:00+02:00
+  last_progress_at: 2026-08-11T11:30:00+02:00
   phase: pr1450_final_validation
-  exact_head_before_checkpoint_commit: 0e2658364e07f9d82480fa20eb040030af92d3cc
+  exact_head_before_checkpoint_commit: 85ceb563a735115895a17b3e3ba572b1c6f7f4f7
   pull_request: 1450
-  active_operation: final exact-head CI and independent review after shared-GID mode preservation
+  active_operation: final exact-head CI and independent review after current-develop reconciliation
   external_run_ids:
     - 31425261462
     - 31425883292
@@ -321,7 +321,7 @@ recovery:
   status: active
   safe_to_resume: true
   resume_condition: permanent repair and focused tests validated
-  next_action: Complete final exact-head CI plus fresh Codex review on PR 1450, merge it, then continue canonical Liquid20 deployment and exact historical repair.
+  next_action: Complete final exact-head CI plus fresh Codex review on PR 1450, then squash-merge and continue canonical Liquid20 recovery.
 ```
 
 ## Terminal closeout requirements

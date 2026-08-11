@@ -80,9 +80,15 @@ def _stage(
 
 
 def _verify_absent(deploy: Any, name: str, *, cwd: Path | None) -> None:
+    exact_name_filter = f"name=^/{name}$"
     try:
         inspect = _run_bounded(
             ["docker", "inspect", name],
+            cwd=cwd,
+            timeout=QUERY_TIMEOUT_SECONDS,
+        )
+        listed = _run_bounded(
+            ["docker", "ps", "-aq", "--no-trunc", "--filter", exact_name_filter],
             cwd=cwd,
             timeout=QUERY_TIMEOUT_SECONDS,
         )
@@ -95,7 +101,12 @@ def _verify_absent(deploy: Any, name: str, *, cwd: Path | None) -> None:
         raise deploy.DeploymentError(
             "task-owned Docker workload cleanup could not be verified"
         ) from exc
-    if version.returncode != 0 or inspect.returncode == 0:
+    if (
+        version.returncode != 0
+        or listed.returncode != 0
+        or bool(listed.stdout.strip())
+        or inspect.returncode == 0
+    ):
         raise deploy.DeploymentError("task-owned Docker workload cleanup failed")
 
 

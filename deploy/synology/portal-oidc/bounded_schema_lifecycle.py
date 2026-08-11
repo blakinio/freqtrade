@@ -249,9 +249,13 @@ def _protected_service_state(
     state, separator, remainder = inspected.stdout.strip().partition("|")
     running, second_separator, health = remainder.partition("|")
     if separator != "|" or second_separator != "|" or running not in {"true", "false"}:
-        raise deploy.DeploymentError("protected service health inspection returned invalid metadata")
+        raise deploy.DeploymentError(
+            "protected service health inspection returned invalid metadata"
+        )
     if not state or not health:
-        raise deploy.DeploymentError("protected service health inspection returned incomplete metadata")
+        raise deploy.DeploymentError(
+            "protected service health inspection returned incomplete metadata"
+        )
     return {
         "exists": True,
         "state": state,
@@ -381,9 +385,7 @@ def _cleanup_with_protected_health(
             raise deploy.DeploymentError(
                 "task-owned cleanup failed and protected service health regressed"
             ) from cleanup_error
-        raise deploy.DeploymentError(
-            "protected service health regressed during task-owned cleanup"
-        )
+        raise deploy.DeploymentError("protected service health regressed during task-owned cleanup")
     if cleanup_error is not None:
         raise cleanup_error
 

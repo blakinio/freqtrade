@@ -18,6 +18,7 @@ WAIT_TIMEOUT_SECONDS_BY_WORKLOAD = {
 LOG_TIMEOUT_SECONDS = 90
 REMOVE_TIMEOUT_SECONDS = 120
 QUERY_TIMEOUT_SECONDS = 30
+OWNERSHIP_VERIFY_ATTEMPTS = 3
 OWNER_LABEL_KEY = "com.freqtrade.portal.bounded-owner"
 OWNER_LABEL_FORMAT = f'{{{{ index .Config.Labels "{OWNER_LABEL_KEY}" }}}}'
 _TARGET_MODULES = {
@@ -146,24 +147,35 @@ def _cleanup_ambiguous_create(
     *,
     cwd: Path | None,
 ) -> None:
-    try:
-        ownership = _run_bounded(
-            ["docker", "inspect", "--format", OWNER_LABEL_FORMAT, name],
-            cwd=cwd,
-            timeout=QUERY_TIMEOUT_SECONDS,
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise deploy.DeploymentError(
-            "ambiguous Docker create ownership could not be verified"
-        ) from exc
-    if ownership.returncode != 0:
-        _verify_absent(deploy, name, cwd=cwd)
-        return
-    if ownership.stdout.strip() != owner:
-        raise deploy.DeploymentError(
-            "ambiguous Docker create produced a container not owned by this task"
-        )
-    _cleanup_owned(deploy, name, cwd=cwd)
+    last_verification_error: Exception | None = None
+    for _attempt in range(OWNERSHIP_VERIFY_ATTEMPTS):
+        try:
+            ownership = _run_bounded(
+                ["docker", "inspect", "--format", OWNER_LABEL_FORMAT, name],
+                cwd=cwd,
+                timeout=QUERY_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as exc:
+            last_verification_error = exc
+            continue
+
+        if ownership.returncode == 0:
+            if ownership.stdout.strip() != owner:
+                raise deploy.DeploymentError(
+                    "ambiguous Docker create produced a container not owned by this task"
+                )
+            _cleanup_owned(deploy, name, cwd=cwd)
+            return
+
+        try:
+            _verify_absent(deploy, name, cwd=cwd)
+            return
+        except deploy.DeploymentError as exc:
+            last_verification_error = exc
+
+    raise deploy.DeploymentError(
+        "ambiguous Docker create ownership could not be verified after bounded retries"
+    ) from last_verification_error
 
 
 def _run_sensitive_workload(

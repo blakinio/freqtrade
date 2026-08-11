@@ -102,7 +102,11 @@ def test_schema_workload_uses_named_split_lifecycle_and_returns_logs(monkeypatch
     assert not any(command[:2] == ["docker", "run"] for command in calls)
     create = next(command for command in calls if command[:2] == ["docker", "create"])
     name = create[create.index("--name") + 1]
+    owner = create[create.index("--label") + 1]
     assert name == "portal-oidc-bounded-schema-migrate-abc123def456"
+    assert owner == (
+        f"{module.OWNER_LABEL_KEY}=portal-oidc-bounded:schema-migrate:abc123def456"
+    )
     assert ["docker", "start", name] in calls
     assert ["docker", "wait", name] in calls
     assert ["docker", "logs", name] in calls
@@ -209,15 +213,21 @@ def test_nonzero_process_exit_is_secret_free_and_cleanup_is_verified(monkeypatch
     assert sum(command[:2] == ["docker", "inspect"] for command in calls) >= 2
 
 
-def test_create_timeout_still_cleans_the_attempted_task_owned_name(monkeypatch) -> None:
+def test_create_timeout_cleans_only_the_labeled_task_owned_container(monkeypatch) -> None:
     deploy, _delegated = _deploy_stub()
     calls: list[list[str]] = []
+    inspect_calls = 0
     module.install(deploy)
     monkeypatch.setattr(module.secrets, "token_hex", lambda _size: "c0ffeec0ffee")
+    expected_owner = "portal-oidc-bounded:schema-migrate:c0ffeec0ffee"
 
     def fake_run(command, **kwargs):
+        nonlocal inspect_calls
         calls.append(list(command))
         if command[:2] == ["docker", "inspect"]:
+            inspect_calls += 1
+            if command[:3] == ["docker", "inspect", "--format"]:
+                return _completed(command, stdout=f"{expected_owner}\n")
             return _completed(command, returncode=1)
         if command[:2] == ["docker", "create"]:
             raise subprocess.TimeoutExpired(command, kwargs["timeout"])
@@ -228,7 +238,32 @@ def test_create_timeout_still_cleans_the_attempted_task_owned_name(monkeypatch) 
     with pytest.raises(RuntimeError, match="schema-migrate:create"):
         deploy._run(_schema_command(), sensitive=True)
 
+    assert inspect_calls >= 3
     assert any(command[:3] == ["docker", "rm", "-f"] for command in calls)
+
+
+def test_create_race_never_removes_container_with_different_owner_label(monkeypatch) -> None:
+    deploy, _delegated = _deploy_stub()
+    calls: list[list[str]] = []
+    module.install(deploy)
+    monkeypatch.setattr(module.secrets, "token_hex", lambda _size: "facefeedcafe")
+
+    def fake_run(command, **_kwargs):
+        calls.append(list(command))
+        if command[:3] == ["docker", "inspect", "--format"]:
+            return _completed(command, stdout="different-owner\n")
+        if command[:2] == ["docker", "inspect"]:
+            return _completed(command, returncode=1)
+        if command[:2] == ["docker", "create"]:
+            return _completed(command, returncode=1)
+        return _completed(command)
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError, match="workload and cleanup failed"):
+        deploy._run(_schema_command(), sensitive=True)
+
+    assert not any(command[:3] == ["docker", "rm", "-f"] for command in calls)
 
 
 def test_start_timeout_still_cleans_task_owned_container(monkeypatch) -> None:

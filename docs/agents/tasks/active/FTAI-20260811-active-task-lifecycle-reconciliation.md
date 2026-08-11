@@ -46,8 +46,8 @@ Reconcile `docs/agents/tasks/active/` against live GitHub state and archive only
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-11T13:55:00+02:00
-head: 76316f178792aecf95695f6a59534bfc5b0f2e5c
+updated_at: 2026-08-11T14:01:00+02:00
+head: 0ad048f9b837af317fc5b206a286237b84a97e42
 branch: docs/active-task-lifecycle-reconciliation-20260811
 pr: 1474
 status: validating
@@ -69,19 +69,20 @@ proven:
   - Issue 1137 protected acceptance remains separately authorized and nonterminal
   - liquidations operational post-merge acceptance is not proven by this reconciliation
   - continuous assurance remains intentionally nonterminal
+  - predecessor 0ad048f9 already restored this reconciliation under active and removed the premature archive
 derived:
   - the two stale bounded records can be archived without weakening or closing their broader programme work
   - this reconciliation must remain active until its own terminal gates and merge are real
 unknown:
-  - final exact-head audit result for the successor containing this restored active record
-  - final exact-head CI result for that successor
+  - exact containing parent head after this isolated checkpoint refresh is merged
+  - final exact-head audit and CI disposition for that containing parent head
 conflicts: []
 first_failure:
-  marker: reconciliation archive was made terminal before its own required audit CI and merge were terminal
-  evidence: Codex P2 thread PRRT_kwDOTdDTU86YNnek on head 76316f178792aecf95695f6a59534bfc5b0f2e5c
+  marker: checkpoint lagged the completed repair and instructed removal of an archive already removed
+  evidence: Codex P2 thread PRRT_kwDOTdDTU86YOA9q on exact parent head 0ad048f9b837af317fc5b206a286237b84a97e42
 rejected_hypotheses:
-  - keep a conditional completed archive before merge; rejected because it releases ownership and hides the remaining validation responsibility
-  - archive the liquidations task from repository-only evidence; rejected because its own contract requires real post-merge Synology health-dispatch/recovery proof
+  - perform a fourth same-gate parent repair; rejected because the parent repair budget is exhausted at three and this refresh is isolated
+  - keep the stale predecessor head and repeated next_action; rejected because resume.py would hand a successor incorrect continuation state
 changed_paths:
   - docs/agents/tasks/active/FTAI-20260802-agent-governance-sync.md
   - docs/agents/tasks/archive/FTAI-20260802-agent-governance-sync.md
@@ -95,14 +96,14 @@ validation:
   - command: current develop inspection of ControlPlaneService managed-runtime mode binding
     result: PASS
     evidence: ManagedRuntimeModeRequest is resolved and its digests are persisted into RuntimeGeneration
-  - command: independent Codex review of reconciliation predecessor heads
+  - command: independent Codex review of parent head 0ad048f9b837af317fc5b206a286237b84a97e42
     result: FAIL
-    evidence: lifecycle-truth P2 findings identified stale downstream wording and premature reconciliation archival; repairs are applied in this successor
+    evidence: P2 identified stale checkpoint head and next_action after the lifecycle repair; this isolated successor refreshes both
   - command: product/runtime E2E
     result: NOT_APPLICABLE
     evidence: task-record lifecycle reconciliation only; no product runtime API UI or deployment behavior changes
 blockers: []
-next_action: Remove the premature reconciliation archive, request one final exact-head Codex audit and required CI on PR 1474, merge only if all gates are green, then perform lifecycle-only post-merge archival with actual evidence.
+next_action: Review and merge this isolated checkpoint refresh into PR 1474; then resolve the containing parent head, collect one final exact-head Codex audit plus required CI, squash-merge PR 1474 if green, and perform lifecycle-only post-merge archival with actual terminal evidence.
 ```
 
 ## Safety

@@ -279,7 +279,7 @@ def test_create_timeout_retries_owner_query_before_cleanup(monkeypatch) -> None:
     deploy, _delegated = _deploy_stub()
     calls: list[list[str]] = []
     identity_queries = 0
-    exists = True
+    exists = False
     token = "c0ffeec0ffee"
     expected_owner = _owner("schema-migrate", token)
     module.install(deploy)
@@ -289,6 +289,7 @@ def test_create_timeout_retries_owner_query_before_cleanup(monkeypatch) -> None:
         nonlocal identity_queries, exists
         calls.append(list(command))
         if command[:2] == ["docker", "create"]:
+            exists = True
             raise subprocess.TimeoutExpired(command, kwargs["timeout"])
         if command[:3] == ["docker", "inspect", "--format"]:
             identity_queries += 1

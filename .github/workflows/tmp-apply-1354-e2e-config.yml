@@ -9,7 +9,6 @@ on:
 
 permissions:
   contents: write
-  issues: read
 
 jobs:
   apply:
@@ -23,37 +22,35 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Verify parent and apply exact patch
+      - name: Verify parent and apply deterministic config repair
         env:
-          GH_TOKEN: ${{ github.token }}
-          EXPECTED_PARENT: d436914dc57e9e439148c30b440ab0a6fd9fb11a
-          COMMENT_ID: '5259065085'
+          EXPECTED_PARENT: f6e7ba795fdb23065d0b36bbdef0daf1cc16081e
         shell: bash
         run: |
           set -euo pipefail
           parent="$(git rev-parse HEAD^)"
           if [ "$parent" != "$EXPECTED_PARENT" ]; then
-            echo "Refusing: workflow creation commit parent is $parent, expected $EXPECTED_PARENT" >&2
+            echo "Refusing: workflow update commit parent is $parent, expected $EXPECTED_PARENT" >&2
             exit 1
           fi
           python - <<'PY'
-          import json, os, re, urllib.request
-          req = urllib.request.Request(
-              f"https://api.github.com/repos/blakinio/freqtrade/issues/comments/{os.environ['COMMENT_ID']}",
-              headers={
-                  "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
-                  "Accept": "application/vnd.github+json",
-              },
-          )
-          with urllib.request.urlopen(req) as response:
-              body = json.load(response)["body"]
-          match = re.search(r"```diff\n(.*?)\n```", body, re.S)
-          if not match:
-              raise SystemExit("diff fence missing")
-          open("/tmp/e2e-config.patch", "w", encoding="utf-8").write(match.group(1) + "\n")
+          from pathlib import Path
+
+          path = Path('tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py')
+          text = path.read_text(encoding='utf-8')
+
+          fiat = '        "fiat_display_currency": "USD",\n'
+          if text.count(fiat) != 1:
+              raise SystemExit(f'expected one fiat_display_currency entry, found {text.count(fiat)}')
+          text = text.replace(fiat, '')
+
+          anchor = '        "dry_run_wallet": 1000,\n'
+          if text.count(anchor) != 1:
+              raise SystemExit(f'expected one dry_run_wallet anchor, found {text.count(anchor)}')
+          text = text.replace(anchor, anchor + '        "initial_state": "running",\n')
+
+          path.write_text(text, encoding='utf-8')
           PY
-          git apply --check /tmp/e2e-config.patch
-          git apply /tmp/e2e-config.patch
           python -m compileall -q tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py
           git diff --check
           git config user.name github-actions[bot]

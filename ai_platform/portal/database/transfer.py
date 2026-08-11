@@ -330,6 +330,52 @@ def _backfill_public_oidc_v1_target(target_connection: Any) -> None:
     )
 
 
+def _copy_source_tables(
+    authority: str,
+    source_tables: frozenset[str],
+    source_connection: Any,
+    target_connection: Any,
+) -> dict[str, int]:
+    copied_counts: dict[str, int] = {}
+    for table in _manifest_tables():
+        if table.name not in source_tables:
+            if _missing_table_is_transferable(authority, table.name):
+                copied_counts[table.name] = 0
+                continue
+            raise PortalStateTransferError(
+                f"legacy SQLite source is missing required table {table.name}"
+            )
+        result = _source_rows(source_connection, table)
+        copied = 0
+        batch: list[dict[str, Any]] = []
+        for row in result:
+            batch.append(dict(row))
+            if len(batch) >= 500:
+                target_connection.execute(table.insert(), batch)
+                copied += len(batch)
+                batch.clear()
+        if batch:
+            target_connection.execute(table.insert(), batch)
+            copied += len(batch)
+        copied_counts[table.name] = copied
+
+    if authority == PUBLIC_OIDC_V1_AUTHORITY:
+        _backfill_public_oidc_v1_target(target_connection)
+    _reset_postgresql_sequences(target_connection)
+    return copied_counts
+
+
+def _verify_copied_counts(target_connection: Any, copied_counts: dict[str, int]) -> None:
+    for table in _manifest_tables():
+        target_count = int(
+            target_connection.execute(select(func.count()).select_from(table)).scalar_one()
+        )
+        if target_count != copied_counts[table.name]:
+            raise PortalStateTransferError(
+                "PostgreSQL row-count verification failed during state transfer"
+            )
+
+
 def transfer_portal_state(source: Engine, target: Engine) -> dict[str, Any]:
     if target.dialect.name != "postgresql":
         raise PortalStateTransferError("Portal state transfer target must be PostgreSQL")
@@ -349,40 +395,14 @@ def transfer_portal_state(source: Engine, target: Engine) -> dict[str, Any]:
             f"transfer; nonempty_table_counts={json.dumps(nonempty_target, sort_keys=True)}"
         )
 
-    copied_counts: dict[str, int] = {}
     with source.connect() as source_connection, target.begin() as target_connection:
-        for table in _manifest_tables():
-            if table.name not in source_tables:
-                if _missing_table_is_transferable(authority, table.name):
-                    copied_counts[table.name] = 0
-                    continue
-                raise PortalStateTransferError(
-                    f"legacy SQLite source is missing required table {table.name}"
-                )
-            result = _source_rows(source_connection, table)
-            copied = 0
-            batch: list[dict[str, Any]] = []
-            for row in result:
-                batch.append(dict(row))
-                if len(batch) >= 500:
-                    target_connection.execute(table.insert(), batch)
-                    copied += len(batch)
-                    batch.clear()
-            if batch:
-                target_connection.execute(table.insert(), batch)
-                copied += len(batch)
-            copied_counts[table.name] = copied
-        if authority == PUBLIC_OIDC_V1_AUTHORITY:
-            _backfill_public_oidc_v1_target(target_connection)
-        _reset_postgresql_sequences(target_connection)
-        for table in _manifest_tables():
-            target_count = int(
-                target_connection.execute(select(func.count()).select_from(table)).scalar_one()
-            )
-            if target_count != copied_counts[table.name]:
-                raise PortalStateTransferError(
-                    "PostgreSQL row-count verification failed during state transfer"
-                )
+        copied_counts = _copy_source_tables(
+            authority,
+            source_tables,
+            source_connection,
+            target_connection,
+        )
+        _verify_copied_counts(target_connection, copied_counts)
 
     target_integrity = scan_database_integrity(target)
     if target_integrity["status"] != "clean":

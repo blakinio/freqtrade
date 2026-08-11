@@ -2,7 +2,7 @@
 task_id: FTAI-20260811-active-task-lifecycle-reconciliation
 programme_id: FTAI-20260805-platform-continuous-assurance
 project_lane: freqtrade-assurance
-status: implementing
+status: validating
 task_kind: governance_reconciliation
 priority: high
 repository: blakinio/freqtrade
@@ -20,17 +20,25 @@ production_deployment_authorized: false
 
 Reconcile `docs/agents/tasks/active/` against live GitHub state and archive only bounded task records whose own acceptance is already terminal. Preserve genuinely waiting or continuous programme records as active and do not modify product/runtime behavior.
 
-## Candidate terminal records
+## Reconciled terminal records
 
-- `FTAI-20260802-agent-governance-sync.md`: record itself says `completed`; PR #1037 merged as `46bd2f35609af1ce01e159300b7dc9d8e1b863b1`; ownership released.
-- `FTAI-20260808-wickhunter-unified-runtime-mode.md`: bounded producer PR #1397 merged as `f46d10e30302b7310fe2a6e235c2ca05a0281a0a`; exact final head `5eee605343b2fbcd1e1e6231ed80315195bd5eba` passed Freqtrade CI, Risk-aware component CI, CodeQL and zizmor and received a clean final Codex review. The larger Issue #1396 remains separate consumer/programme work and does not keep this producer task active.
+- `FTAI-20260802-agent-governance-sync.md`: record itself already declared `completed`; PR #1037 merged as `46bd2f35609af1ce01e159300b7dc9d8e1b863b1`; ownership released. The stale active record is replaced by a truthful archive record.
+- `FTAI-20260808-wickhunter-unified-runtime-mode.md`: bounded producer PR #1397 merged as `f46d10e30302b7310fe2a6e235c2ca05a0281a0a`; exact final head `5eee605343b2fbcd1e1e6231ed80315195bd5eba` passed Freqtrade CI `31281392431`, Risk-aware component CI `31281392481`, CodeQL `31281392428`, zizmor `31281392432`, and received clean final Codex review comment `5228471720`. Its archive explicitly does **not** claim Issue #1396 or downstream Portal consumer work complete.
 
-## Nonterminal records preserved
+## Nonterminal records intentionally preserved
 
-- `FTAI-20260803-portal-remediation-1137.md`: waiting on protected Authentik staging acceptance; repository work is complete but external protected acceptance is not authorized by this governance task.
+- `FTAI-20260803-portal-remediation-1137.md`: waiting on protected Authentik staging acceptance; repository work is complete but that protected acceptance is not authorized by this governance task.
 - `FTAI-20260803-portal-remediation-program.md`: durable remediation programme remains incomplete.
-- `FTAI-20260804-liquidations-monitor-stale-self-heal.md`: PR #1200 merged and exact-head gates passed, but its task contract requires a real post-merge Synology health-dispatch/recovery proof. Current live evidence is insufficient to truthfully assert that exact acceptance, so the record remains active pending a separate operational reconciliation.
+- `FTAI-20260804-liquidations-monitor-stale-self-heal.md`: PR #1200 merged and exact-head gates passed, but its task contract requires real post-merge Synology health-dispatch/recovery proof. Current live evidence does not prove that exact criterion; this reconciliation refuses to archive it by inference.
 - `FTAI-20260805-platform-continuous-assurance.md`: continuous assurance programme is intentionally active.
+
+## Changed paths
+
+- `docs/agents/tasks/active/FTAI-20260802-agent-governance-sync.md` — removed
+- `docs/agents/tasks/archive/FTAI-20260802-agent-governance-sync.md` — added
+- `docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md` — removed
+- `docs/agents/tasks/archive/FTAI-20260808-wickhunter-unified-runtime-mode.md` — added
+- `docs/agents/tasks/active/FTAI-20260811-active-task-lifecycle-reconciliation.md` — this checkpoint
 
 ## Acceptance
 
@@ -45,11 +53,11 @@ Reconcile `docs/agents/tasks/active/` against live GitHub state and archive only
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-11T13:30:00+02:00
-head: pending_after_task_record
+updated_at: 2026-08-11T13:34:00+02:00
+head: UNKNOWN
 branch: docs/active-task-lifecycle-reconciliation-20260811
 pr: pending
-status: implementing
+status: validating
 context_routes:
   - docs/agents/tasks/active
   - PR #1037
@@ -67,10 +75,11 @@ proven:
   - Issue 1137 remains genuinely waiting on protected acceptance
   - continuous programme records remain nonterminal by contract
   - liquidations task post-merge operational acceptance is not sufficiently proven for archival in this reconciliation
-unknown: []
+unknown:
+  - exact containing commit and terminal CI/review disposition for this lifecycle-only reconciliation
 conflicts: []
 blockers: []
-next_action: materialize the two proven archive moves, request fresh review, run exact-head CI, merge, then verify active/archive truth and branch cleanup.
+next_action: open one focused governance PR, request fresh independent review, collect exact-head CI, merge only if terminal green, then archive this reconciliation record and verify branch cleanup.
 ```
 
 ## Safety

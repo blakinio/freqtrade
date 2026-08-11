@@ -52,7 +52,9 @@ def _policy_digest(payload: dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
-def _is_exclusively_public_ipv4_network(network: ipaddress._BaseNetwork) -> bool:
+def _is_exclusively_public_ipv4_network(
+    network: ipaddress.IPv4Network | ipaddress.IPv6Network,
+) -> bool:
     return (
         network.version == 4
         and network.is_global
@@ -127,12 +129,7 @@ class MappingMarketDataEgressPolicyProvider(MarketDataEgressPolicyProvider):
 
 
 class LinuxNftablesBtrfsIsolationAttestor:
-    """Concrete compatible-host backend for #1354.
-
-    Instantiating this class is safe. Calling prepare methods mutates an authorized Linux
-    host's Docker network, nftables rules and Btrfs qgroup state, so protected deployment
-    authorization remains mandatory outside repository validation.
-    """
+    """Concrete compatible-host backend for the #1354 hard isolation envelope."""
 
     def __init__(
         self,
@@ -155,6 +152,10 @@ class LinuxNftablesBtrfsIsolationAttestor:
             network_backend=network,
         )
 
+    def dns_resolvers(self, plan: RuntimeIsolationPlan) -> tuple[str, ...]:
+        self._require_network_backend(plan)
+        return self._policy_for(plan).dns_resolver_ipv4_addresses
+
     def prepare_storage(self, plan: RuntimeIsolationPlan, state_path: Path) -> None:
         self._require_storage_backend(plan)
         state = self._approved_state_path(state_path)
@@ -176,13 +177,7 @@ class LinuxNftablesBtrfsIsolationAttestor:
             allow_already_enabled=True,
         )
         self._require_success(
-            (
-                "btrfs",
-                "qgroup",
-                "limit",
-                str(plan.durable_state_max_bytes),
-                str(state),
-            ),
+            ("btrfs", "qgroup", "limit", str(plan.durable_state_max_bytes), str(state)),
             "HOST_STORAGE_ISOLATION_UNSUPPORTED",
         )
         self.attest_storage(plan, state)
@@ -414,7 +409,6 @@ class LinuxNftablesBtrfsIsolationAttestor:
                 "generation network identity label does not match runtime",
             )
         self._attest_network_members(network, runtime_id)
-        bridge = self._bridge_name(network)
         table = self._table_name(network_name)
         result = self._runner.run(("nft", "-j", "list", "table", "inet", table))
         if result.returncode != 0:
@@ -430,7 +424,7 @@ class LinuxNftablesBtrfsIsolationAttestor:
                 "ISOLATION_ATTESTATION_FAILED",
                 "nftables generation policy evidence is invalid JSON",
             ) from exc
-        self._attest_canonical_nftables(payload, table, bridge, policy)
+        self._attest_canonical_nftables(payload, table, self._bridge_name(network), policy)
 
     def cleanup_network(self, network_name: str, runtime_id: str) -> None:
         del runtime_id
@@ -571,10 +565,7 @@ class LinuxNftablesBtrfsIsolationAttestor:
         policy: MarketDataEgressPolicy,
     ) -> None:
         if not isinstance(payload, dict) or not isinstance(payload.get("nftables"), list):
-            raise RuntimeDriverError(
-                "ISOLATION_ATTESTATION_FAILED",
-                "nftables generation policy has an unexpected JSON shape",
-            )
+            self._nft_mismatch()
         chains: dict[str, dict[str, Any]] = {}
         rules: dict[str, list[tuple[object, ...]]] = {"input": [], "forward": []}
         table_count = 0
@@ -674,7 +665,11 @@ class LinuxNftablesBtrfsIsolationAttestor:
         elif isinstance(left.get("payload"), dict):
             protocol = left["payload"].get("protocol")
             field = left["payload"].get("field")
-            if (protocol, field) not in {("ip", "daddr"), ("tcp", "dport"), ("udp", "dport")}:
+            if (protocol, field) not in {
+                ("ip", "daddr"),
+                ("tcp", "dport"),
+                ("udp", "dport"),
+            }:
                 cls._nft_mismatch()
             selector = ("payload", str(protocol), str(field))
         elif isinstance(left.get("ct"), dict) and left["ct"].get("key") == "state":
@@ -690,7 +685,12 @@ class LinuxNftablesBtrfsIsolationAttestor:
             if not isinstance(prefix, dict) or not isinstance(prefix.get("addr"), str):
                 cls._nft_mismatch()
             try:
-                return str(ipaddress.ip_network(f"{prefix['addr']}/{int(prefix['len'])}", strict=False))
+                return str(
+                    ipaddress.ip_network(
+                        f"{prefix['addr']}/{int(prefix['len'])}",
+                        strict=False,
+                    )
+                )
             except (KeyError, TypeError, ValueError) as exc:
                 raise RuntimeDriverError(
                     "ISOLATION_ATTESTATION_FAILED",
@@ -712,10 +712,7 @@ class LinuxNftablesBtrfsIsolationAttestor:
         policy: MarketDataEgressPolicy,
     ) -> tuple[list[tuple[object, ...]], list[tuple[object, ...]]]:
         input_rules = [
-            (
-                ("meta", "iifname", "", "==", bridge),
-                ("verdict", "drop"),
-            )
+            (("meta", "iifname", "", "==", bridge), ("verdict", "drop"))
         ]
         forward_rules: list[tuple[object, ...]] = [
             (
@@ -755,10 +752,7 @@ class LinuxNftablesBtrfsIsolationAttestor:
                 )
             )
         forward_rules.append(
-            (
-                ("meta", "iifname", "", "==", bridge),
-                ("verdict", "drop"),
-            )
+            (("meta", "iifname", "", "==", bridge), ("verdict", "drop"))
         )
         return input_rules, forward_rules
 
@@ -834,16 +828,14 @@ class LinuxNftablesBtrfsIsolationAttestor:
 
     @staticmethod
     def _qgroup_max_rfer(output: str, qgroup: str) -> int | None:
-        header: list[str] | None = None
         max_rfer_index: int | None = None
         for line in output.splitlines():
             fields = line.split()
             if not fields:
                 continue
             if fields[0] == "qgroupid":
-                header = fields
                 try:
-                    max_rfer_index = header.index("max_rfer")
+                    max_rfer_index = fields.index("max_rfer")
                 except ValueError:
                     return None
                 continue

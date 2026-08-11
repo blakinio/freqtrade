@@ -25,9 +25,9 @@ ownership_released: true
 
 ## Result
 
-The bounded WickHunter producer slice is complete. It reuses canonical `BotMode`, represents SHADOW/PAPER mode and PAPER eligibility as immutable digest material, resolves only zero-real-trading-authority capabilities, and keeps LIVE_BLOCKED/RESEARCH fail-closed for managed trading runtime use.
+The bounded WickHunter producer slice is complete. It reuses canonical `BotMode`, represents SHADOW/PAPER mode and PAPER eligibility as immutable digest material, resolves only zero-real-trading-authority capabilities, and keeps LIVE_BLOCKED/RESEARCH fail-closed for managed trading-runtime use.
 
-This closeout is **only for the producer task**. Issue #1396 and the full Portal/runtime-generation consumer path remain separate programme work; archiving this producer does not claim those consumers complete.
+This closeout is **only for the producer task**. Issue #1396 remains open for its broader product acceptance and must not be inferred complete from this archive.
 
 ## Delivery evidence
 
@@ -68,13 +68,11 @@ exact_head_ci:
     result: SKIPPED_BY_ROUTING
 ```
 
-## Handover
+## Current downstream state
 
-The remaining consumer must bind the producer contract through the canonical Portal generation chain rather than introducing another authority:
+The producer is no longer waiting for a Portal runtime-generation consumer. On current `develop`, `ControlPlaneService` already imports `ManagedRuntimeModeRequest`, resolves managed mode before persistence, binds the mode request/resolution/PAPER-authorization digests into `RuntimeGeneration`, and includes that resolution in generation-spec identity. The canonical consumer authority therefore already exists and must not be recreated by a follow-up task.
 
-`BotConfigRevision -> normalized runtime config digest -> RuntimeGeneration -> rollout -> observed generation reconciliation`.
-
-The UI may expose SHADOW/PAPER only from server-provided eligibility. LIVE remains unavailable under current authority.
+Broader Issue #1396 remains open only for its genuinely remaining product-level acceptance, such as complete desired-versus-observed mode truth, rollout/reconciliation behavior across the supported workflows, start/stop/restart exact-generation behavior, and the required browser/API/runtime acceptance. LIVE remains unavailable under current authority.
 
 ## Closeout
 
@@ -89,7 +87,8 @@ closeout:
   task_archived: true
   ownership_released: true
   issue_1396_closed_by_this_task: false
-  remaining_programme_work: canonical Portal/runtime-generation consumer integration and broader WickHunter acceptance
+  canonical_runtime_generation_consumer_present: true
+  remaining_programme_work: broader Issue #1396 product acceptance only
 ```
 
 PAPER-only safety remains unchanged. No exchange credential, real order adapter, real exchange execution, withdrawal, automatic promotion or LIVE/live-capital authority was introduced.

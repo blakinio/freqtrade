@@ -143,6 +143,7 @@ def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None
         state_root=state_root,
         btrfs_mount=mount,
     )
+    table = backend._table_name(network)
 
     try:
         capabilities = backend.capabilities()
@@ -219,7 +220,6 @@ def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None
         )
         assert forbidden.returncode != 0
 
-        table = backend._table_name(network)
         bridge_info = _run(
             "docker",
             "network",
@@ -268,10 +268,9 @@ def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None
         assert storage_error.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
     finally:
         _run("docker", "rm", "-f", container)
-        try:
-            backend.cleanup_network(network, runtime_id)
-        except RuntimeDriverError:
-            pass
+        backend.cleanup_network(network, runtime_id)
+        table_absent = _run("nft", "list", "table", "inet", table)
+        assert table_absent.returncode != 0, table_absent.stdout
         if state_path.exists():
             deleted = _run("btrfs", "subvolume", "delete", str(state_path))
             assert deleted.returncode == 0, deleted.stderr

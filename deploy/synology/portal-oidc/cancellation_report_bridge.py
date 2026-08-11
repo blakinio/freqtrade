@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import signal
 from pathlib import Path
+from types import FrameType
 from typing import Any, cast
 
 
@@ -45,6 +47,17 @@ def _fallback_report(deploy: Any, args: Any, pending: BaseException) -> dict[str
     }
 
 
+def _sigint_handler(deploy: Any):
+    def handle_sigint(_signum: int, _frame: FrameType | None) -> None:
+        pending = _pending_cancellation(deploy)
+        if pending is None:
+            pending = KeyboardInterrupt()
+            deploy._portal_pending_cancellation = pending
+        raise deploy.DeploymentError(_CANCELLATION_FAILURE_MESSAGE) from pending
+
+    return handle_sigint
+
+
 def install(deploy: Any) -> None:
     """Persist cancellation evidence through canonical rollback, then re-raise cancellation."""
 
@@ -82,22 +95,27 @@ def install(deploy: Any) -> None:
         return cast(str, original_write_report(path, report))
 
     def guarded_deploy(args: Any) -> int:
+        previous_sigint = signal.getsignal(signal.SIGINT)
+        signal.signal(signal.SIGINT, _sigint_handler(deploy))
         try:
-            return_code = int(original_deploy(args))
-        except BaseException as exc:
-            pending = _pending_cancellation(deploy)
-            if pending is None:
-                raise
             try:
-                deploy._write_report(
-                    Path(args.report).resolve(),
-                    _fallback_report(deploy, args, pending),
-                )
-            except Exception as report_exc:
+                return_code = int(original_deploy(args))
+            except BaseException as exc:
+                pending = _pending_cancellation(deploy)
+                if pending is None:
+                    raise
+                try:
+                    deploy._write_report(
+                        Path(args.report).resolve(),
+                        _fallback_report(deploy, args, pending),
+                    )
+                except Exception as report_exc:
+                    deploy._portal_pending_cancellation = None
+                    raise pending from report_exc
                 deploy._portal_pending_cancellation = None
-                raise pending from report_exc
-            deploy._portal_pending_cancellation = None
-            raise pending from exc
+                raise pending from exc
+        finally:
+            signal.signal(signal.SIGINT, previous_sigint)
 
         pending = _pending_cancellation(deploy)
         if pending is not None:

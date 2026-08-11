@@ -1,34 +1,36 @@
 # AI Trading Portal implementation boundary
 
-This directory is reserved for future AI Trading Portal implementation owned by the project-specific layer of this fork.
+This directory contains the project-specific AI Trading Portal implementation for this Freqtrade fork.
 
-No portal runtime is implemented by the architecture-foundation work package.
+The Portal is **partially implemented and actively evolving**. Do not infer feature completeness from this README or from the presence of a package. Current implementation status is proven from the exact repository head by the living Portal completeness ledger at `tools/portal_audit/ledger/index.json`; architecture and target-state authority are indexed by `ARCHITECTURE_REGISTRY.yaml` and the canonical documents under `docs/ai_platform/portal/`.
 
-## Planned package layout
+## Current package boundary
+
+Selected implemented roots include:
 
 ```text
 ai_platform/portal/
-  contracts/       # shared versioned domain/API/event contracts
-  control_plane/   # future FastAPI modular backend and persistence
-  execution/       # Freqtrade adapter and runtime orchestration
-  events/          # outbox/inbox/event transport abstractions
-  observability/   # telemetry contracts and instrumentation helpers
+  contracts/       # versioned domain/API/event contracts
+  control_plane/   # FastAPI/control-plane domain and persistence composition
+  execution/       # Freqtrade adapter and managed runtime orchestration
+  events/          # event and transport boundaries
+  credentials/     # credential metadata and secret-reference boundaries
+  database/        # database/schema support
+  identity/        # identity and authorization integration
+  security/        # Portal security controls and sensitive-data guards
   risk/            # deterministic risk policy evaluation
-  model_control/   # model/dataset/feature lifecycle control-plane integration
-  intelligence/    # DecisionSnapshot, TradeOutcome and post-trade analysis
-  learning/        # insight -> hypothesis -> experiment/training workflow
-  simulator/       # deterministic exchange/market simulator
+  observability/   # runtime/telemetry contracts and helpers
   e2e/             # full-platform scenario definitions/harness
-  web/             # future Next.js/React portal (tooling boundary to be declared)
-  deploy/          # production-like deployment manifests/runbooks, including Cloudflare
-  quality_agent/   # bounded autonomous diagnosis/repair integration
+  web/             # Next.js/React Portal
 ```
 
-Directories should be created by their owning bounded implementation tasks rather than populated with speculative code in advance.
+Additional packages may represent implemented components, compatibility surfaces, research work, or target-state work. Use the living exact-head ledger and task-specific evidence before making an implementation-completeness claim.
+
+Deployment-specific code is intentionally separated under `deploy/` (including Synology targets) and supporting deployment/ingress configuration may also live under `ai_platform/portal/deploy/`.
 
 ## Dependency direction
 
-Preferred high-level dependency direction:
+Preferred high-level dependency direction remains:
 
 ```text
 contracts
@@ -45,21 +47,31 @@ execution          intelligence
   +------ events / observability
 
 simulator/e2e depend on public/internal contracts, not private implementation details.
-web depends on portal APIs/contracts, never on Freqtrade internals.
+web depends on Portal APIs/contracts, never on Freqtrade internals.
 ```
 
 Avoid circular imports between domain packages. Shared concepts move into versioned contracts only through an explicit contract-change task.
 
+## Source-of-truth hierarchy
+
+- **Current implementation:** exact code, migrations, tests, workflows, deployed-target evidence, and `tools/portal_audit/ledger/index.json` on the exact head.
+- **Architecture authority:** `ARCHITECTURE_REGISTRY.yaml`, accepted ADRs, and task-relevant documents under `docs/ai_platform/portal/`.
+- **Historical documents:** evidence for their recorded revision only; they do not override exact current implementation or later accepted ADRs.
+
+A target-state architecture document must not be reported as implemented without exact implementation evidence, and a present package must not be treated as a complete user-facing capability without the required producer/consumer, integration, audit and E2E evidence.
+
 ## Upstream isolation
 
-Do not place portal-specific code under upstream `freqtrade/` unless a required capability is proven impossible through supported extension/API boundaries and the change receives separate review.
+Do not place Portal-specific code under upstream `freqtrade/` unless a required capability is proven impossible through supported extension/API boundaries and the change receives separate review.
 
-## Security
+## Safety
 
 - no secrets in repository files;
 - no public Freqtrade listener;
-- dry-run by default;
+- PAPER/dry-run is the only currently authorized operational trading mode;
+- SHADOW is optional and purpose-bound for bounded validation;
+- LIVE remains unreachable/fail-closed until a separate explicit owner-approved architecture and implementation programme;
 - no private third-party UI captures or user profile data;
 - no autonomous production patch path.
 
-See `docs/ai_platform/portal/` for the canonical architecture and delivery plan.
+See `docs/ai_platform/portal/` for canonical architecture and delivery contracts, and `tools/portal_audit/ledger/index.json` for the living exact-head implementation inventory.

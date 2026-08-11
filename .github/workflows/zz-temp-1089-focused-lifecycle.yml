@@ -20,7 +20,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 1
-          ref: 850a8edc3667e488c887ca64894cf7b8189cb148
+          ref: bef67954b9ccebb877b03ee682cb8ffdfce4e89b
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
@@ -36,23 +36,32 @@ jobs:
         shell: bash
         run: |
           python -m py_compile deploy/synology/portal-oidc/bounded_schema_lifecycle.py
+          python -m py_compile deploy/synology/portal-oidc/cancellation_report_bridge.py
+          python -m py_compile deploy/synology/portal-oidc/deploy_entrypoint.py
           python -m py_compile tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py
           python -m py_compile tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_cancellation.py
           python -m py_compile tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py
+          python -m py_compile tests/ai_platform/portal/deployment/test_portal_oidc_cancellation_report_bridge.py
 
       - name: Ruff focused lifecycle files
         shell: bash
         run: |
           ruff check \
             deploy/synology/portal-oidc/bounded_schema_lifecycle.py \
+            deploy/synology/portal-oidc/cancellation_report_bridge.py \
+            deploy/synology/portal-oidc/deploy_entrypoint.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_cancellation.py \
-            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py
+            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_cancellation_report_bridge.py
           ruff format --check \
             deploy/synology/portal-oidc/bounded_schema_lifecycle.py \
+            deploy/synology/portal-oidc/cancellation_report_bridge.py \
+            deploy/synology/portal-oidc/deploy_entrypoint.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_cancellation.py \
-            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py
+            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_cancellation_report_bridge.py
 
       - name: Run focused lifecycle regressions
         shell: bash
@@ -60,4 +69,5 @@ jobs:
           python -m pytest -q \
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_cancellation.py \
-            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py
+            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_cancellation_report_bridge.py

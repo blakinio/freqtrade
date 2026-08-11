@@ -106,6 +106,7 @@ repair_cycle_4:
     severity: P1
     marker: context checkpoint violated shared checkpoint contract and could not be consumed by checkpoint.py/resume.py
   remediation:
+    first_commit: 1c66dba4026f42b590f105f1edcc5d9280a9ad16
     change: re-encoded Context checkpoint as shared checkpoint contract version 1 with all required fields and supported validation results
 repair_budget_exhausted: true
 repair_budget_exception_authorized: true
@@ -115,8 +116,8 @@ repair_budget_exception_authorized: true
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-11T17:45:00Z
-head: fc908158053fa8289829e8f0eaa9537a1ccd8e81
+updated_at: 2026-08-11T17:46:00Z
+head: 1c66dba4026f42b590f105f1edcc5d9280a9ad16
 branch: feat/paper-g0-surface-availability-20260811
 pr: 1470
 status: validating
@@ -157,13 +158,13 @@ changed_paths:
 validation:
   - command: python tools/agents/checkpoint.py docs/agents/tasks/active/FTAI-20260811-paper-g0-surface-availability.md --require-checkpoint
     result: NOT_RUN
-    evidence: cycle-4 content was encoded directly from docs/agents/GOVERNANCE_CONTRACT.json and tools/agents/checkpoint.py; exact-head CI must execute the repository validator
-  - command: python tools/agents/resume.py docs/agents/tasks/active/FTAI-20260811-paper-g0-surface-availability.md
+    evidence: checkpoint is encoded directly from the current shared contract; exact-head CI must execute the repository validator
+  - command: python tools/agents/resume.py --task docs/agents/tasks/active/FTAI-20260811-paper-g0-surface-availability.md --json
     result: NOT_RUN
-    evidence: continuation consumer must be verified on the exact cycle-4 head before merge
+    evidence: continuation consumer must be verified on the exact cycle-4 successor before merge
   - command: Codex exact-head review
     result: NOT_RUN
-    evidence: fresh review must target the successor commit created by this checkpoint repair
+    evidence: fresh review must target the cycle-4 successor head before merge
 blockers: []
-next_action: Run the repository checkpoint and resume validation through exact-head CI, obtain a fresh Codex review of the cycle-4 successor head, resolve the remediated checkpoint thread, then merge PR #1470 only if every required exact-head gate is terminally green.
+next_action: Run exact-head repository validation and fresh Codex review for repair cycle 4, resolve the remediated checkpoint P1 thread, then merge PR #1470 only if every required exact-head gate is terminally green.
 ```

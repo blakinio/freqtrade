@@ -58,22 +58,28 @@ jobs:
 
           candidates = []
           for path in backup_dir.glob(f"{prefix}*.db"):
+              suffix = path.name.removeprefix(prefix).removesuffix(".db")
+              if not suffix.isdigit():
+                  continue
+              helper_timestamp = int(suffix)
+              if not start <= helper_timestamp <= end:
+                  continue
               try:
                   st = path.stat()
               except FileNotFoundError:
                   continue
-              if start <= int(st.st_mtime) <= end:
-                  candidates.append((path, st))
+              candidates.append((path, st, helper_timestamp))
 
           lines.append(f"candidate_count={len(candidates)}")
           if len(candidates) != 1:
               report.write_text("\n".join(lines) + "\n", encoding="utf-8")
               raise SystemExit(2)
 
-          path, st = candidates[0]
+          path, st, helper_timestamp = candidates[0]
           lines.extend(
               [
                   f"snapshot_name={path.name}",
+                  f"snapshot_helper_timestamp={helper_timestamp}",
                   f"snapshot_size={st.st_size}",
                   f"snapshot_uid={st.st_uid}",
                   f"snapshot_gid={st.st_gid}",
@@ -116,8 +122,9 @@ jobs:
                       lines.append("migrations=[]")
                   lines.append("inspection_status=ready")
           finally:
-              # Ownership proof: exact helper prefix + exact prior run time window + single
-              # candidate on the serialized Synology runner. Never delete on ambiguity.
+              # Ownership proof comes from the helper-generated exact SHA prefix plus
+              # the timestamp embedded by the helper itself during run 31467217892.
+              # The Synology runner serialized that task; ambiguity refuses deletion.
               path.unlink(missing_ok=True)
               lines.append(f"cleanup_snapshot_absent={not path.exists()}")
               report.write_text("\n".join(lines) + "\n", encoding="utf-8")

@@ -313,3 +313,23 @@ def test_storage_backend_rejects_path_escape_before_host_commands(tmp_path: Path
 
     assert exc_info.value.reason_code == "HOST_STORAGE_ISOLATION_UNSUPPORTED"
     assert runner.calls == []
+
+
+def test_storage_backend_rejects_state_root_itself_before_host_commands(tmp_path: Path) -> None:
+    runner = _QueueRunner()
+    policy = _policy()
+    state_root = tmp_path / "approved"
+    state_root.mkdir()
+    backend = LinuxNftablesBtrfsIsolationAttestor(
+        runner,
+        policy_provider=_provider(policy),
+        state_root=state_root,
+        btrfs_mount=tmp_path,
+    )
+
+    with pytest.raises(RuntimeDriverError) as exc_info:
+        backend.prepare_storage(_plan(policy), state_root)
+
+    assert exc_info.value.reason_code == "HOST_STORAGE_ISOLATION_UNSUPPORTED"
+    assert state_root.is_dir()
+    assert runner.calls == []

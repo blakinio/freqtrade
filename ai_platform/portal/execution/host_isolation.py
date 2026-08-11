@@ -408,7 +408,7 @@ class LinuxNftablesBtrfsIsolationAttestor:
                 "--raw",
                 "-r",
                 "-F",
-                str(self._btrfs_mount),
+                str(state),
             )
         )
         if result.returncode != 0:

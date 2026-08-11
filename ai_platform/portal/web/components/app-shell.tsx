@@ -104,7 +104,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {group.items.map((item) => (
                   <Link key={item.href} href={item.href}>
                     {item.label}
-                    {unavailableRoutes.has(item.href) ? " · Unavailable" : ""}
+                    {unavailableRoutes.has(item.href) ? (
+                      <span aria-hidden="true"> · Unavailable</span>
+                    ) : null}
                   </Link>
                 ))}
               </div>

@@ -123,6 +123,19 @@ def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None
 
         backend.prepare_storage(plan, state_path)
         backend.attest_storage(plan, state_path)
+
+        quota_overrun = _run(
+            "dd",
+            "if=/dev/zero",
+            f"of={state_path / 'quota-overrun-probe'}",
+            "bs=1M",
+            "count=12",
+            "conv=fsync",
+        )
+        assert quota_overrun.returncode != 0
+        quota_error = quota_overrun.stderr.lower()
+        assert "disk quota exceeded" in quota_error or "no space left on device" in quota_error
+
         backend.prepare_network(plan, network, runtime_id)
 
         pulled = _run("docker", "pull", "--quiet", ALPINE_IMAGE, timeout=180)

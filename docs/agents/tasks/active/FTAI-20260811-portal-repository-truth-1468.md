@@ -40,30 +40,30 @@ Runtime/browser E2E is `NOT_APPLICABLE`: no product/runtime/deployment behavior 
 ## Acceptance
 
 - stale `future/unimplemented` Portal wording is absent;
-- README points current implementation claims to `tools/portal_audit/ledger/index.json` and architecture claims to `ARCHITECTURE_REGISTRY.yaml` / canonical Portal docs;
-- README explicitly preserves PAPER-only / fail-closed LIVE authority;
-- CODEOWNERS contains an explicit `/ai_platform/portal/` ownership umbrella plus current sensitive-path overrides;
-- explicit sensitive coverage includes current control-plane, execution, execution-submission, bot-operations, exchange-connections, signal-control, identity, security, credentials, database, risk, Portal deploy, contracts, web and Synology deployment roots;
-- the CI guard validates owner fields and effective ownership, and fails closed on unsupported unanchored/glob rules capable of affecting a protected root;
-- exact-final-head required CI and documentation build pass;
-- independent review has zero open material findings before merge.
+- README points implementation truth to `tools/portal_audit/ledger/index.json` and architecture authority to `ARCHITECTURE_REGISTRY.yaml` / canonical Portal docs;
+- README preserves PAPER-only / fail-closed LIVE authority;
+- CODEOWNERS contains an explicit `/ai_platform/portal/` umbrella and current sensitive-root overrides;
+- the Portal ownership block is terminal in CODEOWNERS so no later rule of any syntax can override Portal ownership;
+- all rules in that terminal block carry the intended owner and missing, duplicate, extra or later rules fail the deterministic guard;
+- exact-final-head required CI passes;
+- independent final review has zero open material findings before merge.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-11T10:14:00Z
-head: 39b093a32dcd74b00cb4f39c88144c9dc5ab000a
+updated_at: 2026-08-11T10:28:00Z
+head: 4e6cda5ce3fff55e29054b225a63a7613e303c36
 branch: docs/portal-repository-truth-1468
 pr: 1469
 status: validating
 invocation_started_at: 2026-08-11T08:57:00Z
-last_progress_at: 2026-08-11T10:14:00Z
+last_progress_at: 2026-08-11T10:28:00Z
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
 repair_cycles_for_current_gate: 3
-fresh_isolation_repairs: 1
+fresh_isolation_repairs: 2
 context_reconstruction_attempts: 0
 stall_warnings: 0
 context_routes:
@@ -76,40 +76,40 @@ owned_paths:
   - docs/agents/tasks/active/FTAI-20260811-portal-repository-truth-1468.md
 proven:
   - develop contains a living exact-head Portal completeness ledger and implemented Portal surfaces that made the old README false.
-  - all review-identified sensitive Portal roots are explicitly covered and a Portal-wide CODEOWNERS umbrella is present.
-  - the original three same-gate repair cycles were exhausted after the effective-owner glob finding on parent head 2b9c3f378dad5ecc68e48c9c51e7771f05264d15.
-  - fresh isolation PR #1471 repaired glob handling without resetting those counters: unsupported unanchored/glob rules that can affect a protected root fail closed, including broad `/ai_platform/portal/**` and child `/ai_platform/portal/control_plane/api*` cases.
-  - PR #1471 exact head de01d8174b4ee2821b301fff7113d913f6f2e827 received fresh Codex review with no material issues and was squash-merged into this task branch as 9777009ab4fdaa0351949decc309264af13ec90a.
-  - the task branch was then synchronized with current develop@2e7a99f6693469c0f8a009a2c8d00056fc817674 through merge commit 39b093a32dcd74b00cb4f39c88144c9dc5ab000a using the exact current develop tree plus the four task-owned files.
+  - all review-identified sensitive Portal roots are explicitly covered under a Portal-wide umbrella.
+  - the parent same-gate repair budget remained capped at three; later semantic defects were handled only through fresh isolation PRs.
+  - isolation PR #1471 repaired broad/child glob handling and passed fresh Codex review on `de01d8174b4ee2821b301fff7113d913f6f2e827` before merge as `9777009ab4fdaa0351949decc309264af13ec90a`.
+  - subsequent parent review found slashless-directory semantics still made custom pattern emulation fragile.
+  - isolation PR #1472 removed custom pattern emulation entirely: the Portal umbrella and explicit overrides are now the final CODEOWNERS block; the guard verifies the complete terminal block and intended owners and rejects any appended rule.
+  - isolation PR #1472 exact head `79263e7226bc972120c971fdacc4dc5a524bc5cc` received a clean Codex review and was squash-merged into this branch as `4e6cda5ce3fff55e29054b225a63a7613e303c36`.
+  - parent review threads for the glob and slashless findings were resolved only after those isolation merges.
+  - the branch was synchronized with `develop@2e7a99f6693469c0f8a009a2c8d00056fc817674` before the second isolation merge and had no product/runtime overlap.
   - PAPER remains the only currently authorized operational mode and LIVE remains unreachable/fail-closed.
 derived:
-  - documentation truth must defer implementation completeness to exact-head evidence rather than package presence.
-  - the Portal-wide umbrella plus fail-closed effective-rule validation covers the regression classes found by independent audit without claiming a full CODEOWNERS parser.
+  - a terminal ownership block is simpler and more robust than reimplementing GitHub CODEOWNERS matching semantics in the CI guard.
 unknown:
-  - terminal exact-head CI result and final parent Codex review disposition after the isolation merge and develop synchronization.
+  - terminal exact-head CI result and final independent parent review disposition for the containing commit after this checkpoint update.
 conflicts: []
 first_failure:
-  marker: none open; prior glob-semantics P2 was isolated and repaired in PR #1471
-  evidence: PR #1471 merged after clean review of de01d8174b4ee2821b301fff7113d913f6f2e827
+  marker: none open; slashless-directory effective-ownership P2 was isolated and repaired in PR #1472
+  evidence: PR #1472 clean Codex review comment 5251947333 and merge commit 4e6cda5ce3fff55e29054b225a63a7613e303c36
 rejected_hypotheses:
-  - ignore the glob finding because current CODEOWNERS has no such rule; rejected because the guard exists specifically to prevent future ownership regression.
-  - perform a fourth same-gate parent repair cycle; rejected by anti-stall policy; a separate isolation branch/PR was used instead.
-  - implement a partial CODEOWNERS glob matcher and claim complete semantics; rejected in favor of explicit fail-closed behavior for unsupported patterns that can affect protected roots.
+  - continue extending a partial CODEOWNERS matcher; rejected because independent review exposed successive valid syntax forms and a terminal block proves the desired invariant without parsing them.
 changed_paths:
   - ai_platform/portal/README.md
   - .github/CODEOWNERS
   - tests/ci/test_portal_repository_truth.py
   - docs/agents/tasks/active/FTAI-20260811-portal-repository-truth-1468.md
 validation:
-  - command: focused isolation logic reproduction
+  - command: focused terminal-block logic reproduction
     result: PASS
-    evidence: current rules resolve protected roots to @blakinio; broad and child overriding glob fixtures fail closed
-  - command: independent Codex review of isolation PR #1471 head de01d8174b4ee2821b301fff7113d913f6f2e827
+    evidence: current block is complete with intended owner and appended glob, slashless, child-glob, unanchored, unrelated or wildcard rules all fail closed
+  - command: independent Codex review of isolation PR #1472 head 79263e7226bc972120c971fdacc4dc5a524bc5cc
     result: PASS
-    evidence: Codex Review reported no major issues after the child-glob repair
-  - command: isolation review-thread reconciliation
+    evidence: Codex Review reported no major issues
+  - command: isolation review hygiene
     result: PASS
-    evidence: P1 thread PRRT_kwDOTdDTU86YLzTo resolved after repair
+    evidence: PR #1472 had zero material review threads; parent slashless thread PRRT_kwDOTdDTU86YMDRq is resolved after merge
   - command: runtime/browser product E2E
     result: NOT_APPLICABLE
     evidence: documentation and network-free CI-governance repair only
@@ -122,19 +122,19 @@ next_action: Request one fresh independent Codex review and exact-head required 
 ```yaml
 recovery:
   policy_version: 1
-  generation: 7
+  generation: 8
   session_id: portal-truth-20260811-1142
   session_started_at: 2026-08-11T09:42:00Z
-  checkpointed_at: 2026-08-11T10:14:00Z
-  last_progress_at: 2026-08-11T10:14:00Z
-  phase: final_parent_validation_after_isolation
-  exact_head: 39b093a32dcd74b00cb4f39c88144c9dc5ab000a
+  checkpointed_at: 2026-08-11T10:28:00Z
+  last_progress_at: 2026-08-11T10:28:00Z
+  phase: final_parent_validation_after_terminal_block_isolation
+  exact_head: 4e6cda5ce3fff55e29054b225a63a7613e303c36
   pull_request: 1469
   active_operation: final parent audit and exact-head CI
   external_run_ids: []
-  operation_started_at: 2026-08-11T10:14:00Z
+  operation_started_at: 2026-08-11T10:28:00Z
   wait_deadline_at: null
-  check_generation: post-isolation-parent-final
+  check_generation: terminal-portal-codeowners-block
   checks_used: 0
   status: active
   safe_to_resume: true

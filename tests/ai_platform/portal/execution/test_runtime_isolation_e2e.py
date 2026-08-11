@@ -1,5 +1,3 @@
-# ruff: noqa: S108 -- /tmp is a fixed in-container tmpfs security boundary.
-
 from __future__ import annotations
 
 import json
@@ -78,11 +76,7 @@ def _exact_image() -> tuple[str, str]:
     )
     assert inspected.returncode == 0, inspected.stderr
     digests = json.loads(inspected.stdout)
-    exact = next(
-        str(value)
-        for value in digests
-        if isinstance(value, str) and "@sha256:" in value
-    )
+    exact = next(str(value) for value in digests if isinstance(value, str) and "@sha256:" in value)
     digest = exact.rsplit("@sha256:", 1)[1]
     assert len(digest) == 64
     return exact, digest
@@ -219,9 +213,7 @@ def _plan(
         runtime_user="65532:65532",
         allow_cpuset_fallback=False,
     )
-    report = DockerHostCapabilityProbe(external_attestor=attestor).probe(
-        now=datetime.now(UTC)
-    )
+    report = DockerHostCapabilityProbe(external_attestor=attestor).probe(now=datetime.now(UTC))
     required = {
         "readonly_root": report.supports_readonly_root,
         "tmpfs": report.supports_tmpfs,

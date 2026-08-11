@@ -812,17 +812,13 @@ class LinuxNftablesBtrfsIsolationAttestor:
             if not isinstance(prefix, dict) or not isinstance(prefix.get("addr"), str):
                 cls._nft_mismatch()
             try:
-                return str(
-                    ipaddress.ip_network(
-                        f"{prefix['addr']}/{int(prefix['len'])}",
-                        strict=False,
-                    )
-                )
+                target = f"{prefix['addr']}/{int(prefix['len'])}"
             except (KeyError, TypeError, ValueError) as exc:
                 raise RuntimeDriverError(
                     "ISOLATION_ATTESTATION_FAILED",
                     "nftables prefix evidence is invalid",
                 ) from exc
+            return cls._canonical_ipv4_target(target)
         if isinstance(value, dict) and set(value) == {"set"}:
             members = value["set"]
             if not isinstance(members, list):
@@ -831,6 +827,21 @@ class LinuxNftablesBtrfsIsolationAttestor:
         if isinstance(value, list):
             return tuple(sorted(str(member) for member in value))
         return value
+
+    @classmethod
+    def _canonical_ipv4_target(cls, value: str) -> str:
+        try:
+            network = ipaddress.ip_network(value, strict=True)
+        except ValueError as exc:
+            raise RuntimeDriverError(
+                "ISOLATION_ATTESTATION_FAILED",
+                "nftables IPv4 target evidence is invalid",
+            ) from exc
+        if not isinstance(network, ipaddress.IPv4Network):
+            cls._nft_mismatch()
+        if network.prefixlen == network.max_prefixlen:
+            return str(network.network_address)
+        return str(network)
 
     @classmethod
     def _expected_nft_rule_signatures(
@@ -865,10 +876,11 @@ class LinuxNftablesBtrfsIsolationAttestor:
         states = ("established", "new")
         egress_rules: list[tuple[object, ...]] = []
         for cidr in policy.allowed_ipv4_cidrs:
+            target = cls._canonical_ipv4_target(cidr)
             for port in policy.allowed_tcp_ports:
                 egress_rules.append(
                     (
-                        ("payload", "ip", "daddr", "==", cidr),
+                        ("payload", "ip", "daddr", "==", target),
                         ("payload", "tcp", "dport", "==", port),
                         ("ct", "state", "", "in", states),
                         ("verdict", "accept"),

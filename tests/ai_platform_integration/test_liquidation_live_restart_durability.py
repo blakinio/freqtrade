@@ -581,7 +581,7 @@ def test_seal_anchors_source_to_open_run_directory_after_path_swap(tmp_path: Pat
     )
 
 
-def test_new_run_creation_remains_anchored_after_runs_path_swap(tmp_path: Path) -> None:
+def test_new_run_creation_fails_closed_after_runs_path_swap(tmp_path: Path) -> None:
     live_root = tmp_path / "live"
     runs_root = live_root / "runs"
     external_root = tmp_path / "external-runs"
@@ -600,26 +600,47 @@ def test_new_run_creation_remains_anchored_after_runs_path_swap(tmp_path: Path) 
 
     manager._complete_previous_active_run = swap_runs_path_after_fd_open  # type: ignore[method-assign]
 
-    async def scenario() -> str:
-        await manager.start()
-        run_id = manager.run_id
-        await manager.stop()
-        return run_id
-
-    run_id = asyncio.run(scenario())
+    with pytest.raises(RuntimeError, match="Liquid20 runtime roots changed after anchoring"):
+        asyncio.run(manager.start())
 
     assert list(external_root.iterdir()) == []
-    created = anchored_runs / run_id
+    assert not (live_root / LIVE_STATE_FILE).exists()
+    created_runs = list(anchored_runs.iterdir())
+    assert len(created_runs) == 1
+    created = created_runs[0]
     assert created.is_dir()
     assert (created / "bybit-linear.ndjson").is_file()
     assert (created / "binance-usdm.ndjson").is_file()
     assert (created / "okx-swap.ndjson").is_file()
-    assert (created / "run-state-v1.json").is_file()
-    assert (created / "bybit-linear-summary.json").is_file()
-    assert (created / "binance-usdm-summary.json").is_file()
-    assert (created / "okx-swap-summary.json").is_file()
-    pointer = json.loads((live_root / LIVE_STATE_FILE).read_text(encoding="utf-8"))
-    assert pointer["active_run_id"] is None
+    assert not (created / "run-state-v1.json").exists()
+
+
+def test_new_run_creation_fails_closed_after_live_path_swap(tmp_path: Path) -> None:
+    live_root = tmp_path / "live"
+    external_root = tmp_path / "external-live"
+    external_root.mkdir()
+    manager = OkxLiveRunManager(
+        data_root=tmp_path,
+        collector_commit="c" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+    anchored_live = tmp_path / "live-anchored"
+
+    def swap_live_path_after_fd_open() -> None:
+        live_root.rename(anchored_live)
+        live_root.symlink_to(external_root, target_is_directory=True)
+
+    manager._complete_previous_active_run = swap_live_path_after_fd_open  # type: ignore[method-assign]
+
+    with pytest.raises(RuntimeError, match="Liquid20 runtime roots changed after anchoring"):
+        asyncio.run(manager.start())
+
+    assert list(external_root.iterdir()) == []
+    assert not (external_root / LIVE_STATE_FILE).exists()
+    created_runs = list((anchored_live / "runs").iterdir())
+    assert len(created_runs) == 1
+    assert not (created_runs[0] / "run-state-v1.json").exists()
 
 
 def test_restart_rejects_symlinked_run_root_without_mutating_external_target(

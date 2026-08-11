@@ -214,6 +214,31 @@ def _open_child_directory_fd(
     return descriptor
 
 
+def _assert_runtime_roots_still_anchored(*, data_root: Path, live_fd: int, runs_fd: int) -> None:
+    flags = _secure_directory_flags()
+    opened: list[int] = []
+    try:
+        data_fd = os.open(data_root, flags)
+        opened.append(data_fd)
+        current_live_fd = os.open("live", flags, dir_fd=data_fd)
+        opened.append(current_live_fd)
+        current_runs_fd = os.open("runs", flags, dir_fd=current_live_fd)
+        opened.append(current_runs_fd)
+        for anchored_fd, current_fd in (
+            (live_fd, current_live_fd),
+            (runs_fd, current_runs_fd),
+        ):
+            anchored = os.fstat(anchored_fd)
+            current = os.fstat(current_fd)
+            if (anchored.st_dev, anchored.st_ino) != (current.st_dev, current.st_ino):
+                raise RuntimeError("Liquid20 runtime roots changed after anchoring")
+    except OSError as exc:
+        raise RuntimeError("Liquid20 runtime roots changed after anchoring") from exc
+    finally:
+        for descriptor in reversed(opened):
+            os.close(descriptor)
+
+
 def _read_json_regular_at(directory_fd: int, file_name: str) -> dict[str, object] | None:
     nofollow_flag = getattr(os, "O_NOFOLLOW", None)
     if nofollow_flag is None:
@@ -752,6 +777,12 @@ class LiveRunManager:
     def _write_state(self) -> None:
         run_fd = self._require_fd(self._run_root_fd, label="Liquid20 active run root")
         live_fd = self._require_fd(self._live_root_fd, label="Liquid20 live root")
+        runs_fd = self._require_fd(self._runs_root_fd, label="Liquid20 runs root")
+        _assert_runtime_roots_still_anchored(
+            data_root=self.data_root,
+            live_fd=live_fd,
+            runs_fd=runs_fd,
+        )
         for writer in self._writers.values():
             if not writer.closed:
                 writer.flush()
@@ -767,6 +798,11 @@ class LiveRunManager:
             "collector_heartbeat_at_ms": payload["collector_heartbeat_at_ms"],
             "state": payload,
         }
+        _assert_runtime_roots_still_anchored(
+            data_root=self.data_root,
+            live_fd=live_fd,
+            runs_fd=runs_fd,
+        )
         _write_json_atomic_at(live_fd, LIVE_STATE_FILE, pointer_payload)
 
 

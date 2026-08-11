@@ -441,8 +441,11 @@ def _seal_committed_ndjson(
         _seal_validated_committed_ndjson(descriptor, committed_end)
 
 
-def _seal_restart_sources(run_root: Path, run_root_fd: int, sources: dict[str, object]) -> None:
-    validated: list[tuple[int, int]] = []
+def _seal_restart_sources(
+    run_root: Path, run_root_fd: int, sources: dict[str, object]
+) -> list[tuple[str, int | None]]:
+    validated: list[tuple[str, int | None, int]] = []
+    retained: list[tuple[str, int | None]] = []
     try:
         for source in (BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE):
             committed_rows, allow_missing = _restart_source_commit_state(
@@ -455,13 +458,49 @@ def _seal_restart_sources(run_root: Path, run_root_fd: int, sources: dict[str, o
                 allow_missing=allow_missing,
                 directory_fd=run_root_fd,
             )
+            validated.append((source, descriptor, committed_end))
+        for source, descriptor, committed_end in validated:
             if descriptor is not None:
-                validated.append((descriptor, committed_end))
-        while validated:
-            descriptor, committed_end = validated.pop(0)
-            _seal_validated_committed_ndjson(descriptor, committed_end)
-    finally:
-        for descriptor, _ in validated:
+                _seal_validated_committed_ndjson(os.dup(descriptor), committed_end)
+            retained.append((source, descriptor))
+        return retained
+    except BaseException:
+        for _, descriptor, _ in validated:
+            if descriptor is not None:
+                os.close(descriptor)
+        raise
+
+
+def _assert_recovered_source_identities(
+    run_root_fd: int, retained: Sequence[tuple[str, int | None]]
+) -> None:
+    for source, descriptor in retained:
+        name = f"{source}.ndjson"
+        if descriptor is None:
+            try:
+                os.stat(name, dir_fd=run_root_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                continue
+            except OSError as exc:
+                raise RuntimeError("previous live source changed during recovery") from exc
+            raise RuntimeError("previous live source changed during recovery")
+        try:
+            current = os.stat(name, dir_fd=run_root_fd, follow_symlinks=False)
+        except OSError as exc:
+            raise RuntimeError("previous live source changed during recovery") from exc
+        anchored = os.fstat(descriptor)
+        if not stat.S_ISREG(current.st_mode) or (current.st_dev, current.st_ino) != (
+            anchored.st_dev,
+            anchored.st_ino,
+        ):
+            raise RuntimeError("previous live source changed during recovery")
+
+
+def _close_recovered_source_descriptors(
+    retained: Sequence[tuple[str, int | None]],
+) -> None:
+    for _, descriptor in retained:
+        if descriptor is not None:
             os.close(descriptor)
 
 
@@ -586,11 +625,13 @@ class LiveRunManager:
                 await asyncio.to_thread(self._complete_previous_active_run)
                 self._start_new_run(self._now_ms())
                 await asyncio.to_thread(self._write_state)
-            except BaseException:
-                for writer in self._writers.values():
-                    writer.close()
-                self._writers.clear()
-                await asyncio.to_thread(self._close_runtime_root_fds)
+            except BaseException as startup_error:
+                try:
+                    await asyncio.to_thread(self._close_writers_and_runtime_fds)
+                except BaseException as cleanup_error:
+                    startup_error.add_note(
+                        f"Liquid20 startup cleanup also failed: {type(cleanup_error).__name__}"
+                    )
                 raise
 
     async def heartbeat(self) -> None:
@@ -727,13 +768,17 @@ class LiveRunManager:
             if set(sources) != expected_sources:
                 raise RuntimeError("previous live source set is invalid")
             run_root = self.runs_root / run_id
-            _seal_restart_sources(run_root, run_root_fd, sources)
-            state["run_state"] = "completed"
-            state["data_mode"] = "historical"
-            state["completed_at_ms"] = self._now_ms()
-            state["completion_reason"] = "collector-restart"
-            self._write_source_summaries(run_root_fd, state)
-            _write_json_atomic_at(run_root_fd, RUN_STATE_FILE, state)
+            retained_sources = _seal_restart_sources(run_root, run_root_fd, sources)
+            try:
+                state["run_state"] = "completed"
+                state["data_mode"] = "historical"
+                state["completed_at_ms"] = self._now_ms()
+                state["completion_reason"] = "collector-restart"
+                self._write_source_summaries(run_root_fd, state)
+                _assert_recovered_source_identities(run_root_fd, retained_sources)
+                _write_json_atomic_at(run_root_fd, RUN_STATE_FILE, state)
+            finally:
+                _close_recovered_source_descriptors(retained_sources)
         finally:
             os.close(run_root_fd)
 

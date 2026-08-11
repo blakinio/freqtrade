@@ -289,6 +289,43 @@ def test_stop_closes_retained_runtime_directory_descriptors_on_state_write_error
     asyncio.run(scenario())
 
 
+def test_start_failure_closes_all_runtime_descriptors_when_writer_close_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manager = LiveRunManager(
+        data_root=tmp_path,
+        collector_commit="1" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+    captured: dict[str, object] = {}
+
+    def fail_initial_state(self: LiveRunManager) -> None:
+        captured["fds"] = [self._live_root_fd, self._runs_root_fd, self._run_root_fd]
+        writers = list(self._writers.values())
+        captured["writers"] = writers
+
+        def fail_close() -> None:
+            raise OSError("forced startup writer close failure")
+
+        monkeypatch.setattr(writers[0], "close", fail_close)
+        raise OSError("forced initial state failure")
+
+    monkeypatch.setattr(LiveRunManager, "_write_state", fail_initial_state)
+    with pytest.raises(OSError, match="forced initial state failure"):
+        asyncio.run(manager.start())
+    assert manager._writers == {}
+    assert manager._live_root_fd is None
+    assert manager._runs_root_fd is None
+    assert manager._run_root_fd is None
+    for descriptor in captured["fds"]:
+        assert descriptor is not None
+        with pytest.raises(OSError):
+            os.fstat(descriptor)
+    writers = captured["writers"]
+    assert all(writer.closed for writer in writers[1:])
+
+
 def test_stop_closes_all_runtime_descriptors_when_writer_close_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -516,6 +553,42 @@ def test_restart_truncates_only_uncommitted_suffix_before_completion(tmp_path: P
     assert (old_run_root / f"{BINANCE_SOURCE}.ndjson").read_bytes() == b"{}\n" * 2
     assert (old_run_root / f"{BYBIT_SOURCE}.ndjson").read_bytes() == b"{}\n"
     assert (old_run_root / f"{OKX_SOURCE}.ndjson").read_bytes() == b""
+
+
+def test_restart_revalidates_source_identity_before_completed_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    old_run_id, old_run_root = _write_previous_active_run(
+        tmp_path,
+        committed_rows={BYBIT_SOURCE: 1, BINANCE_SOURCE: 1, OKX_SOURCE: 0},
+        actual_rows={BYBIT_SOURCE: 2, BINANCE_SOURCE: 1, OKX_SOURCE: 0},
+    )
+    source_path = old_run_root / f"{BYBIT_SOURCE}.ndjson"
+    replacement = old_run_root / "replacement.ndjson"
+    replacement.write_bytes(b"{}\n{}\n{}\n")
+    original_write_summaries = LiveRunManager._write_source_summaries
+
+    def swap_before_completion(
+        self: LiveRunManager, run_fd: int, payload: dict[str, object]
+    ) -> None:
+        original_write_summaries(self, run_fd, payload)
+        source_path.rename(old_run_root / "detached.ndjson")
+        replacement.rename(source_path)
+
+    monkeypatch.setattr(LiveRunManager, "_write_source_summaries", swap_before_completion)
+    manager = LiveRunManager(
+        data_root=tmp_path,
+        collector_commit="f" * 40,
+        host_id="synology-test",
+        now_ms=lambda: 1_786_384_683_792,
+    )
+    with pytest.raises(RuntimeError, match="previous live source changed during recovery"):
+        asyncio.run(manager.start())
+    state = json.loads((old_run_root / "run-state-v1.json").read_text(encoding="utf-8"))
+    assert state["run_state"] == "active"
+    assert source_path.read_bytes() == b"{}\n{}\n{}\n"
+    pointer = json.loads((tmp_path / "live" / LIVE_STATE_FILE).read_text(encoding="utf-8"))
+    assert pointer["active_run_id"] == old_run_id
 
 
 @pytest.mark.parametrize(

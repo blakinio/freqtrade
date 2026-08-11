@@ -327,7 +327,7 @@ def test_existing_stopped_service_may_not_disappear_during_cleanup(monkeypatch) 
 def test_cleanup_failure_is_recorded_as_incomplete_verification(monkeypatch) -> None:
     deploy = _deploy_stub()
     deploy._bounded_schema_cleanup_evidence = []
-    snapshots = iter(({}, {}))
+    snapshots: Any = iter(({}, {}))
 
     monkeypatch.setattr(
         module,

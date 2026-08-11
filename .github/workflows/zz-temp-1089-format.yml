@@ -13,7 +13,7 @@ permissions:
 jobs:
   format:
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 10
     steps:
       - name: Checkout implementation branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
@@ -31,22 +31,69 @@ jobs:
         shell: bash
         run: python -m pip install --disable-pip-version-check ruff==0.15.21
 
-      - name: Apply exact typing fix, format and lint task files
+      - name: Apply cancellation signal fixes and exact formatter
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
 
-          path = Path("tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py")
-          source = path.read_text(encoding="utf-8")
-          old = "    snapshots = iter(({}, {}))\n"
-          new = "    snapshots: Any = iter(({}, {}))\n"
-          count = source.count(old)
-          if count == 1:
+          def replace_once(path: Path, old: str, new: str) -> None:
+              source = path.read_text(encoding="utf-8")
+              count = source.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one replacement target, found {count}")
               path.write_text(source.replace(old, new), encoding="utf-8")
-          elif new not in source:
-              raise SystemExit(f"expected exactly one typing target, found {count}")
+
+          bounded = Path("deploy/synology/portal-oidc/bounded_schema_lifecycle.py")
+          replace_once(
+              bounded,
+              '''def _remember_cancellation(\n    current: BaseException | None,\n    candidate: BaseException,\n) -> BaseException | None:\n    if current is not None:\n        return current\n    if not isinstance(candidate, Exception):\n        return candidate\n    return None\n''',
+              '''def _pending_deploy_cancellation(deploy: Any) -> BaseException | None:\n    pending = getattr(deploy, "_portal_pending_cancellation", None)\n    if isinstance(pending, BaseException) and not isinstance(pending, Exception):\n        return pending\n    return None\n\n\ndef _remember_cancellation(\n    deploy: Any,\n    current: BaseException | None,\n    candidate: BaseException,\n) -> BaseException | None:\n    if current is not None:\n        return current\n    pending = _pending_deploy_cancellation(deploy)\n    if pending is not None:\n        return pending\n    if not isinstance(candidate, Exception):\n        return candidate\n    return None\n''',
+          )
+          source = bounded.read_text(encoding="utf-8")
+          old_call = "cancellation = _remember_cancellation(cancellation, exc)"
+          if source.count(old_call) != 2:
+              raise SystemExit("bounded lifecycle: expected two cancellation call sites")
+          bounded.write_text(
+              source.replace(
+                  old_call,
+                  "cancellation = _remember_cancellation(deploy, cancellation, exc)",
+              ),
+              encoding="utf-8",
+          )
+
+          bridge = Path("deploy/synology/portal-oidc/cancellation_report_bridge.py")
+          replace_once(
+              bridge,
+              '''def _sigint_handler(deploy: Any):\n    def handle_sigint(_signum: int, _frame: FrameType | None) -> None:\n        pending = _pending_cancellation(deploy)\n        if pending is None:\n            pending = KeyboardInterrupt()\n            deploy._portal_pending_cancellation = pending\n        raise deploy.DeploymentError(_CANCELLATION_FAILURE_MESSAGE) from pending\n\n    return handle_sigint\n''',
+              '''def _termination_exception(signum: int) -> BaseException:\n    if signum == signal.SIGINT:\n        return KeyboardInterrupt()\n    return SystemExit(128 + signum)\n\n\ndef _termination_handler(deploy: Any):\n    def handle_termination(signum: int, _frame: FrameType | None) -> None:\n        pending = _pending_cancellation(deploy)\n        if pending is None:\n            pending = _termination_exception(signum)\n            deploy._portal_pending_cancellation = pending\n        raise deploy.DeploymentError(_CANCELLATION_FAILURE_MESSAGE) from pending\n\n    return handle_termination\n''',
+          )
+          replace_once(
+              bridge,
+              '''    def guarded_deploy(args: Any) -> int:\n        previous_sigint = signal.getsignal(signal.SIGINT)\n        signal.signal(signal.SIGINT, _sigint_handler(deploy))\n        try:\n            try:\n                return_code = int(original_deploy(args))\n            except BaseException as exc:\n                pending = _pending_cancellation(deploy)\n                if pending is None:\n                    raise\n                try:\n                    deploy._write_report(\n                        Path(args.report).resolve(),\n                        _fallback_report(deploy, args, pending),\n                    )\n                except Exception as report_exc:\n                    deploy._portal_pending_cancellation = None\n                    raise pending from report_exc\n                deploy._portal_pending_cancellation = None\n                raise pending from exc\n        finally:\n            signal.signal(signal.SIGINT, previous_sigint)\n''',
+              '''    def guarded_deploy(args: Any) -> int:\n        termination_signals = (signal.SIGINT, signal.SIGTERM)\n        previous_handlers = {\n            signum: signal.getsignal(signum) for signum in termination_signals\n        }\n        for signum in termination_signals:\n            signal.signal(signum, _termination_handler(deploy))\n        try:\n            try:\n                return_code = int(original_deploy(args))\n            except BaseException as exc:\n                pending = _pending_cancellation(deploy)\n                if pending is None:\n                    raise\n                try:\n                    deploy._write_report(\n                        Path(args.report).resolve(),\n                        _fallback_report(deploy, args, pending),\n                    )\n                except Exception as report_exc:\n                    deploy._portal_pending_cancellation = None\n                    raise pending from report_exc\n                deploy._portal_pending_cancellation = None\n                raise pending from exc\n        finally:\n            for signum, previous_handler in previous_handlers.items():\n                signal.signal(signum, previous_handler)\n''',
+          )
+
+          cancellation_test = Path(
+              "tests/ai_platform/portal/deployment/"
+              "test_portal_oidc_bounded_schema_cancellation.py"
+          )
+          test_source = cancellation_test.read_text(encoding="utf-8")
+          marker = "def test_bridged_pending_sigint_survives_cleanup_retry"
+          if marker not in test_source:
+              test_source += '''\n\ndef test_bridged_pending_sigint_survives_cleanup_retry(monkeypatch) -> None:\n    deploy = _deploy_stub()\n    pending = KeyboardInterrupt()\n    deploy._portal_pending_cancellation = pending\n    exists = True\n    identity_calls = 0\n    owner = "task-owner"\n\n    def fake_run(command, **_kwargs):\n        nonlocal exists, identity_calls\n        if command[:3] == ["docker", "inspect", "--format"]:\n            identity_calls += 1\n            if identity_calls == 1:\n                raise deploy.DeploymentError(\n                    "protected deployment cancellation requires rollback"\n                )\n            return _completed(\n                command,\n                returncode=0 if exists else 1,\n                stdout=f"{CONTAINER_ID}|{owner}\\n" if exists else "",\n            )\n        if command[:3] == ["docker", "rm", "-f"]:\n            exists = False\n            return _completed(command)\n        if command[:2] == ["docker", "inspect"]:\n            return _completed(command, returncode=0 if exists else 1)\n        if command[:2] == ["docker", "version"]:\n            return _completed(command)\n        raise AssertionError(f"unexpected command: {command}")\n\n    monkeypatch.setattr(module.subprocess, "run", fake_run)\n\n    with pytest.raises(KeyboardInterrupt) as exc_info:\n        module._cleanup_owned(\n            deploy,\n            "task-container",\n            owner,\n            container_id=CONTAINER_ID,\n            cwd=None,\n        )\n\n    assert exc_info.value is pending\n    assert identity_calls >= 2\n    assert not exists\n'''
+              cancellation_test.write_text(test_source, encoding="utf-8")
+
+          bridge_test = Path(
+              "tests/ai_platform/portal/deployment/"
+              "test_portal_oidc_cancellation_report_bridge.py"
+          )
+          bridge_source = bridge_test.read_text(encoding="utf-8")
+          marker = "def test_pure_python_sigterm_routes_through_canonical_rollback"
+          if marker not in bridge_source:
+              bridge_source += '''\n\ndef test_pure_python_sigterm_routes_through_canonical_rollback(tmp_path) -> None:\n    reports: list[dict[str, Any]] = []\n    rollback: list[str] = []\n    deploy = SimpleNamespace(\n        DeploymentError=RuntimeError,\n        REQUEST_ID="portal-authentik-public-oidc-20260801-v1",\n        _bounded_schema_cleanup_evidence=_cleanup_evidence(),\n    )\n\n    def original_run(command, *, cwd=None, sensitive=False, check=True):\n        raise AssertionError("pure-Python SIGTERM test must not pass through _run")\n\n    def original_write_report(path: Path, report: dict[str, Any]) -> str:\n        report["bounded_schema_cleanup_evidence"] = list(\n            deploy._bounded_schema_cleanup_evidence\n        )\n        reports.append(copy.deepcopy(report))\n        return "digest"\n\n    def original_deploy(args: Any) -> int:\n        report = {\n            "schema_version": 2,\n            "request_id": deploy.REQUEST_ID,\n            "implementation_sha": args.expected_repository_sha,\n            "status": "failed",\n            "secret_values_recorded": False,\n            "live_capital_authorized": False,\n        }\n        handler = signal.getsignal(signal.SIGTERM)\n        assert callable(handler)\n        try:\n            handler(signal.SIGTERM, None)\n        except RuntimeError as exc:\n            rollback.append("performed")\n            report["failure"] = {"type": type(exc).__name__, "message": str(exc)}\n            deploy._write_report(Path(args.report), report)\n            return 1\n        raise AssertionError("installed SIGTERM handler must enter canonical rollback")\n\n    deploy._run = original_run\n    deploy._write_report = original_write_report\n    deploy.deploy = original_deploy\n    previous_handler = signal.getsignal(signal.SIGTERM)\n    module.install(deploy)\n    args = SimpleNamespace(\n        report=str(tmp_path / "report.json"),\n        expected_repository_sha="e" * 40,\n    )\n\n    with pytest.raises(SystemExit) as exc_info:\n        deploy.deploy(args)\n\n    assert exc_info.value.code == 128 + signal.SIGTERM\n    assert rollback == ["performed"]\n    assert len(reports) == 1\n    assert reports[0]["status"] == "failed"\n    assert reports[0]["cancellation"]["type"] == "SystemExit"\n    assert reports[0]["bounded_schema_cleanup_evidence"] == _cleanup_evidence()\n    assert signal.getsignal(signal.SIGTERM) == previous_handler\n'''
+              bridge_test.write_text(bridge_source, encoding="utf-8")
           PY
 
           files=(
@@ -63,15 +110,9 @@ jobs:
           ruff format "${files[@]}"
           ruff check "${files[@]}"
           git diff --check
-          git status --short -- "${files[@]}"
-
-          if git diff --quiet -- "${files[@]}"; then
-            echo "Exact task files already formatter-clean"
-            exit 0
-          fi
 
           git config user.name "blakinio"
           git config user.email "75369544+blakinio@users.noreply.github.com"
           git add -- "${files[@]}"
-          git commit -m "style(portal): apply exact task formatter"
+          git commit -m "fix(portal): preserve termination cancellation through cleanup"
           git push origin HEAD:fix/1089-bounded-schema-docker-lifecycle

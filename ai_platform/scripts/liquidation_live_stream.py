@@ -648,6 +648,8 @@ class LiveRunManager:
                 return
             if state is None or state.get("run_state") != "active":
                 return
+            if state.get("schema_version") != 1 or state.get("contract") != LIVE_CONTRACT:
+                raise RuntimeError("previous live run contract is invalid")
             if state.get("run_id") != run_id:
                 raise RuntimeError("previous live run_id does not match active pointer")
             sources = state.get("sources")

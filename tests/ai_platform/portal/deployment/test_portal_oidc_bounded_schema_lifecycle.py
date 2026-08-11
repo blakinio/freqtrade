@@ -157,6 +157,30 @@ def test_non_target_and_check_false_commands_delegate(monkeypatch) -> None:
     assert delegated[1][2:] == (True, False)
 
 
+def test_preexisting_generated_name_collision_is_never_removed(monkeypatch) -> None:
+    deploy, _delegated = _deploy_stub()
+    calls: list[list[str]] = []
+    module.install(deploy)
+    monkeypatch.setattr(module.secrets, "token_hex", lambda _size: "0badc0ffee00")
+    expected_name = "portal-oidc-bounded-schema-migrate-0badc0ffee00"
+
+    def fake_run(command, **_kwargs):
+        calls.append(list(command))
+        if command[:2] == ["docker", "inspect"]:
+            return _completed(command, returncode=0)
+        if command[:3] == ["docker", "ps", "-aq"]:
+            return _completed(command, stdout="preexisting-container-id\n")
+        return _completed(command)
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError, match="cleanup failed"):
+        deploy._run(_schema_command(), sensitive=True)
+
+    assert ["docker", "rm", "-f", expected_name] not in calls
+    assert not any(command[:2] == ["docker", "create"] for command in calls)
+
+
 def test_nonzero_process_exit_is_secret_free_and_cleanup_is_verified(monkeypatch) -> None:
     deploy, _delegated = _deploy_stub()
     calls: list[list[str]] = []
@@ -183,6 +207,28 @@ def test_nonzero_process_exit_is_secret_free_and_cleanup_is_verified(monkeypatch
     assert "TOP_SECRET_TOKEN" not in message
     assert any(command[:3] == ["docker", "rm", "-f"] for command in calls)
     assert sum(command[:2] == ["docker", "inspect"] for command in calls) >= 2
+
+
+def test_create_timeout_still_cleans_the_attempted_task_owned_name(monkeypatch) -> None:
+    deploy, _delegated = _deploy_stub()
+    calls: list[list[str]] = []
+    module.install(deploy)
+    monkeypatch.setattr(module.secrets, "token_hex", lambda _size: "c0ffeec0ffee")
+
+    def fake_run(command, **kwargs):
+        calls.append(list(command))
+        if command[:2] == ["docker", "inspect"]:
+            return _completed(command, returncode=1)
+        if command[:2] == ["docker", "create"]:
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+        return _completed(command)
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError, match="schema-migrate:create"):
+        deploy._run(_schema_command(), sensitive=True)
+
+    assert any(command[:3] == ["docker", "rm", "-f"] for command in calls)
 
 
 def test_start_timeout_still_cleans_task_owned_container(monkeypatch) -> None:

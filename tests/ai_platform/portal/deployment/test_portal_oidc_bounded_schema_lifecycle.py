@@ -17,6 +17,9 @@ assert SPEC and SPEC.loader
 module = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(module)
 
+CONTAINER_ID = "a" * 64
+SECOND_CONTAINER_ID = "b" * 64
+
 
 def _completed(command: list[str], *, returncode: int = 0, stdout: str = "") -> Any:
     return subprocess.CompletedProcess(command, returncode, stdout=stdout, stderr="")
@@ -74,17 +77,36 @@ def _deploy_stub() -> tuple[SimpleNamespace, list[tuple[object, ...]]]:
     return deploy, delegated
 
 
-def test_schema_workload_uses_named_split_lifecycle_and_returns_logs(monkeypatch) -> None:
+def _owner(label: str, token: str) -> str:
+    return f"portal-oidc-bounded:{label}:{token}"
+
+
+def test_schema_workload_uses_named_split_lifecycle_and_removes_immutable_id(monkeypatch) -> None:
     deploy, delegated = _deploy_stub()
     calls: list[list[str]] = []
+    exists = False
+    token = "abc123def456"
+    expected_owner = _owner("schema-migrate", token)
     module.install(deploy)
-    monkeypatch.setattr(module.secrets, "token_hex", lambda _size: "abc123def456")
+    monkeypatch.setattr(module.secrets, "token_hex", lambda _size: token)
 
-    def fake_run(command, *, cwd=None, check=False, text=True, capture_output=True, timeout=None):
+    def fake_run(command, **_kwargs):
+        nonlocal exists
         calls.append(list(command))
+        if command[:2] == ["docker", "create"]:
+            exists = True
+            return _completed(command, stdout=f"{CONTAINER_ID}\n")
+        if command[:3] == ["docker", "inspect", "--format"]:
+            return _completed(
+                command,
+                returncode=0 if exists else 1,
+                stdout=f"{CONTAINER_ID}|{expected_owner}\n" if exists else "",
+            )
         if command[:2] == ["docker", "inspect"]:
-            return _completed(command, returncode=1)
-        if command[:2] == ["docker", "version"]:
+            return _completed(command, returncode=0 if exists else 1)
+        if command[:3] == ["docker", "rm", "-f"]:
+            assert command[3] == CONTAINER_ID
+            exists = False
             return _completed(command)
         if command[:2] == ["docker", "wait"]:
             return _completed(command, stdout="0\n")
@@ -102,28 +124,44 @@ def test_schema_workload_uses_named_split_lifecycle_and_returns_logs(monkeypatch
     assert not any(command[:2] == ["docker", "run"] for command in calls)
     create = next(command for command in calls if command[:2] == ["docker", "create"])
     name = create[create.index("--name") + 1]
-    owner = create[create.index("--label") + 1]
-    assert name == "portal-oidc-bounded-schema-migrate-abc123def456"
-    assert owner == (f"{module.OWNER_LABEL_KEY}=portal-oidc-bounded:schema-migrate:abc123def456")
+    owner_label = create[create.index("--label") + 1]
+    assert name == f"portal-oidc-bounded-schema-migrate-{token}"
+    assert owner_label == f"{module.OWNER_LABEL_KEY}={expected_owner}"
     assert ["docker", "start", name] in calls
     assert ["docker", "wait", name] in calls
     assert ["docker", "logs", name] in calls
-    assert ["docker", "rm", "-f", name] in calls
-    list_commands = [command for command in calls if command[:3] == ["docker", "ps", "-aq"]]
-    assert list_commands
-    assert all(f"name=^/{name}$" in command for command in list_commands)
+    assert ["docker", "rm", "-f", CONTAINER_ID] in calls
+    assert ["docker", "rm", "-f", name] not in calls
+    assert not exists
 
 
 def test_transfer_workload_is_bounded_by_same_lifecycle(monkeypatch) -> None:
     deploy, delegated = _deploy_stub()
     calls: list[list[str]] = []
+    exists = False
+    token = "123456abcdef"
+    expected_owner = _owner("state-transfer", token)
     module.install(deploy)
-    monkeypatch.setattr(module.secrets, "token_hex", lambda _size: "123456abcdef")
+    monkeypatch.setattr(module.secrets, "token_hex", lambda _size: token)
 
     def fake_run(command, **_kwargs):
+        nonlocal exists
         calls.append(list(command))
+        if command[:2] == ["docker", "create"]:
+            exists = True
+            return _completed(command, stdout=f"{CONTAINER_ID}\n")
+        if command[:3] == ["docker", "inspect", "--format"]:
+            return _completed(
+                command,
+                returncode=0 if exists else 1,
+                stdout=f"{CONTAINER_ID}|{expected_owner}\n" if exists else "",
+            )
         if command[:2] == ["docker", "inspect"]:
-            return _completed(command, returncode=1)
+            return _completed(command, returncode=0 if exists else 1)
+        if command[:3] == ["docker", "rm", "-f"]:
+            assert command[3] == CONTAINER_ID
+            exists = False
+            return _completed(command)
         if command[:2] == ["docker", "wait"]:
             return _completed(command, stdout="0\n")
         if command[:2] == ["docker", "logs"]:
@@ -138,8 +176,9 @@ def test_transfer_workload_is_bounded_by_same_lifecycle(monkeypatch) -> None:
     assert "transferred" in result.stdout
     assert delegated == []
     create = next(command for command in calls if command[:2] == ["docker", "create"])
-    assert "portal-oidc-bounded-state-transfer-123456abcdef" in create
+    assert f"portal-oidc-bounded-state-transfer-{token}" in create
     assert "--rm" not in create
+    assert ["docker", "rm", "-f", CONTAINER_ID] in calls
 
 
 def test_wait_bounds_are_calibrated_per_workload() -> None:
@@ -174,7 +213,6 @@ def test_preexisting_generated_name_collision_is_never_removed(monkeypatch) -> N
     calls: list[list[str]] = []
     module.install(deploy)
     monkeypatch.setattr(module.secrets, "token_hex", lambda _size: "0badc0ffee00")
-    expected_name = "portal-oidc-bounded-schema-migrate-0badc0ffee00"
 
     def fake_run(command, **_kwargs):
         calls.append(list(command))
@@ -189,20 +227,36 @@ def test_preexisting_generated_name_collision_is_never_removed(monkeypatch) -> N
     with pytest.raises(RuntimeError, match="cleanup failed"):
         deploy._run(_schema_command(), sensitive=True)
 
-    assert ["docker", "rm", "-f", expected_name] not in calls
+    assert not any(command[:3] == ["docker", "rm", "-f"] for command in calls)
     assert not any(command[:2] == ["docker", "create"] for command in calls)
 
 
 def test_nonzero_process_exit_is_secret_free_and_cleanup_is_verified(monkeypatch) -> None:
     deploy, _delegated = _deploy_stub()
     calls: list[list[str]] = []
+    exists = False
+    token = "feedfacecafe"
+    expected_owner = _owner("schema-migrate", token)
     module.install(deploy)
-    monkeypatch.setattr(module.secrets, "token_hex", lambda _size: "feedfacecafe")
+    monkeypatch.setattr(module.secrets, "token_hex", lambda _size: token)
 
     def fake_run(command, **_kwargs):
+        nonlocal exists
         calls.append(list(command))
+        if command[:2] == ["docker", "create"]:
+            exists = True
+            return _completed(command, stdout=f"{CONTAINER_ID}\n")
+        if command[:3] == ["docker", "inspect", "--format"]:
+            return _completed(
+                command,
+                returncode=0 if exists else 1,
+                stdout=f"{CONTAINER_ID}|{expected_owner}\n" if exists else "",
+            )
         if command[:2] == ["docker", "inspect"]:
-            return _completed(command, returncode=1)
+            return _completed(command, returncode=0 if exists else 1)
+        if command[:3] == ["docker", "rm", "-f"]:
+            exists = False
+            return _completed(command)
         if command[:2] == ["docker", "wait"]:
             return _completed(command, stdout="7\n")
         if command[:2] == ["docker", "logs"]:
@@ -217,30 +271,40 @@ def test_nonzero_process_exit_is_secret_free_and_cleanup_is_verified(monkeypatch
     message = str(exc_info.value)
     assert "schema-migrate:process" in message
     assert "TOP_SECRET_TOKEN" not in message
-    assert any(command[:3] == ["docker", "rm", "-f"] for command in calls)
-    assert sum(command[:2] == ["docker", "inspect"] for command in calls) >= 2
+    assert ["docker", "rm", "-f", CONTAINER_ID] in calls
+    assert not exists
 
 
 def test_create_timeout_retries_owner_query_before_cleanup(monkeypatch) -> None:
     deploy, _delegated = _deploy_stub()
     calls: list[list[str]] = []
-    ownership_calls = 0
+    identity_queries = 0
+    exists = True
+    token = "c0ffeec0ffee"
+    expected_owner = _owner("schema-migrate", token)
     module.install(deploy)
-    monkeypatch.setattr(module.secrets, "token_hex", lambda _size: "c0ffeec0ffee")
-    expected_owner = "portal-oidc-bounded:schema-migrate:c0ffeec0ffee"
+    monkeypatch.setattr(module.secrets, "token_hex", lambda _size: token)
 
     def fake_run(command, **kwargs):
-        nonlocal ownership_calls
+        nonlocal identity_queries, exists
         calls.append(list(command))
-        if command[:3] == ["docker", "inspect", "--format"]:
-            ownership_calls += 1
-            if ownership_calls == 1:
-                raise subprocess.TimeoutExpired(command, kwargs["timeout"])
-            return _completed(command, stdout=f"{expected_owner}\n")
-        if command[:2] == ["docker", "inspect"]:
-            return _completed(command, returncode=1)
         if command[:2] == ["docker", "create"]:
             raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+        if command[:3] == ["docker", "inspect", "--format"]:
+            identity_queries += 1
+            if identity_queries == 1:
+                raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+            return _completed(
+                command,
+                returncode=0 if exists else 1,
+                stdout=f"{CONTAINER_ID}|{expected_owner}\n" if exists else "",
+            )
+        if command[:2] == ["docker", "inspect"]:
+            return _completed(command, returncode=0 if exists else 1)
+        if command[:3] == ["docker", "rm", "-f"]:
+            assert command[3] == CONTAINER_ID
+            exists = False
+            return _completed(command)
         return _completed(command)
 
     monkeypatch.setattr(module.subprocess, "run", fake_run)
@@ -248,8 +312,9 @@ def test_create_timeout_retries_owner_query_before_cleanup(monkeypatch) -> None:
     with pytest.raises(RuntimeError, match="schema-migrate:create"):
         deploy._run(_schema_command(), sensitive=True)
 
-    assert ownership_calls == 2
-    assert any(command[:3] == ["docker", "rm", "-f"] for command in calls)
+    assert identity_queries == 3
+    assert ["docker", "rm", "-f", CONTAINER_ID] in calls
+    assert not exists
 
 
 def test_create_timeout_exhausts_owner_queries_without_unproven_remove(monkeypatch) -> None:
@@ -262,13 +327,13 @@ def test_create_timeout_exhausts_owner_queries_without_unproven_remove(monkeypat
     def fake_run(command, **kwargs):
         nonlocal ownership_calls
         calls.append(list(command))
+        if command[:2] == ["docker", "create"]:
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
         if command[:3] == ["docker", "inspect", "--format"]:
             ownership_calls += 1
             raise subprocess.TimeoutExpired(command, kwargs["timeout"])
         if command[:2] == ["docker", "inspect"]:
             return _completed(command, returncode=1)
-        if command[:2] == ["docker", "create"]:
-            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
         return _completed(command)
 
     monkeypatch.setattr(module.subprocess, "run", fake_run)
@@ -288,11 +353,11 @@ def test_create_race_never_removes_container_with_different_owner_label(monkeypa
 
     def fake_run(command, **_kwargs):
         calls.append(list(command))
-        if command[:3] == ["docker", "inspect", "--format"]:
-            return _completed(command, stdout="different-owner\n")
-        if command[:2] == ["docker", "inspect"]:
-            return _completed(command, returncode=1)
         if command[:2] == ["docker", "create"]:
+            return _completed(command, returncode=1)
+        if command[:3] == ["docker", "inspect", "--format"]:
+            return _completed(command, stdout=f"{SECOND_CONTAINER_ID}|different-owner\n")
+        if command[:2] == ["docker", "inspect"]:
             return _completed(command, returncode=1)
         return _completed(command)
 
@@ -307,15 +372,32 @@ def test_create_race_never_removes_container_with_different_owner_label(monkeypa
 def test_start_timeout_still_cleans_task_owned_container(monkeypatch) -> None:
     deploy, _delegated = _deploy_stub()
     calls: list[list[str]] = []
+    exists = False
+    token = "deadbeefcafe"
+    expected_owner = _owner("schema-migrate", token)
     module.install(deploy)
-    monkeypatch.setattr(module.secrets, "token_hex", lambda _size: "deadbeefcafe")
+    monkeypatch.setattr(module.secrets, "token_hex", lambda _size: token)
 
     def fake_run(command, **kwargs):
+        nonlocal exists
         calls.append(list(command))
-        if command[:2] == ["docker", "inspect"]:
-            return _completed(command, returncode=1)
+        if command[:2] == ["docker", "create"]:
+            exists = True
+            return _completed(command, stdout=f"{CONTAINER_ID}\n")
         if command[:2] == ["docker", "start"]:
             raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+        if command[:3] == ["docker", "inspect", "--format"]:
+            return _completed(
+                command,
+                returncode=0 if exists else 1,
+                stdout=f"{CONTAINER_ID}|{expected_owner}\n" if exists else "",
+            )
+        if command[:2] == ["docker", "inspect"]:
+            return _completed(command, returncode=0 if exists else 1)
+        if command[:3] == ["docker", "rm", "-f"]:
+            assert command[3] == CONTAINER_ID
+            exists = False
+            return _completed(command)
         return _completed(command)
 
     monkeypatch.setattr(module.subprocess, "run", fake_run)
@@ -323,45 +405,33 @@ def test_start_timeout_still_cleans_task_owned_container(monkeypatch) -> None:
     with pytest.raises(RuntimeError, match="schema-migrate:start"):
         deploy._run(_schema_command(), sensitive=True)
 
-    assert any(command[:3] == ["docker", "rm", "-f"] for command in calls)
+    assert ["docker", "rm", "-f", CONTAINER_ID] in calls
+    assert not exists
 
 
 def test_cleanup_failure_overrides_success_and_fails_closed(monkeypatch) -> None:
     deploy, _delegated = _deploy_stub()
-    inspect_calls = 0
+    exists = False
+    token = "badc0ffee000"
+    expected_owner = _owner("schema-migrate", token)
     module.install(deploy)
-    monkeypatch.setattr(module.secrets, "token_hex", lambda _size: "badc0ffee000")
+    monkeypatch.setattr(module.secrets, "token_hex", lambda _size: token)
 
     def fake_run(command, **_kwargs):
-        nonlocal inspect_calls
+        nonlocal exists
+        if command[:2] == ["docker", "create"]:
+            exists = True
+            return _completed(command, stdout=f"{CONTAINER_ID}\n")
+        if command[:3] == ["docker", "inspect", "--format"]:
+            return _completed(
+                command,
+                returncode=0 if exists else 1,
+                stdout=f"{CONTAINER_ID}|{expected_owner}\n" if exists else "",
+            )
         if command[:2] == ["docker", "inspect"]:
-            inspect_calls += 1
-            return _completed(command, returncode=1 if inspect_calls == 1 else 0)
-        if command[:2] == ["docker", "wait"]:
-            return _completed(command, stdout="0\n")
-        if command[:2] == ["docker", "logs"]:
-            return _completed(command, stdout='{"status":"ready"}\n')
-        return _completed(command)
-
-    monkeypatch.setattr(module.subprocess, "run", fake_run)
-
-    with pytest.raises(RuntimeError, match="cleanup failed"):
-        deploy._run(_schema_command(), sensitive=True)
-
-
-def test_cleanup_fails_closed_when_exact_name_is_still_listed(monkeypatch) -> None:
-    deploy, _delegated = _deploy_stub()
-    module.install(deploy)
-    monkeypatch.setattr(module.secrets, "token_hex", lambda _size: "cab005ecafe0")
-    ps_calls = 0
-
-    def fake_run(command, **_kwargs):
-        nonlocal ps_calls
-        if command[:2] == ["docker", "inspect"]:
+            return _completed(command, returncode=0 if exists else 1)
+        if command[:3] == ["docker", "rm", "-f"]:
             return _completed(command, returncode=1)
-        if command[:3] == ["docker", "ps", "-aq"]:
-            ps_calls += 1
-            return _completed(command, stdout="" if ps_calls == 1 else "deadbeef\n")
         if command[:2] == ["docker", "wait"]:
             return _completed(command, stdout="0\n")
         if command[:2] == ["docker", "logs"]:
@@ -372,6 +442,8 @@ def test_cleanup_fails_closed_when_exact_name_is_still_listed(monkeypatch) -> No
 
     with pytest.raises(RuntimeError, match="cleanup failed"):
         deploy._run(_schema_command(), sensitive=True)
+
+    assert exists
 
 
 def test_deployment_entrypoint_installs_bounded_schema_lifecycle_after_build_guard() -> None:

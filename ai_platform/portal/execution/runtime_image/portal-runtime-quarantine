@@ -1,0 +1,33 @@
+#!/bin/sh
+set -eu
+
+release_dir=/run/portal-release
+release_file="$release_dir/release"
+log_probe_ready="$release_dir/log-probe-ready"
+log_probe_begin=PORTAL_LOG_BOUND_PROBE_BEGIN
+log_probe_end=PORTAL_LOG_BOUND_PROBE_END
+
+probe_bytes=${PORTAL_LOG_PROBE_BYTES:?PORTAL_LOG_PROBE_BYTES is required}
+case "$probe_bytes" in
+    ''|*[!0-9]*)
+        echo "invalid PORTAL_LOG_PROBE_BYTES" >&2
+        exit 64
+        ;;
+esac
+if [ "$probe_bytes" -le 0 ]; then
+    echo "PORTAL_LOG_PROBE_BYTES must be positive" >&2
+    exit 64
+fi
+
+mkdir -p "$release_dir"
+printf '%s\n' "$log_probe_begin"
+blocks=$(( (probe_bytes + 4095) / 4096 ))
+dd if=/dev/zero bs=4096 count="$blocks" 2>/dev/null | tr '\000' 'L'
+printf '\n%s\n' "$log_probe_end"
+: > "$log_probe_ready"
+
+while [ ! -f "$release_file" ]; do
+    sleep 0.05
+done
+
+exec "$@"

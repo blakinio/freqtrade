@@ -51,6 +51,7 @@ class _NetworkRunner:
     def __init__(self, runtime_id: str = "runtime-1") -> None:
         self.runtime_id = runtime_id
         self.calls: list[tuple[str, ...]] = []
+        self.active = False
 
     def run(self, args: Sequence[str]) -> CommandResult:
         call = tuple(args)
@@ -62,7 +63,11 @@ class _NetworkRunner:
         if call[:4] == ("nft", "list", "table", "inet"):
             return CommandResult(1, stderr="No such file or directory")
         if call[:5] == ("nft", "-j", "list", "table", "inet"):
-            return CommandResult(0, stdout=json.dumps(_nft_payload(_policy())))
+            return CommandResult(0, stdout=json.dumps(_nft_payload(_policy(), active=self.active)))
+        if call[:3] == ("nft", "insert", "rule"):
+            assert call[-2:] == ("jump", "egress")
+            self.active = True
+            return CommandResult(0)
         if call[0] == "nft":
             return CommandResult(0)
         if call[:3] == ("docker", "network", "rm"):
@@ -154,7 +159,7 @@ def _rule(chain: str, *expr: dict[str, object]) -> dict[str, object]:
     }
 
 
-def _nft_payload(policy: MarketDataEgressPolicy) -> dict[str, object]:
+def _nft_payload(policy: MarketDataEgressPolicy, *, active: bool = False) -> dict[str, object]:
     nftables: list[dict[str, object]] = [
         {"metainfo": {"json_schema_version": 1}},
         {"table": {"family": "inet", "name": TABLE}},
@@ -180,14 +185,25 @@ def _nft_payload(policy: MarketDataEgressPolicy) -> dict[str, object]:
                 "policy": "accept",
             }
         },
+        {"chain": {"family": "inet", "table": TABLE, "name": "egress"}},
         _rule("input", _meta("iifname", BRIDGE), {"drop": None}),
+    ]
+    if active:
+        nftables.append(
+            _rule(
+                "forward",
+                _meta("iifname", BRIDGE),
+                {"jump": {"target": "egress"}},
+            )
+        )
+    nftables.append(
         _rule(
             "forward",
             _meta("iifname", BRIDGE),
             _meta("oifname", BRIDGE),
             {"accept": None},
-        ),
-    ]
+        )
+    )
     for cidr in policy.allowed_ipv4_cidrs:
         network = cidr.split("/", 1)
         right: object = (
@@ -198,8 +214,7 @@ def _nft_payload(policy: MarketDataEgressPolicy) -> dict[str, object]:
         for port in policy.allowed_tcp_ports:
             nftables.append(
                 _rule(
-                    "forward",
-                    _meta("iifname", BRIDGE),
+                    "egress",
                     _payload("ip", "daddr", right),
                     _payload("tcp", "dport", port),
                     _ct_states(),
@@ -209,8 +224,7 @@ def _nft_payload(policy: MarketDataEgressPolicy) -> dict[str, object]:
     for resolver in policy.dns_resolver_ipv4_addresses:
         nftables.append(
             _rule(
-                "forward",
-                _meta("iifname", BRIDGE),
+                "egress",
                 _payload("ip", "daddr", resolver),
                 _payload("udp", "dport", 53),
                 {"accept": None},
@@ -218,8 +232,7 @@ def _nft_payload(policy: MarketDataEgressPolicy) -> dict[str, object]:
         )
         nftables.append(
             _rule(
-                "forward",
-                _meta("iifname", BRIDGE),
+                "egress",
                 _payload("ip", "daddr", resolver),
                 _payload("tcp", "dport", 53),
                 _ct_states(),
@@ -228,6 +241,19 @@ def _nft_payload(policy: MarketDataEgressPolicy) -> dict[str, object]:
         )
     nftables.append(_rule("forward", _meta("iifname", BRIDGE), {"drop": None}))
     return {"nftables": nftables}
+
+
+def _rule_entries(payload: dict[str, object], chain: str) -> list[dict[str, object]]:
+    entries = payload["nftables"]
+    assert isinstance(entries, list)
+    selected: list[dict[str, object]] = []
+    for entry in entries:
+        if not isinstance(entry, dict) or "rule" not in entry:
+            continue
+        rule = entry["rule"]
+        if isinstance(rule, dict) and rule.get("chain") == chain:
+            selected.append(entry)
+    return selected
 
 
 def test_market_data_policy_is_digest_bound_and_rejects_private_destinations() -> None:
@@ -262,7 +288,7 @@ def test_compatible_host_capabilities_require_btrfs_and_nftables(tmp_path: Path)
     assert capabilities.network_backend is NetworkIsolationBackend.NFTABLES
 
 
-def test_network_backend_builds_generation_deny_by_default_policy(tmp_path: Path) -> None:
+def test_network_backend_stages_allowlist_but_keeps_public_egress_denied(tmp_path: Path) -> None:
     runner = _NetworkRunner()
     policy = _policy()
     plan = _plan(policy)
@@ -279,31 +305,35 @@ def test_network_backend_builds_generation_deny_by_default_policy(tmp_path: Path
     assert create[:3] == ("docker", "network", "create")
     assert "--ipv6=false" in create
     assert "ai.portal.runtime_id=runtime-1" in create
+    assert runner.active is False
 
     nft_calls = [call for call in runner.calls if call and call[0] == "nft"]
+    assert any(call[:6] == ("nft", "add", "chain", "inet", TABLE, "egress") for call in nft_calls)
     assert any(
-        "input" in call and "iifname" in call and BRIDGE in call and call[-1] == "drop"
-        for call in nft_calls
-    )
-    assert any(call.count(BRIDGE) >= 2 and call[-1] == "accept" for call in nft_calls)
-    assert any(
-        "8.8.8.0/24" in call and "443" in call and call[-1] == "accept" for call in nft_calls
-    )
-    assert any(
-        "1.1.1.1" in call and "udp" in call and "53" in call and call[-1] == "accept"
+        len(call) > 6
+        and call[2:6] == ("rule", "inet", TABLE, "egress")
+        and "8.8.8.0/24" in call
+        and "443" in call
+        and call[-1] == "accept"
         for call in nft_calls
     )
     assert any(
-        "1.1.1.1" in call and "tcp" in call and "53" in call and call[-1] == "accept"
+        len(call) > 6
+        and call[2:6] == ("rule", "inet", TABLE, "egress")
+        and "1.1.1.1" in call
+        and "udp" in call
+        and "53" in call
+        and call[-1] == "accept"
         for call in nft_calls
     )
     assert any(
         "forward" in call and "iifname" in call and BRIDGE in call and call[-1] == "drop"
         for call in nft_calls
     )
+    assert not any("jump" in call for call in nft_calls)
 
 
-def test_network_attestation_accepts_exact_canonical_ruleset(tmp_path: Path) -> None:
+def test_network_attestation_accepts_exact_staged_canonical_ruleset(tmp_path: Path) -> None:
     policy = _policy()
     plan = _plan(policy)
     runner = _QueueRunner(
@@ -322,8 +352,41 @@ def test_network_attestation_accepts_exact_canonical_ruleset(tmp_path: Path) -> 
     assert runner.calls[-1] == ("nft", "-j", "list", "table", "inet", TABLE)
 
 
-@pytest.mark.parametrize("tamper", ["extra-accept", "swap-order", "wrong-dns-verdict"])
-def test_network_attestation_rejects_noncanonical_ruleset(
+def test_network_activation_links_only_pre_attested_egress_chain(tmp_path: Path) -> None:
+    runner = _NetworkRunner()
+    policy = _policy()
+    plan = _plan(policy)
+    backend = LinuxNftablesBtrfsIsolationAttestor(
+        runner,
+        policy_provider=_provider(policy),
+        state_root=tmp_path / "state",
+        btrfs_mount=tmp_path,
+    )
+    backend.prepare_network(plan, NETWORK_NAME, "runtime-1")
+
+    backend.activate_network(plan, NETWORK_NAME, "runtime-1")
+
+    assert runner.active is True
+    insert_calls = [call for call in runner.calls if call[:3] == ("nft", "insert", "rule")]
+    assert insert_calls == [
+        (
+            "nft",
+            "insert",
+            "rule",
+            "inet",
+            TABLE,
+            "forward",
+            "iifname",
+            BRIDGE,
+            "counter",
+            "jump",
+            "egress",
+        )
+    ]
+
+
+@pytest.mark.parametrize("tamper", ["extra-accept", "swap-egress-order", "wrong-dns-verdict"])
+def test_network_attestation_rejects_noncanonical_staged_ruleset(
     tmp_path: Path,
     tamper: str,
 ) -> None:
@@ -333,13 +396,19 @@ def test_network_attestation_rejects_noncanonical_ruleset(
     nftables = payload["nftables"]
     assert isinstance(nftables, list)
     if tamper == "extra-accept":
-        nftables.insert(6, _rule("forward", _meta("iifname", BRIDGE), {"accept": None}))
-    elif tamper == "swap-order":
-        nftables[-1], nftables[-2] = nftables[-2], nftables[-1]
+        nftables.append(_rule("forward", _meta("iifname", BRIDGE), {"accept": None}))
+    elif tamper == "swap-egress-order":
+        egress = _rule_entries(payload, "egress")
+        assert len(egress) >= 2
+        first = nftables.index(egress[0])
+        second = nftables.index(egress[1])
+        nftables[first], nftables[second] = nftables[second], nftables[first]
     else:
-        dns_rule = nftables[-3]
-        assert isinstance(dns_rule, dict)
-        expr = dns_rule["rule"]["expr"]
+        egress = _rule_entries(payload, "egress")
+        dns_rule = egress[1]
+        rule = dns_rule["rule"]
+        assert isinstance(rule, dict)
+        expr = rule["expr"]
         assert isinstance(expr, list)
         expr[-2] = {"drop": None}
     runner = _QueueRunner(

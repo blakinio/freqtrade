@@ -1,0 +1,136 @@
+name: Temporary 1089 Portal snapshot structure
+
+on:
+  push:
+    branches:
+      - ops/1089-synology-cleanup-20260810
+    paths:
+      - ".github/workflows/zz-temp-1089-snapshot-structure.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zz-temp-1089-snapshot-structure
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    name: Inspect and clean exact timing snapshot
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 10
+    steps:
+      - name: Refuse trading credential environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET FT_EXCHANGE_KEY FT_EXCHANGE_SECRET FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET; do
+            test -z "${!name:-}" || { echo "recognized trading credential present: $name" >&2; exit 1; }
+          done
+
+      - name: Inspect structural metadata and clean exact run-owned snapshot
+        shell: bash
+        env:
+          REPORT: ${{ runner.temp }}/synology-1089-snapshot-structure.txt
+          BACKUP_DIR: /volume1/docker/freqtrade-portal-oidc/data/legacy-backups
+          PREFIX: portal-pre-postgresql-21427e6b7f1c-
+          WINDOW_START: "1786432497"
+          WINDOW_END: "1786432851"
+        run: |
+          set -euo pipefail
+          python3 - "$REPORT" <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import pathlib
+          import sqlite3
+          import stat
+          import sys
+
+          report = pathlib.Path(sys.argv[1])
+          backup_dir = pathlib.Path(os.environ["BACKUP_DIR"])
+          prefix = os.environ["PREFIX"]
+          start = int(os.environ["WINDOW_START"])
+          end = int(os.environ["WINDOW_END"])
+          lines: list[str] = []
+
+          candidates = []
+          for path in backup_dir.glob(f"{prefix}*.db"):
+              try:
+                  st = path.stat()
+              except FileNotFoundError:
+                  continue
+              if start <= int(st.st_mtime) <= end:
+                  candidates.append((path, st))
+
+          lines.append(f"candidate_count={len(candidates)}")
+          if len(candidates) != 1:
+              report.write_text("\n".join(lines) + "\n", encoding="utf-8")
+              raise SystemExit(2)
+
+          path, st = candidates[0]
+          lines.extend(
+              [
+                  f"snapshot_name={path.name}",
+                  f"snapshot_size={st.st_size}",
+                  f"snapshot_uid={st.st_uid}",
+                  f"snapshot_gid={st.st_gid}",
+                  f"snapshot_mode={oct(stat.S_IMODE(st.st_mode))}",
+                  f"snapshot_mtime={int(st.st_mtime)}",
+              ]
+          )
+
+          uri = f"file:{path}?mode=ro"
+          try:
+              with sqlite3.connect(uri, uri=True) as conn:
+                  integrity = conn.execute("PRAGMA integrity_check").fetchone()
+                  lines.append(f"integrity={integrity[0] if integrity else 'missing'}")
+                  table_names = [
+                      row[0]
+                      for row in conn.execute(
+                          "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'portal_%' ORDER BY name"
+                      )
+                  ]
+                  lines.append("portal_tables=" + json.dumps(table_names, separators=(",", ":")))
+                  for table in table_names:
+                      quoted = '"' + table.replace('"', '""') + '"'
+                      columns = [row[1] for row in conn.execute(f"PRAGMA table_info({quoted})")]
+                      lines.append(
+                          f"columns.{table}=" + json.dumps(columns, separators=(",", ":"))
+                      )
+                      count = int(conn.execute(f"SELECT COUNT(*) FROM {quoted}").fetchone()[0])
+                      lines.append(f"rows.{table}={count}")
+                  if "portal_schema_migrations" in table_names:
+                      migrations = [
+                          {"sequence": row[0], "revision_id": row[1], "dialect_name": row[2]}
+                          for row in conn.execute(
+                              "SELECT sequence, revision_id, dialect_name FROM portal_schema_migrations ORDER BY sequence"
+                          )
+                      ]
+                      lines.append(
+                          "migrations=" + json.dumps(migrations, sort_keys=True, separators=(",", ":"))
+                      )
+                  else:
+                      lines.append("migrations=[]")
+                  lines.append("inspection_status=ready")
+          finally:
+              # Ownership proof: exact helper prefix + exact prior run time window + single
+              # candidate on the serialized Synology runner. Never delete on ambiguity.
+              path.unlink(missing_ok=True)
+              lines.append(f"cleanup_snapshot_absent={not path.exists()}")
+              report.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+          if path.exists():
+              raise SystemExit(3)
+          PY
+
+      - name: Upload structural evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: synology-1089-snapshot-structure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/synology-1089-snapshot-structure.txt
+          if-no-files-found: warn
+          retention-days: 14

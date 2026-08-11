@@ -172,7 +172,7 @@ def _public_oidc_v1_actual_from_current_expected(
 
 
 def _matches_public_oidc_v1(
-    status: dict[str, Any],
+    status: dict[str,Any],
     source_tables: frozenset[str],
 ) -> bool:
     differences = status["differences"]
@@ -327,10 +327,7 @@ def _backfill_public_oidc_v1_target(target_connection: Any) -> None:
     )
     unresolved = int(
         target_connection.execute(
-            text(
-                "SELECT COUNT(*) FROM portal_bots "
-                "WHERE latest_authored_revision_id IS NULL"
-            )
+            text("SELECT COUNT(*) FROM portal_bots WHERE latest_authored_revision_id IS NULL")
         ).scalar_one()
     )
     if unresolved:

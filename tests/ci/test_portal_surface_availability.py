@@ -58,7 +58,7 @@ def test_portal_shell_exposes_projected_unavailable_state() -> None:
     assert "availabilityDescriptionId(item.href)" in shell
     assert "aria-describedby={descriptionId}" in shell
     assert '<span aria-hidden="true"> · Unavailable</span>' in shell
-    assert '<span id={descriptionId} hidden>' in shell
+    assert "<span id={descriptionId} hidden>" in shell
     assert "Capability unavailable" in shell
     assert "<SurfaceAvailabilityNotice />" in shell
 

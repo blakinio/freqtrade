@@ -28,9 +28,9 @@ feature_scope:
   e2e_required: true
   completion_claim: internal_only
 base_branch: develop
-trusted_base_sha: 21427e6b7f1cbe5e5882a007101ce6fe0c2f5784
+trusted_base_sha: 960610f4607c4a27d402f5be5f12a211991f2fd7
 branch: fix/portal-runtime-isolation-1354
-pr: 1431
+pr: 1464
 related_issues:
   - 1355
   - 1413
@@ -39,7 +39,10 @@ related_prs:
   - 1395
   - 1416
   - 1425
+  - 1431
   - 1457
+  - 1460
+  - 1464
 live_capital_authorized: false
 production_deployment_authorized: false
 host_firewall_mutation_authorized: false
@@ -54,7 +57,7 @@ Implement the ADR-020 generation-bound runtime isolation envelope for Portal-man
 - `ai_platform/portal/execution/**`
 - `tests/ai_platform/portal/execution/**`
 - Portal-managed hardened runtime image/profile artifacts required by #1354
-- task-specific isolation integration/E2E evidence
+- task-specific isolation integration/E2E evidence, including `.github/workflows/portal-runtime-isolation-e2e.yml` and its workflow-registry entry
 - this task record
 
 Do not implement #1355 Runtime Supervisor sole-authority API/UDS/lifecycle serialization in this task. Do not mutate a real host firewall, protected deployment, credentials or live capital.
@@ -77,89 +80,71 @@ Do not implement #1355 Runtime Supervisor sole-authority API/UDS/lifecycle seria
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 3
-updated_at: 2026-08-10T23:24:22Z
-head: aec5d3c496e5e32cc664b411526849f93c7936b9
+checkpoint_version: 1
+updated_at: 2026-08-11T08:22:00Z
+head: UNKNOWN
 branch: fix/portal-runtime-isolation-1354
-pr: 1431
+pr: 1464
 status: validating
 context_routes:
   - docs/ai_platform/portal/RUNTIME_ISOLATION_AND_SUPERVISOR_CONTRACT.md
   - docs/ai_platform/portal/SYSTEM_ARCHITECTURE.md
   - docs/ai_platform/portal/SECURITY_ARCHITECTURE.md
   - issue 1354
+  - pull request 1464
 owned_paths:
   - ai_platform/portal/execution/**
   - tests/ai_platform/portal/execution/**
+  - .github/workflows/portal-runtime-isolation-e2e.yml
+  - .github/workflow-registry.yaml
+  - docs/agents/tasks/active/FTAI-20260809-portal-runtime-isolation-1354.md
 proven:
-  - develop at 21427e6b7f1cbe5e5882a007101ce6fe0c2f5784 includes merged #1353 storage separation and the Synology runtime preflight repair
-  - PR 1431 is the existing implementation lane for issue 1354; no duplicate implementation PR was created
-  - feature history was repaired after synchronization and is again a clean descendant of develop with only the runtime-isolation scope in its diff
+  - historical delivery PR 1431 is closed and superseded; replacement delivery PR 1464 is open
+  - integration-only PR 1460 is terminal and merge commit 7da94b84b3dca6f4136bc5583a4df99fa7ddfcf8 makes the feature branch a true descendant of develop@960610f4607c4a27d402f5be5f12a211991f2fd7
+  - compare at that integration point was behind_by=0 and retained only runtime-isolation scope plus workflow registry and this task record
   - immutable isolation profile/plan, fail-closed host capability resolution, hardened Docker creation, exact-image verification, structural/effective attestation and external storage/network boundaries are implemented
-  - fresh audit found structural attestation did not verify the fixed quarantine command or generation identity labels; the driver now verifies exact Entrypoint/Cmd and required labels before Docker start
-  - fresh audit found the original E2E exercised raw docker run rather than DockerCliRuntimeDriver; the E2E now provisions through the real driver with an exact digest image, pre-release quarantine, hard cgroup controls, read-only config, bounded state and hard-deny public network fixture
+  - prior exact-head Portal Runtime Isolation E2E run 31444289148 passed on af6b7a87f43b7e9e752f67690b97f6c0ff2bf8f1
+  - prior Freqtrade CI run 31444289109 found stale Ruff formatting/noqa in test_runtime_isolation_e2e.py and missing workflow-registry tracking; both defects are repaired
+  - previous audits already repaired fixed quarantine command/generation label attestation and replaced raw-docker-only E2E with real DockerCliRuntimeDriver provisioning
+  - this checkpoint commit itself advances branch HEAD, so the live PR head is authoritative until final closeout records an immutable candidate SHA
+derived:
+  - no production or LIVE authority is required for remaining validation
 unknown:
-  - exact-head CI outcome for the latest audit-remediation head
-  - whether final independent audit finds any additional material gap after CI feedback
+  - exact-head CI result for PR 1464 after this checkpoint update
+  - result of fresh independent audit on the final exact head
+conflicts:
+  - historical PR 1431 text claimed PR 1460 as replacement delivery, while live refs prove 1460 was develop-to-feature synchronization only; PR 1464 is the actual replacement delivery lane
 first_failure:
-  marker: audit-remediation-awaiting-exact-head-validation
-  evidence: PR 1431 head after driver/test remediation; required workflows are pending
+  marker: replacement-pr-exact-head-validation-pending
+  evidence: PR 1464 was opened after repairing the two concrete failures from run 31444289109
+rejected_hypotheses:
+  - PR 1460 as delivery PR; rejected because its head was develop and its base was the feature branch
 changed_paths:
+  - .github/workflow-registry.yaml
+  - .github/workflows/portal-runtime-isolation-e2e.yml
   - ai_platform/portal/execution/driver.py
   - ai_platform/portal/execution/host_isolation.py
   - ai_platform/portal/execution/isolation.py
-  - ai_platform/portal/execution/runtime_image/Dockerfile
-  - ai_platform/portal/execution/runtime_image/__init__.py
-  - ai_platform/portal/execution/runtime_image/build.py
+  - ai_platform/portal/execution/runtime_image/**
+  - tests/ai_platform/portal/execution/**
   - docs/agents/tasks/active/FTAI-20260809-portal-runtime-isolation-1354.md
-  - tests/ai_platform/portal/execution/test_driver.py
-  - tests/ai_platform/portal/execution/test_host_isolation.py
-  - tests/ai_platform/portal/execution/test_isolation.py
-  - tests/ai_platform/portal/execution/test_runtime_image.py
-  - tests/ai_platform/portal/execution/test_runtime_isolation_e2e.py
 validation:
-  - command: compare develop@21427e6b7f1cbe5e5882a007101ce6fe0c2f5784...a799187bec5e20010cead1351c82c7d08cd080a6
+  - command: compare develop@960610f4607c4a27d402f5be5f12a211991f2fd7...fix/portal-runtime-isolation-1354 before checkpoint update
     result: PASS
-    evidence: branch was exactly one commit ahead, zero behind, with twelve runtime-isolation paths only
-  - command: exact-head PR CI after audit remediation
-    result: RUNNING
-    evidence: GitHub Actions runs were created for the latest PR head; inspect first failing gate before any completion claim
-  - command: fresh post-validation independent audit
+    evidence: status ahead, behind_by=0; runtime-isolation diff only
+  - command: Portal Runtime Isolation E2E run 31444289148 on af6b7a87f43b7e9e752f67690b97f6c0ff2bf8f1
+    result: PASS
+    evidence: dedicated real-Docker driver/image workflow completed successfully
+  - command: Freqtrade CI run 31444289109 on af6b7a87f43b7e9e752f67690b97f6c0ff2bf8f1
+    result: FAIL
+    evidence: exact defects were stale Ruff formatting/noqa and missing workflow-registry entry; both have since been repaired
+  - command: exact-head CI for replacement PR 1464
     result: NOT_RUN
-    evidence: must run after exact-head validation feedback and any repairs
+    evidence: checkpoint mutation must first establish the final candidate generation
+  - command: fresh independent audit on replacement PR 1464
+    result: NOT_RUN
+    evidence: run only after exact candidate diff is stable
 blockers:
   - none
-next_action: Inspect exact-head CI for the audit-remediation head, repair the first real failure if any, then perform a fresh independent diff audit and final E2E/CI closeout before merging PR 1431.
-```
-
-## Recovery checkpoint
-
-```yaml
-recovery:
-  policy_version: 1
-  generation: 2
-  session_id: 20260811T012422+0200-chat-github
-  session_started_at: 2026-08-11T010300+0200
-  checkpointed_at: 2026-08-11T012422+0200
-  last_progress_at: 2026-08-11T012422+0200
-  phase: validation
-  exact_head: aec5d3c496e5e32cc664b411526849f93c7936b9
-  pull_request: 1431
-  active_operation: exact-head CI after audit remediation
-  external_run_ids:
-    - 31442179581
-    - 31442179321
-    - 31442179351
-    - 31442179332
-    - 31442179371
-    - 31442179327
-    - 31442179325
-  operation_started_at: 2026-08-11T012000+0200
-  wait_deadline_at: null
-  check_generation: isolation-v2
-  checks_used: 1
-  status: active
-  safe_to_resume: true
-  resume_condition: branch remains owned and PR 1431 exact head remains reconcilable
-  next_action: Inspect exact-head CI, repair first failure if present, then run fresh audit and closeout.
+next_action: Inspect PR 1464 exact-head CI, repair the first real failure if any, then run a fresh independent diff audit and final closeout gates.
 ```

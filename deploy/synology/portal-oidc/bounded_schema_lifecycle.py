@@ -9,7 +9,12 @@ from typing import Any, cast
 
 CREATE_TIMEOUT_SECONDS = 240
 START_TIMEOUT_SECONDS = 240
-WAIT_TIMEOUT_SECONDS = 300
+WAIT_TIMEOUT_SECONDS_BY_WORKLOAD = {
+    "schema-migrate": 600,
+    "state-transfer": 180,
+    "schema-check": 180,
+    "schema-schema": 300,
+}
 LOG_TIMEOUT_SECONDS = 90
 REMOVE_TIMEOUT_SECONDS = 120
 QUERY_TIMEOUT_SECONDS = 30
@@ -38,6 +43,13 @@ def _workload_label(command: list[str], module: str) -> str:
     if operation not in {"migrate", "check"}:
         operation = "schema"
     return f"schema-{operation}"
+
+
+def _wait_timeout(label: str) -> int:
+    try:
+        return WAIT_TIMEOUT_SECONDS_BY_WORKLOAD[label]
+    except KeyError as exc:
+        raise RuntimeError(f"bounded Docker workload has no wait calibration: {label}") from exc
 
 
 def _container_identity(label: str) -> tuple[str, str]:
@@ -210,7 +222,7 @@ def _run_sensitive_workload(
             stage="wait",
             command=["docker", "wait", name],
             cwd=cwd,
-            timeout=WAIT_TIMEOUT_SECONDS,
+            timeout=_wait_timeout(label),
         )
         process_exit = wait.stdout.strip()
         logs = _stage(

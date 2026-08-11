@@ -89,3 +89,5 @@ jobs:
           git diff --cached --check
           git commit -m "fix(portal): close final runtime isolation audit gaps"
           git push origin HEAD:fix/portal-runtime-isolation-1354
+
+# retry: workspace-owned integrated E2E fixture

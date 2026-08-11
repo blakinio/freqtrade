@@ -46,8 +46,6 @@ jobs:
                   raise SystemExit(f"{path}: expected one replacement, found {count}")
               target.write_text(text.replace(old, new, 1), encoding="utf-8")
 
-          # driver.py: paused runtimes cannot resume from stale release evidence;
-          # NoReturn makes the fail-closed narrowing explicit to mypy.
           replace_once(
               "ai_platform/portal/execution/driver.py",
               "from typing import Any, Protocol\n",
@@ -64,8 +62,6 @@ jobs:
               "    def _release_forbidden(message: str) -> NoReturn:\n",
           )
 
-          # host_isolation.py: exact non-root state ownership/mode, robust qgroup
-          # evidence parsing and explicit fail-closed type narrowing.
           replace_once(
               "ai_platform/portal/execution/host_isolation.py",
               "from typing import Any\n",
@@ -74,7 +70,7 @@ jobs:
           replace_once(
               "ai_platform/portal/execution/host_isolation.py",
               "    def __post_init__(self) -> None:\n",
-              "    def __post_init__(self) -> None:  # noqa: C901 - validation is one immutable policy boundary.\n",
+              "    def __post_init__(self) -> None:  # noqa: C901 - immutable policy validation boundary.\n",
           )
           replace_once(
               "ai_platform/portal/execution/host_isolation.py",
@@ -93,8 +89,8 @@ jobs:
           )
           replace_once(
               "ai_platform/portal/execution/host_isolation.py",
-              '''    ) -> None:\n        if not isinstance(payload, dict) or not isinstance(payload.get("nftables"), list):\n''',
-              '''    ) -> None:  # noqa: C901 - exact nftables canonicalization is intentionally explicit.\n        if not isinstance(payload, dict) or not isinstance(payload.get("nftables"), list):\n''',
+              "    def _attest_canonical_nftables(\n",
+              "    def _attest_canonical_nftables(  # noqa: C901 - exact canonical policy comparison.\n",
           )
           replace_once(
               "ai_platform/portal/execution/host_isolation.py",
@@ -112,16 +108,12 @@ jobs:
               '''            normalized_fields = [field.lower() for field in fields]\n            if normalized_fields[0] == "qgroupid":\n                try:\n                    max_rfer_index = normalized_fields.index("max_rfer")\n                except ValueError:\n                    return None\n                continue\n''',
           )
 
-          # Unit regression: a previously released PAUSED bootstrap must still fail
-          # closed, without issuing docker unpause.
           replace_once(
               "tests/ai_platform/portal/execution/test_driver.py",
               '''def test_pause_stop_and_unknown_state_are_fail_closed_or_idempotent() -> None:\n''',
               '''def test_paused_released_runtime_requires_reprovision_before_resume() -> None:\n    runner = _Runner(CommandResult(0, stdout="paused\\n"))\n    driver = DockerCliRuntimeDriver(runner)\n    driver._released.add("runtime-1")\n\n    with pytest.raises(RuntimeDriverError) as exc_info:\n        driver.start("runtime-1")\n\n    assert exc_info.value.reason_code == "APPLICATION_RELEASE_FORBIDDEN"\n    assert ("docker", "unpause", "runtime-1") not in runner.calls\n\n\ndef test_pause_stop_and_unknown_state_are_fail_closed_or_idempotent() -> None:\n''',
           )
 
-          # Unit Btrfs evidence now includes exact state ownership/mode and real
-          # btrfs-progs header casing.
           replace_once(
               "tests/ai_platform/portal/execution/test_host_isolation.py",
               '''def _qgroup_output(limit: int) -> str:\n    return f"qgroupid rfer excl max_rfer\\n-------- ---- ---- --------\\n0/256 0 0 {limit}\\n"\n''',
@@ -148,8 +140,6 @@ jobs:
               '''def test_storage_attestation_rejects_wrong_runtime_owner_or_mode(tmp_path: Path) -> None:\n    state_root = tmp_path / "state"\n    state = state_root / "generation"\n    state.mkdir(parents=True)\n    policy = _policy()\n    sysfs = _qgroup_sysfs(tmp_path)\n    runner = _QueueRunner(\n        CommandResult(0, stdout=_filesystem_show()),\n        CommandResult(0, stdout="0:0:755\\n"),\n    )\n    backend = LinuxNftablesBtrfsIsolationAttestor(\n        runner,\n        policy_provider=_provider(policy),\n        state_root=state_root,\n        btrfs_mount=tmp_path,\n        btrfs_sysfs_root=sysfs,\n    )\n\n    with pytest.raises(RuntimeDriverError) as exc_info:\n        backend.attest_storage(_plan(policy), state)\n\n    assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"\n\n\n@pytest.mark.parametrize(\n    ("enabled", "inconsistent", "mode"),\n''',
           )
 
-          # Dedicated Linux E2E must actually execute the non-root state writer and
-          # unconditional cleanup must own/verify its derived nftables tables.
           replace_once(
               ".github/workflows/portal-runtime-isolation-e2e.yml",
               '''      - "tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py"\n''',
@@ -176,8 +166,6 @@ jobs:
               '''          for table in "${task_tables[@]}"; do\n            if sudo nft list table inet "$table" >/dev/null 2>&1; then\n              echo "task-owned nftables table remains after cleanup: $table" >&2\n              cleanup_failed=1\n            fi\n          done\n          if mountpoint -q /mnt/portal-runtime-isolation-btrfs; then\n            echo "ephemeral Btrfs fixture remains mounted after cleanup" >&2\n            cleanup_failed=1\n          fi\n''',
           )
 
-          # The workflow-registry YAML extension is not covered by the yml exclusion;
-          # preserve the exact newline fixer output observed in CI.
           registry = Path(".github/workflow-registry.yaml")
           registry.write_text(registry.read_text(encoding="utf-8").rstrip("\n") + "\n", encoding="utf-8")
           PY

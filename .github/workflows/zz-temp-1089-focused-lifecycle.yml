@@ -32,7 +32,9 @@ jobs:
         shell: bash
         run: >-
           python -m pip install --disable-pip-version-check
-          pytest ruff==0.15.21 SQLAlchemy==2.0.51
+          pytest jsonschema "pydantic>=2.2" "SQLAlchemy>=2.0.6"
+          "httpx>=0.24.1" fastapi pyjwt cryptography "PyYAML>=6.0"
+          ruff==0.15.21
 
       - name: Compile focused repair modules
         shell: bash
@@ -74,7 +76,7 @@ jobs:
       - name: Run focused lifecycle and transfer regressions
         shell: bash
         run: |
-          python -m pytest -q \
+          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform \
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_cancellation.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py \

@@ -314,6 +314,10 @@ def main() -> int:
         "portal_oidc_bounded_schema_lifecycle",
         DEPLOYMENT_DIR / "bounded_schema_lifecycle.py",
     )
+    cancellation_bridge = _load_module(
+        "portal_oidc_cancellation_report_bridge",
+        DEPLOYMENT_DIR / "cancellation_report_bridge.py",
+    )
     docker_host_state = _load_module(
         "portal_oidc_docker_host_state",
         DEPLOYMENT_DIR / "docker_host_state.py",
@@ -331,6 +335,7 @@ def main() -> int:
     _install_docker_host_liquidations_preflight(deploy)
     market_evidence.install(deploy)
     copy_on_write.install(deploy)
+    cancellation_bridge.install(deploy)
     return int(deploy.main())
 
 

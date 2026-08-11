@@ -252,7 +252,6 @@ def _write_paper_runtime_inputs(inputs: Path, state_path: Path) -> Path:
         "user_data_dir": "/runtime/state",
         "db_url": "sqlite:////runtime/state/tradesv3.sqlite",
         "api_server": {"enabled": False},
-        "telegram": {"enabled": False},
     }
     config_path.write_text(json.dumps(config, sort_keys=True) + "\n", encoding="utf-8")
     config_path.chmod(0o644)

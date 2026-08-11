@@ -525,7 +525,7 @@ def test_driver_release_runs_through_concrete_linux_isolation_backend() -> None:
         assert driver.provision(spec) is DriverRuntimeState.CREATED
         assert driver.inspect(runtime_id) is DriverRuntimeState.CREATED
 
-        assert driver.start(runtime_id) is DriverRuntimeState.RUNNING
+        assert driver.start(runtime_id) is DriverRuntimeState.STARTING
 
         public_data = _run(
             "docker",

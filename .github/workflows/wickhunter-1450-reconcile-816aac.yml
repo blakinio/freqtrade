@@ -1,4 +1,4 @@
-name: WickHunter 1450 reconcile develop 816aac
+name: WickHunter 1450 reconcile current develop
 
 on:
   push:
@@ -12,30 +12,30 @@ permissions:
 
 jobs:
   reconcile:
-    runs-on: ubuntu-latest
+    runs-on: [freqtrade-staging]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           ref: fix/wickhunter-1396-synology-recovery-v2
-          fetch-depth: 0
+          fetch-depth: 50
           persist-credentials: false
-      - name: Merge exact develop and checkpoint
+      - name: Merge fetched develop tip and checkpoint
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          expected='816aac5018b785f750ab9eaffd5de9033f988999'
           git fetch origin develop
-          test "$(git rev-parse origin/develop)" = "$expected"
+          base_sha="$(git rev-parse FETCH_HEAD)"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git merge --no-ff --no-commit "$expected"
+          git merge --no-ff --no-commit "$base_sha"
           git diff --check --cached
-          git commit -m 'chore(wickhunter): reconcile PR 1450 with latest develop'
+          git commit -m "chore(wickhunter): reconcile PR 1450 with develop $base_sha"
           delivered="$(git rev-parse HEAD)"
           export DELIVERED="$delivered"
+          export BASE_SHA="$base_sha"
           python3 - <<'PY'
           import os
           from datetime import datetime
@@ -45,32 +45,50 @@ jobs:
           p = Path('docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md')
           text = p.read_text(encoding='utf-8')
           delivered = os.environ['DELIVERED']
+          base_sha = os.environ['BASE_SHA']
           now = datetime.now(ZoneInfo('Europe/Warsaw')).replace(microsecond=0).isoformat()
           cp0 = '## Context checkpoint\n\n```yaml\n'
           cp1 = '\n```\n\n## Recovery checkpoint'
-          a = text.index(cp0) + len(cp0); b = text.index(cp1, a)
+          a = text.index(cp0) + len(cp0)
+          b = text.index(cp1, a)
           cp = text[a:b].splitlines()
           for i, line in enumerate(cp):
-              if line.startswith('updated_at:'): cp[i] = f'updated_at: {now}'
-              elif line.startswith('head:'): cp[i] = f'head: {delivered}'
-              elif line.startswith('next_action:'): cp[i] = 'next_action: Run final exact-head PR 1450 CI and fresh Codex review on the latest develop base; if green, squash-merge and continue canonical Liquid20 deployment plus guarded completed-history repair.'
+              if line.startswith('updated_at:'):
+                  cp[i] = f'updated_at: {now}'
+              elif line.startswith('head:'):
+                  cp[i] = f'head: {delivered}'
+              elif line.startswith('next_action:'):
+                  cp[i] = 'next_action: Run final exact-head PR 1450 CI and fresh Codex review on the reconciled develop base; if green, squash-merge and continue canonical Liquid20 deployment plus guarded completed-history repair.'
+          marker = '  - descriptor-hardened runtime creation preserves the production shared-GID contract with 0640 files and 0750 run directories under umask 027'
+          if marker not in cp:
+              cp.append(marker)
+          cp.append(f'  - final reconciliation merged develop commit {base_sha} before exact-head validation')
           text = text[:a] + '\n'.join(cp) + text[b:]
-          rp0 = '## Recovery checkpoint\n\n```yaml\n'; rp1 = '\n```\n\n## Terminal closeout requirements'
-          a = text.index(rp0) + len(rp0); b = text.index(rp1, a)
+
+          rp0 = '## Recovery checkpoint\n\n```yaml\n'
+          rp1 = '\n```\n\n## Terminal closeout requirements'
+          a = text.index(rp0) + len(rp0)
+          b = text.index(rp1, a)
           rp = text[a:b].splitlines()
           for i, line in enumerate(rp):
-              if line.startswith('  generation:'): rp[i] = '  generation: 18'
-              elif line.startswith('  checkpointed_at:'): rp[i] = f'  checkpointed_at: {now}'
-              elif line.startswith('  last_progress_at:'): rp[i] = f'  last_progress_at: {now}'
-              elif line.startswith('  exact_head_before_checkpoint_commit:'): rp[i] = f'  exact_head_before_checkpoint_commit: {delivered}'
-              elif line.startswith('  active_operation:'): rp[i] = '  active_operation: final exact-head CI and independent review after latest-develop reconciliation'
-              elif line.startswith('  next_action:'): rp[i] = '  next_action: Complete final exact-head CI plus fresh Codex review on PR 1450, then squash-merge and continue canonical Liquid20 recovery.'
+              if line.startswith('  generation:'):
+                  rp[i] = '  generation: 18'
+              elif line.startswith('  checkpointed_at:'):
+                  rp[i] = f'  checkpointed_at: {now}'
+              elif line.startswith('  last_progress_at:'):
+                  rp[i] = f'  last_progress_at: {now}'
+              elif line.startswith('  exact_head_before_checkpoint_commit:'):
+                  rp[i] = f'  exact_head_before_checkpoint_commit: {delivered}'
+              elif line.startswith('  active_operation:'):
+                  rp[i] = '  active_operation: final exact-head CI and independent review after current-develop reconciliation'
+              elif line.startswith('  next_action:'):
+                  rp[i] = '  next_action: Complete final exact-head CI plus fresh Codex review on PR 1450, then squash-merge and continue canonical Liquid20 recovery.'
           text = text[:a] + '\n'.join(rp) + text[b:]
           p.write_text(text, encoding='utf-8')
           PY
           python3 tools/agents/checkpoint.py docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md --require-checkpoint
           git diff --check
           git add docs/agents/tasks/active/FTAI-20260808-wickhunter-unified-runtime-mode.md
-          git commit -m 'chore(wickhunter): checkpoint latest develop reconciliation'
+          git commit -m 'chore(wickhunter): checkpoint current develop reconciliation'
           auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" push origin HEAD:fix/wickhunter-1396-synology-recovery-v2

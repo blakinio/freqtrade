@@ -26,25 +26,36 @@ This archive record becomes authoritative only if PR `#1464` merges unchanged af
 The delivery implements the ADR-020 generation-bound isolation envelope for Portal-managed PAPER/dry-run Freqtrade runtimes:
 
 - immutable profile and resolved-plan digests bound to each generation;
-- exact digest-pinned hardened runtime image;
+- exact digest-pinned hardened runtime image with the fixed quarantine bootstrap inside the immutable artifact;
 - non-root UID/GID, no-new-privileges, capability-drop-all, default seccomp and read-only root;
-- hard memory/swap/PID/CPU, tmpfs and bounded local-log limits;
-- bounded durable state under an approved Btrfs state root;
-- generation-scoped deny-by-default network isolation with explicit public market-data allow rules;
-- structural and effective pre-release attestation plus quarantine release gating;
-- real Docker E2E and negative isolation tests;
-- fail-closed behavior when required host enforcement is unavailable.
+- hard memory/swap/PID/CPU, tmpfs and bounded local-log limits with effective log-rotation evidence;
+- bounded durable state under an approved Btrfs state root with real quota-overrun E2E evidence;
+- generation-scoped deny-by-default network isolation with explicit public market-data and approved DNS allow rules;
+- canonical structural nftables attestation covering chains, priorities, match expressions, verdicts and rule order;
+- structural and effective attestation at provision time and again immediately before quarantine release;
+- real Docker E2E plus concrete Linux nftables/Btrfs backend E2E with positive and tamper-negative paths;
+- fail-closed behavior when required host enforcement is unavailable;
+- fail-closed CI cleanup with post-cleanup absence verification for task-owned resources.
 
 No Runtime Supervisor authority from #1355 is implemented here.
 
 ## Fresh repair/audit findings
 
-The combined repair/audit pass found and remediated four material defects before closeout:
+The repair/audit cycles found and remediated the following material defects before closeout:
 
 1. stale Ruff/noqa formatting in the real-Docker E2E;
 2. missing workflow-registry tracking for the new E2E workflow;
-3. `runtime_user` rejected root UID but allowed root GID (`1000:0`); both UID and GID zero are now rejected with regression coverage;
-4. Btrfs storage validation allowed the approved state root itself to be converted/replaced; runtime state must now be a child path, with a no-host-command regression test.
+3. `runtime_user` rejected root UID but allowed root GID (`1000:0`); both UID and GID zero are rejected with regression coverage;
+4. Btrfs storage validation allowed the approved state root itself to be converted/replaced; runtime state must be a child path, with a no-host-command regression test;
+5. application release trusted a stale in-memory attestation instead of re-attesting the exact generation immediately before release;
+6. market-data egress had no explicit approved DNS resolver policy or DNS enforcement/attestation;
+7. nftables attestation used substring evidence and could accept unsafe reordered or additional rules;
+8. the quarantine bootstrap was injected by the host instead of being contained in the immutable digest-bound runtime artifact;
+9. the dedicated E2E did not execute the concrete production nftables/Btrfs backend;
+10. bounded log configuration lacked effective enforcement/rotation evidence before release;
+11. the DNS guardrail test over-constrained exception text for an IPv6 input even though the policy already rejected it fail-closed; the test now asserts the security invariant rather than an internal `ipaddress` message;
+12. the concrete Btrfs E2E inspected qgroup metadata but did not prove a real write beyond the bound is denied; it now requires a quota overrun failure;
+13. unconditional E2E cleanup ignored command failures under `set +e`; cleanup now aggregates failures and verifies task-owned containers, networks, mounts, fixture image, registry and hardened image are absent.
 
 The architecture registry stages #1354 as completed and the lifecycle guard pins the corresponding terminal finding. This becomes authoritative only after unchanged merge.
 
@@ -69,7 +80,9 @@ closeout:
     evidence_rule: authoritative only if Codex completes the final-head review without a material finding before unchanged merge
   e2e:
     result: PASS
-    journey: Portal Runtime Isolation E2E using real DockerCliRuntimeDriver, exact image, quarantine, bounded writable state and denied public egress fixture
+    journeys:
+      - Portal Runtime Isolation E2E using real DockerCliRuntimeDriver, exact hardened image, immutable quarantine bootstrap, effective resource/log bounds and denied public egress fixture
+      - Concrete LinuxNftablesBtrfsIsolationAttestor E2E with canonical nftables policy, approved DNS/public egress, forbidden egress, real Btrfs quota overrun rejection and tamper-negative attestation
     evidence_rule: authoritative only if the dedicated workflow passes on the unchanged containing commit before merge
   final_ci:
     head: containing_commit

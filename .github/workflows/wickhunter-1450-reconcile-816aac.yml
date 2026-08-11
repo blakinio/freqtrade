@@ -60,11 +60,14 @@ jobs:
                   cp[i] = f'head: {delivered}'
               elif line.startswith('next_action:'):
                   cp[i] = 'next_action: Run final exact-head PR 1450 CI and fresh Codex review on the reconciled develop base; if green, squash-merge and continue canonical Liquid20 deployment plus guarded completed-history repair.'
-          derived_index = cp.index('derived:')
-          proof = f'  - final reconciliation merged develop commit {base_sha} before exact-head validation'
-          if proof not in cp:
-              cp.insert(derived_index, proof)
-          text = text[:a] + '\n'.join(cp) + text[b:]
+          marker = 'descriptor-hardened runtime creation preserves the production shared-GID contract with 0640 files and 0750 run directories under umask 027'
+          replacement = marker + f'; final reconciliation merged develop commit {base_sha} before exact-head validation'
+          joined = '\n'.join(cp)
+          if marker not in joined:
+              raise SystemExit('shared-GID proof marker missing')
+          if replacement not in joined:
+              joined = joined.replace(marker, replacement, 1)
+          text = text[:a] + joined + text[b:]
 
           rp0 = '## Recovery checkpoint\n\n```yaml\n'
           rp1 = '\n```\n\n## Terminal closeout requirements'

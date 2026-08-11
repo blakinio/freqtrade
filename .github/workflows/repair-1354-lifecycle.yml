@@ -1,0 +1,47 @@
+name: Repair 1354 lifecycle truth
+
+on:
+  push:
+    branches:
+      - fix/portal-runtime-isolation-1354
+    paths:
+      - .github/workflows/repair-1354-lifecycle.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: fix/portal-runtime-isolation-1354
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Restore non-terminal lifecycle truth
+        run: python scripts/repair_1354_lifecycle.py
+
+      - name: Validate lifecycle truth
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check pytest==9.1.1 "PyYAML>=6.0"
+          python -m pytest -q -o addopts='' tests/ci/test_architecture_registry.py
+          git diff --check
+          test -f docs/agents/tasks/active/FTAI-20260809-portal-runtime-isolation-1354.md
+          test ! -e docs/agents/tasks/archive/FTAI-20260809-portal-runtime-isolation-1354.md
+
+      - name: Commit lifecycle truth repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ARCHITECTURE_REGISTRY.yaml tests/ci/test_architecture_registry.py
+          git diff --cached --check
+          git commit -m "fix(agent): keep runtime isolation lifecycle non-terminal"
+          git push origin HEAD:fix/portal-runtime-isolation-1354

@@ -2,7 +2,7 @@
 task_id: FTAI-20260811-portal-repository-truth-1468
 programme_id: FTAI-PROGRAM-AI-TRADING-PORTAL
 project_lane: freqtrade-portal
-status: waiting
+status: validating
 task_kind: ci_governance
 priority: high
 repository: blakinio/freqtrade
@@ -42,7 +42,7 @@ Runtime/browser E2E is `NOT_APPLICABLE`: no product/runtime/deployment behavior 
 - stale `future/unimplemented` Portal wording is absent;
 - README points current implementation claims to `tools/portal_audit/ledger/index.json` and architecture claims to `ARCHITECTURE_REGISTRY.yaml` / canonical Portal docs;
 - README explicitly preserves PAPER-only / fail-closed LIVE authority;
-- CODEOWNERS explicitly covers current control-plane, execution, identity, security, credentials, database, risk, contracts, web and Synology deployment roots;
+- CODEOWNERS explicitly covers current control-plane, execution, execution-submission, bot-operations, identity, security, credentials, database, risk, contracts, web and Synology deployment roots;
 - a network-free `tests/ci` guard detects recurrence;
 - exact-final-head required CI and documentation build pass;
 - independent review has zero open material findings before merge.
@@ -51,17 +51,17 @@ Runtime/browser E2E is `NOT_APPLICABLE`: no product/runtime/deployment behavior 
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-11T09:10:00Z
-head: d13f71214fec22665e56ab14135d519aee3ff071
+updated_at: 2026-08-11T09:24:00Z
+head: 980a731ea7f9c40ef1d2aa8de10645de05b1a24a
 branch: docs/portal-repository-truth-1468
 pr: 1469
-status: waiting
+status: validating
 invocation_started_at: 2026-08-11T08:57:00Z
-last_progress_at: 2026-08-11T09:10:00Z
-ci_checks_for_current_head: 1
+last_progress_at: 2026-08-11T09:24:00Z
+ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 0
+repair_cycles_for_current_gate: 1
 context_reconstruction_attempts: 0
 stall_warnings: 0
 context_routes:
@@ -76,19 +76,21 @@ proven:
   - develop@816aac5018b785f750ab9eaffd5de9033f988999 contains a living exact-head Portal completeness ledger.
   - the prior Portal README falsely described implemented Portal surfaces as future/unimplemented.
   - CODEOWNERS retained historical Portal backend/infra path-specific entries instead of current sensitive roots.
-  - PR 1469 is the sole delivery PR for Issue 1468 and was zero commits behind develop when opened.
-  - a fresh Codex review was explicitly requested on PR 1469 for exact head d13f71214fec22665e56ab14135d519aee3ff071.
+  - execution_submission and bot_operations are existing execution-sensitive Portal packages on develop.
+  - fresh Codex review on ebc42b945af8609e1cb35a7d4be70b03057faf1e found one material P2: explicit ownership omitted execution_submission and bot_operations.
+  - the P2 was remediated in CODEOWNERS and REQUIRED_CODEOWNER_PATTERNS on head 980a731ea7f9c40ef1d2aa8de10645de05b1a24a.
   - PAPER remains the only currently authorized operational mode and LIVE remains unreachable/fail-closed.
 derived:
   - documentation truth must defer implementation completeness to exact-head evidence rather than package presence.
 unknown:
-  - terminal exact-head CI result and independent Codex review disposition for the final PR head.
+  - terminal exact-head CI result and fresh post-remediation Codex review disposition for the final PR head.
 conflicts: []
 first_failure:
-  marker: stale Portal implementation boundary documentation
-  evidence: ai_platform/portal/README.md on develop@816aac5018b785f750ab9eaffd5de9033f988999
+  marker: explicit CODEOWNERS coverage omitted execution-sensitive Portal roots
+  evidence: Codex P2 review comment 3756671117 on ebc42b945af8609e1cb35a7d4be70b03057faf1e
 rejected_hypotheses:
   - treat stale README as harmless because architecture registry is canonical; rejected because root AGENTS routes Portal workers through this README.
+  - rely on generic CODEOWNERS fallback for execution_submission and bot_operations; rejected because explicit sensitive-root ownership is the intended durable boundary.
 changed_paths:
   - ai_platform/portal/README.md
   - .github/CODEOWNERS
@@ -98,18 +100,17 @@ validation:
   - command: exact file/state inspection on develop@816aac5018b785f750ab9eaffd5de9033f988999
     result: PASS
     evidence: verified stale README, living ledger and CODEOWNERS mismatch before mutation
-  - command: branch compare at PR creation and before external validation
+  - command: existence inspection for ai_platform/portal/execution_submission and ai_platform/portal/bot_operations
     result: PASS
-    evidence: docs/portal-repository-truth-1468 remained behind_by=0 versus develop
-  - command: first aggregate exact-head CI observation for d13f71214fec22665e56ab14135d519aee3ff071
-    result: NOT_RUN
-    evidence: required workflows were queued/pending; no failure evidence existed at the observation
+    evidence: both current execution-sensitive roots exist on develop with submission/transport and activation/order/position surfaces
+  - command: independent Codex review of ebc42b945af8609e1cb35a7d4be70b03057faf1e
+    result: FAIL
+    evidence: P2 3756671117 identified omitted explicit ownership roots; repair applied
   - command: runtime/browser product E2E
     result: NOT_APPLICABLE
     evidence: documentation and network-free CI-governance repair only
-blockers:
-  - fresh exact-head GitHub Actions and independent Codex audit are external pending gates
-next_action: Resolve the current PR 1469 head, inspect the fresh Codex audit and one aggregate CI state; repair any material finding/failure or merge only if all exact-head gates are green and review hygiene is terminal.
+blockers: []
+next_action: Request fresh independent Codex review on the current exact head and collect exact-head required CI; repair any material finding/failure or merge only if all gates are green and review hygiene is terminal.
 ```
 
 ## Recovery checkpoint
@@ -117,31 +118,24 @@ next_action: Resolve the current PR 1469 head, inspect the fresh Codex audit and
 ```yaml
 recovery:
   policy_version: 1
-  generation: 1
-  session_id: portal-truth-20260811-1057
-  session_started_at: 2026-08-11T08:57:00Z
-  checkpointed_at: 2026-08-11T09:10:00Z
-  last_progress_at: 2026-08-11T09:10:00Z
-  phase: exact_head_ci_and_independent_audit
-  exact_head: d13f71214fec22665e56ab14135d519aee3ff071
+  generation: 2
+  session_id: portal-truth-20260811-1120
+  session_started_at: 2026-08-11T09:20:00Z
+  checkpointed_at: 2026-08-11T09:24:00Z
+  last_progress_at: 2026-08-11T09:24:00Z
+  phase: post_review_repair_validation
+  exact_head: 980a731ea7f9c40ef1d2aa8de10645de05b1a24a
   pull_request: 1469
-  active_operation: external CI and Codex review
-  external_run_ids:
-    - 31476385697
-    - 31476385687
-    - 31476385660
-    - 31476385777
-    - 31476385655
-    - 31476386069
-    - 31476385790
-  operation_started_at: 2026-08-11T09:08:42Z
+  active_operation: material review remediation and exact-head validation
+  external_run_ids: []
+  operation_started_at: 2026-08-11T09:24:00Z
   wait_deadline_at: null
-  check_generation: pre-terminal-validation
-  checks_used: 1
-  status: waiting
+  check_generation: post-p2-remediation
+  checks_used: 0
+  status: active
   safe_to_resume: true
-  resume_condition: PR 1469 has fresh audit evidence and materially advanced exact-head CI state
-  next_action: Resolve the current PR 1469 head, inspect the fresh Codex audit and one aggregate CI state; repair any material finding/failure or merge only if all exact-head gates are green and review hygiene is terminal.
+  resume_condition: current exact head remains unchanged
+  next_action: Request fresh independent Codex review on the current exact head and collect exact-head required CI; repair any material finding/failure or merge only if all gates are green and review hygiene is terminal.
 ```
 
 ## Safety boundary

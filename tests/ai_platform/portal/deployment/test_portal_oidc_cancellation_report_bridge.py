@@ -148,7 +148,9 @@ def test_keyboard_interrupt_is_reported_after_canonical_rollback_then_reraised(t
     assert reports[0]["live_capital_authorized"] is False
 
 
-def test_pure_python_sigint_routes_through_canonical_rollback_and_restores_handler(tmp_path) -> None:
+def test_pure_python_sigint_routes_through_canonical_rollback_and_restores_handler(
+    tmp_path,
+) -> None:
     deploy, reports, rollback = _pure_python_sigint_stub()
     previous_handler = signal.getsignal(signal.SIGINT)
     module.install(deploy)

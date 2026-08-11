@@ -1,0 +1,84 @@
+name: Temporary apply #1354 runtime cleanup and log repair
+
+on:
+  push:
+    branches:
+      - fix/portal-runtime-isolation-1354
+    paths:
+      - .github/workflows/tmp-apply-1354-runtime-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.repository == 'blakinio/freqtrade'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: fix/portal-runtime-isolation-1354
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Apply deterministic repair and validate
+        env:
+          EXPECTED_PARENT: e6a48c7feaa65e6797f1a2bbe0a5cb6054135cd4
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one replacement target, found {count}')
+              p.write_text(text.replace(old, new), encoding='utf-8')
+
+          replace_once(
+              'ai_platform/portal/execution/host_isolation.py',
+              '''    def cleanup_network(self, network_name: str, runtime_id: str) -> None:\n        del runtime_id\n        table = self._table_name(network_name)\n        errors: list[str] = []\n        nft_result = self._runner.run(("nft", "delete", "table", "inet", table))\n        if nft_result.returncode != 0 and not self._cleanup_target_absent(nft_result):\n            errors.append(nft_result.stderr.strip() or "nftables table cleanup failed")\n        network_result = self._runner.run(("docker", "network", "rm", network_name))\n        if network_result.returncode != 0 and not self._cleanup_target_absent(network_result):\n            errors.append(network_result.stderr.strip() or "Docker network cleanup failed")\n        if errors:\n            raise RuntimeDriverError(\n                "HOST_NETWORK_CLEANUP_FAILED",\n                "generation network cleanup was incomplete: " + "; ".join(errors),\n            )\n''',
+              '''    def cleanup_network(self, network_name: str, runtime_id: str) -> None:\n        del runtime_id\n        table = self._table_name(network_name)\n        network_result = self._runner.run(("docker", "network", "rm", network_name))\n        if network_result.returncode != 0 and not self._cleanup_target_absent(network_result):\n            raise RuntimeDriverError(\n                "HOST_NETWORK_CLEANUP_FAILED",\n                "generation network cleanup was incomplete; retaining nftables policy: "\n                + (network_result.stderr.strip() or "Docker network cleanup failed"),\n            )\n\n        nft_result = self._runner.run(("nft", "delete", "table", "inet", table))\n        if nft_result.returncode != 0 and not self._cleanup_target_absent(nft_result):\n            raise RuntimeDriverError(\n                "HOST_NETWORK_CLEANUP_FAILED",\n                "generation network was removed but nftables table cleanup failed: "\n                + (nft_result.stderr.strip() or "nftables table cleanup failed"),\n            )\n''',
+          )
+
+          replace_once(
+              'ai_platform/portal/execution/driver.py',
+              '''    def _attest_active_log_backend(self, runtime_id: str, plan: RuntimeIsolationPlan) -> None:\n        """Verify durable local-driver state without relying on rotated bootstrap output."""\n        result = self._runner.run(("docker", "inspect", "--format", "{{.LogPath}}", runtime_id))\n        self._require_probe(result, "active-log-path")\n        log_path = result.stdout.strip()\n        if not log_path:\n            raise RuntimeDriverError(\n                "ISOLATION_ATTESTATION_FAILED",\n                "Docker local logging path is unavailable",\n            )\n        usage = self._runner.run(("du", "-sb", str(Path(log_path).parent)))\n        self._require_probe(usage, "active-log-usage")\n        try:\n            retained_bytes = int(usage.stdout.split()[0])\n        except (IndexError, ValueError) as exc:\n            raise RuntimeDriverError(\n                "ISOLATION_ATTESTATION_FAILED",\n                "Docker local logging usage evidence is invalid",\n            ) from exc\n        ceiling = plan.log_max_bytes * plan.log_rotation_count\n        ceiling += self._LOG_RETENTION_TOLERANCE_BYTES\n        if retained_bytes > ceiling:\n            raise RuntimeDriverError(\n                "ISOLATION_ATTESTATION_FAILED",\n                "effective Docker log retention exceeds the isolation-plan hard ceiling",\n            )\n''',
+              '''    def _attest_active_log_backend(self, runtime_id: str, plan: RuntimeIsolationPlan) -> None:\n        """Verify currently retained local-driver output after bootstrap markers may rotate."""\n        logs = self._runner.run(("docker", "logs", runtime_id))\n        self._require_probe(logs, "active-bounded-logs")\n        retained_bytes = len(logs.stdout.encode()) + len(logs.stderr.encode())\n        ceiling = plan.log_max_bytes * plan.log_rotation_count\n        ceiling += self._LOG_RETENTION_TOLERANCE_BYTES\n        if retained_bytes > ceiling:\n            raise RuntimeDriverError(\n                "ISOLATION_ATTESTATION_FAILED",\n                "effective Docker log retention exceeds the isolation-plan hard ceiling",\n            )\n''',
+          )
+
+          replace_once(
+              'tests/ai_platform/portal/execution/test_driver.py',
+              '''def _active_reattest_results(\n    spec: RuntimeContainerSpec,\n    plan: RuntimeIsolationPlan,\n) -> list[CommandResult]:\n    results = _reattest_results(spec, plan)\n    # Replace the one-shot readiness/log-output probes with durable backend evidence.\n    results[-2:] = [\n        CommandResult(0, stdout="/var/lib/docker/containers/id/id-local.log\\n"),\n        CommandResult(0, stdout="4096\\t/var/lib/docker/containers/id\\n"),\n    ]\n    return results\n''',
+              '''def _active_reattest_results(\n    spec: RuntimeContainerSpec,\n    plan: RuntimeIsolationPlan,\n) -> list[CommandResult]:\n    results = _reattest_results(spec, plan)\n    # Replace one-shot bootstrap probes with currently retained Docker log output.\n    results[-2:] = [CommandResult(0, stdout="retained active log\\n")]\n    return results\n''',
+          )
+
+          replace_once(
+              'tests/ai_platform/portal/execution/test_driver.py',
+              '''    results[-1] = CommandResult(\n        0,\n        stdout=f"{plan.log_max_bytes * plan.log_rotation_count + 300_000}\\t/path\\n",\n    )\n''',
+              '''    results[-1] = CommandResult(\n        0,\n        stdout="x"\n        * (\n            plan.log_max_bytes * plan.log_rotation_count\n            + DockerCliRuntimeDriver._LOG_RETENTION_TOLERANCE_BYTES\n            + 1\n        ),\n    )\n''',
+          )
+
+          cleanup = Path('tests/ai_platform/portal/execution/test_host_isolation_cleanup.py')
+          cleanup.write_text('''from __future__ import annotations\n\nfrom collections.abc import Sequence\nfrom pathlib import Path\n\nimport pytest\n\nfrom ai_platform.portal.execution.driver import CommandResult\nfrom ai_platform.portal.execution.errors import RuntimeDriverError\nfrom ai_platform.portal.execution.host_isolation import (\n    LinuxNftablesBtrfsIsolationAttestor,\n    MappingMarketDataEgressPolicyProvider,\n)\n\n\nclass _Runner:\n    def __init__(self, *results: CommandResult) -> None:\n        self.results = list(results)\n        self.calls: list[tuple[str, ...]] = []\n\n    def run(self, args: Sequence[str]) -> CommandResult:\n        self.calls.append(tuple(args))\n        if not self.results:\n            raise AssertionError(f"unexpected command: {tuple(args)!r}")\n        return self.results.pop(0)\n\n\ndef _backend(runner: _Runner, tmp_path: Path) -> LinuxNftablesBtrfsIsolationAttestor:\n    return LinuxNftablesBtrfsIsolationAttestor(\n        runner,\n        policy_provider=MappingMarketDataEgressPolicyProvider({}),\n        state_root=tmp_path / "state",\n        btrfs_mount=tmp_path,\n    )\n\n\ndef test_cleanup_retains_firewall_when_docker_network_removal_fails(tmp_path: Path) -> None:\n    runner = _Runner(CommandResult(1, stderr="network has active endpoints"))\n\n    with pytest.raises(RuntimeDriverError) as exc_info:\n        _backend(runner, tmp_path).cleanup_network("portal-net-1", "runtime-1")\n\n    assert exc_info.value.reason_code == "HOST_NETWORK_CLEANUP_FAILED"\n    assert "retaining nftables policy" in str(exc_info.value)\n    assert runner.calls == [("docker", "network", "rm", "portal-net-1")]\n\n\ndef test_cleanup_removes_firewall_only_after_network_teardown(tmp_path: Path) -> None:\n    runner = _Runner(CommandResult(0), CommandResult(0))\n\n    _backend(runner, tmp_path).cleanup_network("portal-net-1", "runtime-1")\n\n    assert runner.calls[0] == ("docker", "network", "rm", "portal-net-1")\n    assert runner.calls[1][:4] == ("nft", "delete", "table", "inet")\n\n\ndef test_cleanup_reports_nft_failure_after_network_is_absent(tmp_path: Path) -> None:\n    runner = _Runner(CommandResult(0), CommandResult(1, stderr="nft backend unavailable"))\n\n    with pytest.raises(RuntimeDriverError) as exc_info:\n        _backend(runner, tmp_path).cleanup_network("portal-net-1", "runtime-1")\n\n    assert exc_info.value.reason_code == "HOST_NETWORK_CLEANUP_FAILED"\n    assert len(runner.calls) == 2\n\n\ndef test_cleanup_is_idempotent_when_resources_are_already_absent(tmp_path: Path) -> None:\n    runner = _Runner(\n        CommandResult(1, stderr="Error response from daemon: network portal-net-1 not found"),\n        CommandResult(1, stderr="Error: No such file or directory"),\n    )\n\n    _backend(runner, tmp_path).cleanup_network("portal-net-1", "runtime-1")\n\n    assert len(runner.calls) == 2\n''', encoding='utf-8')
+          PY
+          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform \
+            tests/ai_platform/portal/execution/test_driver.py \
+            tests/ai_platform/portal/execution/test_host_isolation_cleanup.py
+          python -m ruff check ai_platform/portal/execution/driver.py ai_platform/portal/execution/host_isolation.py \
+            tests/ai_platform/portal/execution/test_driver.py tests/ai_platform/portal/execution/test_host_isolation_cleanup.py
+          python -m ruff format --check ai_platform/portal/execution/driver.py ai_platform/portal/execution/host_isolation.py \
+            tests/ai_platform/portal/execution/test_driver.py tests/ai_platform/portal/execution/test_host_isolation_cleanup.py
+          python -m mypy ai_platform/portal/execution/driver.py ai_platform/portal/execution/host_isolation.py
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add ai_platform/portal/execution/driver.py ai_platform/portal/execution/host_isolation.py \
+            tests/ai_platform/portal/execution/test_driver.py tests/ai_platform/portal/execution/test_host_isolation_cleanup.py
+          git commit -m 'fix(portal): preserve isolation through teardown and log reattestation'
+          git push origin HEAD:fix/portal-runtime-isolation-1354

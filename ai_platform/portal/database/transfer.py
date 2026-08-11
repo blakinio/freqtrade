@@ -307,6 +307,29 @@ def _source_rows(source_connection: Any, table: Table) -> Any:
     return source_connection.execute(select(*selected_columns)).mappings()
 
 
+def _backfill_public_oidc_v1_target(target_connection: Any) -> None:
+    """Reproduce the canonical runtime-generation migration for historical Bot rows."""
+
+    target_connection.execute(
+        text(
+            """
+            UPDATE portal_bots
+               SET latest_authored_revision_id = (
+                   SELECT revision.revision_id
+                     FROM portal_bot_config_revisions revision
+                    WHERE revision.tenant_id = portal_bots.tenant_id
+                      AND revision.bot_id = portal_bots.bot_id
+                      AND revision.revision = portal_bots.current_revision
+               )
+             WHERE latest_authored_revision_id IS NULL
+            """
+        )
+    )
+    target_connection.execute(
+        text("UPDATE portal_bots SET state_version = 1 WHERE state_version IS NULL")
+    )
+
+
 def transfer_portal_state(source: Engine, target: Engine) -> dict[str, Any]:
     if target.dialect.name != "postgresql":
         raise PortalStateTransferError("Portal state transfer target must be PostgreSQL")
@@ -349,6 +372,8 @@ def transfer_portal_state(source: Engine, target: Engine) -> dict[str, Any]:
                 target_connection.execute(table.insert(), batch)
                 copied += len(batch)
             copied_counts[table.name] = copied
+        if authority == PUBLIC_OIDC_V1_AUTHORITY:
+            _backfill_public_oidc_v1_target(target_connection)
         _reset_postgresql_sequences(target_connection)
         for table in _manifest_tables():
             target_count = int(

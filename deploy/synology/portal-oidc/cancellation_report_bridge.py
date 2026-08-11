@@ -77,6 +77,7 @@ def install(deploy: Any) -> None:
     def write_report(path: Path, report: dict[str, Any]) -> str:
         pending = _pending_cancellation(deploy)
         if pending is not None:
+            report["status"] = "failed"
             report["cancellation"] = _cancellation_metadata(pending)
         return cast(str, original_write_report(path, report))
 

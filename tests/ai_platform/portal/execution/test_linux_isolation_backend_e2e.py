@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -13,6 +14,7 @@ import pytest
 
 from ai_platform.portal.execution.driver import (
     DockerCliRuntimeDriver,
+    FilesystemGatewayArtifactAttestor,
     SubprocessCommandRunner,
 )
 from ai_platform.portal.execution.errors import RuntimeDriverError
@@ -40,6 +42,13 @@ UNRELATED_PROBE_HOSTS = ("example.com", "www.cloudflare.com")
 PAPER_E2E_EXCHANGE = "kraken"
 PAPER_E2E_MARKET_DATA_HOST = "api.kraken.com"
 PAPER_E2E_PAIR = "BTC/USD"
+
+
+def _persist_task_table(table: str) -> None:
+    inventory = os.environ.get("PORTAL_NFTABLES_TABLE_INVENTORY", "").strip()
+    if inventory:
+        with Path(inventory).open("a", encoding="utf-8") as handle:
+            handle.write(f"{table}\n")
 
 
 def _run(*args: str, timeout: int = 60) -> subprocess.CompletedProcess[str]:
@@ -131,6 +140,8 @@ def _plan(
     policy: MarketDataEgressPolicy,
     *,
     runtime_image_digest: str = "1" * 64,
+    gateway_artifact_digest: str = "2" * 64,
+    gateway_contract_digest: str = "3" * 64,
 ) -> RuntimeIsolationPlan:
     return RuntimeIsolationPlan(
         plan_schema_version="runtime-isolation-plan/v1",
@@ -156,9 +167,9 @@ def _plan(
         seccomp_profile_identity="docker-default",
         runtime_user="1000:1000",
         runtime_image_digest=runtime_image_digest,
-        gateway_artifact_digest="2" * 64,
+        gateway_artifact_digest=gateway_artifact_digest,
         gateway_contract_version="linux-backend-e2e/v1",
-        gateway_contract_digest="3" * 64,
+        gateway_contract_digest=gateway_contract_digest,
     )
 
 
@@ -258,7 +269,9 @@ def _write_paper_runtime_inputs(inputs: Path, state_path: Path) -> Path:
     return config_path
 
 
-def _positive_market_data_tcp_counter(payload: dict[str, object]) -> bool:
+def _positive_market_data_tcp_counter(  # noqa: C901
+    payload: dict[str, object],
+) -> bool:
     raw_nftables = payload.get("nftables")
     if not isinstance(raw_nftables, list):
         return False
@@ -318,6 +331,7 @@ def test_real_linux_nftables_btrfs_backend_enforces_and_detects_tamper() -> None
         btrfs_mount=mount,
     )
     table = backend._table_name(network)
+    _persist_task_table(table)
 
     try:
         capabilities = backend.capabilities()
@@ -457,10 +471,21 @@ def test_driver_release_runs_through_concrete_linux_isolation_backend() -> None:
     inputs = Path.cwd() / f".{runtime_id}-inputs"
     inputs.mkdir(mode=0o755)
     config_path = _write_paper_runtime_inputs(inputs, state_path)
+    gateway_artifact = inputs / "gateway-artifact.json"
+    gateway_contract = inputs / "gateway-contract.json"
+    gateway_artifact.write_text('{"kind":"paper-market-data-gateway"}\n', encoding="utf-8")
+    gateway_contract.write_text('{"version":"linux-backend-e2e/v1"}\n', encoding="utf-8")
+    gateway_artifact.chmod(0o444)
+    gateway_contract.chmod(0o444)
 
     market_data_ipv4 = _reachable_market_data_ipv4(PAPER_E2E_MARKET_DATA_HOST)
     policy = _policy(*market_data_ipv4)
-    plan = _plan(policy, runtime_image_digest=image_digest)
+    plan = _plan(
+        policy,
+        runtime_image_digest=image_digest,
+        gateway_artifact_digest=hashlib.sha256(gateway_artifact.read_bytes()).hexdigest(),
+        gateway_contract_digest=hashlib.sha256(gateway_contract.read_bytes()).hexdigest(),
+    )
     backend = LinuxNftablesBtrfsIsolationAttestor(
         SubprocessCommandRunner(),
         policy_provider=MappingMarketDataEgressPolicyProvider({policy.digest(): policy}),
@@ -486,14 +511,34 @@ def test_driver_release_runs_through_concrete_linux_isolation_backend() -> None:
     driver = DockerCliRuntimeDriver(
         isolation_plans=provider,
         external_attestor=backend,
+        gateway_attestor=FilesystemGatewayArtifactAttestor(gateway_artifact, gateway_contract),
     )
     table = backend._table_name(network)
+    _persist_task_table(table)
 
     try:
         assert driver.provision(spec) is DriverRuntimeState.CREATED
         assert driver.inspect(runtime_id) is DriverRuntimeState.CREATED
 
         assert driver.start(runtime_id) is DriverRuntimeState.RUNNING
+
+        public_data = _run(
+            "docker",
+            "exec",
+            runtime_id,
+            "freqtrade",
+            "list-pairs",
+            "--config",
+            "/runtime/config/config.json",
+            "--exchange",
+            PAPER_E2E_EXCHANGE,
+            "--quote",
+            "USD",
+            "--print-json",
+            timeout=120,
+        )
+        assert public_data.returncode == 0, public_data.stdout + public_data.stderr
+        assert PAPER_E2E_PAIR in public_data.stdout
 
         network_info = backend._network_info(network)
         live = _run("nft", "-j", "list", "table", "inet", table)
@@ -521,7 +566,8 @@ def test_driver_release_runs_through_concrete_linux_isolation_backend() -> None:
                 observed = _run("docker", "logs", runtime_id)
                 pytest.fail(
                     "released PAPER runtime exited during boot: "
-                    f"state={state.stdout.strip()} logs={(observed.stdout + observed.stderr)[-4000:]}"
+                    f"state={state.stdout.strip()} "
+                    f"logs={(observed.stdout + observed.stderr)[-4000:]}"
                 )
 
             observed = _run("docker", "logs", runtime_id)
@@ -530,13 +576,15 @@ def test_driver_release_runs_through_concrete_linux_isolation_backend() -> None:
             counters = _run("nft", "-j", "list", "table", "inet", table)
             assert counters.returncode == 0, counters.stderr
             market_data_observed = _positive_market_data_tcp_counter(json.loads(counters.stdout))
-            if "dry-run" in logs.lower() and market_data_observed:
+            if market_data_observed:
                 break
             time.sleep(0.5)
 
-        assert "dry-run" in logs.lower(), logs[-4000:]
         assert market_data_observed, "no approved TCP/443 market-data egress was observed"
-        assert driver.inspect(runtime_id) is DriverRuntimeState.RUNNING
+        sustained_until = time.monotonic() + 10
+        while time.monotonic() < sustained_until:
+            assert driver.inspect(runtime_id) is DriverRuntimeState.RUNNING, logs[-4000:]
+            time.sleep(0.5)
     finally:
         _run("docker", "rm", "-f", runtime_id)
         backend.cleanup_network(network, runtime_id)

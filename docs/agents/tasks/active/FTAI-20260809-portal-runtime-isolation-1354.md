@@ -79,3 +79,60 @@ closeout:
 5. verify zero unresolved material review threads;
 6. squash-merge PR `#1464` only after all closeout gates are proven on the exact final head;
 7. perform terminal lifecycle/archive reconciliation only after the merge is verified.
+
+## Context checkpoint
+
+```yaml
+checkpoint_version: 1
+updated_at: 2026-08-11T00:00:00Z
+head: 9caa4fca43b508f795908e566311000b8ba94148
+branch: fix/portal-runtime-isolation-1354
+pr: 1464
+status: validating
+context_routes:
+  - issue #1354
+  - pull request #1464
+  - docs/ai_platform/portal/RUNTIME_ISOLATION_AND_SUPERVISOR_CONTRACT.md
+owned_paths:
+  - ai_platform/portal/execution/driver.py
+  - tests/ai_platform/portal/execution/test_driver.py
+  - tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py
+  - .github/workflows/portal-runtime-isolation-e2e.yml
+  - docs/agents/tasks/active/FTAI-20260809-portal-runtime-isolation-1354.md
+proven:
+  - paused runtimes cannot use docker unpause and exact in-session generations have a fresh reprovision path
+  - release requires independently re-hashed read-only Gateway artifact and versioned contract evidence
+  - integrated Linux E2E invokes driver.start, runs a successful Freqtrade list-pairs public-data operation and checks sustained running
+  - exact nftables table identifiers are persisted before network creation for unconditional cleanup
+  - FTAI-ARCH-RUNTIME-ISOLATION remains open in ARCHITECTURE_REGISTRY.yaml
+  - focused execution suite passed with 137 tests and 5 privileged-environment skips
+derived:
+  - the candidate requires a fresh independent exact-head audit and privileged Linux E2E/CI before closeout
+unknown:
+  - exact-head GitHub CI and privileged Linux E2E result
+  - unresolved review-thread state after publication
+conflicts: []
+first_failure:
+  marker: privileged_linux_e2e_not_available_locally
+  evidence: five environment-gated tests skipped because this checkout lacks the dedicated privileged Btrfs/nftables runner fixture
+rejected_hypotheses:
+  - isolation-plan Gateway digest labels alone are sufficient artifact evidence
+changed_paths:
+  - ai_platform/portal/execution/driver.py
+  - tests/ai_platform/portal/execution/test_driver.py
+  - tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py
+  - .github/workflows/portal-runtime-isolation-e2e.yml
+  - docs/agents/tasks/active/FTAI-20260809-portal-runtime-isolation-1354.md
+validation:
+  - command: python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform tests/ai_platform/portal/execution
+    result: PASS
+    evidence: 137 passed and 5 privileged-environment tests skipped
+  - command: python -m mypy ai_platform/portal/execution/driver.py
+    result: PASS
+    evidence: no issues found
+  - command: python -m ruff check changed Python paths
+    result: PASS
+    evidence: all checks passed
+blockers: []
+next_action: Publish the committed repair as a follow-up PR, then obtain a fresh independent audit and privileged Linux E2E on the exact unchanged head without merging.
+```

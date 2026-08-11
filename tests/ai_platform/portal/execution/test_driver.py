@@ -59,6 +59,10 @@ class _Attestor:
         self.activated_networks: list[str] = []
         self.cleaned: list[str] = []
         self.fail_activation = fail_activation
+        self.gateway_attestations: list[tuple[str, str, str]] = []
+
+    def attest(self, artifact_digest: str, contract_version: str, contract_digest: str) -> None:
+        self.gateway_attestations.append((artifact_digest, contract_version, contract_digest))
 
     def capabilities(self) -> ExternalIsolationCapabilities:
         return ExternalIsolationCapabilities(
@@ -313,6 +317,7 @@ def test_provision_builds_quarantined_hardened_container(tmp_path: Path) -> None
         runner,
         isolation_plans=_provider(plan),
         external_attestor=attestor,
+        gateway_attestor=attestor,
     )
 
     assert driver.provision(spec) is DriverRuntimeState.CREATED
@@ -359,6 +364,7 @@ def test_release_repeats_attestation_then_activates_egress_before_gate(tmp_path:
         runner,
         isolation_plans=_provider(plan),
         external_attestor=attestor,
+        gateway_attestor=attestor,
     )
     driver.provision(spec)
     initial_attest_count = len(attestor.attested_networks)
@@ -396,6 +402,7 @@ def test_release_fails_closed_if_structure_changes_after_initial_attestation(
         runner,
         isolation_plans=_provider(plan),
         external_attestor=attestor,
+        gateway_attestor=attestor,
     )
     driver.provision(spec)
     tampered = _inspect(spec, plan)
@@ -429,6 +436,7 @@ def test_release_activation_failure_removes_runtime_before_application_gate(tmp_
         runner,
         isolation_plans=_provider(plan),
         external_attestor=attestor,
+        gateway_attestor=attestor,
     )
     driver.provision(spec)
     runner.results.extend(
@@ -486,6 +494,7 @@ def test_missing_image_cleans_prepared_generation_network(tmp_path: Path) -> Non
         runner,
         isolation_plans=_provider(plan),
         external_attestor=attestor,
+        gateway_attestor=attestor,
     )
 
     with pytest.raises(RuntimeDriverError) as exc_info:
@@ -512,6 +521,7 @@ def test_structural_failure_removes_quarantined_container(tmp_path: Path) -> Non
         runner,
         isolation_plans=_provider(plan),
         external_attestor=attestor,
+        gateway_attestor=attestor,
     )
 
     with pytest.raises(RuntimeDriverError) as exc_info:
@@ -551,6 +561,7 @@ def test_structural_attestation_rejects_tampered_bootstrap_identity_or_dns(
         runner,
         isolation_plans=_provider(plan),
         external_attestor=attestor,
+        gateway_attestor=attestor,
     )
 
     with pytest.raises(RuntimeDriverError) as exc_info:
@@ -617,6 +628,52 @@ def test_paused_released_runtime_requires_reprovision_before_resume() -> None:
 
     assert exc_info.value.reason_code == "APPLICATION_RELEASE_FORBIDDEN"
     assert ("docker", "unpause", "runtime-1") not in runner.calls
+
+
+def test_paused_trusted_generation_is_freshly_reprovisioned(tmp_path: Path) -> None:
+    plan = _plan()
+    spec = _spec(tmp_path)
+    runner = _Runner(
+        CommandResult(0, stdout="paused\n"),
+        CommandResult(0),
+        *_provision_results(spec, plan)[1:],
+    )
+    attestor = _Attestor()
+    driver = DockerCliRuntimeDriver(
+        runner,
+        isolation_plans=_provider(plan),
+        external_attestor=attestor,
+        gateway_attestor=attestor,
+    )
+    driver._attested.add(spec.runtime_id)
+    driver._released.add(spec.runtime_id)
+    driver._fingerprints[spec.runtime_id] = driver._fingerprint(spec, plan.digest())
+    driver._networks[spec.runtime_id] = _network()
+    driver._specs[spec.runtime_id] = spec
+    driver._plan_digests[spec.runtime_id] = plan.digest()
+
+    assert driver.provision(spec) is DriverRuntimeState.CREATED
+    assert ("docker", "rm", "-f", spec.runtime_id) in runner.calls
+    assert ("docker", "unpause", spec.runtime_id) not in runner.calls
+    assert spec.runtime_id not in driver._released
+    assert attestor.cleaned == [_network()]
+
+
+def test_gateway_plan_fields_are_not_artifact_evidence(tmp_path: Path) -> None:
+    plan = _plan()
+    runner = _Runner()
+    attestor = _Attestor()
+    driver = DockerCliRuntimeDriver(
+        runner,
+        isolation_plans=_provider(plan),
+        external_attestor=attestor,
+    )
+
+    with pytest.raises(RuntimeDriverError) as exc_info:
+        driver.provision(_spec(tmp_path))
+
+    assert exc_info.value.reason_code == "GATEWAY_ARTIFACT_NOT_PRESENT"
+    assert runner.calls == []
 
 
 def test_pause_stop_and_unknown_state_are_fail_closed_or_idempotent() -> None:

@@ -92,6 +92,83 @@ class ExternalIsolationAttestor(Protocol):
     def cleanup_network(self, network_name: str, runtime_id: str) -> None: ...
 
 
+class GatewayArtifactAttestor(Protocol):
+    """Independent evidence boundary for generation-bound Gateway material."""
+
+    def attest(
+        self,
+        artifact_digest: str,
+        contract_version: str,
+        contract_digest: str,
+    ) -> None: ...
+
+
+class MissingGatewayArtifactAttestor:
+    def attest(
+        self,
+        artifact_digest: str,
+        contract_version: str,
+        contract_digest: str,
+    ) -> None:
+        del artifact_digest, contract_version, contract_digest
+        raise RuntimeDriverError(
+            "GATEWAY_ARTIFACT_NOT_PRESENT",
+            "no concrete trusted Gateway artifact and contract evidence is configured",
+        )
+
+
+class FilesystemGatewayArtifactAttestor:
+    """Hash concrete, read-only Gateway artifact and contract files on every gate."""
+
+    def __init__(self, artifact_path: Path, contract_path: Path) -> None:
+        self._artifact_path = artifact_path
+        self._contract_path = contract_path
+
+    def attest(
+        self,
+        artifact_digest: str,
+        contract_version: str,
+        contract_digest: str,
+    ) -> None:
+        artifact = self._read_bound_file(self._artifact_path, "artifact")
+        contract = self._read_bound_file(self._contract_path, "contract")
+        try:
+            contract_payload = json.loads(contract)
+        except json.JSONDecodeError as exc:
+            raise RuntimeDriverError(
+                "GATEWAY_ARTIFACT_ATTESTATION_FAILED",
+                "Gateway contract evidence is invalid JSON",
+            ) from exc
+        if (
+            not isinstance(contract_payload, dict)
+            or contract_payload.get("version") != contract_version
+        ):
+            raise RuntimeDriverError(
+                "GATEWAY_ARTIFACT_ATTESTATION_FAILED",
+                "Gateway contract version does not match the generation binding",
+            )
+        if (
+            hashlib.sha256(artifact).hexdigest() != artifact_digest
+            or hashlib.sha256(contract).hexdigest() != contract_digest
+        ):
+            raise RuntimeDriverError(
+                "GATEWAY_ARTIFACT_ATTESTATION_FAILED",
+                "Gateway artifact or contract digest does not match the generation binding",
+            )
+
+    @staticmethod
+    def _read_bound_file(path: Path, kind: str) -> bytes:
+        try:
+            if not path.is_file() or path.is_symlink() or path.stat().st_mode & 0o222:
+                raise OSError("evidence must be a read-only regular file")
+            return path.read_bytes()
+        except OSError as exc:
+            raise RuntimeDriverError(
+                "GATEWAY_ARTIFACT_NOT_PRESENT",
+                f"concrete Gateway {kind} evidence is unavailable",
+            ) from exc
+
+
 class FailClosedExternalIsolationAttestor:
     def capabilities(self) -> ExternalIsolationCapabilities:
         return ExternalIsolationCapabilities()
@@ -322,10 +399,12 @@ class DockerCliRuntimeDriver:
         *,
         isolation_plans: RuntimeIsolationPlanProvider | None = None,
         external_attestor: ExternalIsolationAttestor | None = None,
+        gateway_attestor: GatewayArtifactAttestor | None = None,
     ) -> None:
         self._runner = runner or SubprocessCommandRunner()
         self._plans = isolation_plans or MissingRuntimeIsolationPlanProvider()
         self._external = external_attestor or FailClosedExternalIsolationAttestor()
+        self._gateway = gateway_attestor or MissingGatewayArtifactAttestor()
         self._attested: set[str] = set()
         self._released: set[str] = set()
         self._fingerprints: dict[str, str] = {}
@@ -339,6 +418,7 @@ class DockerCliRuntimeDriver:
         self._require_plan_matches_spec(plan, spec)
         self._dns_resolvers(plan)
         self._log_probe_bytes(plan)
+        self._attest_gateway(plan)
         fingerprint = self._fingerprint(spec, binding.isolation_plan_digest)
         current = self.inspect(spec.runtime_id)
         if current is not DriverRuntimeState.MISSING:
@@ -347,7 +427,18 @@ class DockerCliRuntimeDriver:
                     "GENERATION_SPEC_CONFLICT",
                     "existing runtime does not match the trusted generation spec",
                 )
-            return current
+            if current is not DriverRuntimeState.PAUSED:
+                return current
+            if (
+                self._specs.get(spec.runtime_id) != spec
+                or self._plan_digests.get(spec.runtime_id) != binding.isolation_plan_digest
+                or self._networks.get(spec.runtime_id) != self._network_name(spec.runtime_id)
+            ):
+                raise RuntimeDriverError(
+                    "GENERATION_SPEC_CONFLICT",
+                    "paused runtime lacks exact trusted in-session generation evidence",
+                )
+            self._cleanup_failed_runtime(spec.runtime_id, self._network_name(spec.runtime_id))
 
         network = self._network_name(spec.runtime_id)
         self._external.prepare_storage(plan, spec.state_path)
@@ -484,9 +575,17 @@ class DockerCliRuntimeDriver:
             self._release_forbidden("trusted generation spec changed after provisioning")
         plan = binding.plan
         self._require_plan_matches_spec(plan, spec)
+        self._attest_gateway(plan)
         self._attest_structural(spec, plan, network)
         self._attest_effective(spec, plan, network)
         self._external.activate_network(plan, network, runtime_id)
+
+    def _attest_gateway(self, plan: RuntimeIsolationPlan) -> None:
+        self._gateway.attest(
+            plan.gateway_artifact_digest,
+            plan.gateway_contract_version,
+            plan.gateway_contract_digest,
+        )
 
     def _create_args(
         self,

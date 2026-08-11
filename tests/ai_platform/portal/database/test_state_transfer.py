@@ -1,21 +1,33 @@
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 
 import pytest
 from sqlalchemy import text
 
 from ai_platform.portal.control_plane.database import build_engine
-from ai_platform.portal.database.schema import OIDC_LOGOUT_REPLAY_TABLE_NAME, migrate_database
+from ai_platform.portal.database.schema import (
+    OIDC_LOGOUT_REPLAY_TABLE_NAME,
+    _expected_snapshot,
+    migrate_database,
+    schema_status,
+)
 from ai_platform.portal.database.transfer import (
     PUBLIC_OIDC_V1_AUTHORITY,
+    PUBLIC_OIDC_V1_CHANGED_TABLES,
+    PUBLIC_OIDC_V1_MISSING_BOT_COLUMNS,
+    PUBLIC_OIDC_V1_MISSING_TABLES,
     PUBLIC_OIDC_V1_SUPPORTED_TARGET_REVISION,
     PUBLIC_OIDC_V1_UNVERSIONED_TABLES,
     PortalStateTransferError,
     _assert_transfer_target_revision,
     _manifest_tables,
+    _matches_public_oidc_v1,
     _missing_table_is_transferable,
+    _public_oidc_v1_actual_from_current_expected,
     _source_authority,
+    _source_rows,
     transfer_portal_state,
 )
 
@@ -29,6 +41,22 @@ def _create_manifest_subset(engine, table_names: frozenset[str]) -> None:
         for table in _manifest_tables():
             if table.name in table_names:
                 table.create(connection, checkfirst=False)
+
+
+def _synthetic_public_oidc_v1_status(engine) -> dict:
+    status = copy.deepcopy(schema_status(engine))
+    expected = _expected_snapshot(engine)
+    status["differences"]["changed_tables"] = {
+        table_name: {
+            "expected": expected[table_name],
+            "actual": _public_oidc_v1_actual_from_current_expected(
+                table_name,
+                expected[table_name],
+            ),
+        }
+        for table_name in PUBLIC_OIDC_V1_CHANGED_TABLES
+    }
+    return status
 
 
 def test_versioned_current_sqlite_is_accepted_as_transfer_source(tmp_path: Path) -> None:
@@ -68,70 +96,97 @@ def test_structurally_current_unversioned_sqlite_is_accepted_for_recovery(
         engine.dispose()
 
 
-def test_deployed_public_oidc_v1_unversioned_sqlite_is_exactly_recognized(
-    tmp_path: Path,
-) -> None:
-    engine = _sqlite_engine(tmp_path, "public-oidc-v1.db")
+def test_deployed_public_oidc_v1_delta_is_exactly_frozen(tmp_path: Path) -> None:
+    engine = _sqlite_engine(tmp_path, "public-oidc-v1-shape.db")
     try:
         _create_manifest_subset(engine, PUBLIC_OIDC_V1_UNVERSIONED_TABLES)
+        status = _synthetic_public_oidc_v1_status(engine)
 
-        authority, status, source_tables = _source_authority(engine)
-
-        assert authority == PUBLIC_OIDC_V1_AUTHORITY
-        assert source_tables == PUBLIC_OIDC_V1_UNVERSIONED_TABLES
-        assert status["status"] == "not_ready"
-        assert status["applied_revisions"] == []
+        assert frozenset(status["differences"]["missing_tables"]) == PUBLIC_OIDC_V1_MISSING_TABLES
         assert status["differences"]["unexpected_tables"] == []
-        assert status["differences"]["changed_tables"] == {}
-        assert status["differences"]["missing_tables"]
+        assert frozenset(status["differences"]["changed_tables"]) == PUBLIC_OIDC_V1_CHANGED_TABLES
+        assert _matches_public_oidc_v1(status, PUBLIC_OIDC_V1_UNVERSIONED_TABLES)
         assert all(
             _missing_table_is_transferable(PUBLIC_OIDC_V1_AUTHORITY, table_name)
-            for table_name in status["differences"]["missing_tables"]
+            for table_name in PUBLIC_OIDC_V1_MISSING_TABLES
         )
     finally:
         engine.dispose()
 
 
-def test_deployed_public_oidc_v1_profile_rejects_missing_historical_table(
-    tmp_path: Path,
-) -> None:
-    engine = _sqlite_engine(tmp_path, "public-oidc-v1-missing.db")
+def test_deployed_public_oidc_v1_delta_rejects_extra_structural_change(tmp_path: Path) -> None:
+    engine = _sqlite_engine(tmp_path, "public-oidc-v1-extra-change.db")
     try:
-        profile = PUBLIC_OIDC_V1_UNVERSIONED_TABLES - {"portal_identity_sessions"}
-        _create_manifest_subset(engine, frozenset(profile))
+        _create_manifest_subset(engine, PUBLIC_OIDC_V1_UNVERSIONED_TABLES)
+        status = _synthetic_public_oidc_v1_status(engine)
+        changed = status["differences"]["changed_tables"]["portal_identity_sessions"]
+        changed["actual"]["indexes"] = []
 
-        with pytest.raises(PortalStateTransferError, match="divergent"):
-            _source_authority(engine)
+        assert not _matches_public_oidc_v1(status, PUBLIC_OIDC_V1_UNVERSIONED_TABLES)
     finally:
         engine.dispose()
 
 
-def test_deployed_public_oidc_v1_profile_rejects_unexpected_portal_table(
-    tmp_path: Path,
-) -> None:
-    engine = _sqlite_engine(tmp_path, "public-oidc-v1-unexpected.db")
+def test_deployed_public_oidc_v1_delta_rejects_table_set_changes(tmp_path: Path) -> None:
+    engine = _sqlite_engine(tmp_path, "public-oidc-v1-table-set.db")
     try:
         _create_manifest_subset(engine, PUBLIC_OIDC_V1_UNVERSIONED_TABLES)
-        with engine.begin() as connection:
-            connection.execute(text("CREATE TABLE portal_unknown_legacy_table (id INTEGER PRIMARY KEY)"))
+        status = _synthetic_public_oidc_v1_status(engine)
 
-        with pytest.raises(PortalStateTransferError, match="divergent"):
-            _source_authority(engine)
+        assert not _matches_public_oidc_v1(
+            status,
+            PUBLIC_OIDC_V1_UNVERSIONED_TABLES - {"portal_identity_sessions"},
+        )
+        status["differences"]["missing_tables"].append("portal_future_table")
+        assert not _matches_public_oidc_v1(status, PUBLIC_OIDC_V1_UNVERSIONED_TABLES)
     finally:
         engine.dispose()
 
 
-def test_deployed_public_oidc_v1_profile_rejects_changed_existing_table(
+def test_public_oidc_v1_source_projection_omits_later_nullable_bot_columns(
     tmp_path: Path,
 ) -> None:
-    engine = _sqlite_engine(tmp_path, "public-oidc-v1-changed.db")
+    engine = _sqlite_engine(tmp_path, "public-oidc-v1-projection.db")
+    bot_table = next(table for table in _manifest_tables() if table.name == "portal_bots")
     try:
-        _create_manifest_subset(engine, PUBLIC_OIDC_V1_UNVERSIONED_TABLES)
         with engine.begin() as connection:
-            connection.execute(text("ALTER TABLE portal_bots ADD COLUMN unexpected_legacy_column TEXT"))
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE portal_bots (
+                        tenant_id VARCHAR(255) NOT NULL,
+                        bot_id VARCHAR(255) NOT NULL,
+                        name VARCHAR(255) NOT NULL,
+                        spec_json TEXT NOT NULL,
+                        desired_state VARCHAR(32) NOT NULL,
+                        observed_state VARCHAR(32) NOT NULL,
+                        current_revision INTEGER NOT NULL,
+                        PRIMARY KEY (tenant_id, bot_id)
+                    )
+                    """
+                )
+            )
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO portal_bots (
+                        tenant_id, bot_id, name, spec_json,
+                        desired_state, observed_state, current_revision
+                    ) VALUES (
+                        'tenant-test', 'bot-test', 'Bot', '{}',
+                        'stopped', 'stopped', 1
+                    )
+                    """
+                )
+            )
 
-        with pytest.raises(PortalStateTransferError, match="divergent"):
-            _source_authority(engine)
+        with engine.connect() as connection:
+            rows = [dict(row) for row in _source_rows(connection, bot_table)]
+
+        assert len(rows) == 1
+        assert PUBLIC_OIDC_V1_MISSING_BOT_COLUMNS.isdisjoint(rows[0])
+        assert rows[0]["tenant_id"] == "tenant-test"
+        assert rows[0]["current_revision"] == 1
     finally:
         engine.dispose()
 

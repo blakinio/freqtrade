@@ -20,28 +20,22 @@ paper_gate: G0
 paper_work_item: 7
 live_capital_authorized: false
 protected_production_deployment_authorized: false
-repair_cycles_for_current_gate: 2
+repair_cycles_for_current_gate: 3
+repair_budget_exhausted: true
 ```
 
 ## Objective
 
 Close PAPER G0 work item 7 without implementing later-gate product functionality: every canonical left-navigation surface whose living exact-head completeness ledger classifies overall as `DISCONNECTED` or `MISSING` must be explicitly presented as unavailable in the Portal shell and on direct navigation. The web projection must be CI-checked against the canonical ledger so status cannot drift silently.
 
-## Proven residual
-
-- `tools/portal_audit/ledger/navigation.json` is the living exact-head implementation-status authority for navigation completeness and currently contains 16 surfaces with overall `DISCONNECTED` or `MISSING`.
-- Some pages already fail closed visibly, for example Strategy Catalog renders `Strategy Catalog unavailable` when its missing backend producer fails.
-- Other disconnected surfaces can look like normal empty product state. Example: `/ai` renders `No insights yet` and normal-flow copy even though its overall ledger status is `DISCONNECTED` because trusted intelligence/learning producers and model lifecycle workflows are not composed.
-- Before this task, `AppShell` rendered all canonical navigation items identically and had no completeness/availability projection.
-
 ## Implementation
 
-- `ai_platform/portal/web/lib/product-surface-availability.json` projects exactly the living-ledger rows whose overall status is `DISCONNECTED` or `MISSING`, preserving route, label, status, linked issues/boundary and canonical reason.
-- `SurfaceAvailabilityNotice` uses the current pathname to show a visible shell-level warning on direct navigation without suppressing useful bounded read-only evidence that a page may still provide.
-- `AppShell` adds a visible `Unavailable` marker to projected navigation routes while keeping the existing accessible link name stable; projected links also receive an `aria-describedby` relationship to a hidden `Capability unavailable` description so assistive technology receives the status before navigation.
-- `navigation_matrix.py` validates the committed web projection exactly against the living ledger, so a ledger/status/reason/blocker change cannot silently drift from Portal presentation.
-- `tests/ci/test_portal_surface_availability.py` independently reconstructs the projection from raw ledger rows and verifies the shell/notice/accessibility contract.
-- `ai_platform/portal/web/e2e/specs/surface-availability.spec.ts` is inside the configured Playwright `testDir`, tagged `@critical` and `@regression`, and proves `/ai` receives navigation/direct-route warnings plus an accessible unavailable description while `/market/liquidations` does not.
+- `ai_platform/portal/web/lib/product-surface-availability.json` projects exactly the living-ledger `DISCONNECTED`/`MISSING` rows, preserving route, label, status, linked issues/boundary and canonical reason.
+- `SurfaceAvailabilityNotice` shows a visible shell-level warning on projected direct routes without suppressing useful bounded read-only evidence.
+- `AppShell` shows `Unavailable` while preserving the established accessible link name; projected links expose `Capability unavailable` through `aria-describedby`.
+- `navigation_matrix.py` exact-compares the committed web projection with the living ledger so status/reason/blocker drift fails closed.
+- `tests/ci/test_portal_surface_availability.py` independently reconstructs the projection and verifies shell/notice/accessibility contracts.
+- `ai_platform/portal/web/e2e/specs/surface-availability.spec.ts` is inside configured Playwright `testDir`, tagged `@critical` and `@regression`, and proves projected `/ai` versus non-projected `/market/liquidations` behavior.
 
 ## Scope
 
@@ -55,88 +49,87 @@ Owned paths:
 - `ai_platform/portal/web/e2e/specs/surface-availability.spec.ts`
 - `docs/agents/tasks/active/FTAI-20260811-paper-g0-surface-availability.md`
 
-Forbidden scope:
-
-- implementation of any linked disconnected feature;
-- changes to `tools/portal_audit/ledger/*` classifications merely to make this task pass;
-- runtime isolation/Supervisor/Gateway paths owned by #1464/#1354 or future #1355 work;
-- WickHunter/Liquid20 paths owned by #1450/#1396;
-- credentials, protected deployment, real exchange execution, LIVE or live capital.
+Forbidden scope remains downstream capability implementation, ledger-status weakening, #1396/#1450 WickHunter/Liquid20 paths, #1354/#1464 runtime-isolation paths, credentials, protected deployment, real execution, LIVE or live capital.
 
 ## Acceptance
 
-- one committed web projection contains exactly the ledger surfaces whose overall status is `DISCONNECTED` or `MISSING`;
-- the projection carries route, label, status, linked blocker/boundary and ledger reason;
-- canonical navigation visibly labels those routes `Unavailable` without pretending their useful read-only evidence is complete;
-- assistive technology receives `Capability unavailable` as an accessible description while established accessible link names remain stable;
-- direct navigation renders a visible warning that the capability is not connected end to end in the canonical product runtime;
-- routes not classified `DISCONNECTED`/`MISSING` do not receive that warning or accessible unavailable description;
-- `navigation_matrix.py` and a focused CI test reject projection drift from the living ledger;
-- the browser proof is inside the configured Playwright `testDir` and selected by ordinary PR `@critical` routing;
-- no product capability, execution authority or LIVE path is added;
-- exact-head CI, fresh independent audit and zero material review threads pass before merge.
+- web projection equals exactly the living-ledger `DISCONNECTED`/`MISSING` set;
+- navigation and direct routes expose truthful unavailable state;
+- assistive technology receives the unavailable status while established link names remain stable;
+- non-projected routes receive neither warning nor unavailable accessible description;
+- ledger projection drift fails CI;
+- focused Playwright proof is discovered and selected by ordinary PR critical routing;
+- no product capability or execution/LIVE authority is added;
+- final exact-head CI, fresh independent audit and review hygiene pass before merge;
+- task remains active until delivery merge is real.
 
 ## Coordination
 
-- PR #1452 / PAPER G0 work item 6 and lifecycle closeout #1466 are merged. Trusted base is `develop@6577ae896ed5910f82f9e736fe4a007b6dc10e6e`.
-- Branch synchronization overlaid only owned paths on the current develop tree; no stale #1452 active record is reintroduced.
-- #1396/#1450 and #1354/#1464 have separate ownership and are not modified.
+- #1452 and closeout #1466 are merged; trusted base is `develop@6577ae896ed5910f82f9e736fe4a007b6dc10e6e`.
+- branch remains `behind_by: 0` before this final formatting repair and bounded to seven logical owned paths.
+- #1396/#1450 and #1354/#1464 are untouched.
+
+## Repair history
+
+```yaml
+repair_cycle_1:
+  result: INCOMPLETE
+  evidence: added @critical, but the browser spec remained outside configured Playwright testDir
+repair_cycle_2:
+  result: PASS_AT_REVIEW
+  evidence:
+    - moved proof to ai_platform/portal/web/e2e/specs/surface-availability.spec.ts
+    - kept @critical and @regression
+    - added aria-describedby accessible unavailable description
+    - resolved Codex P1/P2 threads
+  audit:
+    reviewed_head: bbbbbf606ca6fcb62d2533190fb7f84959286182
+    comment_id: 5251459936
+    result: PASS
+    note: became stale after repair cycle 3 formatting commit
+repair_cycle_3:
+  result: APPLIED
+  first_failure:
+    workflow: Freqtrade CI
+    run_id: 31478064443
+    job_id: 93736368185
+    hook: ruff-format
+    marker: tests/ci/test_portal_surface_availability.py required one deterministic quote-style reformat
+  remediation:
+    commit: 667ff0d352c46bb67d8478bd130a64a906a5a56b
+    change: applied exactly the ruff-format diff emitted by the failing hook; no semantic product/test behavior changed
+repair_budget_exhausted: true
+```
 
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 4
-updated_at: 2026-08-11T09:34:00Z
-head_before_checkpoint: 6c19962d0b261e1f1d25d652e9ecdfaa0f5651b7
+checkpoint_version: 5
+updated_at: 2026-08-11T09:38:00Z
+head_before_checkpoint: 667ff0d352c46bb67d8478bd130a64a906a5a56b
 branch: feat/paper-g0-surface-availability-20260811
 pr: 1470
 status: validating
 invocation_started_at: 2026-08-11T08:54:00Z
-last_progress_at: 2026-08-11T09:34:00Z
-ci_checks_for_current_head: 0
-unchanged_state_checks: 0
-identical_failure_retries: 0
-repair_cycles_for_current_gate: 2
-stall_warnings: 0
+last_progress_at: 2026-08-11T09:38:00Z
+repair_cycles_for_current_gate: 3
+repair_budget_exhausted: true
 proven:
-  - living navigation ledger is CI-enforced status authority
-  - 16 canonical surfaces are overall DISCONNECTED or MISSING
-  - branch remains bounded to the seven logical owned paths
-  - ordinary PR Portal Web CI executes the @critical subset
-  - playwright.config.ts discovers tests only under ./e2e/specs
-first_failure:
-  marker: initial browser proof was outside configured Playwright testDir and only @regression, so it could remain green without executing
-  evidence: Codex P1 discussion_r3756725179 plus playwright.config.ts testDir and portal-web/package routing
-repair_cycle_1:
-  head: ff5bbdb320c802d47b188ed289ed4ab5801303ab
-  result: INCOMPLETE
-  evidence: added @critical tag, but stale-head Codex proved the file itself remained outside testDir
-repair_cycle_2:
-  result: APPLIED
-  evidence:
-    - moved browser proof to ai_platform/portal/web/e2e/specs/surface-availability.spec.ts
-    - preserved @critical and @regression tags
-    - added aria-describedby accessible status relation while preserving link name
-    - added browser assertion for accessible description and focused static accessibility contract checks
-  addressed_findings:
-    - Codex P1 discussion_r3756725179
-    - Codex P2 discussion_r3756725187
+  - living ledger is the CI-enforced status authority
+  - 16 canonical surfaces are DISCONNECTED or MISSING
+  - final logical diff remains seven owned paths
+  - browser proof is discoverable and critical-routed
+  - accessible unavailable description is present
+  - Codex on semantic repair head bbbbbf606c found no major issues
 unknown:
-  - fresh independent audit disposition for final successor head
-  - exact-head CI/browser result for final successor head
+  - fresh audit disposition for successor exact head containing cycle-3 formatting/checkpoint
+  - exact-head CI/browser result for successor exact head
 conflicts: []
 validation:
-  - command: develop-to-branch compare after synchronization
-    result: PASS
-    evidence: behind_by=0 before repair; no conflicting ownership paths
-  - command: browser discovery/routing audit
-    result: PASS_AFTER_REPAIR_CYCLE_2
-    evidence: spec now resides below configured testDir and carries @critical
-  - command: assistive navigation-status audit
-    result: PASS_AFTER_REPAIR_CYCLE_2
-    evidence: visible marker is paired with aria-describedby -> hidden Capability unavailable description
-  - command: exact-head runtime/browser acceptance
-    result: PENDING
+  - result: PASS
+    evidence: all prior material Codex threads resolved after cycle 2
+  - result: FAIL_THEN_REPAIRED
+    evidence: Freqtrade CI 31478064443 / job 93736368185 failed only because ruff-format changed one quote style; emitted diff applied exactly
 blockers: []
-next_action: Resolve final successor head, update PR metadata, reply/resolve remediated review threads, request fresh Codex audit, and accept only final-head CI/browser evidence.
+next_action: Freeze the successor head. Request one fresh exact-head Codex audit and collect successor-head CI. Because the three-cycle repair budget is exhausted, any new material code/test failure is a terminal blocker requiring owner-authorized fresh isolation; do not perform a fourth repair cycle.
 ```

@@ -10,7 +10,8 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[4]
-MODULE_PATH = ROOT / "deploy" / "synology" / "portal-oidc" / "bounded_schema_lifecycle.py"
+DEPLOYMENT_DIR = ROOT / "deploy" / "synology" / "portal-oidc"
+MODULE_PATH = DEPLOYMENT_DIR / "bounded_schema_lifecycle.py"
 SPEC = importlib.util.spec_from_file_location("portal_oidc_bounded_schema_lifecycle", MODULE_PATH)
 assert SPEC and SPEC.loader
 module = importlib.util.module_from_spec(SPEC)
@@ -224,3 +225,13 @@ def test_cleanup_failure_overrides_success_and_fails_closed(monkeypatch) -> None
 
     with pytest.raises(RuntimeError, match="cleanup failed"):
         deploy._run(_schema_command(), sensitive=True)
+
+
+def test_deployment_entrypoint_installs_bounded_schema_lifecycle_after_build_guard() -> None:
+    source = (DEPLOYMENT_DIR / "deploy_entrypoint.py").read_text(encoding="utf-8")
+
+    assert 'DEPLOYMENT_DIR / "bounded_schema_lifecycle.py"' in source
+    assert "bounded_schema.install(deploy)" in source
+    assert source.index("_install_verified_build_timeout(deploy)") < source.index(
+        "bounded_schema.install(deploy)"
+    )

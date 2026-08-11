@@ -52,10 +52,19 @@ def _policy_digest(payload: dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
+def _is_exclusively_public_ipv4_network(network: ipaddress._BaseNetwork) -> bool:
+    return (
+        network.version == 4
+        and network.is_global
+        and not any(network.overlaps(blocked) for blocked in _NON_PUBLIC_IPV4_NETWORKS)
+    )
+
+
 @dataclass(frozen=True)
 class MarketDataEgressPolicy:
     policy_version: str
     allowed_ipv4_cidrs: tuple[str, ...]
+    dns_resolver_ipv4_addresses: tuple[str, ...]
     allowed_tcp_ports: tuple[int, ...] = (443,)
 
     def __post_init__(self) -> None:
@@ -65,13 +74,23 @@ class MarketDataEgressPolicy:
             raise ValueError("at least one public market-data CIDR is required")
         for cidr in self.allowed_ipv4_cidrs:
             network = ipaddress.ip_network(cidr, strict=True)
-            if (
-                network.version != 4
-                or not network.is_global
-                or any(network.overlaps(blocked) for blocked in _NON_PUBLIC_IPV4_NETWORKS)
-            ):
+            if not _is_exclusively_public_ipv4_network(network):
                 raise ValueError(
                     "market-data CIDRs must be exclusively public globally routable IPv4 networks"
+                )
+        if not self.dns_resolver_ipv4_addresses:
+            raise ValueError("at least one approved public DNS resolver is required")
+        if len(set(self.dns_resolver_ipv4_addresses)) != len(self.dns_resolver_ipv4_addresses):
+            raise ValueError("approved DNS resolvers must be unique")
+        for address in self.dns_resolver_ipv4_addresses:
+            try:
+                resolver = ipaddress.ip_address(address)
+            except ValueError as exc:
+                raise ValueError("approved DNS resolvers must be IPv4 addresses") from exc
+            resolver_network = ipaddress.ip_network(f"{resolver}/32", strict=True)
+            if not _is_exclusively_public_ipv4_network(resolver_network):
+                raise ValueError(
+                    "approved DNS resolvers must be public globally routable IPv4 addresses"
                 )
         if not self.allowed_tcp_ports:
             raise ValueError("at least one market-data TCP port is required")
@@ -79,7 +98,7 @@ class MarketDataEgressPolicy:
             raise ValueError("market-data TCP ports must be in the range 1..65535")
 
     def digest(self) -> str:
-        return _policy_digest({"schema": "market-data-egress-policy/v1", **asdict(self)})
+        return _policy_digest({"schema": "market-data-egress-policy/v2", **asdict(self)})
 
 
 class MarketDataEgressPolicyProvider:
@@ -276,6 +295,44 @@ class LinuxNftablesBtrfsIsolationAttestor:
                         "counter",
                         "accept",
                     )
+            for resolver in policy.dns_resolver_ipv4_addresses:
+                self._nft(
+                    "add",
+                    "rule",
+                    "inet",
+                    table,
+                    "forward",
+                    "iifname",
+                    bridge,
+                    "ip",
+                    "daddr",
+                    resolver,
+                    "udp",
+                    "dport",
+                    "53",
+                    "counter",
+                    "accept",
+                )
+                self._nft(
+                    "add",
+                    "rule",
+                    "inet",
+                    table,
+                    "forward",
+                    "iifname",
+                    bridge,
+                    "ip",
+                    "daddr",
+                    resolver,
+                    "tcp",
+                    "dport",
+                    "53",
+                    "ct",
+                    "state",
+                    "new,established",
+                    "counter",
+                    "accept",
+                )
             self._nft(
                 "add",
                 "rule",
@@ -359,22 +416,21 @@ class LinuxNftablesBtrfsIsolationAttestor:
         self._attest_network_members(network, runtime_id)
         bridge = self._bridge_name(network)
         table = self._table_name(network_name)
-        result = self._runner.run(("nft", "list", "table", "inet", table))
+        result = self._runner.run(("nft", "-j", "list", "table", "inet", table))
         if result.returncode != 0:
             self._raise_command(
                 "HOST_NETWORK_ISOLATION_UNSUPPORTED",
                 result,
                 "nftables generation policy is unavailable",
             )
-        evidence = result.stdout
-        required = [bridge, "hook input", "hook forward", "drop"]
-        required.extend(policy.allowed_ipv4_cidrs)
-        required.extend(str(port) for port in policy.allowed_tcp_ports)
-        if any(marker not in evidence for marker in required):
+        try:
+            payload = json.loads(result.stdout)
+        except json.JSONDecodeError as exc:
             raise RuntimeDriverError(
                 "ISOLATION_ATTESTATION_FAILED",
-                "effective nftables generation policy is incomplete",
-            )
+                "nftables generation policy evidence is invalid JSON",
+            ) from exc
+        self._attest_canonical_nftables(payload, table, bridge, policy)
 
     def cleanup_network(self, network_name: str, runtime_id: str) -> None:
         del runtime_id
@@ -506,6 +562,212 @@ class LinuxNftablesBtrfsIsolationAttestor:
                     "ISOLATION_ATTESTATION_FAILED",
                     "unrelated container is attached to the generation network",
                 )
+
+    def _attest_canonical_nftables(
+        self,
+        payload: object,
+        table: str,
+        bridge: str,
+        policy: MarketDataEgressPolicy,
+    ) -> None:
+        if not isinstance(payload, dict) or not isinstance(payload.get("nftables"), list):
+            raise RuntimeDriverError(
+                "ISOLATION_ATTESTATION_FAILED",
+                "nftables generation policy has an unexpected JSON shape",
+            )
+        chains: dict[str, dict[str, Any]] = {}
+        rules: dict[str, list[tuple[object, ...]]] = {"input": [], "forward": []}
+        table_count = 0
+        for entry in payload["nftables"]:
+            if not isinstance(entry, dict):
+                self._nft_mismatch()
+            if "metainfo" in entry:
+                continue
+            if "table" in entry:
+                table_entry = entry["table"]
+                if (
+                    not isinstance(table_entry, dict)
+                    or table_entry.get("family") != "inet"
+                    or table_entry.get("name") != table
+                ):
+                    self._nft_mismatch()
+                table_count += 1
+                continue
+            if "chain" in entry:
+                chain = entry["chain"]
+                if (
+                    not isinstance(chain, dict)
+                    or chain.get("family") != "inet"
+                    or chain.get("table") != table
+                    or chain.get("name") not in rules
+                ):
+                    self._nft_mismatch()
+                chains[str(chain["name"])] = chain
+                continue
+            if "rule" in entry:
+                rule = entry["rule"]
+                if (
+                    not isinstance(rule, dict)
+                    or rule.get("family") != "inet"
+                    or rule.get("table") != table
+                    or rule.get("chain") not in rules
+                ):
+                    self._nft_mismatch()
+                rules[str(rule["chain"])].append(self._nft_rule_signature(rule))
+                continue
+            self._nft_mismatch()
+        if table_count != 1 or set(chains) != {"input", "forward"}:
+            self._nft_mismatch()
+        self._require_chain(chains["input"], hook="input")
+        self._require_chain(chains["forward"], hook="forward")
+        expected_input, expected_forward = self._expected_nft_rule_signatures(bridge, policy)
+        if rules["input"] != expected_input or rules["forward"] != expected_forward:
+            self._nft_mismatch()
+
+    @staticmethod
+    def _require_chain(chain: dict[str, Any], *, hook: str) -> None:
+        if (
+            chain.get("type") != "filter"
+            or chain.get("hook") != hook
+            or chain.get("prio") != -40
+            or chain.get("policy") != "accept"
+        ):
+            LinuxNftablesBtrfsIsolationAttestor._nft_mismatch()
+
+    @classmethod
+    def _nft_rule_signature(cls, rule: dict[str, Any]) -> tuple[object, ...]:
+        expressions = rule.get("expr")
+        if not isinstance(expressions, list):
+            cls._nft_mismatch()
+        signature: list[object] = []
+        for expression in expressions:
+            if not isinstance(expression, dict):
+                cls._nft_mismatch()
+            if "counter" in expression:
+                continue
+            if "match" in expression:
+                match = expression["match"]
+                if not isinstance(match, dict):
+                    cls._nft_mismatch()
+                signature.append(cls._nft_match_signature(match))
+                continue
+            if set(expression) == {"accept"}:
+                signature.append(("verdict", "accept"))
+                continue
+            if set(expression) == {"drop"}:
+                signature.append(("verdict", "drop"))
+                continue
+            cls._nft_mismatch()
+        return tuple(signature)
+
+    @classmethod
+    def _nft_match_signature(cls, match: dict[str, Any]) -> tuple[object, ...]:
+        left = match.get("left")
+        if not isinstance(left, dict):
+            cls._nft_mismatch()
+        selector: tuple[str, str, str]
+        if isinstance(left.get("meta"), dict):
+            key = left["meta"].get("key")
+            if key not in {"iifname", "oifname"}:
+                cls._nft_mismatch()
+            selector = ("meta", str(key), "")
+        elif isinstance(left.get("payload"), dict):
+            protocol = left["payload"].get("protocol")
+            field = left["payload"].get("field")
+            if (protocol, field) not in {("ip", "daddr"), ("tcp", "dport"), ("udp", "dport")}:
+                cls._nft_mismatch()
+            selector = ("payload", str(protocol), str(field))
+        elif isinstance(left.get("ct"), dict) and left["ct"].get("key") == "state":
+            selector = ("ct", "state", "")
+        else:
+            cls._nft_mismatch()
+        return (*selector, str(match.get("op")), cls._normalize_nft_value(match.get("right")))
+
+    @classmethod
+    def _normalize_nft_value(cls, value: object) -> object:
+        if isinstance(value, dict) and set(value) == {"prefix"}:
+            prefix = value["prefix"]
+            if not isinstance(prefix, dict) or not isinstance(prefix.get("addr"), str):
+                cls._nft_mismatch()
+            try:
+                return str(ipaddress.ip_network(f"{prefix['addr']}/{int(prefix['len'])}", strict=False))
+            except (KeyError, TypeError, ValueError) as exc:
+                raise RuntimeDriverError(
+                    "ISOLATION_ATTESTATION_FAILED",
+                    "nftables prefix evidence is invalid",
+                ) from exc
+        if isinstance(value, dict) and set(value) == {"set"}:
+            members = value["set"]
+            if not isinstance(members, list):
+                cls._nft_mismatch()
+            return tuple(sorted(str(member) for member in members))
+        if isinstance(value, list):
+            return tuple(sorted(str(member) for member in value))
+        return value
+
+    @classmethod
+    def _expected_nft_rule_signatures(
+        cls,
+        bridge: str,
+        policy: MarketDataEgressPolicy,
+    ) -> tuple[list[tuple[object, ...]], list[tuple[object, ...]]]:
+        input_rules = [
+            (
+                ("meta", "iifname", "", "==", bridge),
+                ("verdict", "drop"),
+            )
+        ]
+        forward_rules: list[tuple[object, ...]] = [
+            (
+                ("meta", "iifname", "", "==", bridge),
+                ("meta", "oifname", "", "==", bridge),
+                ("verdict", "accept"),
+            )
+        ]
+        states = ("established", "new")
+        for cidr in policy.allowed_ipv4_cidrs:
+            for port in policy.allowed_tcp_ports:
+                forward_rules.append(
+                    (
+                        ("meta", "iifname", "", "==", bridge),
+                        ("payload", "ip", "daddr", "==", cidr),
+                        ("payload", "tcp", "dport", "==", port),
+                        ("ct", "state", "", "in", states),
+                        ("verdict", "accept"),
+                    )
+                )
+        for resolver in policy.dns_resolver_ipv4_addresses:
+            forward_rules.append(
+                (
+                    ("meta", "iifname", "", "==", bridge),
+                    ("payload", "ip", "daddr", "==", resolver),
+                    ("payload", "udp", "dport", "==", 53),
+                    ("verdict", "accept"),
+                )
+            )
+            forward_rules.append(
+                (
+                    ("meta", "iifname", "", "==", bridge),
+                    ("payload", "ip", "daddr", "==", resolver),
+                    ("payload", "tcp", "dport", "==", 53),
+                    ("ct", "state", "", "in", states),
+                    ("verdict", "accept"),
+                )
+            )
+        forward_rules.append(
+            (
+                ("meta", "iifname", "", "==", bridge),
+                ("verdict", "drop"),
+            )
+        )
+        return input_rules, forward_rules
+
+    @staticmethod
+    def _nft_mismatch() -> None:
+        raise RuntimeDriverError(
+            "ISOLATION_ATTESTATION_FAILED",
+            "effective nftables generation policy does not match the canonical policy",
+        )
 
     @staticmethod
     def _bridge_name(network: dict[str, Any]) -> str:

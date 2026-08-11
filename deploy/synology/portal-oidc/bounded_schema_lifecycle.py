@@ -18,6 +18,7 @@ WAIT_TIMEOUT_SECONDS_BY_WORKLOAD = {
 LOG_TIMEOUT_SECONDS = 90
 REMOVE_TIMEOUT_SECONDS = 120
 QUERY_TIMEOUT_SECONDS = 30
+CLEANUP_ATTEMPTS = 3
 OWNERSHIP_VERIFY_ATTEMPTS = 3
 OWNER_LABEL_KEY = "com.freqtrade.portal.bounded-owner"
 OWNER_LABEL_FORMAT = f'{{{{ index .Config.Labels "{OWNER_LABEL_KEY}" }}}}'
@@ -129,15 +130,26 @@ def _verify_absent(deploy: Any, name: str, *, cwd: Path | None) -> None:
 
 
 def _cleanup_owned(deploy: Any, name: str, *, cwd: Path | None) -> None:
-    try:
-        _run_bounded(
-            ["docker", "rm", "-f", name],
-            cwd=cwd,
-            timeout=REMOVE_TIMEOUT_SECONDS,
-        )
-    except subprocess.TimeoutExpired:
-        pass
-    _verify_absent(deploy, name, cwd=cwd)
+    last_cleanup_error: BaseException | None = None
+    for _attempt in range(CLEANUP_ATTEMPTS):
+        try:
+            _run_bounded(
+                ["docker", "rm", "-f", name],
+                cwd=cwd,
+                timeout=REMOVE_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as exc:
+            last_cleanup_error = exc
+
+        try:
+            _verify_absent(deploy, name, cwd=cwd)
+            return
+        except deploy.DeploymentError as exc:
+            last_cleanup_error = exc
+
+    raise deploy.DeploymentError(
+        "task-owned Docker workload cleanup failed after bounded retries"
+    ) from last_cleanup_error
 
 
 def _cleanup_ambiguous_create(
@@ -147,7 +159,7 @@ def _cleanup_ambiguous_create(
     *,
     cwd: Path | None,
 ) -> None:
-    last_verification_error: Exception | None = None
+    last_verification_error: BaseException | None = None
     for _attempt in range(OWNERSHIP_VERIFY_ATTEMPTS):
         try:
             ownership = _run_bounded(
@@ -205,7 +217,8 @@ def _run_sensitive_workload(
     # resulting exact-name container belongs to this invocation.
     _verify_absent(deploy, name, cwd=cwd)
 
-    primary_error: Exception | None = None
+    primary_error: BaseException | None = None
+    cleanup_error: BaseException | None = None
     logs: subprocess.CompletedProcess[str] | None = None
     process_exit: str | None = None
     create_succeeded = False
@@ -247,23 +260,24 @@ def _run_sensitive_workload(
         )
         if process_exit != "0":
             raise deploy.DeploymentError(f"sensitive Docker workload failed: {label}:process")
-    except Exception as exc:
+    except BaseException as exc:
         primary_error = exc
-
-    cleanup_error: Exception | None = None
-    try:
-        if create_succeeded:
-            _cleanup_owned(deploy, name, cwd=cwd)
-        else:
-            _cleanup_ambiguous_create(deploy, name, owner, cwd=cwd)
-    except Exception as exc:
-        cleanup_error = exc
+    finally:
+        try:
+            if create_succeeded:
+                _cleanup_owned(deploy, name, cwd=cwd)
+            else:
+                _cleanup_ambiguous_create(deploy, name, owner, cwd=cwd)
+        except BaseException as exc:
+            cleanup_error = exc
 
     if cleanup_error is not None:
         if primary_error is not None:
-            raise deploy.DeploymentError(
-                f"sensitive Docker workload and cleanup failed: {label}"
-            ) from cleanup_error
+            if isinstance(primary_error, Exception):
+                raise deploy.DeploymentError(
+                    f"sensitive Docker workload and cleanup failed: {label}"
+                ) from cleanup_error
+            raise primary_error from cleanup_error
         raise cleanup_error
     if primary_error is not None:
         raise primary_error

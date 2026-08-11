@@ -20,8 +20,17 @@
 /requirements*.txt @blakinio
 /docker/ @blakinio
 /docker-compose*.yml @blakinio
+/deploy/synology/ @blakinio
 
-# Security-, identity-, risk- and execution-sensitive platform code.
-/ai_platform/portal/backend/ @blakinio
-/ai_platform/portal/infra/ @blakinio
-/ai_platform/risk/ @blakinio
+# Security-, identity-, risk- and execution-sensitive Portal code.
+/ai_platform/portal/control_plane/ @blakinio
+/ai_platform/portal/execution/ @blakinio
+/ai_platform/portal/identity/ @blakinio
+/ai_platform/portal/security/ @blakinio
+/ai_platform/portal/credentials/ @blakinio
+/ai_platform/portal/database/ @blakinio
+/ai_platform/portal/risk/ @blakinio
+
+# Portal user-facing and contract surfaces.
+/ai_platform/portal/contracts/ @blakinio
+/ai_platform/portal/web/ @blakinio

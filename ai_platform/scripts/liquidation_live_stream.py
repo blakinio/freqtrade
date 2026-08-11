@@ -630,6 +630,8 @@ class LiveRunManager:
                 return
             if state is None or state.get("run_state") != "active":
                 return
+            if state.get("run_id") != run_id:
+                raise RuntimeError("previous live run_id does not match active pointer")
             sources = state.get("sources")
             if not isinstance(sources, dict):
                 raise RuntimeError("previous live source state is invalid")

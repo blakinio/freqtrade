@@ -51,23 +51,25 @@ jobs:
                   raise SystemExit(f'checkpoint replacement target mismatch: {old}')
               text = text.replace(old, new, 1)
 
-          proven = '  - normal and exceptional stop paths close all retained Liquid20 runtime directory descriptors and repeated stop remains safe\n'
-          if proven not in text:
-              marker = 'derived:\n'
-              if text.count(marker) != 1:
-                  raise SystemExit('derived insertion marker mismatch')
-              text = text.replace(marker, proven + marker, 1)
+          old_proven = '  - malformed active source state missing events_written now fails closed before any source truncation; no default zero commit boundary is accepted\n'
+          new_proven = '  - malformed active source state missing events_written now fails closed before any source truncation with no default zero commit boundary; normal and exceptional stop paths close all retained runtime directory descriptors and repeated stop remains safe\n'
+          if text.count(old_proven) != 1:
+              raise SystemExit('proven compaction target mismatch')
+          text = text.replace(old_proven, new_proven, 1)
 
-          validation = (
-              '  - command: Retained FD stop lifecycle validation\n'
+          old_validation = (
+              '  - command: Retained FD lifecycle new-run TOCTOU validation\n'
               '    result: PASS\n'
-              '    evidence: GitHub Actions run 31470901848 job 93713775781 passed 27 focused restart and OKX tests plus py_compile Ruff check format and diff hygiene\n'
+              '    evidence: GitHub Actions run 31467075693 passed 25 focused restart and OKX tests plus Ruff check format compile checkpoint and diff hygiene\n'
           )
-          if 'Retained FD stop lifecycle validation' not in text:
-              marker = 'blockers: []\n'
-              if text.count(marker) != 1:
-                  raise SystemExit('validation insertion marker mismatch')
-              text = text.replace(marker, validation + marker, 1)
+          new_validation = (
+              '  - command: Retained FD lifecycle and stop validation\n'
+              '    result: PASS\n'
+              '    evidence: GitHub Actions run 31467075693 passed 25 focused new-run descriptor tests and run 31470901848 job 93713775781 passed 27 focused restart and OKX tests including normal and exceptional stop descriptor closure plus py_compile Ruff check format and diff hygiene\n'
+          )
+          if text.count(old_validation) != 1:
+              raise SystemExit('validation compaction target mismatch')
+          text = text.replace(old_validation, new_validation, 1)
 
           temp_marker = 'The temporary workflow is intentionally absent from the permanent merge diff and cannot serve as final merge evidence.\n'
           temp_evidence = (

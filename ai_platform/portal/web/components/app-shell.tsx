@@ -78,6 +78,10 @@ const unavailableRoutes = new Set(availability.surfaces.map((surface) => surface
 const shellStyle = { minWidth: 0, width: "100%" } as const;
 const navigationStyle = { minWidth: 0, maxWidth: "100%" } as const;
 
+function availabilityDescriptionId(route: string): string {
+  return `nav-availability-${route.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "")}`;
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const environment = portalEnvironment();
   return (
@@ -101,14 +105,25 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="nav-group" key={group.label}>
               <span className="nav-group-title">{group.label}</span>
               <div className="nav-group-links">
-                {group.items.map((item) => (
-                  <Link key={item.href} href={item.href}>
-                    {item.label}
-                    {unavailableRoutes.has(item.href) ? (
-                      <span aria-hidden="true"> · Unavailable</span>
-                    ) : null}
-                  </Link>
-                ))}
+                {group.items.map((item) => {
+                  const unavailable = unavailableRoutes.has(item.href);
+                  const descriptionId = unavailable
+                    ? availabilityDescriptionId(item.href)
+                    : undefined;
+                  return (
+                    <Link key={item.href} href={item.href} aria-describedby={descriptionId}>
+                      {item.label}
+                      {unavailable ? (
+                        <>
+                          <span aria-hidden="true"> · Unavailable</span>
+                          <span id={descriptionId} hidden>
+                            Capability unavailable
+                          </span>
+                        </>
+                      ) : null}
+                    </Link>
+                  );
+                })}
               </div>
             </div>
           ))}

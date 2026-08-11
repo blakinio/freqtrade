@@ -1,0 +1,227 @@
+name: Repair 1354 ephemeral
+
+on:
+  push:
+    branches:
+      - fix/portal-runtime-isolation-1354
+    paths:
+      - .github/workflows/repair-1354-ephemeral.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-1354-ephemeral
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: fix/portal-runtime-isolation-1354
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Apply bounded repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one replacement, found {count}")
+              target.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          # driver.py: paused runtimes cannot resume from stale release evidence;
+          # NoReturn makes the fail-closed narrowing explicit to mypy.
+          replace_once(
+              "ai_platform/portal/execution/driver.py",
+              "from typing import Any, Protocol\n",
+              "from typing import Any, NoReturn, Protocol\n",
+          )
+          replace_once(
+              "ai_platform/portal/execution/driver.py",
+              '''        if current is DriverRuntimeState.PAUSED:\n            if runtime_id not in self._released:\n                self._release_forbidden("paused runtime has no current release evidence")\n            self._require_success(("docker", "unpause", runtime_id), "DOCKER_UNPAUSE_FAILED")\n            return DriverRuntimeState.RUNNING\n''',
+              '''        if current is DriverRuntimeState.PAUSED:\n            self._release_forbidden(\n                "paused runtime requires reprovisioning before application release"\n            )\n''',
+          )
+          replace_once(
+              "ai_platform/portal/execution/driver.py",
+              "    def _release_forbidden(message: str) -> None:\n",
+              "    def _release_forbidden(message: str) -> NoReturn:\n",
+          )
+
+          # host_isolation.py: exact non-root state ownership/mode, robust qgroup
+          # evidence parsing and explicit fail-closed type narrowing.
+          replace_once(
+              "ai_platform/portal/execution/host_isolation.py",
+              "from typing import Any\n",
+              "from typing import Any, NoReturn\n",
+          )
+          replace_once(
+              "ai_platform/portal/execution/host_isolation.py",
+              "    def __post_init__(self) -> None:\n",
+              "    def __post_init__(self) -> None:  # noqa: C901 - validation is one immutable policy boundary.\n",
+          )
+          replace_once(
+              "ai_platform/portal/execution/host_isolation.py",
+              '''        self._require_success(\n            ("btrfs", "quota", "enable", str(self._btrfs_mount)),\n            "HOST_STORAGE_ISOLATION_UNSUPPORTED",\n            allow_already_enabled=True,\n        )\n''',
+              '''        runtime_uid, runtime_gid = self._runtime_identity(plan)\n        self._require_success(\n            ("chown", f"{runtime_uid}:{runtime_gid}", str(state)),\n            "HOST_STORAGE_ISOLATION_UNSUPPORTED",\n        )\n        self._require_success(\n            ("chmod", "0700", str(state)),\n            "HOST_STORAGE_ISOLATION_UNSUPPORTED",\n        )\n        self._require_success(\n            ("btrfs", "quota", "enable", str(self._btrfs_mount)),\n            "HOST_STORAGE_ISOLATION_UNSUPPORTED",\n            allow_already_enabled=True,\n        )\n''',
+          )
+          replace_once(
+              "ai_platform/portal/execution/host_isolation.py",
+              '''        state = self._approved_state_path(state_path)\n        self._attest_qgroup_accounting()\n        subvolume_id = self._subvolume_id(state)\n''',
+              '''        state = self._approved_state_path(state_path)\n        self._attest_qgroup_accounting()\n        runtime_uid, runtime_gid = self._runtime_identity(plan)\n        ownership = self._runner.run(("stat", "-c", "%u:%g:%a", str(state)))\n        if ownership.returncode != 0:\n            self._raise_command(\n                "HOST_STORAGE_ISOLATION_UNSUPPORTED",\n                ownership,\n                "runtime state ownership evidence is unavailable",\n            )\n        if ownership.stdout.strip() != f"{runtime_uid}:{runtime_gid}:700":\n            raise RuntimeDriverError(\n                "ISOLATION_ATTESTATION_FAILED",\n                "runtime state owner or mode does not match isolation plan",\n            )\n        subvolume_id = self._subvolume_id(state)\n''',
+          )
+          replace_once(
+              "ai_platform/portal/execution/host_isolation.py",
+              '''    def _approved_state_path(self, state_path: Path) -> Path:\n''',
+              '''    @staticmethod\n    def _runtime_identity(plan: RuntimeIsolationPlan) -> tuple[int, int]:\n        user, separator, group = plan.runtime_user.partition(":")\n        if (\n            separator != ":"\n            or not user.isdigit()\n            or not group.isdigit()\n            or int(user) == 0\n            or int(group) == 0\n        ):\n            raise RuntimeDriverError(\n                "ISOLATION_PLAN_MISMATCH",\n                "runtime isolation plan must bind a non-root numeric uid:gid",\n            )\n        return int(user), int(group)\n\n    def _approved_state_path(self, state_path: Path) -> Path:\n''',
+          )
+          replace_once(
+              "ai_platform/portal/execution/host_isolation.py",
+              '''    ) -> None:\n        if not isinstance(payload, dict) or not isinstance(payload.get("nftables"), list):\n''',
+              '''    ) -> None:  # noqa: C901 - exact nftables canonicalization is intentionally explicit.\n        if not isinstance(payload, dict) or not isinstance(payload.get("nftables"), list):\n''',
+          )
+          replace_once(
+              "ai_platform/portal/execution/host_isolation.py",
+              '''        input_rules = [\n            (("meta", "iifname", "", "==", bridge), ("verdict", "drop"))\n        ]\n''',
+              '''        input_rules: list[tuple[object, ...]] = [\n            (("meta", "iifname", "", "==", bridge), ("verdict", "drop"))\n        ]\n''',
+          )
+          replace_once(
+              "ai_platform/portal/execution/host_isolation.py",
+              "    def _nft_mismatch() -> None:\n",
+              "    def _nft_mismatch() -> NoReturn:\n",
+          )
+          replace_once(
+              "ai_platform/portal/execution/host_isolation.py",
+              '''            if fields[0] == "qgroupid":\n                try:\n                    max_rfer_index = fields.index("max_rfer")\n                except ValueError:\n                    return None\n                continue\n''',
+              '''            normalized_fields = [field.lower() for field in fields]\n            if normalized_fields[0] == "qgroupid":\n                try:\n                    max_rfer_index = normalized_fields.index("max_rfer")\n                except ValueError:\n                    return None\n                continue\n''',
+          )
+
+          # Unit regression: a previously released PAUSED bootstrap must still fail
+          # closed, without issuing docker unpause.
+          replace_once(
+              "tests/ai_platform/portal/execution/test_driver.py",
+              '''def test_pause_stop_and_unknown_state_are_fail_closed_or_idempotent() -> None:\n''',
+              '''def test_paused_released_runtime_requires_reprovision_before_resume() -> None:\n    runner = _Runner(CommandResult(0, stdout="paused\\n"))\n    driver = DockerCliRuntimeDriver(runner)\n    driver._released.add("runtime-1")\n\n    with pytest.raises(RuntimeDriverError) as exc_info:\n        driver.start("runtime-1")\n\n    assert exc_info.value.reason_code == "APPLICATION_RELEASE_FORBIDDEN"\n    assert ("docker", "unpause", "runtime-1") not in runner.calls\n\n\ndef test_pause_stop_and_unknown_state_are_fail_closed_or_idempotent() -> None:\n''',
+          )
+
+          # Unit Btrfs evidence now includes exact state ownership/mode and real
+          # btrfs-progs header casing.
+          replace_once(
+              "tests/ai_platform/portal/execution/test_host_isolation.py",
+              '''def _qgroup_output(limit: int) -> str:\n    return f"qgroupid rfer excl max_rfer\\n-------- ---- ---- --------\\n0/256 0 0 {limit}\\n"\n''',
+              '''def _qgroup_output(limit: int) -> str:\n    return f"QGROUPID RFER EXCL MAX_RFER\\n-------- ---- ---- --------\\n0/256 0 0 {limit}\\n"\n''',
+          )
+          replace_once(
+              "tests/ai_platform/portal/execution/test_host_isolation.py",
+              '''    runner = _QueueRunner(\n        CommandResult(0, stdout="Subvolume ID: 256\\n"),\n        CommandResult(0),\n        CommandResult(0),\n        CommandResult(0, stdout=_filesystem_show()),\n        CommandResult(0, stdout="Subvolume ID: 256\\n"),\n        CommandResult(0, stdout=_qgroup_output(plan.durable_state_max_bytes)),\n    )\n''',
+              '''    runner = _QueueRunner(\n        CommandResult(0, stdout="Subvolume ID: 256\\n"),\n        CommandResult(0),\n        CommandResult(0),\n        CommandResult(0),\n        CommandResult(0),\n        CommandResult(0, stdout=_filesystem_show()),\n        CommandResult(0, stdout="1000:1000:700\\n"),\n        CommandResult(0, stdout="Subvolume ID: 256\\n"),\n        CommandResult(0, stdout=_qgroup_output(plan.durable_state_max_bytes)),\n    )\n''',
+          )
+          replace_once(
+              "tests/ai_platform/portal/execution/test_host_isolation.py",
+              '''    assert (\n        "btrfs",\n        "qgroup",\n        "limit",\n        str(plan.durable_state_max_bytes),\n        str(state.resolve()),\n    ) in runner.calls\n''',
+              '''    assert ("chown", "1000:1000", str(state.resolve())) in runner.calls\n    assert ("chmod", "0700", str(state.resolve())) in runner.calls\n    assert (\n        "btrfs",\n        "qgroup",\n        "limit",\n        str(plan.durable_state_max_bytes),\n        str(state.resolve()),\n    ) in runner.calls\n''',
+          )
+          replace_once(
+              "tests/ai_platform/portal/execution/test_host_isolation.py",
+              '''    runner = _QueueRunner(\n        CommandResult(0, stdout=_filesystem_show()),\n        CommandResult(0, stdout="Subvolume ID: 256\\n"),\n        CommandResult(0, stdout=_qgroup_output(1234)),\n    )\n''',
+              '''    runner = _QueueRunner(\n        CommandResult(0, stdout=_filesystem_show()),\n        CommandResult(0, stdout="1000:1000:700\\n"),\n        CommandResult(0, stdout="Subvolume ID: 256\\n"),\n        CommandResult(0, stdout=_qgroup_output(1234)),\n    )\n''',
+          )
+          replace_once(
+              "tests/ai_platform/portal/execution/test_host_isolation.py",
+              '''@pytest.mark.parametrize(\n    ("enabled", "inconsistent", "mode"),\n''',
+              '''def test_storage_attestation_rejects_wrong_runtime_owner_or_mode(tmp_path: Path) -> None:\n    state_root = tmp_path / "state"\n    state = state_root / "generation"\n    state.mkdir(parents=True)\n    policy = _policy()\n    sysfs = _qgroup_sysfs(tmp_path)\n    runner = _QueueRunner(\n        CommandResult(0, stdout=_filesystem_show()),\n        CommandResult(0, stdout="0:0:755\\n"),\n    )\n    backend = LinuxNftablesBtrfsIsolationAttestor(\n        runner,\n        policy_provider=_provider(policy),\n        state_root=state_root,\n        btrfs_mount=tmp_path,\n        btrfs_sysfs_root=sysfs,\n    )\n\n    with pytest.raises(RuntimeDriverError) as exc_info:\n        backend.attest_storage(_plan(policy), state)\n\n    assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"\n\n\n@pytest.mark.parametrize(\n    ("enabled", "inconsistent", "mode"),\n''',
+          )
+
+          # Dedicated Linux E2E must actually execute the non-root state writer and
+          # unconditional cleanup must own/verify its derived nftables tables.
+          replace_once(
+              ".github/workflows/portal-runtime-isolation-e2e.yml",
+              '''      - "tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py"\n''',
+              '''      - "tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py"\n      - "tests/ai_platform/portal/execution/test_linux_isolation_state_owner_e2e.py"\n''',
+          )
+          replace_once(
+              ".github/workflows/portal-runtime-isolation-e2e.yml",
+              '''            tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py\n''',
+              '''            tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py \\\n            tests/ai_platform/portal/execution/test_linux_isolation_state_owner_e2e.py\n''',
+          )
+          replace_once(
+              ".github/workflows/portal-runtime-isolation-e2e.yml",
+              '''          cleanup_failed=0\n\n          mapfile -t containers < <(\n''',
+              '''          cleanup_failed=0\n          task_tables=()\n\n          mapfile -t containers < <(\n''',
+          )
+          replace_once(
+              ".github/workflows/portal-runtime-isolation-e2e.yml",
+              '''              portal-isolation-e2e-*|portal-linux-e2e-*)\n                docker network rm "$network" || cleanup_failed=1\n                ;;\n''',
+              '''              portal-isolation-e2e-*|portal-linux-e2e-*)\n                network_name="$(docker network inspect --format '{{.Name}}' "$network")" || {\n                  cleanup_failed=1\n                  continue\n                }\n                table="portal_$(printf '%s' "$network_name" | sha256sum | cut -c1-20)"\n                task_tables+=("$table")\n                if sudo nft list table inet "$table" >/dev/null 2>&1; then\n                  sudo nft delete table inet "$table" || cleanup_failed=1\n                fi\n                docker network rm "$network" || cleanup_failed=1\n                ;;\n''',
+          )
+          replace_once(
+              ".github/workflows/portal-runtime-isolation-e2e.yml",
+              '''          if mountpoint -q /mnt/portal-runtime-isolation-btrfs; then\n            echo "ephemeral Btrfs fixture remains mounted after cleanup" >&2\n            cleanup_failed=1\n          fi\n''',
+              '''          for table in "${task_tables[@]}"; do\n            if sudo nft list table inet "$table" >/dev/null 2>&1; then\n              echo "task-owned nftables table remains after cleanup: $table" >&2\n              cleanup_failed=1\n            fi\n          done\n          if mountpoint -q /mnt/portal-runtime-isolation-btrfs; then\n            echo "ephemeral Btrfs fixture remains mounted after cleanup" >&2\n            cleanup_failed=1\n          fi\n''',
+          )
+
+          # The workflow-registry YAML extension is not covered by the yml exclusion;
+          # preserve the exact newline fixer output observed in CI.
+          registry = Path(".github/workflow-registry.yaml")
+          registry.write_text(registry.read_text(encoding="utf-8").rstrip("\n") + "\n", encoding="utf-8")
+          PY
+
+      - name: Format and validate focused repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check \
+            ruff==0.15.21 mypy==2.3.0 pytest==9.1.1 jsonschema \
+            "pydantic>=2.2" "SQLAlchemy==2.0.51" "httpx>=0.24.1" \
+            fastapi pyjwt cryptography "PyYAML>=6.0"
+          python -m ruff format \
+            ai_platform/portal/execution/driver.py \
+            ai_platform/portal/execution/host_isolation.py \
+            tests/ai_platform/portal/execution/test_driver.py \
+            tests/ai_platform/portal/execution/test_host_isolation.py \
+            tests/ai_platform/portal/execution/test_host_isolation_policy_guardrails.py \
+            tests/ai_platform/portal/execution/test_isolation.py
+          python -m ruff check \
+            ai_platform/portal/execution/driver.py \
+            ai_platform/portal/execution/host_isolation.py \
+            tests/ai_platform/portal/execution/test_driver.py \
+            tests/ai_platform/portal/execution/test_host_isolation.py \
+            tests/ai_platform/portal/execution/test_host_isolation_policy_guardrails.py \
+            tests/ai_platform/portal/execution/test_isolation.py
+          python -m mypy \
+            ai_platform/portal/execution/driver.py \
+            ai_platform/portal/execution/host_isolation.py
+          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform \
+            tests/ai_platform/portal/execution/test_driver.py \
+            tests/ai_platform/portal/execution/test_host_isolation.py \
+            tests/ai_platform/portal/execution/test_host_isolation_policy_guardrails.py \
+            tests/ai_platform/portal/execution/test_isolation.py
+          git diff --check
+
+      - name: Commit repair and remove ephemeral workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/repair-1354-ephemeral.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(portal): close runtime isolation review gaps"
+          git push origin HEAD:fix/portal-runtime-isolation-1354

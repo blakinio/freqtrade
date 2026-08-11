@@ -11,7 +11,7 @@ branch: fix/portal-runtime-isolation-1354
 related_pr: 1464
 issue: 1354
 created: 2026-08-09
-updated: 2026-08-11
+updated: 2026-08-12
 live_capital_authorized: false
 production_deployment_authorized: false
 host_firewall_mutation_authorized: false
@@ -21,7 +21,7 @@ host_firewall_mutation_authorized: false
 
 ## Current truth
 
-Issue `#1354` remains open and PR `#1464` remains the sole delivery PR. This task is **validating**, not completed. The final five exact-head audit repairs have been published to the existing branch and the temporary publication workflow has been removed. Fresh independent audit, exact-final-head CI/E2E, review-thread cleanup, merge, and post-merge terminal lifecycle reconciliation are still required.
+Issue `#1354` remains open and PR `#1464` remains the sole delivery PR. This task is **validating**, not completed. Source-independent application readiness is implemented at `10f5488504acf6b05ed2f73516e01a0b118214cc`; forged strategy stdout cannot create `RUNNING`, and the temporary readiness workflow has been removed. Fresh independent audit, exact-final-head CI/E2E, review-thread cleanup, merge, and post-merge terminal lifecycle reconciliation are still required.
 
 PAPER remains the only authorized operational mode. LIVE/live-capital authority, private exchange credentials, real-order submission, withdrawals, protected production deployment and target-host firewall mutation are not authorized by this task.
 
@@ -44,7 +44,7 @@ No Runtime Supervisor authority from `#1355` is implemented here.
 
 ## Repair/audit findings addressed in the candidate
 
-Material findings repaired in the branch include stale formatting/type failures, missing workflow registry normalization, root UID/GID guardrails, approved-state-root protection, pre-release re-attestation, approved DNS enforcement, canonical nftables comparison, immutable quarantine bootstrap, concrete Linux isolation E2E, effective log-rotation evidence, real Btrfs quota overrun evidence, paused-runtime stale-release handling, Btrfs runtime owner/mode enforcement, qgroup header parsing, state-owner E2E, explicit nftables cleanup, STARTING stop semantics, durable RUNNING log re-attestation, application-level readiness after initial pairlist refresh, and real privileged memory/swap, PID and CPU-throttling probes.
+Material findings repaired in the branch include stale formatting/type failures, missing workflow registry normalization, root UID/GID guardrails, approved-state-root protection, pre-release re-attestation, approved DNS enforcement, canonical nftables comparison, immutable quarantine bootstrap, concrete Linux isolation E2E, effective log-rotation evidence, real Btrfs quota overrun evidence, paused-runtime stale-release handling, Btrfs runtime owner/mode enforcement, qgroup header parsing, state-owner E2E, explicit nftables cleanup, STARTING stop semantics, durable RUNNING log re-attestation, host-controlled application readiness after a successful pairlist probe, forged-stdout rejection, and real privileged memory/swap, PID and CPU-throttling probes.
 
 These repairs are candidate evidence only until the final unchanged head earns all required gates.
 
@@ -82,9 +82,9 @@ closeout:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-11T21:06:00Z
-head: 92beceffe51b9270cedc001ce09c5b1b0eec0825
-head_role: published_code_and_temporary_workflow_cleanup_parent
+updated_at: 2026-08-12T00:45:00Z
+head: 10f5488504acf6b05ed2f73516e01a0b118214cc
+head_role: source_independent_readiness_implementation_parent
 branch: fix/portal-runtime-isolation-1354
 pr: 1464
 status: validating
@@ -105,10 +105,11 @@ proven:
   - exact nftables table identifiers are persisted before network creation for unconditional cleanup
   - STARTING runtimes are stopped on request instead of continuing after lifecycle cancellation
   - ongoing RUNNING attestation uses durable local-log backend usage evidence after bootstrap markers rotate
-  - immutable quarantine readiness is emitted only after Freqtrade completes its initial pairlist refresh
+  - application RUNNING readiness is derived from a host-issued immutable-runtime pairlist probe and never from strategy stdout
+  - forged heartbeat/RUNNING strategy stdout leaves the runtime in STARTING when the host probe fails
   - privileged E2E contains real memory/swap, PID and CPU-throttling negative probes
   - FTAI-ARCH-RUNTIME-ISOLATION remains open in ARCHITECTURE_REGISTRY.yaml
-  - focused execution suite passed with 142 tests and 6 privileged-environment skips
+  - focused readiness/runtime-image suite passed with 32 tests and 3 privileged-environment skips
 derived:
   - this checkpoint commit is metadata-only; fresh audit and CI must target the actual PR head returned by GitHub after this commit
 unknown:
@@ -138,9 +139,9 @@ validation:
   - command: python -m ruff check changed Python paths
     result: PASS
     evidence: all checks passed
-  - command: git apply --check exact Codex diff from PR comment 5258787558
+  - command: python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform tests/ai_platform/portal/execution/test_driver.py tests/ai_platform/portal/execution/test_runtime_image.py tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py
     result: PASS
-    evidence: temporary bounded publisher applied the exact diff and completed successfully
+    evidence: 32 passed and 3 privileged-environment tests skipped
 blockers: []
 next_action: Resolve the current PR head from GitHub, run fresh independent audit plus privileged Linux E2E and required CI on that exact unchanged SHA, remediate any material finding, then merge only if all closeout gates are green.
 ```

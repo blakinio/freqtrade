@@ -38,7 +38,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
+          git merge-base --is-ancestor "$EXPECTED_PARENT" HEAD
+          mapfile -t preexisting_changed < <(git diff --name-only "$EXPECTED_PARENT"..HEAD)
+          test "${#preexisting_changed[@]}" -eq 1
+          test "${preexisting_changed[0]}" = ".github/workflows/tmp-apply-1354-runtime-repair.yml"
           python - <<'PY'
           from pathlib import Path
 

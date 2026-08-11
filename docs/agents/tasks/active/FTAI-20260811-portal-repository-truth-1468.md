@@ -44,7 +44,7 @@ Runtime/browser E2E is `NOT_APPLICABLE`: no product/runtime/deployment behavior 
 - README explicitly preserves PAPER-only / fail-closed LIVE authority;
 - CODEOWNERS contains an explicit `/ai_platform/portal/` ownership umbrella plus current sensitive-path overrides, so new Portal roots never silently fall back to repository-wide `*`;
 - explicit sensitive coverage includes current control-plane, execution, execution-submission, bot-operations, exchange-connections, signal-control, identity, security, credentials, database, risk, Portal deploy, contracts, web and Synology deployment roots;
-- a network-free `tests/ci` guard detects recurrence;
+- the CI guard validates required patterns, owner fields, wildcard ordering and the effective owner for representative paths rather than token presence only;
 - exact-final-head required CI and documentation build pass;
 - independent review has zero open material findings before merge.
 
@@ -52,17 +52,17 @@ Runtime/browser E2E is `NOT_APPLICABLE`: no product/runtime/deployment behavior 
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-11T09:49:00Z
-head: 4310a62866f2254fb53b39fc46e741abf6640429
+updated_at: 2026-08-11T09:54:00Z
+head: 12c1b087c841d7fd857dba0a53a5381058a5bc00
 branch: docs/portal-repository-truth-1468
 pr: 1469
 status: validating
 invocation_started_at: 2026-08-11T08:57:00Z
-last_progress_at: 2026-08-11T09:49:00Z
+last_progress_at: 2026-08-11T09:54:00Z
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 2
+repair_cycles_for_current_gate: 3
 context_reconstruction_attempts: 0
 stall_warnings: 0
 context_routes:
@@ -77,21 +77,23 @@ proven:
   - develop contains a living exact-head Portal completeness ledger and implemented Portal surfaces that made the old README false.
   - Codex review identified omitted explicit ownership for execution_submission, bot_operations, deploy, exchange_connections and signal_control; each root was verified against live repository contents before repair.
   - all identified roots are now present in CODEOWNERS and REQUIRED_CODEOWNER_PATTERNS, and their material review threads are resolved.
-  - `/ai_platform/portal/` is now an explicit ownership umbrella, preventing any current or future Portal root from depending only on the repository-wide wildcard while preserving more-specific override capability.
-  - the branch was synchronized with develop@6577ae896ed5910f82f9e736fe4a007b6dc10e6e before the final ownership repairs.
+  - `/ai_platform/portal/` is an explicit ownership umbrella, preventing current or future Portal roots from depending only on the repository-wide wildcard while preserving more-specific override capability.
+  - final review identified that token-presence-only validation could miss owner removal or rule-order override; the guard now parses full rules, validates expected owners, requires the repository wildcard to precede the Portal rules, and checks effective ownership for representative paths.
+  - the branch was synchronized with develop@6577ae896ed5910f82f9e736fe4a007b6dc10e6e before final repairs.
   - PAPER remains the only currently authorized operational mode and LIVE remains unreachable/fail-closed.
 derived:
   - documentation truth must defer implementation completeness to exact-head evidence rather than package presence.
-  - the Portal-wide CODEOWNERS umbrella removes the recurring omission class while specific sensitive rules preserve review intent.
+  - the Portal-wide umbrella plus effective-rule validation removes both recurring root omission and silent rule-order/owner regression classes covered by Issue 1468.
 unknown:
   - terminal exact-head CI result and fresh post-remediation Codex review disposition for the final PR head.
 conflicts: []
 first_failure:
-  marker: explicit CODEOWNERS guard omitted current security/execution/deployment-sensitive Portal roots
-  evidence: material Codex review threads on PR 1469, all now remediated and resolved
+  marker: CODEOWNERS regression guard validated pattern tokens but not effective owners/order
+  evidence: Codex P2 review thread PRRT_kwDOTdDTU86YLkds on exact head e892a89ffa5bfa9bc59b6a0293b1c454b5425e95
 rejected_hypotheses:
   - treat stale README as harmless because architecture registry is canonical; rejected because root AGENTS routes Portal workers through this README.
   - rely on generic repository-wide CODEOWNERS fallback for Portal roots; rejected because that does not preserve an explicit Portal review boundary when ownership evolves.
+  - validate required CODEOWNERS patterns by first token only; rejected because owner removal or later wildcard override can preserve tokens while changing effective ownership.
 changed_paths:
   - ai_platform/portal/README.md
   - .github/CODEOWNERS
@@ -106,15 +108,15 @@ validation:
     evidence: reviewed roots exist and contain execution, credential, authentication or deployment-sensitive surfaces
   - command: independent Codex reviews before final repair
     result: FAIL
-    evidence: material P2 findings identified incomplete explicit ownership; all findings have targeted repairs in the current branch
-  - command: review-thread reconciliation
+    evidence: material P2 findings identified incomplete explicit ownership and insufficient effective-rule validation; targeted repairs are now present
+  - command: review-thread reconciliation before final review
     result: PASS
-    evidence: all known material P2 threads were replied to and resolved only after verified repair
+    evidence: prior material root-coverage P2 threads were replied to and resolved only after verified repair
   - command: runtime/browser product E2E
     result: NOT_APPLICABLE
     evidence: documentation and network-free CI-governance repair only
 blockers: []
-next_action: Request fresh independent Codex review on the exact current head and collect exact-head required CI; merge only if all gates are green and review hygiene is terminal.
+next_action: Reply to and resolve the effective-ownership P2, request one fresh independent exact-head review and collect exact-head required CI; because the repair-cycle budget is now exhausted, any further material finding must move to a fresh isolation task rather than another same-gate repair loop.
 ```
 
 ## Recovery checkpoint
@@ -122,24 +124,24 @@ next_action: Request fresh independent Codex review on the exact current head an
 ```yaml
 recovery:
   policy_version: 1
-  generation: 4
+  generation: 5
   session_id: portal-truth-20260811-1142
   session_started_at: 2026-08-11T09:42:00Z
-  checkpointed_at: 2026-08-11T09:49:00Z
-  last_progress_at: 2026-08-11T09:49:00Z
-  phase: final_umbrella_validation
-  exact_head: 4310a62866f2254fb53b39fc46e741abf6640429
+  checkpointed_at: 2026-08-11T09:54:00Z
+  last_progress_at: 2026-08-11T09:54:00Z
+  phase: terminal_validation_after_effective_ownership_repair
+  exact_head: 12c1b087c841d7fd857dba0a53a5381058a5bc00
   pull_request: 1469
   active_operation: final independent audit and exact-head CI
   external_run_ids: []
-  operation_started_at: 2026-08-11T09:49:00Z
+  operation_started_at: 2026-08-11T09:54:00Z
   wait_deadline_at: null
-  check_generation: portal-ownership-umbrella
+  check_generation: effective-codeowners-validation
   checks_used: 0
   status: active
   safe_to_resume: true
   resume_condition: current exact head remains unchanged or is only advanced by this checkpoint record
-  next_action: Request fresh independent Codex review on the exact current head and collect exact-head required CI; merge only if all gates are green and review hygiene is terminal.
+  next_action: Reply to and resolve the effective-ownership P2, request one fresh independent exact-head review and collect exact-head required CI; because the repair-cycle budget is now exhausted, any further material finding must move to a fresh isolation task rather than another same-gate repair loop.
 ```
 
 ## Safety boundary

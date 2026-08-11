@@ -13,14 +13,14 @@ permissions:
 jobs:
   focused:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - name: Checkout exact implementation head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           persist-credentials: false
           fetch-depth: 1
-          ref: 1f83b1acadbf19f023ca1827ccbd8960e8236860
+          ref: 54938447098ebaa933ba873b897b5f9ae797733b
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
@@ -30,43 +30,53 @@ jobs:
 
       - name: Install focused validation tools
         shell: bash
-        run: python -m pip install --disable-pip-version-check pytest ruff
+        run: >-
+          python -m pip install --disable-pip-version-check
+          pytest ruff==0.15.21 SQLAlchemy==2.0.51
 
-      - name: Compile focused lifecycle modules
+      - name: Compile focused repair modules
         shell: bash
         run: |
           python -m py_compile deploy/synology/portal-oidc/bounded_schema_lifecycle.py
           python -m py_compile deploy/synology/portal-oidc/cancellation_report_bridge.py
           python -m py_compile deploy/synology/portal-oidc/deploy_entrypoint.py
+          python -m py_compile ai_platform/portal/database/transfer.py
           python -m py_compile tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py
           python -m py_compile tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_cancellation.py
           python -m py_compile tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py
           python -m py_compile tests/ai_platform/portal/deployment/test_portal_oidc_cancellation_report_bridge.py
+          python -m py_compile tests/ai_platform/portal/database/test_state_transfer.py
 
-      - name: Ruff focused repair files
+      - name: Ruff exact repair files
         shell: bash
         run: |
           ruff check \
+            deploy/synology/portal-oidc/bounded_schema_lifecycle.py \
             deploy/synology/portal-oidc/cancellation_report_bridge.py \
             deploy/synology/portal-oidc/deploy_entrypoint.py \
+            ai_platform/portal/database/transfer.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_cancellation.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py \
-            tests/ai_platform/portal/deployment/test_portal_oidc_cancellation_report_bridge.py
+            tests/ai_platform/portal/deployment/test_portal_oidc_cancellation_report_bridge.py \
+            tests/ai_platform/portal/database/test_state_transfer.py
           ruff format --check \
             deploy/synology/portal-oidc/bounded_schema_lifecycle.py \
             deploy/synology/portal-oidc/cancellation_report_bridge.py \
             deploy/synology/portal-oidc/deploy_entrypoint.py \
+            ai_platform/portal/database/transfer.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_cancellation.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py \
-            tests/ai_platform/portal/deployment/test_portal_oidc_cancellation_report_bridge.py
+            tests/ai_platform/portal/deployment/test_portal_oidc_cancellation_report_bridge.py \
+            tests/ai_platform/portal/database/test_state_transfer.py
 
-      - name: Run focused lifecycle regressions
+      - name: Run focused lifecycle and transfer regressions
         shell: bash
         run: |
           python -m pytest -q \
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_cancellation.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py \
-            tests/ai_platform/portal/deployment/test_portal_oidc_cancellation_report_bridge.py
+            tests/ai_platform/portal/deployment/test_portal_oidc_cancellation_report_bridge.py \
+            tests/ai_platform/portal/database/test_state_transfer.py

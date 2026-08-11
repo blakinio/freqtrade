@@ -55,7 +55,7 @@ def test_portal_shell_exposes_projected_unavailable_state() -> None:
 
     assert 'import availability from "@/lib/product-surface-availability.json"' in shell
     assert "unavailableRoutes.has(item.href)" in shell
-    assert '" · Unavailable"' in shell
+    assert '<span aria-hidden="true"> · Unavailable</span>' in shell
     assert "<SurfaceAvailabilityNotice />" in shell
 
     assert 'import availability from "@/lib/product-surface-availability.json"' in notice

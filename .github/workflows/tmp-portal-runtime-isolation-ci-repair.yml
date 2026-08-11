@@ -1,0 +1,83 @@
+name: Temporary Portal Runtime Isolation CI Repair
+
+on:
+  push:
+    branches:
+      - fix/portal-runtime-isolation-1354
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: ${{ !contains(github.event.head_commit.message, '[skip repair]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v4
+        with:
+          ref: fix/portal-runtime-isolation-1354
+          fetch-depth: 0
+
+      - name: Apply bounded exact-head CI repairs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          driver_path = Path("ai_platform/portal/execution/driver.py")
+          driver = driver_path.read_text(encoding="utf-8")
+          needle = '''    def cleanup_network(self, network_name: str, runtime_id: str) -> None:\n        del network_name, runtime_id\n'''
+          replacement = '''    def attest_active_network(\n        self,\n        plan: RuntimeIsolationPlan,\n        network_name: str,\n        runtime_id: str,\n    ) -> None:\n        del plan, network_name, runtime_id\n        raise RuntimeDriverError(\n            "HOST_NETWORK_ISOLATION_UNSUPPORTED",\n            "active market-data egress enforcement cannot be attested",\n        )\n\n    def cleanup_network(self, network_name: str, runtime_id: str) -> None:\n        del network_name, runtime_id\n'''
+          if "def attest_active_network(" not in driver:
+              if needle not in driver:
+                  raise SystemExit("driver insertion anchor not found")
+              driver = driver.replace(needle, replacement, 1)
+              driver_path.write_text(driver, encoding="utf-8")
+
+          test_path = Path("tests/ai_platform/portal/execution/test_runtime_image.py")
+          test = test_path.read_text(encoding="utf-8")
+          old = '''    assert 'exec "$@"' in script\n'''
+          new = '''    assert 'application_ready="$release_dir/application-ready"' in script\n    assert '"$@" &' in script\n    assert ': > "$application_ready"' in script\n    assert 'wait "$child_pid"' in script\n'''
+          if old in test:
+              test = test.replace(old, new, 1)
+              test_path.write_text(test, encoding="utf-8")
+          elif new not in test:
+              raise SystemExit("runtime image assertion anchor not found")
+          PY
+
+      - name: Format and lint touched Python
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check ruff==0.12.11
+          ruff format \
+            ai_platform/portal/execution/driver.py \
+            tests/ai_platform/portal/execution/test_driver.py \
+            tests/ai_platform/portal/execution/test_runtime_image.py
+          ruff check \
+            ai_platform/portal/execution/driver.py \
+            tests/ai_platform/portal/execution/test_driver.py \
+            tests/ai_platform/portal/execution/test_runtime_image.py
+          python -m compileall -q ai_platform/portal/execution/driver.py tests/ai_platform/portal/execution/test_driver.py tests/ai_platform/portal/execution/test_runtime_image.py
+
+      - name: Commit bounded repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git status --short
+          git diff --check
+          if git diff --quiet; then
+            echo "No repair changes required"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            ai_platform/portal/execution/driver.py \
+            tests/ai_platform/portal/execution/test_driver.py \
+            tests/ai_platform/portal/execution/test_runtime_image.py
+          git commit -m "fix(portal): repair exact-head isolation CI [skip repair]"
+          git push origin HEAD:fix/portal-runtime-isolation-1354

@@ -1,0 +1,49 @@
+name: WickHunter 1450 reconcile latest develop
+
+on:
+  push:
+    branches:
+      - fix/wickhunter-1396-synology-recovery-v2
+    paths:
+      - .github/workflows/wickhunter-1450-reconcile-latest-develop.yml
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: fix/wickhunter-1396-synology-recovery-v2
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Reconcile exact latest develop and validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD^)" == "5517fd968de4b04d1301336b66019c2ce8ea9115" ]]
+          git fetch origin develop
+          [[ "$(git rev-parse origin/develop)" == "b57d5bcd6fb5a84409254155fde138cafb0141d9" ]]
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git merge --no-ff --no-commit origin/develop
+          git rm .github/workflows/wickhunter-1450-reconcile-latest-develop.yml
+          python -m pip install --disable-pip-version-check -q pytest==9.1.1 websockets==16.0 ruff==0.15.21
+          python -m py_compile ai_platform/scripts/liquidation_live_stream.py ai_platform/scripts/liquidation_live_stream_okx.py
+          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py \
+            tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python -m ruff check ai_platform/scripts/liquidation_live_stream.py ai_platform/scripts/liquidation_live_stream_okx.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py \
+            tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          python -m ruff format --check ai_platform/scripts/liquidation_live_stream.py ai_platform/scripts/liquidation_live_stream_okx.py \
+            tests/ai_platform_integration/test_liquidation_live_restart_durability.py \
+            tests/ai_platform_integration/test_liquidation_okx_live_source.py
+          git diff --check
+          git commit -m 'merge: reconcile WickHunter recovery with latest develop'
+          git push origin HEAD:fix/wickhunter-1396-synology-recovery-v2

@@ -1,0 +1,99 @@
+name: Temporary GitHub Actions Cache Hygiene
+
+on:
+  push:
+    branches:
+      - chore/github-actions-ci-hygiene-20260811
+    paths:
+      - .github/workflows/_tmp-github-actions-cache-hygiene.yml
+
+permissions:
+  actions: write
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: github-actions-cache-hygiene-20260811
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Delete caches for closed PR refs and deleted branches
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          api="https://api.github.com/repos/${REPO}"
+          auth=(-H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${GH_TOKEN}" -H "X-GitHub-Api-Version: 2022-11-28")
+
+          before="$(curl -fsS "${auth[@]}" "${api}/actions/cache/usage")"
+          echo "CACHE_USAGE_BEFORE|count=$(jq -r '.active_caches_count' <<<"$before")|bytes=$(jq -r '.active_caches_size_in_bytes' <<<"$before")"
+
+          deleted_count=0
+          deleted_bytes=0
+          kept_count=0
+          page=1
+
+          while :; do
+            payload="$(curl -fsS "${auth[@]}" "${api}/actions/caches?per_page=100&page=${page}")"
+            count="$(jq '.actions_caches | length' <<<"$payload")"
+            [[ "$count" -gt 0 ]] || break
+
+            while IFS=$'\t' read -r id ref size; do
+              [[ -n "$id" && -n "$ref" ]] || continue
+              delete_reason=""
+
+              if [[ "$ref" =~ ^refs/pull/([0-9]+)/merge$ ]]; then
+                pr="${BASH_REMATCH[1]}"
+                pr_json="$(curl -fsS "${auth[@]}" "${api}/pulls/${pr}")"
+                state="$(jq -r '.state' <<<"$pr_json")"
+                if [[ "$state" != "open" ]]; then
+                  delete_reason="closed-pr-${pr}"
+                fi
+              elif [[ "$ref" =~ ^refs/heads/(.+)$ ]]; then
+                branch="${BASH_REMATCH[1]}"
+                encoded="$(jq -rn --arg v "$branch" '$v|@uri')"
+                status="$(curl -sS -o /tmp/branch.json -w '%{http_code}' "${auth[@]}" "${api}/branches/${encoded}")"
+                if [[ "$status" == "404" ]]; then
+                  delete_reason="deleted-branch-${branch}"
+                elif [[ "$status" != "200" ]]; then
+                  echo "Unexpected branch lookup status ${status} for ${branch}" >&2
+                  exit 1
+                fi
+              fi
+
+              if [[ -n "$delete_reason" ]]; then
+                echo "DELETE_CACHE|id=${id}|ref=${ref}|bytes=${size}|reason=${delete_reason}"
+                curl -fsS -X DELETE "${auth[@]}" "${api}/actions/caches/${id}"
+                deleted_count=$((deleted_count + 1))
+                deleted_bytes=$((deleted_bytes + size))
+              else
+                kept_count=$((kept_count + 1))
+              fi
+            done < <(jq -r '.actions_caches[] | [.id, .ref, .size_in_bytes] | @tsv' <<<"$payload")
+
+            page=$((page + 1))
+          done
+
+          after="$(curl -fsS "${auth[@]}" "${api}/actions/cache/usage")"
+          echo "CACHE_CLEANUP_RESULT|deleted_count=${deleted_count}|deleted_bytes=${deleted_bytes}|kept_count=${kept_count}"
+          echo "CACHE_USAGE_AFTER|count=$(jq -r '.active_caches_count' <<<"$after")|bytes=$(jq -r '.active_caches_size_in_bytes' <<<"$after")"
+
+          {
+            echo '## GitHub Actions cache hygiene'
+            echo
+            echo "- Deleted caches: ${deleted_count}"
+            echo "- Deleted bytes: ${deleted_bytes}"
+            echo "- Active caches before: $(jq -r '.active_caches_count' <<<"$before")"
+            echo "- Active caches after: $(jq -r '.active_caches_count' <<<"$after")"
+            echo "- Active bytes before: $(jq -r '.active_caches_size_in_bytes' <<<"$before")"
+            echo "- Active bytes after: $(jq -r '.active_caches_size_in_bytes' <<<"$after")"
+            echo
+            echo 'Scope: only caches bound to closed PR merge refs or branches confirmed absent by GitHub API. No artifacts, workflow runs, logs, active PR caches, or active branch caches were deleted.'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -22,9 +22,10 @@
 /docker-compose*.yml @blakinio
 /deploy/synology/ @blakinio
 
-# Portal project boundary. More specific rules below may override this as
-# independent maintainers are added, but new Portal roots must never fall back
-# to the repository-wide wildcard implicitly.
+# Portal ownership block. This block MUST remain the final CODEOWNERS block;
+# add unrelated rules above it. GitHub applies the last matching CODEOWNERS
+# rule, so keeping the umbrella and its explicit overrides terminal makes the
+# effective Portal owner independent of unsupported glob/slashless patterns.
 /ai_platform/portal/ @blakinio
 
 # Security-, identity-, risk-, deployment- and execution-sensitive Portal code.

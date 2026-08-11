@@ -1,0 +1,370 @@
+name: Temporary 1089 final DB phase timing
+
+on:
+  push:
+    branches:
+      - ops/1089-synology-cleanup-20260810
+    paths:
+      - ".github/workflows/zz-temp-1089-db-phase-timing-v3.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zz-temp-1089-db-phase-timing
+  cancel-in-progress: false
+
+jobs:
+  timing:
+    name: Measure exact 6371 transfer candidate
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 45
+    steps:
+      - name: Refuse trading credential environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET FT_EXCHANGE_KEY FT_EXCHANGE_SECRET FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET; do
+            test -z "${!name:-}" || { echo "recognized trading credential present: $name" >&2; exit 1; }
+          done
+
+      - name: Checkout exact candidate
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: 6371fb7005cbdaba35db4766b1078b0451c700a6
+
+      - name: Build exact diagnostic image
+        shell: bash
+        env:
+          IMAGE: local/freqtrade-portal-control-plane:diag-1089-6371fb7005cb
+          REVISION: 6371fb7005cbdaba35db4766b1078b0451c700a6
+        run: |
+          set -euo pipefail
+          docker build --pull=false \
+            --label "org.opencontainers.image.revision=${REVISION}" \
+            --file deploy/synology/portal-oidc/Dockerfile.control-plane \
+            --tag "${IMAGE}" .
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "${IMAGE}")" = "${REVISION}"
+
+      - name: Measure migrate transfer check and exact cleanup
+        shell: bash
+        env:
+          REPORT: ${{ runner.temp }}/synology-1089-db-phase-timing-v3.txt
+          IMAGE: local/freqtrade-portal-control-plane:diag-1089-6371fb7005cb
+          REVISION: 6371fb7005cbdaba35db4766b1078b0451c700a6
+          CANDIDATE_ENV: ${{ runner.temp }}/portal-1089-v3.env
+        run: |
+          set -euo pipefail
+          python3 - "$REPORT" "$CANDIDATE_ENV" <<'PY'
+          from __future__ import annotations
+
+          import importlib.util
+          import os
+          import pathlib
+          import re
+          import subprocess
+          import sys
+          import time
+
+          report = pathlib.Path(sys.argv[1])
+          candidate_env = pathlib.Path(sys.argv[2])
+          repo = pathlib.Path(os.environ["GITHUB_WORKSPACE"])
+          image = os.environ["IMAGE"]
+          revision = os.environ["REVISION"]
+          run_id = os.environ["GITHUB_RUN_ID"]
+          attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "1")
+          suffix = f"{run_id}-{attempt}"
+          database_name = f"portal_timing_1089_v3_{run_id}_{attempt}"
+          rows: list[str] = []
+          owned: set[str] = set()
+          snapshot: pathlib.Path | None = None
+          cleanup_errors: list[str] = []
+
+          def load(name: str, path: pathlib.Path):
+              spec = importlib.util.spec_from_file_location(name, path)
+              if spec is None or spec.loader is None:
+                  raise RuntimeError(f"cannot load {name}")
+              module = importlib.util.module_from_spec(spec)
+              sys.modules[name] = module
+              spec.loader.exec_module(module)
+              return module
+
+          deploy = load("portal_1089_v3_deploy", repo / "deploy/synology/portal-oidc/deploy.py")
+          host_state = load("portal_1089_v3_host", repo / "deploy/synology/portal-oidc/docker_host_state.py")
+          original_run = deploy._run
+
+          def add(key: str, value: object) -> None:
+              rows.append(f"{key}={value}")
+
+          def raw(command: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
+              return subprocess.run(command, check=False, text=True, capture_output=True, timeout=timeout)
+
+          def absent(name: str) -> bool:
+              listed = raw(["docker", "ps", "-aq", "--no-trunc", "--filter", f"name=^/{name}$"], 45)
+              inspected = raw(["docker", "inspect", name], 45)
+              return listed.returncode == 0 and not listed.stdout.strip() and inspected.returncode != 0
+
+          def daemon_ok() -> bool:
+              return raw(["docker", "version"], 45).returncode == 0
+
+          def service_state(name: str) -> str:
+              result = raw([
+                  "docker", "inspect", "--format",
+                  "{{.State.Status}}|{{.State.Running}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}",
+                  name,
+              ], 45)
+              return result.stdout.strip() if result.returncode == 0 else "absent"
+
+          def label_for(command: list[str]) -> str | None:
+              if command[:3] != ["docker", "run", "--rm"]:
+                  return None
+              if "ai_platform.portal.database.transfer" in command:
+                  return "state-transfer"
+              if "ai_platform.portal.database.cli" in command:
+                  index = command.index("ai_platform.portal.database.cli")
+                  return f"schema-{command[index + 1]}"
+              return None
+
+          def timed_run(command: list[str], *, cwd=None, sensitive=False, check=True):
+              label = label_for(command)
+              if label is None:
+                  return original_run(command, cwd=cwd, sensitive=sensitive, check=check)
+              name = f"portal-oidc-1089-v3-{label}-{suffix}"
+              if not absent(name):
+                  raise deploy.DeploymentError(f"diagnostic task container collision: {label}")
+              owned.add(name)
+              primary: Exception | None = None
+              logs: subprocess.CompletedProcess[str] | None = None
+              exit_code = "unknown"
+              try:
+                  started = time.monotonic()
+                  created = raw(["docker", "create", "--name", name, *command[3:]], 600)
+                  add(f"{label}_create_seconds", round(time.monotonic() - started, 3))
+                  add(f"{label}_create_rc", created.returncode)
+                  if created.returncode != 0:
+                      raise deploy.DeploymentError(f"{label}:create")
+
+                  started = time.monotonic()
+                  started_result = raw(["docker", "start", name], 600)
+                  add(f"{label}_start_seconds", round(time.monotonic() - started, 3))
+                  add(f"{label}_start_rc", started_result.returncode)
+                  if started_result.returncode != 0:
+                      raise deploy.DeploymentError(f"{label}:start")
+
+                  started = time.monotonic()
+                  waited = raw(["docker", "wait", name], 900)
+                  add(f"{label}_wait_seconds", round(time.monotonic() - started, 3))
+                  add(f"{label}_wait_rc", waited.returncode)
+                  if waited.returncode != 0:
+                      raise deploy.DeploymentError(f"{label}:wait")
+                  exit_code = waited.stdout.strip()
+                  add(f"{label}_process_exit", exit_code)
+
+                  started = time.monotonic()
+                  logs = raw(["docker", "logs", name], 180)
+                  add(f"{label}_logs_seconds", round(time.monotonic() - started, 3))
+                  add(f"{label}_logs_rc", logs.returncode)
+                  if logs.returncode != 0:
+                      raise deploy.DeploymentError(f"{label}:logs")
+                  if exit_code != "0" and check:
+                      raise deploy.DeploymentError(f"{label}:process")
+              except Exception as exc:
+                  primary = exc
+              finally:
+                  started = time.monotonic()
+                  try:
+                      raw(["docker", "rm", "-f", name], 300)
+                  except subprocess.TimeoutExpired:
+                      pass
+                  add(f"{label}_remove_seconds", round(time.monotonic() - started, 3))
+                  is_absent = absent(name)
+                  ready = daemon_ok()
+                  add(f"{label}_container_absent", is_absent)
+                  add(f"{label}_daemon_ready_after", ready)
+                  if not is_absent or not ready:
+                      cleanup_errors.append(f"container:{label}")
+              if primary is not None:
+                  raise primary
+              if logs is None:
+                  raise deploy.DeploymentError(f"{label}:no-logs")
+              return subprocess.CompletedProcess(command, int(exit_code), logs.stdout, logs.stderr)
+
+          def cleanup_snapshot(path: pathlib.Path) -> bool:
+              name = f"portal-oidc-1089-v3-snapshot-cleanup-{suffix}"
+              if not absent(name):
+                  return False
+              owned.add(name)
+              script = (
+                  "from pathlib import Path; "
+                  f"p=Path('/legacy')/{path.name!r}; "
+                  "p.unlink(missing_ok=True); "
+                  "raise SystemExit(0 if not p.exists() else 2)"
+              )
+              command = [
+                  "docker", "create", "--name", name,
+                  "--network", "none", "--read-only",
+                  "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=16m",
+                  "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
+                  "--pids-limit", "32", "--memory", "128m",
+                  "--user", f"{deploy.PORTAL_UID}:{deploy.PORTAL_GID}",
+                  "--mount", f"type=bind,src={path.parent},dst=/legacy",
+                  "--entrypoint", "python", image, "-c", script,
+              ]
+              exit_code = "unknown"
+              try:
+                  if raw(command, 180).returncode != 0:
+                      return False
+                  if raw(["docker", "start", name], 180).returncode != 0:
+                      return False
+                  waited = raw(["docker", "wait", name], 180)
+                  if waited.returncode != 0:
+                      return False
+                  exit_code = waited.stdout.strip()
+                  return exit_code == "0"
+              finally:
+                  try:
+                      raw(["docker", "rm", "-f", name], 180)
+                  except subprocess.TimeoutExpired:
+                      pass
+                  if not absent(name):
+                      cleanup_errors.append("snapshot-cleanup-container")
+
+          protected = (deploy.PORTAL_CONTAINER, deploy.CONTROL_CONTAINER, deploy.PORTAL_POSTGRES_CONTAINER)
+          pre = {name: service_state(name) for name in protected}
+          add("pre_docker_ready", daemon_ok())
+          for name, value in pre.items():
+              add(f"pre_service_{name}", value)
+
+          postgres_env = deploy._read_env(deploy.PORTAL_POSTGRES_ENV)
+          runtime_env = deploy._read_env(deploy.PORTAL_RUNTIME_ENV)
+          protected_values = {value for value in [*postgres_env.values(), *runtime_env.values()] if value}
+
+          try:
+              if runtime_env.get("PORTAL_DATABASE_URL") != deploy.LEGACY_SQLITE_DATABASE_URL:
+                  raise RuntimeError("authoritative runtime is not legacy SQLite")
+              identity = raw([
+                  "docker", "image", "inspect", "--format",
+                  '{{.Id}}|{{ index .Config.Labels "org.opencontainers.image.revision" }}', image,
+              ], 45)
+              image_id, separator, image_revision = identity.stdout.strip().partition("|")
+              add("image_id_shape_valid", bool(re.fullmatch(r"sha256:[0-9a-f]{64}", image_id)))
+              add("image_revision_match", separator == "|" and image_revision == revision)
+              if identity.returncode != 0 or not re.fullmatch(r"sha256:[0-9a-f]{64}", image_id) or image_revision != revision:
+                  raise RuntimeError("diagnostic image identity mismatch")
+
+              deploy._drop_candidate_database(database_name)
+              deploy._create_postgres_database(database_name)
+              add("diagnostic_database_created", True)
+
+              candidate_values = dict(runtime_env)
+              candidate_values["PORTAL_DATABASE_URL"] = deploy._postgres_database_url(database_name, postgres_env)
+              deploy._write_env_atomic(candidate_env, candidate_values)
+              deploy.PORTAL_RUNTIME_CANDIDATE_ENV = candidate_env
+              add("diagnostic_env_created", True)
+
+              snapshot, snapshot_digest = host_state._snapshot_legacy_sqlite(deploy, image, revision)
+              add("snapshot_created", True)
+              add("snapshot_digest_shape_valid", bool(re.fullmatch(r"[0-9a-f]{64}", snapshot_digest)))
+
+              deploy._run = timed_run
+              migration = deploy._run_schema_command(image, "migrate")
+              add("migration_status", migration.get("status"))
+              add("migration_table_count", migration.get("table_count"))
+              add("migration_revision", migration.get("expected_revision", {}).get("revision_id"))
+              if migration.get("status") != "ready":
+                  raise RuntimeError("migration not ready")
+
+              transfer = deploy._transfer_legacy_state(image, snapshot)
+              add("transfer_status", transfer.get("status"))
+              add("transfer_integrity", transfer.get("integrity"))
+              add("transfer_source_authority", transfer.get("source_authority"))
+              add("transfer_target_revision", transfer.get("target_revision"))
+              add("transfer_tables_copied", transfer.get("tables_copied"))
+              add("transfer_rows_copied", transfer.get("rows_copied"))
+              if transfer.get("status") != "transferred" or transfer.get("integrity") != "clean":
+                  raise RuntimeError("transfer not clean")
+
+              check_result = deploy._run_schema_command(image, "check")
+              add("check_status", check_result.get("status"))
+              add("check_table_count", check_result.get("table_count"))
+              add("check_revision", check_result.get("expected_revision", {}).get("revision_id"))
+              if check_result.get("status") != "ready":
+                  raise RuntimeError("schema check not ready")
+              add("pipeline_status", "ready")
+          except Exception as exc:
+              message = str(exc)
+              for value in sorted(protected_values, key=len, reverse=True):
+                  message = message.replace(value, "[REDACTED]")
+              message = re.sub(r"postgresql(?:\\+psycopg)?://[^\\s]+", "[REDACTED_DATABASE_URL]", message)
+              add("pipeline_status", "failed")
+              add("pipeline_exception_type", type(exc).__name__)
+              add("pipeline_exception", message[:500].replace("\n", " | "))
+              raise
+          finally:
+              deploy._run = original_run
+              if snapshot is not None:
+                  try:
+                      snapshot_removed = cleanup_snapshot(snapshot)
+                  except Exception:
+                      snapshot_removed = False
+                  add("cleanup_snapshot_absent", snapshot_removed)
+                  if not snapshot_removed:
+                      cleanup_errors.append("snapshot")
+              try:
+                  deploy._drop_candidate_database(database_name)
+                  db_absent = not deploy._postgres_database_exists(database_name)
+              except Exception:
+                  db_absent = False
+              add("cleanup_database_absent", db_absent)
+              if not db_absent:
+                  cleanup_errors.append("database")
+              try:
+                  candidate_env.unlink(missing_ok=True)
+                  env_absent = not candidate_env.exists()
+              except Exception:
+                  env_absent = False
+              add("cleanup_env_absent", env_absent)
+              if not env_absent:
+                  cleanup_errors.append("env")
+              for name in sorted(owned):
+                  try:
+                      if not absent(name):
+                          raw(["docker", "rm", "-f", name], 300)
+                      if not absent(name):
+                          cleanup_errors.append(f"container-final:{name}")
+                  except Exception:
+                      cleanup_errors.append(f"container-final:{name}")
+              post = {name: service_state(name) for name in protected}
+              add("post_docker_ready", daemon_ok())
+              for name, value in post.items():
+                  add(f"post_service_{name}", value)
+              non_regression = daemon_ok() and all(pre[name] == post[name] for name in protected)
+              add("protected_service_non_regression", non_regression)
+              if not non_regression:
+                  cleanup_errors.append("protected-service-non-regression")
+              add("cleanup_errors", ",".join(cleanup_errors) if cleanup_errors else "none")
+              report.write_text("\n".join(rows) + "\n", encoding="utf-8")
+          if cleanup_errors:
+              raise SystemExit(3)
+          PY
+
+      - name: Remove exact diagnostic image tag
+        if: always()
+        shell: bash
+        env:
+          IMAGE: local/freqtrade-portal-control-plane:diag-1089-6371fb7005cb
+        run: |
+          docker image rm "${IMAGE}" >/dev/null 2>&1 || true
+          test -z "$(docker image ls --quiet "${IMAGE}" 2>/dev/null)"
+
+      - name: Upload timing evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: synology-1089-db-phase-timing-v3-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/synology-1089-db-phase-timing-v3.txt
+          if-no-files-found: error
+          retention-days: 14

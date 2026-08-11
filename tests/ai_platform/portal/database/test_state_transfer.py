@@ -253,6 +253,37 @@ def test_public_oidc_v1_target_backfill_matches_runtime_generation_migration(
         engine.dispose()
 
 
+def test_public_oidc_v1_target_backfill_rejects_missing_current_revision(
+    tmp_path: Path,
+) -> None:
+    engine = _sqlite_engine(tmp_path, "public-oidc-v1-missing-current-revision.db")
+    bot_table = next(table for table in _manifest_tables() if table.name == "portal_bots")
+    try:
+        migrate_database(engine)
+        with engine.begin() as connection:
+            connection.execute(
+                bot_table.insert().values(
+                    tenant_id="tenant-test",
+                    bot_id="bot-test",
+                    name="Bot",
+                    spec_json="{}",
+                    desired_state="stopped",
+                    observed_state="stopped",
+                    current_revision=7,
+                    latest_authored_revision_id=None,
+                    desired_revision_id=None,
+                    desired_runtime_generation_id=None,
+                    observed_runtime_generation_id=None,
+                    state_version=None,
+                )
+            )
+
+            with pytest.raises(PortalStateTransferError, match="current revision did not resolve"):
+                _backfill_public_oidc_v1_target(connection)
+    finally:
+        engine.dispose()
+
+
 def test_deployed_public_oidc_v1_transfer_is_frozen_to_reviewed_target_revision() -> None:
     _assert_transfer_target_revision(
         PUBLIC_OIDC_V1_AUTHORITY,

@@ -2,15 +2,15 @@
 task_id: FTAI-20260812-g3-runtime-gateway-1493
 programme_id: FTAI-PROGRAM-AI-TRADING-PORTAL
 project_lane: freqtrade-portal
-status: validating
+status: ready
 task_kind: implementation
 priority: high
 repository: blakinio/freqtrade
 base_branch: develop
-base_head: ec41d2542bff57f74cd10856b7dc22265213d991
+base_head: 111b861426cd73072c507da4d2c4dbbcdc80dc51
 dispatch_anchor: 111b861426cd73072c507da4d2c4dbbcdc80dc51
 branch: codex/g3-runtime-gateway-1493
-related_pr: null
+related_pr: 1497
 issue: 1493
 created: 2026-08-12
 updated: 2026-08-12
@@ -59,7 +59,7 @@ generic upstream proxy, accepts LIVE mode, or treats acknowledgement as executio
 ```yaml
 policy_version: 2
 prompting_standard_version: 2.1
-phase: validate
+phase: handover
 session_id: codex-20260812-g3-gateway-1493
 session_role: producer
 execution_mode: codex
@@ -77,7 +77,7 @@ identical_failure_retries: 0
 repair_cycles_for_current_gate: 0
 context_reconstruction_attempts: 0
 stall_warnings: 0
-status: validating
+status: ready
 blockers: []
 changed_paths:
   - ai_platform/portal/runtime_gateway/**
@@ -93,5 +93,10 @@ validation:
 dependencies:
   - G3 Runtime Supervisor producer
   - coordinator-owned Supervisor + Gateway real-runtime E2E
-next_action: Publish the producer PR for coordinator audit and G3 integration; do not merge.
+pull_request:
+  number: 1497
+  state: open_draft
+completion_claim: partial_producer
+live: unavailable
+next_action: Coordinator audits PR 1497 and composes G3 Supervisor integration plus final G3 E2E; do not merge this producer alone.
 ```

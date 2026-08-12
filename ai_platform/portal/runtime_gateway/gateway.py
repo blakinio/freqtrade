@@ -17,7 +17,7 @@ from ai_platform.portal.runtime_gateway.upstream import FreqtradeUpstream
 _READ_ENDPOINTS = {
     Operation.HEALTH: "/api/v1/ping",
     Operation.READ_POSITIONS: "/api/v1/status",
-    Operation.READ_OPEN_ORDERS: "/api/v1/open_orders",
+    Operation.READ_OPEN_ORDERS: "/api/v1/status",
     Operation.READ_TRADES: "/api/v1/trades",
 }
 
@@ -56,6 +56,8 @@ class RuntimeGateway:
                     "UNSUPPORTED_OPERATION", "operation is not allow-listed"
                 ) from exc
             data = self._upstream.get(endpoint)
+            if request.operation is Operation.READ_OPEN_ORDERS:
+                data = _extract_open_orders(data)
         return GatewayResponse(
             request_id=request.request_id,
             generation_id=self._binding.generation_id,
@@ -78,3 +80,27 @@ class RuntimeGateway:
             raise GatewayError(
                 "GENERATION_IDENTITY_MISMATCH", "request does not match this generation"
             )
+
+
+def _extract_open_orders(status: Any) -> list[dict[str, Any]]:
+    """Derive open-order truth from Freqtrade's canonical open-trade `/status` response."""
+
+    if not isinstance(status, list):
+        raise GatewayError("MALFORMED_UPSTREAM_RESPONSE", "Freqtrade status must be a list")
+    open_orders: list[dict[str, Any]] = []
+    for trade in status:
+        if not isinstance(trade, dict):
+            raise GatewayError("MALFORMED_UPSTREAM_RESPONSE", "Freqtrade trade must be an object")
+        orders = trade.get("orders")
+        if not isinstance(orders, list):
+            raise GatewayError(
+                "MALFORMED_UPSTREAM_RESPONSE", "Freqtrade trade orders must be a list"
+            )
+        for order in orders:
+            if not isinstance(order, dict) or not isinstance(order.get("is_open"), bool):
+                raise GatewayError(
+                    "MALFORMED_UPSTREAM_RESPONSE", "Freqtrade order shape is invalid"
+                )
+            if order["is_open"]:
+                open_orders.append(order)
+    return open_orders

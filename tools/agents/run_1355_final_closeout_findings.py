@@ -7,6 +7,11 @@ exec(compile(source.read_text(encoding="utf-8"), str(source), "exec"), {"__name_
 
 path = Path("ai_platform/portal/runtime_supervisor/transport.py")
 text = path.read_text(encoding="utf-8")
+text = text.replace(
+    "from concurrent.futures import Future, ThreadPoolExecutor\n",
+    "from concurrent.futures import ThreadPoolExecutor\n",
+    1,
+)
 start_marker = "    def serve_forever(self, *, stop_event: threading.Event | None = None) -> None:\n"
 end_marker = "    @staticmethod\n    def _read_request(connection: socket.socket) -> bytes:\n"
 if text.count(start_marker) != 1 or text.count(end_marker) != 1:
@@ -73,7 +78,7 @@ replacement = '''    def serve_forever(self, *, stop_event: threading.Event | No
         except TimeoutError:
             inflight.release()
             return
-        except BaseException:
+        except OSError:
             inflight.release()
             raise
         try:

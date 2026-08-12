@@ -52,11 +52,11 @@ No open PR found owning Issue #1396, WH09 recovery, or the Liquid20 deploy paths
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-12T12:14:00Z
-head: e3c782b4877e29b5928579d5b1ccaaadae681be1
+updated_at: 2026-08-12T12:20:00Z
+head: e61a66603c59b43a1a3cbc838c53e9e1b320bdb9
 branch: codex/wh09-e2e-recovery-1396
 pr: 1502
-status: waiting
+status: implementing
 context_routes:
   - deploy/synology/liquid20/deploy-live.sh
   - tests/ai_platform_integration/test_synology_liquid20_live_deployment.py
@@ -98,32 +98,5 @@ validation:
     result: PASS
     evidence: task checkpoint and whitespace validation passed.
 blockers: []
-next_action: observe aggregate PR 1502 CI and review state once after the minimum interval
-```
-
-## Recovery checkpoint
-
-```yaml
-recovery:
-  policy_version: 1
-  generation: 1
-  session_id: 20260812T121200Z-wh09-recovery-1396
-  session_started_at: 2026-08-12T12:07:00Z
-  checkpointed_at: 2026-08-12T12:12:00Z
-  last_progress_at: 2026-08-12T12:10:35Z
-  phase: final-review-and-ci
-  exact_head: cfb73d062185b3ea9cccc428840f94f05f5b7dcc
-  pull_request: 1502
-  active_operation: GitHub Actions exact-head CI and independent review
-  external_run_ids:
-    - 31595185564
-    - 31595185726
-  operation_started_at: 2026-08-12T12:10:25Z
-  wait_deadline_at: 2026-08-12T12:55:25Z
-  check_generation: ready-pr-cfb73d062185b3ea9cccc428840f94f05f5b7dcc
-  checks_used: 1
-  status: waiting
-  safe_to_resume: true
-  resume_condition: required CI and an eligible independent review are terminal
-  next_action: observe aggregate PR 1502 CI and review state once after the minimum interval
+next_action: validate the absolute-deadline repair for review finding PRRT_kwDOTdDTU86Yj6IR
 ```

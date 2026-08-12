@@ -205,7 +205,8 @@ PY
 
 state_observation() {
     local selected_container="$1"
-    timeout 10s docker exec --interactive "$selected_container" python - <<'PY'
+    local observation_timeout_seconds="${2:-10}"
+    timeout "${observation_timeout_seconds}s" docker exec --interactive "$selected_container" python - <<'PY'
 import json
 from pathlib import Path
 
@@ -289,6 +290,8 @@ wait_for_heartbeat_advance() {
     local first_observation="$2"
     local observation=""
     local first_heartbeat=""
+    local deadline=0
+    local remaining=0
     first_heartbeat="$(python3 - "$first_observation" <<'PY'
 import json
 import sys
@@ -299,8 +302,13 @@ if not isinstance(heartbeat, int):
 print(heartbeat)
 PY
 )"
-    for _ in $(seq 1 15); do
-        observation="$(state_observation "$selected_container" 2>/dev/null || true)"
+    deadline=$((SECONDS + 30))
+    while (( SECONDS < deadline )); do
+        remaining=$((deadline - SECONDS))
+        if (( remaining > 10 )); then
+            remaining=10
+        fi
+        observation="$(state_observation "$selected_container" "$remaining" 2>/dev/null || true)"
         if [[ -n "$observation" ]] && python3 - "$observation" "$first_heartbeat" <<'PY'
 import json
 import sys
@@ -313,7 +321,10 @@ PY
             printf '%s' "$observation"
             return 0
         fi
-        sleep 2
+        remaining=$((deadline - SECONDS))
+        if (( remaining > 0 )); then
+            sleep "$(( remaining < 2 ? remaining : 2 ))"
+        fi
     done
     printf 'Last collector observation while waiting for heartbeat advance: %s\n' \
         "${observation:-unavailable}" >&2

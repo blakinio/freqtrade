@@ -23,6 +23,10 @@ def test_failed_deploy_runs_bounded_secret_free_public_connectivity_diagnostic()
     assert "timeout-minutes: 3" in workflow
     assert "timeout 120s docker run --rm --interactive" in workflow
     assert 'image="local/liquid20-collector:sha-${GITHUB_SHA}"' in workflow
+    assert '--name "liquid20-connectivity-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"' in workflow
+    assert '--label "freqtrade.task=FTAI-20260812-wh09-e2e-recovery-1396"' in workflow
+    assert '--label "freqtrade.github-run-id=${GITHUB_RUN_ID}"' in workflow
+    assert '--label "freqtrade.github-run-attempt=${GITHUB_RUN_ATTEMPT}"' in workflow
     assert "--read-only" in workflow
     assert "--cap-drop ALL" in workflow
     assert "--security-opt no-new-privileges:true" in workflow

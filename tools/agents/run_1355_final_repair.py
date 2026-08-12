@@ -44,7 +44,7 @@ if text.count(marker) != 1:
 prefix, tail = text.split(marker, 1)
 old = "        external_attestor=_Attestor(),\n    )\n"
 new = "        external_attestor=_Attestor(),\n        gateway_attestor=_Attestor(),\n    )\n"
-if tail.count(old) != 1:
-    raise SystemExit(f"expected generation-evidence driver constructor once, got {tail.count(old)}")
-tail = tail.replace(old, new, 1)
+if tail.count(old) != 2:
+    raise SystemExit(f"expected two generation-evidence driver constructors, got {tail.count(old)}")
+tail = tail.replace(old, new)
 path.write_text(prefix + marker + tail, encoding="utf-8")

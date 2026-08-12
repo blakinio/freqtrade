@@ -73,7 +73,10 @@ def test_diagnostic_container_has_always_run_exact_name_cleanup() -> None:
 
     assert "if: always()" in cleanup_block
     assert "continue-on-error: true" in cleanup_block
-    assert 'docker rm -f "liquid20-connectivity-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"' in cleanup_block
+    assert (
+        'docker rm -f "liquid20-connectivity-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"'
+        in cleanup_block
+    )
 
 
 def test_embedded_connectivity_probe_is_valid_python() -> None:

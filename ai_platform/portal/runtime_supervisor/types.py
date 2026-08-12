@@ -1,12 +1,22 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, NonNegativeInt, PositiveInt
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    NonNegativeInt,
+    PositiveInt,
+    StringConstraints,
+)
 
 from ai_platform.portal.contracts.common import NonEmptyStr, Sha256Hex
 from ai_platform.portal.execution.runtime import DriverRuntimeState
+
+
+DriverReasonCode = Annotated[str, StringConstraints(pattern=r"^[A-Z][A-Z0-9_]{0,63}$")]
 
 
 class SupervisorOperation(StrEnum):
@@ -66,4 +76,5 @@ class SupervisorOutcome(BaseModel):
     correlation_id: UUID
     state: DriverRuntimeState | None = None
     state_version: NonNegativeInt
+    driver_reason_code: DriverReasonCode | None = None
     evidence_digest: Sha256Hex

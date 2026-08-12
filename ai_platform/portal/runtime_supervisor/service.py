@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sqlite3
 import threading
 from dataclasses import dataclass
@@ -182,6 +183,7 @@ _ACTIVE_STATES = {
     DriverRuntimeState.RUNNING,
     DriverRuntimeState.PAUSED,
 }
+_DRIVER_REASON_CODE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
 
 
 class _InvalidStateTransition(RuntimeError):
@@ -241,7 +243,10 @@ class RuntimeSupervisor:
                 None,
                 generation.state_version,
             )
-        if (
+        if request.operation in {
+            SupervisorOperation.ENSURE_PROVISIONED,
+            SupervisorOperation.ENSURE_RUNNING,
+        } and (
             generation.execution_mode is not ExecutionMode.DRY_RUN
             or not generation.paper_authorized
         ):
@@ -296,11 +301,14 @@ class RuntimeSupervisor:
                 SupervisorOperation.ENSURE_PROVISIONED,
                 SupervisorOperation.ENSURE_RUNNING,
             }:
-                active = self._journal.active_generation(request.tenant_id, request.bot_id)
-                active = active or self._generations.active_generation(
+                journal_active = self._journal.active_generation(request.tenant_id, request.bot_id)
+                provider_active = self._generations.active_generation(
                     request.tenant_id, request.bot_id
                 )
-                if active is not None and active != request.generation_id:
+                if any(
+                    active is not None and active != request.generation_id
+                    for active in (journal_active, provider_active)
+                ):
                     return self._outcome(
                         request,
                         SupervisorOutcomeCode.CONFLICTING_GENERATION_ACTIVE,
@@ -340,13 +348,20 @@ class RuntimeSupervisor:
                 current,
                 generation.state_version,
             )
-        except RuntimeDriverError:
+        except RuntimeDriverError as exc:
+            reason_code = (
+                exc.reason_code
+                if isinstance(exc.reason_code, str)
+                and _DRIVER_REASON_CODE.fullmatch(exc.reason_code)
+                else "DRIVER_FAILURE_UNCLASSIFIED"
+            )
             return self._outcome(
                 request,
                 SupervisorOutcomeCode.ENGINE_OPERATION_FAILED,
                 False,
                 None,
                 generation.state_version,
+                driver_reason_code=reason_code,
             )
 
     def _apply(  # noqa: C901 - explicit lifecycle transition table.
@@ -356,6 +371,12 @@ class RuntimeSupervisor:
         current: DriverRuntimeState,
     ) -> tuple[DriverRuntimeState, DriverRuntimeState]:
         if operation is SupervisorOperation.ENSURE_PROVISIONED:
+            if current is DriverRuntimeState.CREATED:
+                if self._driver.has_current_generation_evidence(spec.runtime_id, spec):
+                    return current, current
+                self._driver.stop(spec.runtime_id)
+                self._driver.retire(spec.runtime_id)
+                return DriverRuntimeState.CREATED, self._driver.provision(spec)
             if current in _ACTIVE_STATES and current is not DriverRuntimeState.STARTING:
                 return current, current
             if current in {DriverRuntimeState.STOPPED, DriverRuntimeState.STARTING}:
@@ -365,7 +386,14 @@ class RuntimeSupervisor:
             return DriverRuntimeState.CREATED, self._driver.provision(spec)
         if operation is SupervisorOperation.ENSURE_RUNNING:
             if current is DriverRuntimeState.RUNNING:
-                return current, current
+                return current, self._driver.start(spec.runtime_id)
+            if (
+                current is DriverRuntimeState.CREATED
+                and not self._driver.has_current_generation_evidence(spec.runtime_id, spec)
+            ):
+                self._driver.stop(spec.runtime_id)
+                self._driver.retire(spec.runtime_id)
+                current = DriverRuntimeState.MISSING
             if current in {
                 DriverRuntimeState.STOPPED,
                 DriverRuntimeState.PAUSED,
@@ -421,6 +449,8 @@ class RuntimeSupervisor:
         accepted: bool,
         state: DriverRuntimeState | None,
         state_version: int,
+        *,
+        driver_reason_code: str | None = None,
     ) -> SupervisorOutcome:
         evidence = {
             "accepted": accepted,
@@ -433,6 +463,7 @@ class RuntimeSupervisor:
             "command_id": str(request.command_id),
             "state": state.value if state else None,
             "state_version": state_version,
+            "driver_reason_code": driver_reason_code,
         }
         digest = hashlib.sha256(
             json.dumps(evidence, sort_keys=True, separators=(",", ":")).encode()

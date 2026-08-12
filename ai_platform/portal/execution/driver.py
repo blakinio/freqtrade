@@ -449,6 +449,22 @@ class DockerCliRuntimeDriver:
         self._specs: dict[str, RuntimeContainerSpec] = {}
         self._plan_digests: dict[str, str] = {}
 
+    def has_current_generation_evidence(self, runtime_id: str, spec: RuntimeContainerSpec) -> bool:
+        if runtime_id not in self._attested:
+            return False
+        if self._specs.get(runtime_id) != spec:
+            return False
+        try:
+            binding = self._plans.resolve(runtime_id)
+        except RuntimeDriverError:
+            return False
+        plan_digest = binding.isolation_plan_digest
+        return (
+            self._plan_digests.get(runtime_id) == plan_digest
+            and self._networks.get(runtime_id) == self._network_name(runtime_id)
+            and self._fingerprints.get(runtime_id) == self._fingerprint(spec, plan_digest)
+        )
+
     def provision(self, spec: RuntimeContainerSpec) -> DriverRuntimeState:
         binding = self._plans.resolve(spec.runtime_id)
         plan = binding.plan
@@ -564,9 +580,7 @@ class DockerCliRuntimeDriver:
         current = self.inspect(runtime_id)
         network = self._networks.get(runtime_id, self._network_name(runtime_id))
         if current is not DriverRuntimeState.MISSING:
-            identity = self._runner.run(
-                ("docker", "inspect", "--format", "{{json .}}", runtime_id)
-            )
+            identity = self._runner.run(("docker", "inspect", "--format", "{{json .}}", runtime_id))
             if identity.returncode != 0:
                 raise RuntimeDriverError(
                     "GENERATION_OWNERSHIP_CONFLICT",
@@ -591,9 +605,7 @@ class DockerCliRuntimeDriver:
                     "GENERATION_OWNERSHIP_CONFLICT",
                     "runtime identity label does not match the requested generation",
                 )
-            self._require_success(
-                ("docker", "rm", "-f", container_id), "DOCKER_REMOVE_FAILED"
-            )
+            self._require_success(("docker", "rm", "-f", container_id), "DOCKER_REMOVE_FAILED")
         try:
             self._external.cleanup_network(network, runtime_id)
         finally:

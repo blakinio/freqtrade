@@ -32,9 +32,15 @@ class Generations:
 
 
 class Driver:
-    def __init__(self, state: DriverRuntimeState = DriverRuntimeState.MISSING) -> None:
+    def __init__(
+        self,
+        state: DriverRuntimeState = DriverRuntimeState.MISSING,
+        *,
+        has_evidence: bool = True,
+    ) -> None:
         self.state = state
         self.calls: list[str] = []
+        self.has_evidence = has_evidence
 
     def inspect(self, runtime_id: str) -> DriverRuntimeState:
         self.calls.append("inspect")
@@ -64,6 +70,9 @@ class Driver:
         self.calls.append("retire")
         self.state = DriverRuntimeState.MISSING
         return self.state
+
+    def has_current_generation_evidence(self, runtime_id: str, spec: RuntimeContainerSpec) -> bool:
+        return self.has_evidence
 
 
 def generation(
@@ -376,3 +385,129 @@ def test_provision_from_stopped_reconstructs_generation() -> None:
     ).execute(request(SupervisorOperation.ENSURE_PROVISIONED))
     assert outcome.accepted and outcome.state is DriverRuntimeState.CREATED
     assert driver.calls == ["inspect", "retire", "provision"]
+
+
+def test_durable_local_claim_cannot_mask_provider_generation_conflict(tmp_path: Path) -> None:
+    journal = SqliteCommandJournal(tmp_path / "journal.sqlite3")
+    assert journal.claim_active("tenant-1", "bot-1", "gen-1")
+    driver = Driver()
+    outcome = RuntimeSupervisor(
+        Generations(generation(), active="gen-other"), driver, journal
+    ).execute(request())
+    assert outcome.code is SupervisorOutcomeCode.CONFLICTING_GENERATION_ACTIVE
+    assert driver.calls == ["inspect"]
+
+
+def test_non_paper_runtime_remains_containable_and_inspectable() -> None:
+    candidate = generation()
+    candidate = SupervisorGeneration(
+        **{
+            **candidate.__dict__,
+            "execution_mode": ExecutionMode.SIMULATED,
+            "paper_authorized": False,
+        }
+    )
+
+    inspect_driver = Driver(DriverRuntimeState.RUNNING)
+    inspected = RuntimeSupervisor(
+        Generations(candidate), inspect_driver, InMemoryCommandJournal()
+    ).execute(request(SupervisorOperation.INSPECT_GENERATION))
+    assert inspected.accepted and inspected.state is DriverRuntimeState.RUNNING
+    assert inspect_driver.calls == ["inspect"]
+
+    stop_driver = Driver(DriverRuntimeState.RUNNING)
+    stopped = RuntimeSupervisor(
+        Generations(candidate), stop_driver, InMemoryCommandJournal()
+    ).execute(request(SupervisorOperation.ENSURE_STOPPED))
+    assert stopped.accepted and stopped.state is DriverRuntimeState.STOPPED
+    assert stop_driver.calls == ["inspect", "stop"]
+
+    retirement_candidate = SupervisorGeneration(
+        **{**candidate.__dict__, "retirement_authorized": True}
+    )
+    retire_driver = Driver(DriverRuntimeState.STOPPED)
+    retired = RuntimeSupervisor(
+        Generations(retirement_candidate), retire_driver, InMemoryCommandJournal()
+    ).execute(request(SupervisorOperation.ENSURE_RETIRED))
+    assert retired.accepted and retired.state is DriverRuntimeState.MISSING
+    assert retire_driver.calls == ["inspect", "retire"]
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [SupervisorOperation.ENSURE_PROVISIONED, SupervisorOperation.ENSURE_RUNNING],
+)
+def test_non_paper_runtime_cannot_create_exposure(operation: SupervisorOperation) -> None:
+    candidate = generation()
+    candidate = SupervisorGeneration(
+        **{
+            **candidate.__dict__,
+            "execution_mode": ExecutionMode.SIMULATED,
+            "paper_authorized": False,
+        }
+    )
+    driver = Driver()
+    outcome = RuntimeSupervisor(Generations(candidate), driver, InMemoryCommandJournal()).execute(
+        request(operation)
+    )
+    assert outcome.code is SupervisorOutcomeCode.PAPER_AUTHORIZATION_REQUIRED
+    assert driver.calls == []
+
+
+def test_running_reconciliation_invokes_driver_reattestation() -> None:
+    driver = Driver(DriverRuntimeState.RUNNING)
+    outcome = RuntimeSupervisor(
+        Generations(generation()), driver, InMemoryCommandJournal()
+    ).execute(request(SupervisorOperation.ENSURE_RUNNING))
+    assert outcome.accepted and outcome.state is DriverRuntimeState.RUNNING
+    assert driver.calls == ["inspect", "start"]
+
+
+def test_restart_observed_created_runtime_is_reconstructed() -> None:
+    driver = Driver(DriverRuntimeState.CREATED, has_evidence=False)
+    outcome = RuntimeSupervisor(
+        Generations(generation()), driver, InMemoryCommandJournal()
+    ).execute(request(SupervisorOperation.ENSURE_PROVISIONED))
+    assert outcome.accepted and outcome.state is DriverRuntimeState.CREATED
+    assert driver.calls == ["inspect", "stop", "retire", "provision"]
+
+
+def test_same_session_created_runtime_remains_idempotent() -> None:
+    driver = Driver(DriverRuntimeState.CREATED, has_evidence=True)
+    outcome = RuntimeSupervisor(
+        Generations(generation()), driver, InMemoryCommandJournal()
+    ).execute(request(SupervisorOperation.ENSURE_PROVISIONED))
+    assert outcome.accepted and outcome.state is DriverRuntimeState.CREATED
+    assert driver.calls == ["inspect"]
+
+
+def test_driver_reason_code_is_bounded_and_exception_text_is_not_exposed() -> None:
+    from ai_platform.portal.execution.errors import RuntimeDriverError
+
+    class FailingDriver(Driver):
+        def start(self, runtime_id: str) -> DriverRuntimeState:
+            self.calls.append("start")
+            raise RuntimeDriverError("ISOLATION_ATTESTATION_FAILED", "/secret/path detail")
+
+    driver = FailingDriver(DriverRuntimeState.RUNNING)
+    outcome = RuntimeSupervisor(
+        Generations(generation()), driver, InMemoryCommandJournal()
+    ).execute(request(SupervisorOperation.ENSURE_RUNNING))
+    assert outcome.code is SupervisorOutcomeCode.ENGINE_OPERATION_FAILED
+    assert outcome.driver_reason_code == "ISOLATION_ATTESTATION_FAILED"
+    assert "/secret/path" not in outcome.model_dump_json()
+
+
+def test_unbounded_driver_reason_code_is_sanitized() -> None:
+    from ai_platform.portal.execution.errors import RuntimeDriverError
+
+    class FailingDriver(Driver):
+        def start(self, runtime_id: str) -> DriverRuntimeState:
+            raise RuntimeDriverError("unsafe reason with detail", "secret")
+
+    outcome = RuntimeSupervisor(
+        Generations(generation()),
+        FailingDriver(DriverRuntimeState.RUNNING),
+        InMemoryCommandJournal(),
+    ).execute(request(SupervisorOperation.ENSURE_RUNNING))
+    assert outcome.driver_reason_code == "DRIVER_FAILURE_UNCLASSIFIED"

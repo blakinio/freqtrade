@@ -1030,3 +1030,25 @@ def test_effective_rootfs_attestation_requires_readonly_mount() -> None:
         DockerCliRuntimeDriver._attest_readonly_root("overlay / overlay rw,relatime 0 0\n")
 
     assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
+
+
+def test_current_generation_evidence_is_process_local_and_exact(tmp_path: Path) -> None:
+    plan = _plan()
+    spec = _spec(tmp_path)
+    runner = _Runner(*_provision_results(spec, plan))
+    driver = DockerCliRuntimeDriver(
+        runner,
+        isolation_plans=_provider(plan),
+        external_attestor=_Attestor(),
+        gateway_attestor=_Attestor(),
+    )
+    assert driver.provision(spec) is DriverRuntimeState.CREATED
+    assert driver.has_current_generation_evidence("runtime-1", spec)
+
+    fresh = DockerCliRuntimeDriver(
+        _Runner(),
+        isolation_plans=_provider(plan),
+        external_attestor=_Attestor(),
+        gateway_attestor=_Attestor(),
+    )
+    assert not fresh.has_current_generation_evidence("runtime-1", spec)

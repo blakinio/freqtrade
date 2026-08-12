@@ -7,7 +7,7 @@ branch: codex/wh09-e2e-recovery-closeout-1396
 base_head: c0c484a1fe9139e6039e0c79512c3b0527c32446
 owner: chatgpt
 paper_only: true
-next_action: Complete fresh review and exact-head CI for PR 1503, then merge to collect the bounded exact-host Liquid20 connectivity evidence.
+next_action: Complete fresh review and exact-head CI for PR 1503 after the process-isolation repair, then merge to collect the bounded exact-host Liquid20 connectivity evidence.
 ---
 
 # WH09 end-to-end production evidence recovery
@@ -55,8 +55,8 @@ PR #1503 is the single current recovery PR. No separate runtime implementation P
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-12T13:31:00Z
-head: 490f45a4fef185b9f7e274b9e2886985f6516b21
+updated_at: 2026-08-12T13:34:00Z
+head: fb68dba05d24a1c6ee2faa30a341657957ba724d
 branch: codex/wh09-e2e-recovery-closeout-1396
 pr: 1503
 status: validating
@@ -79,9 +79,11 @@ proven:
   - Candidate discovery completed with Binance 524, Bybit 702 and OKX 431 subscription symbols while all public connected fields remained false.
   - Current persisted source state cannot expose the private pre-activation source connection set.
   - PR 1503 adds a failure-only diagnostic using the exact built image, no credentials or mounts, read-only/cap-drop/no-new-privileges controls, finite DNS/TLS/WebSocket/protocol bounds, sanitized error signatures, and artifact capture.
-  - Focused static coverage asserts failure-only execution, bounds, hardening, exact-image identity, absence of credential names, sanitized error signatures, artifact upload, and compiles the embedded Python probe.
+  - Focused static coverage asserts failure-only execution, bounds, hardening, exact-image identity, absence of credential names, sanitized error signatures, artifact upload, embedded-Python compilation, and process isolation.
+  - Fresh Codex audit found P2 `PRRT_kwDOTdDTU86YlbrS`: asyncio thread-backed DNS timeout could delay `asyncio.run()` shutdown until the outer process timeout and lose the already-classified DNS result.
+  - Repair isolates every exchange probe in its own forked process, sends the classified source result over a one-way pipe before child shutdown, terminates a child that remains alive after result delivery, and returns a bounded source-level process timeout when no result is delivered.
 derived:
-  - The next exact-host diagnostic can distinguish DNS, TLS, WebSocket handshake and subscription-protocol failure without changing collector readiness or production state.
+  - The repaired exact-host diagnostic can distinguish DNS, TLS, WebSocket handshake and subscription-protocol failure without allowing a stuck resolver or websocket shutdown to erase completed source evidence.
 unknown:
   - The source of the original SIGTERM that produced exit code 143.
   - Which public source or connection phase prevents current atomic three-source activation.
@@ -97,23 +99,30 @@ validation:
   - command: canonical Liquid20 deployment run 31596389251
     result: FAIL with new evidence
     evidence: heartbeat advanced; readiness failed at three-source connectivity; artifact 9141752696.
-  - command: GitHub Actions Security Analysis with zizmor on pre-checkpoint diagnostic head
+  - command: GitHub Actions Security Analysis with zizmor on pre-repair diagnostic head
     result: PASS
     evidence: run 31601549771 completed successfully for 490f45a4fef185b9f7e274b9e2886985f6516b21.
-  - command: exact-head PR CI and fresh independent review
+  - command: exact-head PR CI and fresh independent re-review after P2 repair
     result: PENDING
-    evidence: validation generation started after final checkpoint update.
+    evidence: final validation generation starts from the checkpoint commit following fb68dba05d24a1c6ee2faa30a341657957ba724d.
+audit:
+  validator: codex
+  findings:
+    - id: PRRT_kwDOTdDTU86YlbrS
+      severity: P2
+      status: repaired_pending_reverification
+      evidence: process-isolation repair in .github/workflows/liquidations-live-synology.yml with focused assertions.
 blockers: []
 anti_stall:
   invocation_started_at: 2026-08-12T13:10:00Z
-  last_progress_at: 2026-08-12T13:31:00Z
+  last_progress_at: 2026-08-12T13:34:00Z
   ci_checks_for_current_head: 0
   unchanged_state_checks: 0
   identical_failure_retries: 0
-  repair_cycles_for_current_gate: 1
+  repair_cycles_for_current_gate: 2
   context_reconstruction_attempts: 1
   stall_warnings: 0
-next_action: complete fresh review and exact-head CI for PR 1503, then merge if all gates pass
+next_action: complete fresh re-review and exact-head CI for PR 1503, resolve the repaired review thread, then merge if all gates pass
 ```
 
 ## Recovery checkpoint
@@ -121,10 +130,10 @@ next_action: complete fresh review and exact-head CI for PR 1503, then merge if 
 ```yaml
 recovery:
   policy_version: 1
-  generation: 4
+  generation: 5
   session_id: 20260812T131000Z-wh09-recovery-1396
   phase: validate-liquid20-source-connectivity-diagnostic
-  pre_checkpoint_code_head: 490f45a4fef185b9f7e274b9e2886985f6516b21
+  pre_checkpoint_code_head: fb68dba05d24a1c6ee2faa30a341657957ba724d
   pull_request: 1503
   external_run_ids:
     - 31596389251
@@ -132,5 +141,5 @@ recovery:
     - 9141752696
   status: validating
   safe_to_resume: true
-  next_action: complete fresh review and exact-head CI, merge PR 1503 if green, then inspect the canonical deployment diagnostic artifact
+  next_action: complete fresh re-review and exact-head CI, resolve repaired P2, merge PR 1503 if green, then inspect the canonical deployment diagnostic artifact
 ```

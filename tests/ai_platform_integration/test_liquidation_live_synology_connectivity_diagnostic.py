@@ -63,7 +63,9 @@ def test_each_probe_is_process_isolated_and_terminable() -> None:
 def test_embedded_connectivity_probe_is_valid_python() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     diagnostic_block = _diagnostic_block(workflow)
-    embedded = diagnostic_block.split("<<'PY'\n", maxsplit=1)[1].split("\n          PY", maxsplit=1)[0]
+    embedded = diagnostic_block.split("<<'PY'\n", maxsplit=1)[1].split(
+        "\n          PY", maxsplit=1
+    )[0]
 
     compile(textwrap.dedent(embedded), "liquidations-live-connectivity-diagnostic", "exec")
 

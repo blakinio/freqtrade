@@ -37,7 +37,7 @@ engine restart of stale in-memory release evidence.
 ```yaml
 checkpoint_version: 1
 updated_at: 2026-08-12T00:00:00Z
-head: 69ddc1850e7e2be958018be3c93b7ca507661e32
+head: 1393d7daed17ab9fa0addc5f2e3845164fef06f1
 head_role: supervisor_producer_candidate
 branch: codex/portal-runtime-supervisor-1355
 pr: 1496
@@ -60,12 +60,14 @@ proven:
   - focused tests, Ruff, mypy and diff check pass
   - EnsureRetired removes only the exact stopped/paused generation and generation-scoped network
   - EnsureRunning reconstructs a stopped generation through retire, provision, attestation and release
+  - two independent audit rounds produced eleven material findings and every finding was remediated
+  - all eleven review threads are resolved; a fresh exact-head audit is pending
 derived:
   - deployment composition remains coordinator work because this producer owns no deployment paths
 unknown:
   - real Linux UDS peer-credential E2E on the final exact head
   - real Docker Supervisor plus #1354 quarantine/attestation lifecycle E2E
-  - coordinator independent audit and exact-head GitHub CI
+  - final post-remediation independent audit and exact-head GitHub CI
 conflicts: []
 first_failure:
   marker: linux_and_docker_e2e_unavailable_on_native_windows
@@ -93,10 +95,10 @@ validation:
     evidence: no whitespace errors
   - command: python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform tests/ai_platform/portal/runtime_supervisor tests/ai_platform/portal/execution/test_driver.py
     result: PASS
-    evidence: 55 passed after rebase, retirement/reconstruction integration and Linux peer credential test
+    evidence: 61 passed after all audit remediation and Linux peer credential test
   - command: Portal Runtime Isolation E2E
     result: NOT_RUN
-    evidence: exact-head GitHub run pending; scenario now enters through RuntimeSupervisor and proves real Docker provision, stop and retire
+    evidence: exact-head run 31593372866 pending; scenario enters through RuntimeSupervisor and proves real Docker provision, stop and retire
 blockers: []
-next_action: Inspect the fresh independent audit and aggregate exact-head CI including Portal Runtime Isolation E2E; remediate any material finding or merge only after every gate passes.
+next_action: Inspect the fresh audit requested for 1393d7daed and aggregate exact-head CI run generation including 31593372866; remediate any finding/failure or merge only after every gate passes.
 ```

@@ -1,0 +1,87 @@
+name: Apply Runtime Supervisor 1355 Repair
+
+on:
+  push:
+    branches:
+      - codex/portal-runtime-supervisor-1355
+    paths:
+      - .github/workflows/apply-runtime-supervisor-1355-repair.yml
+
+permissions:
+  contents: write
+  issues: read
+
+jobs:
+  apply-repair:
+    if: ${{ !contains(github.event.head_commit.message, '[applied-1355-codex-patch]') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact task branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: codex/portal-runtime-supervisor-1355
+          fetch-depth: 2
+
+      - name: Apply verified Codex repair payload
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_PARENT: 31a46fe1414c3d25a34a6fa69bba7b628d7ec118
+          COMMENT_ID: '5266741749'
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
+          test "$(git diff --name-only HEAD^..HEAD)" = ".github/workflows/apply-runtime-supervisor-1355-repair.yml"
+
+          gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" --jq .body > /tmp/comment.md
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          body = Path('/tmp/comment.md').read_text(encoding='utf-8')
+          match = re.search(r'```diff\n(.*?)\n```', body, flags=re.S)
+          if not match:
+              raise SystemExit('complete diff fence missing')
+          patch = match.group(1) + '\n'
+          Path('/tmp/repair.diff').write_text(patch, encoding='utf-8')
+
+          expected = {
+              'ai_platform/portal/execution/driver.py',
+              'ai_platform/portal/execution/host_isolation.py',
+              'ai_platform/portal/runtime_supervisor/service.py',
+              'tests/ai_platform/portal/execution/test_driver.py',
+              'tests/ai_platform/portal/execution/test_host_isolation_cleanup.py',
+              'tests/ai_platform/portal/runtime_supervisor/test_service.py',
+              'tools/portal_audit/ledger/backend_modules.json',
+              'tools/portal_audit/ledger/index.json',
+          }
+          paths = {
+              line[6:]
+              for line in patch.splitlines()
+              if line.startswith('+++ b/')
+          }
+          if paths != expected:
+              raise SystemExit(
+                  f'unexpected patch paths: expected={sorted(expected)} actual={sorted(paths)}'
+              )
+          PY
+
+          git apply --check /tmp/repair.diff
+          git apply /tmp/repair.diff
+          git diff --check
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            ai_platform/portal/execution/driver.py \
+            ai_platform/portal/execution/host_isolation.py \
+            ai_platform/portal/runtime_supervisor/service.py \
+            tests/ai_platform/portal/execution/test_driver.py \
+            tests/ai_platform/portal/execution/test_host_isolation_cleanup.py \
+            tests/ai_platform/portal/runtime_supervisor/test_service.py \
+            tools/portal_audit/ledger/backend_modules.json \
+            tools/portal_audit/ledger/index.json
+          git diff --cached --check
+          git commit -m 'fix(portal): harden supervisor restart retirement (#1355) [applied-1355-codex-patch]'
+          git push origin HEAD:codex/portal-runtime-supervisor-1355

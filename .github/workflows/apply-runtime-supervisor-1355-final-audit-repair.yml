@@ -25,12 +25,12 @@ jobs:
       - name: Apply and validate bounded repair
         shell: bash
         env:
-          EXPECTED_PARENT: 61feb88871c021e231b990c8849d1aad09af5f6f
+          EXPECTED_PARENT: 65fa34a01498704e3a4cafae471e536042eaa199
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
           test "$(git diff --name-only HEAD^..HEAD)" = ".github/workflows/apply-runtime-supervisor-1355-final-audit-repair.yml"
-          python tools/agents/apply_1355_final_repair.py
+          python tools/agents/run_1355_final_repair.py
           python -m pip install --disable-pip-version-check -q pytest==9.1.1 ruff mypy 'pydantic>=2.2' 'SQLAlchemy>=2.0.6' 'httpx>=0.24.1' fastapi pyjwt cryptography 'PyYAML>=6.0'
           python -m ruff format ai_platform/portal/execution/runtime.py ai_platform/portal/execution/driver.py ai_platform/portal/runtime_supervisor/service.py ai_platform/portal/runtime_supervisor/types.py tests/ai_platform/portal/execution/test_driver.py tests/ai_platform/portal/runtime_supervisor/test_service.py
           python -m ruff check ai_platform/portal/execution/runtime.py ai_platform/portal/execution/driver.py ai_platform/portal/runtime_supervisor/service.py ai_platform/portal/runtime_supervisor/types.py tests/ai_platform/portal/execution/test_driver.py tests/ai_platform/portal/runtime_supervisor/test_service.py

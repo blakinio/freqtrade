@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import socket
 import threading
-import time
 from pathlib import Path
 from uuid import uuid4
 
@@ -212,20 +211,18 @@ def test_shutdown_is_bounded_and_retains_socket_for_hung_worker(
     )
     monkeypatch.setattr(server, "_validate_socket_root", lambda: socket.AF_UNIX)
     stop_event = threading.Event()
+    ready_event = threading.Event()
     errors: list[BaseException] = []
 
     def run_server() -> None:
         try:
-            server.serve_forever(stop_event=stop_event)
+            server.serve_forever(stop_event=stop_event, ready_event=ready_event)
         except Exception as exc:  # noqa: BLE001
             errors.append(exc)
 
     thread = threading.Thread(target=run_server, daemon=True)
     thread.start()
-    for _ in range(100):
-        if path.exists():
-            break
-        time.sleep(0.01)
+    assert ready_event.wait(1)
     assert path.exists()
 
     client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)

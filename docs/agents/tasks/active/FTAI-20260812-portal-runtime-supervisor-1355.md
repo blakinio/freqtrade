@@ -37,7 +37,7 @@ engine restart of stale in-memory release evidence.
 ```yaml
 checkpoint_version: 1
 updated_at: 2026-08-12T00:00:00Z
-head: PENDING_COMMIT
+head: 69ddc1850e7e2be958018be3c93b7ca507661e32
 head_role: supervisor_producer_candidate
 branch: codex/portal-runtime-supervisor-1355
 pr: 1496
@@ -93,7 +93,10 @@ validation:
     evidence: no whitespace errors
   - command: python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform tests/ai_platform/portal/runtime_supervisor tests/ai_platform/portal/execution/test_driver.py
     result: PASS
-    evidence: 54 passed after rebase and retirement/reconstruction integration
+    evidence: 55 passed after rebase, retirement/reconstruction integration and Linux peer credential test
+  - command: Portal Runtime Isolation E2E
+    result: NOT_RUN
+    evidence: exact-head GitHub run pending; scenario now enters through RuntimeSupervisor and proves real Docker provision, stop and retire
 blockers: []
-next_action: Push the rebased final candidate, obtain fresh independent audit, then run Linux UDS plus real-Docker Supervisor integration on the exact head.
+next_action: Inspect the fresh independent audit and aggregate exact-head CI including Portal Runtime Isolation E2E; remediate any material finding or merge only after every gate passes.
 ```

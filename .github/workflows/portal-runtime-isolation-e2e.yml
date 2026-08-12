@@ -268,6 +268,8 @@ jobs:
           set +e
           cleanup_failed=0
           task_tables=()
+          declare -A retained_tables=()
+          retain_all_tables=0
 
           mapfile -t containers < <(
             {
@@ -309,16 +311,24 @@ jobs:
             docker network ls -q --filter 'label=ai.portal.runtime_id'
           )
           for network in "${networks[@]}"; do
-            runtime_id="$(docker network inspect --format '{{index .Labels "ai.portal.runtime_id"}}' "$network")"
+            if ! runtime_id="$(docker network inspect --format '{{index .Labels "ai.portal.runtime_id"}}' "$network")"; then
+              cleanup_failed=1
+              retain_all_tables=1
+              continue
+            fi
             case "$runtime_id" in
               portal-isolation-e2e-*|portal-linux-e2e-*)
-                network_name="$(docker network inspect --format '{{.Name}}' "$network")" || {
+                if ! network_name="$(docker network inspect --format '{{.Name}}' "$network")"; then
                   cleanup_failed=1
+                  retain_all_tables=1
                   continue
-                }
+                fi
                 table="portal_$(printf '%s' "$network_name" | sha256sum | cut -c1-20)"
                 task_tables+=("$table")
-                docker network rm "$network" || cleanup_failed=1
+                if ! docker network rm "$network"; then
+                  cleanup_failed=1
+                  retained_tables["$table"]=1
+                fi
                 ;;
               *) continue ;;
             esac
@@ -328,6 +338,10 @@ jobs:
             mapfile -t task_tables < <(printf '%s\n' "${task_tables[@]}" | sort -u)
           fi
           for table in "${task_tables[@]}"; do
+            if [ "$retain_all_tables" -eq 1 ] || [ -n "${retained_tables[$table]:-}" ]; then
+              echo "retaining task-owned nftables table because Docker network teardown is unproven: $table" >&2
+              continue
+            fi
             if sudo nft list table inet "$table" >/dev/null 2>&1; then
               sudo nft delete table inet "$table" || cleanup_failed=1
             fi

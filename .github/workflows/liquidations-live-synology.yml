@@ -98,6 +98,7 @@ jobs:
             "$image" - > "$temporary" <<'PY'
           import asyncio
           import json
+          import multiprocessing
           import socket
           import ssl
           import urllib.parse
@@ -237,10 +238,67 @@ jobs:
               return result
 
 
-          async def main():
+          async def send_probe_result(source, endpoint, subscription, connection):
+              try:
+                  connection.send(await probe(source, endpoint, subscription))
+              except BaseException as error:
+                  connection.send(
+                      {
+                          "source": source,
+                          "dns": "not_run",
+                          "tls": "not_run",
+                          "websocket": "not_run",
+                          "protocol": "not_run",
+                          "probe_error": error_signature(error),
+                      }
+                  )
+
+
+          def probe_process(source, endpoint, subscription, connection):
+              try:
+                  asyncio.run(send_probe_result(source, endpoint, subscription, connection))
+              finally:
+                  connection.close()
+
+
+          def isolated_probe(source, endpoint, subscription):
+              context = multiprocessing.get_context("fork")
+              receiver, sender = context.Pipe(duplex=False)
+              process = context.Process(
+                  target=probe_process,
+                  args=(source, endpoint, subscription, sender),
+              )
+              process.start()
+              sender.close()
+              try:
+                  if receiver.poll(30):
+                      result = receiver.recv()
+                      process.join(timeout=1)
+                      if process.is_alive():
+                          process.terminate()
+                          process.join(timeout=2)
+                      return result
+                  process.terminate()
+                  process.join(timeout=2)
+                  return {
+                      "source": source,
+                      "dns": "not_run",
+                      "tls": "not_run",
+                      "websocket": "not_run",
+                      "protocol": "not_run",
+                      "probe_process": "timeout",
+                  }
+              finally:
+                  receiver.close()
+                  if process.is_alive():
+                      process.kill()
+                      process.join(timeout=2)
+
+
+          def main():
               results = []
               for source, endpoint, subscription in PROBES:
-                  results.append(await probe(source, endpoint, subscription))
+                  results.append(isolated_probe(source, endpoint, subscription))
               print(
                   json.dumps(
                       {
@@ -254,7 +312,7 @@ jobs:
               )
 
 
-          asyncio.run(main())
+          main()
           PY
           diagnostic_status=$?
           set -e

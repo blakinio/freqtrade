@@ -558,6 +558,19 @@ class DockerCliRuntimeDriver:
             raise RuntimeDriverError("RUNTIME_MISSING", "runtime container does not exist")
         return current
 
+    def retire(self, runtime_id: str) -> DriverRuntimeState:
+        """Remove only the exact generation runtime and its generation-scoped network."""
+
+        current = self.inspect(runtime_id)
+        network = self._networks.get(runtime_id, self._network_name(runtime_id))
+        if current is not DriverRuntimeState.MISSING:
+            self._require_success(("docker", "rm", "-f", runtime_id), "DOCKER_REMOVE_FAILED")
+        try:
+            self._external.cleanup_network(network, runtime_id)
+        finally:
+            self._clear_generation_evidence(runtime_id)
+        return DriverRuntimeState.MISSING
+
     def inspect(self, runtime_id: str) -> DriverRuntimeState:
         result = self._runner.run(
             ("docker", "inspect", "--format", "{{.State.Status}}", runtime_id)

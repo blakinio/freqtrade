@@ -238,7 +238,7 @@ class RuntimeSupervisor:
                 generation.state_version,
             )
 
-    def _apply(
+    def _apply(  # noqa: C901 - explicit lifecycle transition table.
         self,
         operation: SupervisorOperation,
         spec: RuntimeContainerSpec,
@@ -251,7 +251,10 @@ class RuntimeSupervisor:
         if operation is SupervisorOperation.ENSURE_RUNNING:
             if current is DriverRuntimeState.RUNNING:
                 return current, current
-            if current in {DriverRuntimeState.MISSING, DriverRuntimeState.STOPPED}:
+            if current is DriverRuntimeState.STOPPED:
+                self._driver.retire(spec.runtime_id)
+                current = DriverRuntimeState.MISSING
+            if current is DriverRuntimeState.MISSING:
                 self._driver.provision(spec)
             return DriverRuntimeState.RUNNING, self._driver.start(spec.runtime_id)
         if operation is SupervisorOperation.ENSURE_PAUSED:
@@ -264,6 +267,14 @@ class RuntimeSupervisor:
             if current in {DriverRuntimeState.MISSING, DriverRuntimeState.STOPPED}:
                 return current, current
             return DriverRuntimeState.STOPPED, self._driver.stop(spec.runtime_id)
+        if operation is SupervisorOperation.ENSURE_RETIRED:
+            if not spec.runtime_id:
+                raise _InvalidStateTransition
+            if current is DriverRuntimeState.RUNNING or current is DriverRuntimeState.STARTING:
+                raise _InvalidStateTransition
+            if current is DriverRuntimeState.PAUSED:
+                self._driver.stop(spec.runtime_id)
+            return DriverRuntimeState.MISSING, self._driver.retire(spec.runtime_id)
         raise AssertionError("unsupported supervisor operation")
 
     def _lock_for(self, tenant_id: str, bot_id: str) -> threading.Lock:

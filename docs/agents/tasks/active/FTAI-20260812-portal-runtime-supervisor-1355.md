@@ -2,7 +2,7 @@
 task_id: FTAI-20260812-portal-runtime-supervisor-1355
 programme_id: FTAI-PROGRAM-AI-TRADING-PORTAL
 project_lane: freqtrade-portal
-status: ready
+status: validating
 task_kind: implementation
 priority: critical
 repository: blakinio/freqtrade
@@ -27,21 +27,21 @@ outcomes, and a local UDS transport authenticated with Linux peer credentials. C
 engine parameters are absent from and rejected by the request schema. Existing `RuntimeDriver` and
 trusted isolation material remain behind the Supervisor boundary.
 
-This branch is stacked on the still-unmerged runtime-isolation producer because live repository state
-disproved the dispatch assumption that its PR was merged. It does not edit any path owned by that
-active producer. Coordinator integration must rebase the isolated paths onto `develop` after it
-lands or otherwise preserve the exact dependency ordering.
+The runtime-isolation dependency is merged and this branch is rebased onto current `develop`.
+Supervisor integration now also implements explicit generation retirement and stopped-generation
+reconstruction through the #1354 quarantine/attestation driver rather than attempting a forbidden
+engine restart of stale in-memory release evidence.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
 updated_at: 2026-08-12T00:00:00Z
-head: LIVE_BRANCH_HEAD_REQUIRED
+head: PENDING_COMMIT
 head_role: supervisor_producer_candidate
 branch: codex/portal-runtime-supervisor-1355
 pr: 1496
-status: ready
+status: validating
 context_routes:
   - issue #1355
   - ADR-020
@@ -58,14 +58,15 @@ proven:
   - SQLite command evidence survives Supervisor reconstruction
   - UDS boundary rejects unauthorized peer uid before request parsing
   - focused tests, Ruff, mypy and diff check pass
+  - EnsureRetired removes only the exact stopped/paused generation and generation-scoped network
+  - EnsureRunning reconstructs a stopped generation through retire, provision, attestation and release
 derived:
   - deployment composition remains coordinator work because this producer owns no deployment paths
 unknown:
   - real Linux UDS peer-credential E2E on the final exact head
-  - real Docker lifecycle E2E, dependent on the final #1354 producer
+  - real Docker Supervisor plus #1354 quarantine/attestation lifecycle E2E
   - coordinator independent audit and exact-head GitHub CI
-conflicts:
-  - dispatch claimed merged #1354/#1464 evidence, but live #1354 PR #1464 remains active and unmerged
+conflicts: []
 first_failure:
   marker: linux_and_docker_e2e_unavailable_on_native_windows
   evidence: local host cannot prove Linux SO_PEERCRED or the privileged isolation backend
@@ -73,6 +74,8 @@ rejected_hypotheses:
   - the dispatch dependency state was current
 changed_paths:
   - ai_platform/portal/runtime_supervisor/**
+  - ai_platform/portal/execution/driver.py
+  - ai_platform/portal/execution/runtime.py
   - tests/ai_platform/portal/runtime_supervisor/**
   - docs/agents/tasks/active/FTAI-20260812-portal-runtime-supervisor-1355.md
 validation:
@@ -88,7 +91,9 @@ validation:
   - command: git diff --check
     result: PASS
     evidence: no whitespace errors
-blockers:
-  - final integration is dependency-blocked on the unmerged runtime-isolation producer
-next_action: Coordinator performs a fresh independent audit, resolves the #1354 dependency, and runs Linux UDS plus real-Docker integration and exact-head CI; DO NOT MERGE this producer directly.
+  - command: python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform tests/ai_platform/portal/runtime_supervisor tests/ai_platform/portal/execution/test_driver.py
+    result: PASS
+    evidence: 54 passed after rebase and retirement/reconstruction integration
+blockers: []
+next_action: Push the rebased final candidate, obtain fresh independent audit, then run Linux UDS plus real-Docker Supervisor integration on the exact head.
 ```

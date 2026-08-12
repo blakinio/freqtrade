@@ -59,6 +59,11 @@ class Driver:
         self.state = DriverRuntimeState.STOPPED
         return self.state
 
+    def retire(self, runtime_id: str) -> DriverRuntimeState:
+        self.calls.append("retire")
+        self.state = DriverRuntimeState.MISSING
+        return self.state
+
 
 def generation(*, retired: bool = False) -> SupervisorGeneration:
     return SupervisorGeneration(
@@ -217,6 +222,12 @@ def test_pause_from_non_running_state_fails_without_driver_mutation() -> None:
             ["inspect", "stop"],
         ),
         (
+            SupervisorOperation.ENSURE_RETIRED,
+            DriverRuntimeState.STOPPED,
+            DriverRuntimeState.MISSING,
+            ["inspect", "retire"],
+        ),
+        (
             SupervisorOperation.INSPECT_GENERATION,
             DriverRuntimeState.RUNNING,
             DriverRuntimeState.RUNNING,
@@ -236,3 +247,21 @@ def test_bounded_operations(
     ).execute(request(operation))
     assert outcome.accepted and outcome.state is expected
     assert driver.calls == calls
+
+
+def test_restart_from_stopped_retires_and_reprovisions_exact_generation() -> None:
+    driver = Driver(DriverRuntimeState.STOPPED)
+    outcome = RuntimeSupervisor(
+        Generations(generation()), driver, InMemoryCommandJournal()
+    ).execute(request(SupervisorOperation.ENSURE_RUNNING))
+    assert outcome.accepted and outcome.state is DriverRuntimeState.RUNNING
+    assert driver.calls == ["inspect", "retire", "provision", "start"]
+
+
+def test_running_generation_cannot_be_retired() -> None:
+    driver = Driver(DriverRuntimeState.RUNNING)
+    outcome = RuntimeSupervisor(
+        Generations(generation()), driver, InMemoryCommandJournal()
+    ).execute(request(SupervisorOperation.ENSURE_RETIRED))
+    assert outcome.code is SupervisorOutcomeCode.INVALID_STATE_TRANSITION
+    assert driver.calls == ["inspect"]

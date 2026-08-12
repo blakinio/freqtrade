@@ -14,6 +14,7 @@ class SupervisorOperation(StrEnum):
     ENSURE_RUNNING = "EnsureRunning"
     ENSURE_PAUSED = "EnsurePaused"
     ENSURE_STOPPED = "EnsureStopped"
+    ENSURE_RETIRED = "EnsureRetired"
     INSPECT_GENERATION = "InspectGeneration"
 
 

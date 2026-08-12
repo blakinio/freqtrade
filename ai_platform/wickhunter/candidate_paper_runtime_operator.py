@@ -354,6 +354,35 @@ def _fixed_timestamp(value: int) -> Callable[[], int]:
     return timestamp
 
 
+def _legacy_restart_source_summaries_match(
+    run_root: Path,
+    *,
+    run_id: str,
+    source_payloads: dict[str, Any],
+) -> bool:
+    for source in ("bybit-linear", "binance-usdm"):
+        try:
+            summary = _read_bounded_json(
+                run_root / f"{source}-summary.json",
+                field=f"Liquid20 legacy source summary {source}",
+            )
+        except CandidatePaperRuntimeOperatorError:
+            return False
+        source_identity = summary.get("source")
+        if not isinstance(source_identity, dict) or source_identity.get("id") != source:
+            return False
+        if (
+            summary.get("schema_version") != 1
+            or summary.get("run_id") != run_id
+            or summary.get("run_state") != "active"
+            or summary.get("trading_credentials_present") is not False
+            or summary.get("execution_enabled") is not False
+            or summary.get("stats") != source_payloads.get(source)
+        ):
+            return False
+    return True
+
+
 def _read_committed_jsonl_tail(  # noqa: C901
     path: Path,
     *,
@@ -364,6 +393,8 @@ def _read_committed_jsonl_tail(  # noqa: C901
     observed_at_ms: int,
     suffix_available_at_ms: Callable[[], int],
     validated_event_ids: set[str],
+    require_suffix_checkpoint: bool = False,
+    suffix_checkpoint: tuple[int, int] | None = None,
 ) -> tuple[dict[str, Any], ...]:
     if path.is_symlink() or not path.is_file():
         raise CandidatePaperRuntimeOperatorError(f"{field} must be a regular file")
@@ -382,6 +413,7 @@ def _read_committed_jsonl_tail(  # noqa: C901
     suffix_seen = 0
     bytes_seen = 0
     previous_received_at_ms: int | None = None
+    last_committed_event: LiquidationEvent | None = None
     try:
         with path.open("rb") as handle:
             while bytes_seen < size:
@@ -413,12 +445,26 @@ def _read_committed_jsonl_tail(  # noqa: C901
                         )
                     validated_event_ids.add(event.source_event_id)
                     previous_received_at_ms = event.received_at_ms
+                    last_committed_event = event
                     rows.append(row)
                     committed_seen += 1
                     continue
                 suffix_seen += 1
                 if not allow_uncommitted_suffix:
                     raise CandidatePaperRuntimeOperatorError(f"{field} contradicts events_written")
+                if suffix_seen == 1 and require_suffix_checkpoint:
+                    if last_committed_event is None or suffix_checkpoint is None:
+                        raise CandidatePaperRuntimeOperatorError(
+                            f"{field} legacy suffix has no committed checkpoint"
+                        )
+                    expected_occurred_at_ms, expected_received_at_ms = suffix_checkpoint
+                    if (
+                        last_committed_event.occurred_at_ms != expected_occurred_at_ms
+                        or last_committed_event.received_at_ms != expected_received_at_ms
+                    ):
+                        raise CandidatePaperRuntimeOperatorError(
+                            f"{field} committed prefix does not match the persisted checkpoint"
+                        )
                 if suffix_seen > MAX_UNCOMMITTED_LIVE_EVENTS:
                     raise CandidatePaperRuntimeOperatorError(
                         f"{field} contains too many uncommitted events"
@@ -618,6 +664,7 @@ def _read_live_source_events(
     suffix_available_at_ms: Callable[[], int],
     history_start_ms: int,
     allow_uncommitted_suffix: bool,
+    require_legacy_suffix_checkpoint: bool,
     validated_event_ids: set[str],
 ) -> tuple[LiquidationEvent, ...]:
     event_path = run_root / f"{source}.ndjson"
@@ -641,6 +688,15 @@ def _read_live_source_events(
             f"Liquid20 source events {source} contradict events_written"
         )
 
+    suffix_checkpoint: tuple[int, int] | None = None
+    if require_legacy_suffix_checkpoint and events_written > 0:
+        suffix_checkpoint = (
+            _integer(source_row.get("last_event_at_ms"), field=f"{source} last event occurrence"),
+            _integer(
+                source_row.get("last_event_received_at_ms"),
+                field=f"{source} last event receipt",
+            ),
+        )
     event_rows = _read_committed_jsonl_tail(
         event_path,
         field=f"Liquid20 source events {source}",
@@ -650,6 +706,8 @@ def _read_live_source_events(
         observed_at_ms=observed_at_ms,
         suffix_available_at_ms=suffix_available_at_ms,
         validated_event_ids=validated_event_ids,
+        require_suffix_checkpoint=require_legacy_suffix_checkpoint,
+        suffix_checkpoint=suffix_checkpoint,
     )
     if events_written == 0:
         if source_row.get("last_event_received_at_ms") is not None:
@@ -759,16 +817,29 @@ def _load_liquid20_live_root_once(  # noqa: C901
         allow_legacy_restart_suffix = (
             expected_state == "completed"
             and run_state.get("completion_reason") == "collector-restart"
+            and _legacy_restart_source_summaries_match(
+                run_root,
+                run_id=historical_run_id,
+                source_payloads=run_source_payloads,
+            )
         )
         run_suffix_available_at_ms = suffix_available_at_ms
         if allow_legacy_restart_suffix:
             completion_boundary_ms = _integer(
+                run_state.get("completed_at_ms"),
+                field=f"Liquid20 completed run completion {historical_run_id}",
+            )
+            heartbeat_boundary_ms = _integer(
                 run_state.get("collector_heartbeat_at_ms"),
                 field=f"Liquid20 completed run heartbeat {historical_run_id}",
             )
+            if completion_boundary_ms < heartbeat_boundary_ms:
+                raise CandidatePaperRuntimeOperatorError(
+                    "Liquid20 completed run completion precedes its heartbeat"
+                )
             if completion_boundary_ms > observed_at_ms:
                 raise CandidatePaperRuntimeOperatorError(
-                    "Liquid20 completed run heartbeat is from the future"
+                    "Liquid20 completed run completion is from the future"
                 )
             run_suffix_available_at_ms = _fixed_timestamp(completion_boundary_ms)
         if historical_run_id == run_id and run_state != active_state:
@@ -789,6 +860,7 @@ def _load_liquid20_live_root_once(  # noqa: C901
                     allow_uncommitted_suffix=(
                         historical_run_id == run_id or allow_legacy_restart_suffix
                     ),
+                    require_legacy_suffix_checkpoint=allow_legacy_restart_suffix,
                     validated_event_ids=validated_event_ids,
                 )
             )

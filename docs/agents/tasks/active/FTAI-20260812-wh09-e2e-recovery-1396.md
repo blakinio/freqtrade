@@ -99,4 +99,26 @@ validation:
     evidence: task checkpoint and whitespace validation passed.
 blockers: []
 next_action: complete fresh audit and exact-head CI for PR 1502, then merge and run the canonical Liquid20 deployment
+recovery:
+  policy_version: 1
+  generation: 1
+  session_id: 20260812T121200Z-wh09-recovery-1396
+  session_started_at: 2026-08-12T12:07:00Z
+  checkpointed_at: 2026-08-12T12:12:00Z
+  last_progress_at: 2026-08-12T12:10:35Z
+  phase: final-review-and-ci
+  exact_head: cfb73d062185b3ea9cccc428840f94f05f5b7dcc
+  pull_request: 1502
+  active_operation: GitHub Actions exact-head CI and independent review
+  external_run_ids:
+    - 31595185564
+    - 31595185726
+  operation_started_at: 2026-08-12T12:10:25Z
+  wait_deadline_at: 2026-08-12T12:55:25Z
+  check_generation: ready-pr-cfb73d062185b3ea9cccc428840f94f05f5b7dcc
+  checks_used: 1
+  status: waiting
+  safe_to_resume: true
+  resume_condition: required CI and an eligible independent review are terminal
+  next_action: observe aggregate PR 1502 CI and review state once after the minimum interval
 ```

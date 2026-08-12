@@ -67,8 +67,23 @@ class RetryState(ContractModel):
     attempt: NonNegativeInt = 0
     max_attempts: PositiveInt = 3
     last_attempt_id: NonEmptyStr | None = None
+    attempted_ids: tuple[NonEmptyStr, ...] = ()
     next_attempt_at: UtcDateTime | None = None
     last_error_code: NonEmptyStr | None = None
+
+    @model_validator(mode="after")
+    def validate_attempt_history(self) -> Self:
+        if len(self.attempted_ids) != len(set(self.attempted_ids)):
+            raise ValueError("retry attempt identities must be unique")
+        if self.attempt != len(self.attempted_ids):
+            raise ValueError("retry attempt count must match durable attempt identity history")
+        if self.last_attempt_id is not None and (
+            not self.attempted_ids or self.attempted_ids[-1] != self.last_attempt_id
+        ):
+            raise ValueError("last retry attempt must match durable attempt identity history")
+        if self.last_attempt_id is None and self.attempted_ids:
+            raise ValueError("retry history requires a last attempt identity")
+        return self
 
 
 class TransitionEvidence(ContractModel):

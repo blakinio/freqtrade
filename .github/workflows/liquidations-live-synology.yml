@@ -89,6 +89,10 @@ jobs:
 
           set +e
           timeout 120s docker run --rm --interactive \
+            --name "liquid20-connectivity-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --label "freqtrade.task=FTAI-20260812-wh09-e2e-recovery-1396" \
+            --label "freqtrade.github-run-id=${GITHUB_RUN_ID}" \
+            --label "freqtrade.github-run-attempt=${GITHUB_RUN_ATTEMPT}" \
             --read-only \
             --tmpfs /tmp:size=16m,mode=1777 \
             --cap-drop ALL \

@@ -21,7 +21,7 @@ def test_failed_deploy_runs_bounded_secret_free_public_connectivity_diagnostic()
     assert "Diagnose public WebSocket connectivity after deploy failure" in workflow
     assert "if: failure() && steps.deploy.outcome == 'failure'" in workflow
     assert "timeout-minutes: 3" in workflow
-    assert "timeout 120s docker run --rm --interactive" in workflow
+    assert "timeout 150s docker run --rm --interactive" in workflow
     assert 'image="local/liquid20-collector:sha-${GITHUB_SHA}"' in workflow
     assert '--name "liquid20-connectivity-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"' in workflow
     assert '--label "freqtrade.task=FTAI-20260812-wh09-e2e-recovery-1396"' in workflow
@@ -58,7 +58,8 @@ def test_each_probe_is_process_isolated_and_terminable() -> None:
 
     assert 'multiprocessing.get_context("fork")' in diagnostic_block
     assert "context.Pipe(duplex=False)" in diagnostic_block
-    assert "if receiver.poll(30):" in diagnostic_block
+    assert "if receiver.poll(40):" in diagnostic_block
+    assert "await asyncio.wait_for(writer.wait_closed(), timeout=2)" in diagnostic_block
     assert "process.terminate()" in diagnostic_block
     assert "process.kill()" in diagnostic_block
     assert '"probe_process": "timeout"' in diagnostic_block
@@ -74,9 +75,17 @@ def test_embedded_connectivity_probe_is_valid_python() -> None:
     compile(textwrap.dedent(embedded), "liquidations-live-connectivity-diagnostic", "exec")
 
 
-def test_connectivity_diagnostic_is_uploaded_as_operational_evidence() -> None:
+def test_connectivity_diagnostic_uses_disposable_short_retention() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
-    upload_block = workflow.split("- name: Upload operational evidence", maxsplit=1)[1]
-    assert "${{ runner.temp }}/liquidations-live-connectivity-diagnostic.json" in upload_block
-    assert "retention-days: 30" in upload_block
+    operational_upload = workflow.split("- name: Upload operational evidence", maxsplit=1)[1].split(
+        "- name: Upload disposable connectivity diagnostic", maxsplit=1
+    )[0]
+    diagnostic_upload = workflow.split(
+        "- name: Upload disposable connectivity diagnostic", maxsplit=1
+    )[1]
+
+    assert "liquidations-live-connectivity-diagnostic.json" not in operational_upload
+    assert "retention-days: 30" in operational_upload
+    assert "${{ runner.temp }}/liquidations-live-connectivity-diagnostic.json" in diagnostic_upload
+    assert "retention-days: 1" in diagnostic_upload

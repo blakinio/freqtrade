@@ -101,9 +101,7 @@ def test_comparison_limitation_evidence_is_recursively_immutable() -> None:
         PaperExecutionProfile.model_validate(right_data),
     )
     difference = next(
-        item
-        for item in comparison.differences
-        if item.path == "$.liquidity.limitations"
+        item for item in comparison.differences if item.path == "$.liquidity.limitations"
     )
     assert isinstance(difference.left, tuple)
     assert isinstance(difference.left[0], tuple)

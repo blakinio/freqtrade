@@ -1,0 +1,92 @@
+name: Apply runtime supervisor self-audit repair v3
+
+on:
+  push:
+    branches:
+      - codex/portal-runtime-supervisor-1355
+    paths:
+      - .github/workflows/apply-runtime-supervisor-self-audit-repair-v3.yml
+
+permissions: {}
+
+jobs:
+  repair:
+    name: Validate and commit bounded supervisor trust repairs
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Install focused validation toolchain
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet -e . \
+            ruff==0.15.20 mypy==2.1.0 pytest==9.1.1 pytest-asyncio==1.4.0
+
+      - name: Apply previously proven transformations
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          source = Path(".github/workflows/apply-runtime-supervisor-self-audit-repair-v2.yml")
+          workflow = source.read_text(encoding="utf-8")
+          begin_marker = "          python - <<'PY'\n"
+          end_marker = "\n          PY\n\n      - name: Validate focused repair"
+          begin = workflow.index(begin_marker) + len(begin_marker)
+          end = workflow.index(end_marker, begin)
+          script = textwrap.dedent(workflow[begin:end])
+          exec(compile(script, str(source) + ":embedded-repair", "exec"), {})
+          PY
+
+      - name: Validate focused repair
+        run: |
+          set -euo pipefail
+          python -m ruff check \
+            ai_platform/portal/execution/driver.py \
+            ai_platform/portal/execution/adapter.py \
+            ai_platform/portal/runtime_supervisor/transport.py \
+            tests/ai_platform/portal/execution/test_driver.py \
+            tests/ai_platform/portal/execution/test_adapter.py \
+            tests/ai_platform/portal/runtime_supervisor/test_transport.py
+          python -m mypy \
+            ai_platform/portal/execution/driver.py \
+            ai_platform/portal/execution/adapter.py \
+            ai_platform/portal/runtime_supervisor/transport.py \
+            tests/ai_platform/portal/execution/test_driver.py \
+            tests/ai_platform/portal/execution/test_adapter.py \
+            tests/ai_platform/portal/runtime_supervisor/test_transport.py
+          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform \
+            tests/ai_platform/portal/execution/test_driver.py \
+            tests/ai_platform/portal/execution/test_adapter.py \
+            tests/ai_platform/portal/runtime_supervisor
+          git diff --check
+
+      - name: Commit repair and remove all one-shot workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm \
+            .github/workflows/apply-runtime-supervisor-self-audit-repair.yml \
+            .github/workflows/apply-runtime-supervisor-self-audit-repair-v2.yml \
+            .github/workflows/apply-runtime-supervisor-self-audit-repair-v3.yml
+          git add \
+            ai_platform/portal/execution/driver.py \
+            ai_platform/portal/execution/adapter.py \
+            ai_platform/portal/runtime_supervisor/transport.py \
+            tests/ai_platform/portal/execution/test_driver.py \
+            tests/ai_platform/portal/execution/test_adapter.py \
+            tests/ai_platform/portal/runtime_supervisor/test_transport.py
+          git commit -m "fix(portal): close supervisor self-audit trust gaps"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "HEAD:${GITHUB_REF_NAME}"

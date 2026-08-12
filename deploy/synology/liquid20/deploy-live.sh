@@ -284,6 +284,43 @@ PY
     return 1
 }
 
+wait_for_heartbeat_advance() {
+    local selected_container="$1"
+    local first_observation="$2"
+    local observation=""
+    local first_heartbeat=""
+    first_heartbeat="$(python3 - "$first_observation" <<'PY'
+import json
+import sys
+
+heartbeat = json.loads(sys.argv[1]).get("collector_heartbeat_at_ms")
+if not isinstance(heartbeat, int):
+    raise SystemExit("initial collector heartbeat is invalid")
+print(heartbeat)
+PY
+)"
+    for _ in $(seq 1 15); do
+        observation="$(state_observation "$selected_container" 2>/dev/null || true)"
+        if [[ -n "$observation" ]] && python3 - "$observation" "$first_heartbeat" <<'PY'
+import json
+import sys
+
+heartbeat = json.loads(sys.argv[1]).get("collector_heartbeat_at_ms")
+if not isinstance(heartbeat, int) or heartbeat <= int(sys.argv[2]):
+    raise SystemExit(1)
+PY
+        then
+            printf '%s' "$observation"
+            return 0
+        fi
+        sleep 2
+    done
+    printf 'Last collector observation while waiting for heartbeat advance: %s\n' \
+        "${observation:-unavailable}" >&2
+    echo "Collector heartbeat did not advance within 30 seconds" >&2
+    return 1
+}
+
 start_container() {
     local name="$1"
     local selected_image="$2"
@@ -369,17 +406,7 @@ install -d -m 0750 -o "$puid" -g "$pgid" "$candidate_runner_root"
 candidate_started_ms="$(date +%s%3N)"
 start_container "$candidate" "$image" "$candidate_host_root" no "$commit_sha" >/dev/null
 candidate_first="$(wait_for_state "$candidate" "$candidate_started_ms")"
-sleep 6
-candidate_second="$(state_observation "$candidate")"
-python3 - "$candidate_first" "$candidate_second" <<'PY'
-import json
-import sys
-
-first = json.loads(sys.argv[1])
-second = json.loads(sys.argv[2])
-if second["collector_heartbeat_at_ms"] <= first["collector_heartbeat_at_ms"]:
-    raise SystemExit("candidate heartbeat did not advance")
-PY
+candidate_second="$(wait_for_heartbeat_advance "$candidate" "$candidate_first")"
 docker rm -f "$candidate" >/dev/null
 
 bootstrap_live_root

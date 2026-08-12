@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Callable
 
 from ai_platform.scripts.liquidation_live_stream import (
     BINANCE_SOURCE,
@@ -30,10 +29,6 @@ def _manager(tmp_path: Path, writes: list[dict[str, bool]]) -> OkxLiveRunManager
     return manager
 
 
-def _run(operation: Callable[[], object]) -> None:
-    asyncio.run(operation())  # type: ignore[misc]
-
-
 def test_startup_activation_defers_partial_state_writes(tmp_path: Path) -> None:
     writes: list[dict[str, bool]] = []
     manager = _manager(tmp_path, writes)
@@ -46,7 +41,7 @@ def test_startup_activation_defers_partial_state_writes(tmp_path: Path) -> None:
 
         await manager.connected(OKX_SOURCE)
 
-    _run(scenario)
+    asyncio.run(scenario())
 
     assert writes == [
         {
@@ -75,7 +70,7 @@ def test_preactivation_disconnect_discards_stale_source_atomically(tmp_path: Pat
 
         await manager.connected(BYBIT_SOURCE)
 
-    _run(scenario)
+    asyncio.run(scenario())
 
     assert len(writes) == 2
     assert all(writes[-1].values())

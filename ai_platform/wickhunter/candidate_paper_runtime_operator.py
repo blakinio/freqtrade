@@ -67,6 +67,7 @@ EXPECTED_LIVE_SOURCES = ("binance-usdm", "bybit-linear", "okx-swap")
 MAX_LIVE_RUNS_PER_WINDOW = 64
 MAX_LIVE_SOURCE_BYTES = 128 * 1024 * 1024
 MAX_LIVE_SOURCE_EVENTS = 250_000
+MAX_LIVE_SNAPSHOT_EVENT_IDENTITIES = 500_000
 MAX_LIVE_EVENT_ROW_BYTES = 1024 * 1024
 MAX_UNCOMMITTED_LIVE_EVENTS = 10_000
 LIVE_SNAPSHOT_READ_ATTEMPTS = 10
@@ -383,6 +384,14 @@ def _legacy_restart_source_summaries_match(
     return True
 
 
+def _record_validated_event_id(validated_event_ids: set[str], event_id: str) -> None:
+    if len(validated_event_ids) >= MAX_LIVE_SNAPSHOT_EVENT_IDENTITIES:
+        raise CandidatePaperRuntimeOperatorError(
+            "Liquid20 snapshot contains too many event identities"
+        )
+    validated_event_ids.add(event_id)
+
+
 def _read_committed_jsonl_tail(  # noqa: C901
     path: Path,
     *,
@@ -443,7 +452,7 @@ def _read_committed_jsonl_tail(  # noqa: C901
                         raise CandidatePaperRuntimeOperatorError(
                             f"{field} contains duplicate event identities"
                         )
-                    validated_event_ids.add(event.source_event_id)
+                    _record_validated_event_id(validated_event_ids, event.source_event_id)
                     previous_received_at_ms = event.received_at_ms
                     last_committed_event = event
                     rows.append(row)
@@ -485,7 +494,7 @@ def _read_committed_jsonl_tail(  # noqa: C901
                     raise CandidatePaperRuntimeOperatorError(
                         f"{field} suffix reception order regressed"
                     )
-                validated_event_ids.add(event.source_event_id)
+                _record_validated_event_id(validated_event_ids, event.source_event_id)
                 previous_received_at_ms = event.received_at_ms
     except CandidatePaperRuntimeOperatorError:
         raise

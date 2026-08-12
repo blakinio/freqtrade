@@ -711,6 +711,23 @@ def test_live_root_rejects_oversized_legacy_restart_suffix(
         load_liquid20_snapshot(root, now_ms=NOW_MS)
 
 
+def test_live_root_rejects_snapshot_identity_overflow(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _write_live_root(
+        tmp_path / "snapshot-identity-overflow",
+        previous_events=[_event("identity-bound", received_at_ms=NOW_MS - 3_600_000)],
+    )
+    monkeypatch.setattr(operator_module, "MAX_LIVE_SNAPSHOT_EVENT_IDENTITIES", 0)
+
+    with pytest.raises(
+        CandidatePaperRuntimeOperatorError,
+        match="snapshot contains too many event identities",
+    ):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
 def test_live_root_retries_mid_publication_pointer_state_mismatch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

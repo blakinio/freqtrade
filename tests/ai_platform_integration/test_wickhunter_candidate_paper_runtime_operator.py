@@ -107,10 +107,14 @@ def _run_state(
             if source_events
             else None
         )
+        last_occurred = (
+            int(cast(int | str, source_events[-1]["occurred_at_ms"])) if source_events else None
+        )
         sources[source] = {
             "configured": True,
             "connected": run_state == "active",
             "events_written": len(source_events),
+            "last_event_at_ms": last_occurred,
             "last_event_received_at_ms": last_received,
             "last_heartbeat_at_ms": heartbeat_ms,
         }
@@ -184,6 +188,53 @@ def _write_live_root(
         encoding="utf-8",
     )
     return root
+
+
+def _write_legacy_restart_suffix_root(
+    root: Path,
+    *,
+    suffix: dict[str, object] | None = None,
+    completion_reason: str = "collector-restart",
+) -> tuple[Path, Path, dict[str, object]]:
+    committed = _event("previous-committed", received_at_ms=NOW_MS - 3_600_000)
+    suffix_event = suffix or _event(
+        "previous-uncommitted",
+        received_at_ms=NOW_MS - 3_500_000,
+    )
+    live_root = _write_live_root(
+        root,
+        previous_events=[committed, suffix_event],
+    )
+    previous_root = live_root / "runs" / "liquid20-20270114T000000Z-0"
+    state_path = previous_root / "run-state-v1.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["completion_reason"] = completion_reason
+    state["completed_at_ms"] = NOW_MS - 20_000
+    source_payloads = cast(dict[str, object], state["sources"])
+    source_state = source_payloads["binance-usdm"]
+    assert isinstance(source_state, dict)
+    source_state["events_written"] = 1
+    source_state["last_event_at_ms"] = committed["occurred_at_ms"]
+    source_state["last_event_received_at_ms"] = committed["received_at_ms"]
+    for source in ("bybit-linear", "binance-usdm"):
+        source_row = source_payloads[source]
+        assert isinstance(source_row, dict)
+        source_row["connected"] = True
+        summary = {
+            "schema_version": 1,
+            "source": {"id": source},
+            "run_id": state["run_id"],
+            "run_state": "active",
+            "stats": source_row,
+            "trading_credentials_present": False,
+            "execution_enabled": False,
+        }
+        (previous_root / f"{source}-summary.json").write_text(
+            json.dumps(summary, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    state_path.write_text(json.dumps(state, sort_keys=True) + "\n", encoding="utf-8")
+    return live_root, previous_root, state
 
 
 def _market(*, symbol: str = "BTCUSDT", observed_at_ms: int = NOW_MS) -> PublicMarketSnapshot:
@@ -451,6 +502,277 @@ def test_live_root_rejects_suffix_for_completed_run(tmp_path: Path) -> None:
         )
 
     with pytest.raises(CandidatePaperRuntimeOperatorError, match="contradicts events_written"):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
+def test_live_root_accepts_bounded_legacy_restart_suffix_as_uncommitted(
+    tmp_path: Path,
+) -> None:
+    root, _, _ = _write_legacy_restart_suffix_root(tmp_path / "legacy-restart-suffix")
+
+    snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+    event_ids = {event.source_event_id for event in snapshot.events}
+    assert "previous-committed" in event_ids
+    assert "previous-uncommitted" not in event_ids
+
+
+def test_live_root_rejects_legacy_restart_suffix_for_unprovenanced_okx(
+    tmp_path: Path,
+) -> None:
+    root, previous_root, state = _write_legacy_restart_suffix_root(tmp_path / "legacy-okx-suffix")
+    committed = _event(
+        "okx-committed",
+        received_at_ms=NOW_MS - 3_600_000,
+        source="okx-swap",
+    )
+    suffix = _event(
+        "okx-uncommitted",
+        received_at_ms=NOW_MS - 3_500_000,
+        source="okx-swap",
+    )
+    (previous_root / "okx-swap.ndjson").write_text(
+        json.dumps(committed, sort_keys=True) + "\n" + json.dumps(suffix, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    okx_state = cast(dict[str, object], state["sources"])["okx-swap"]
+    assert isinstance(okx_state, dict)
+    okx_state["events_written"] = 1
+    okx_state["last_event_at_ms"] = committed["occurred_at_ms"]
+    okx_state["last_event_received_at_ms"] = committed["received_at_ms"]
+    (previous_root / "run-state-v1.json").write_text(
+        json.dumps(state, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(CandidatePaperRuntimeOperatorError, match="contradicts events_written"):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
+def test_live_root_accepts_legacy_suffix_after_heartbeat_before_completion(
+    tmp_path: Path,
+) -> None:
+    suffix = _event("legacy-after-heartbeat", received_at_ms=NOW_MS - 30_000)
+    root, _, _ = _write_legacy_restart_suffix_root(
+        tmp_path / "legacy-after-heartbeat",
+        suffix=suffix,
+    )
+
+    snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+    assert "legacy-after-heartbeat" not in {event.source_event_id for event in snapshot.events}
+
+
+def test_live_root_rejects_restart_suffix_without_legacy_active_summary_provenance(
+    tmp_path: Path,
+) -> None:
+    root, previous_root, _ = _write_legacy_restart_suffix_root(tmp_path / "modern-restart-mutation")
+    for source in ("bybit-linear", "binance-usdm"):
+        summary_path = previous_root / f"{source}-summary.json"
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        summary["run_state"] = "completed"
+        summary_path.write_text(json.dumps(summary, sort_keys=True) + "\n", encoding="utf-8")
+
+    with pytest.raises(CandidatePaperRuntimeOperatorError, match="contradicts events_written"):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
+@pytest.mark.parametrize("checkpoint_field", ["last_event_at_ms", "last_event_received_at_ms"])
+def test_live_root_rejects_legacy_suffix_when_committed_checkpoint_mismatches(
+    tmp_path: Path,
+    checkpoint_field: str,
+) -> None:
+    root, previous_root, state = _write_legacy_restart_suffix_root(
+        tmp_path / f"legacy-checkpoint-{checkpoint_field}"
+    )
+    source_state = cast(dict[str, object], state["sources"])["binance-usdm"]
+    assert isinstance(source_state, dict)
+    source_state[checkpoint_field] = int(cast(int, source_state[checkpoint_field])) + 1
+    (previous_root / "run-state-v1.json").write_text(
+        json.dumps(state, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    summary_path = previous_root / "binance-usdm-summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["stats"] = source_state
+    summary_path.write_text(json.dumps(summary, sort_keys=True) + "\n", encoding="utf-8")
+
+    with pytest.raises(
+        CandidatePaperRuntimeOperatorError,
+        match="committed prefix does not match the persisted checkpoint",
+    ):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
+def test_live_root_rejects_zero_prefix_legacy_suffix_without_checkpoint(tmp_path: Path) -> None:
+    root, previous_root, state = _write_legacy_restart_suffix_root(tmp_path / "legacy-zero-prefix")
+    source_state = cast(dict[str, object], state["sources"])["binance-usdm"]
+    assert isinstance(source_state, dict)
+    source_state["events_written"] = 0
+    source_state["last_event_at_ms"] = None
+    source_state["last_event_received_at_ms"] = None
+    (previous_root / "run-state-v1.json").write_text(
+        json.dumps(state, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    summary_path = previous_root / "binance-usdm-summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["stats"] = source_state
+    summary_path.write_text(json.dumps(summary, sort_keys=True) + "\n", encoding="utf-8")
+
+    with pytest.raises(
+        CandidatePaperRuntimeOperatorError, match="legacy suffix has no committed checkpoint"
+    ):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
+def test_live_root_rejects_legacy_restart_suffix_after_completion_boundary(
+    tmp_path: Path,
+) -> None:
+    suffix = _event(
+        "legacy-after-completion",
+        received_at_ms=NOW_MS - 10_000,
+    )
+    root, _, _ = _write_legacy_restart_suffix_root(
+        tmp_path / "legacy-after-completion",
+        suffix=suffix,
+    )
+
+    with pytest.raises(
+        CandidatePaperRuntimeOperatorError,
+        match="unavailable at live observation time",
+    ):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
+def test_live_root_rejects_legacy_suffix_identity_duplicated_in_active_run(
+    tmp_path: Path,
+) -> None:
+    suffix = _event(
+        "event-history",
+        received_at_ms=NOW_MS - 3_500_000,
+    )
+    root, _, _ = _write_legacy_restart_suffix_root(
+        tmp_path / "legacy-cross-run-duplicate",
+        suffix=suffix,
+    )
+
+    with pytest.raises(
+        CandidatePaperRuntimeOperatorError,
+        match="duplicate event identities",
+    ):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    (
+        ("malformed", "source event is invalid"),
+        ("foreign-source", "source does not match"),
+        ("future", "unavailable at live observation time"),
+        ("duplicate", "duplicate event identities"),
+        ("reordered", "suffix reception order regressed"),
+    ),
+)
+def test_live_root_rejects_unsafe_legacy_restart_suffix(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    suffix = _event("legacy-suffix", received_at_ms=NOW_MS - 3_500_000)
+    if mutation == "malformed":
+        suffix["price"] = "0"
+    elif mutation == "foreign-source":
+        suffix["source"] = "bybit-linear"
+    elif mutation == "future":
+        suffix["received_at_ms"] = NOW_MS + 1
+        suffix["occurred_at_ms"] = NOW_MS
+    elif mutation == "duplicate":
+        suffix["source_event_id"] = "previous-committed"
+    else:
+        suffix["received_at_ms"] = NOW_MS - 3_700_000
+        suffix["occurred_at_ms"] = NOW_MS - 3_700_100
+    root, _, _ = _write_legacy_restart_suffix_root(
+        tmp_path / f"legacy-restart-{mutation}",
+        suffix=suffix,
+    )
+
+    with pytest.raises(CandidatePaperRuntimeOperatorError, match=message):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
+def test_live_root_rejects_short_legacy_restart_file(tmp_path: Path) -> None:
+    root, previous_root, state = _write_legacy_restart_suffix_root(
+        tmp_path / "legacy-restart-short"
+    )
+    source_state = cast(dict[str, object], state["sources"])["binance-usdm"]
+    assert isinstance(source_state, dict)
+    source_state["events_written"] = 3
+    (previous_root / "run-state-v1.json").write_text(
+        json.dumps(state, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(CandidatePaperRuntimeOperatorError, match="contradicts events_written"):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
+def test_live_root_rejects_excessive_legacy_restart_suffix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, _, _ = _write_legacy_restart_suffix_root(tmp_path / "legacy-restart-excess")
+    monkeypatch.setattr(operator_module, "MAX_UNCOMMITTED_LIVE_EVENTS", 0)
+
+    with pytest.raises(CandidatePaperRuntimeOperatorError, match="too many uncommitted events"):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
+def test_live_root_rejects_oversized_legacy_restart_suffix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    suffix = _event("legacy-oversized", received_at_ms=NOW_MS - 3_500_000)
+    suffix["padding"] = "x" * 512
+    root, previous_root, _ = _write_legacy_restart_suffix_root(
+        tmp_path / "legacy-restart-oversized",
+        suffix=suffix,
+    )
+    committed_line = (previous_root / "binance-usdm.ndjson").read_bytes().splitlines()[0]
+    monkeypatch.setattr(operator_module, "MAX_LIVE_EVENT_ROW_BYTES", len(committed_line) + 1)
+
+    with pytest.raises(CandidatePaperRuntimeOperatorError, match="oversized event"):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
+def test_live_root_rejects_snapshot_identity_overflow(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _write_live_root(
+        tmp_path / "snapshot-identity-overflow",
+        previous_events=[_event("identity-bound", received_at_ms=NOW_MS - 3_600_000)],
+    )
+    monkeypatch.setattr(operator_module, "MAX_LIVE_SNAPSHOT_EVENT_IDENTITIES", 0)
+
+    with pytest.raises(
+        CandidatePaperRuntimeOperatorError,
+        match="snapshot contains too many event identities",
+    ):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
+def test_live_root_rejects_oversized_source_event_identity(
+    tmp_path: Path,
+) -> None:
+    oversized_event_id = "ż" * (operator_module.MAX_LIVE_SOURCE_EVENT_ID_BYTES // 2 + 1)
+    root = _write_live_root(
+        tmp_path / "oversized-source-event-id",
+        previous_events=[_event(oversized_event_id, received_at_ms=NOW_MS - 3_600_000)],
+    )
+
+    with pytest.raises(
+        CandidatePaperRuntimeOperatorError,
+        match="source event identity is too large",
+    ):
         load_liquid20_snapshot(root, now_ms=NOW_MS)
 
 

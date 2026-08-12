@@ -3,7 +3,13 @@
 
 ## Authority
 
-`FEATURE_COMPLETENESS_LEDGER.json` is the only active completeness-status authority for the AI Trading Portal.
+This document is the human-readable projection of the historical #1101 completeness snapshot.
+Its paired `FEATURE_COMPLETENESS_LEDGER.json` remains immutable dated evidence at the snapshot below,
+but neither file is the current implementation-completeness authority.
+
+Current implementation completeness is defined by `tools/portal_audit/ledger/index.json`, subject to
+its exact-head validation and `tools/portal_audit/ledger/status_authority.json`. The legacy
+`portal-status-authority` marker above is retained only as #1101 compatibility metadata.
 
 Snapshot:
 
@@ -16,8 +22,8 @@ live_capital_authorized: false
 production_deployment_authorized: false
 ```
 
-This document is a human-readable projection. The JSON ledger and
-`tools/agents/check_portal_completeness_ledger.py` are normative.
+The JSON snapshot and `tools/agents/check_portal_completeness_ledger.py` remain normative only for
+validating this preserved #1101 evidence. They do not override the living exact-head inventory.
 
 ## Status vocabulary
 

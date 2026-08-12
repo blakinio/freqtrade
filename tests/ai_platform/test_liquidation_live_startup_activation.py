@@ -6,6 +6,7 @@ import pathlib
 import sys
 import types
 
+
 if importlib.util.find_spec("websockets") is None:
     websockets_stub = types.ModuleType("websockets")
     websockets_exceptions_stub = types.ModuleType("websockets.exceptions")

@@ -11,6 +11,11 @@ from ai_platform.portal.portfolio_risk.models import (
     PortfolioRiskOutcome,
     PortfolioRiskPolicy,
     PortfolioRiskSnapshot,
+    SnapshotSourceHealth,
+)
+from ai_platform.portal.portfolio_risk.store import (
+    InMemoryPortfolioBudgetStore,
+    PortfolioBudgetStore,
 )
 
 
@@ -18,11 +23,14 @@ __all__ = [
     "AllocationRequest",
     "BotBudgetAllocation",
     "CorrelationEvidence",
+    "InMemoryPortfolioBudgetStore",
     "PortfolioBudget",
+    "PortfolioBudgetStore",
     "PortfolioPosition",
     "PortfolioRiskDecision",
     "PortfolioRiskEngine",
     "PortfolioRiskOutcome",
     "PortfolioRiskPolicy",
     "PortfolioRiskSnapshot",
+    "SnapshotSourceHealth",
 ]

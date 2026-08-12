@@ -1,13 +1,13 @@
 ---
 task_id: FTAI-20260812-wh09-e2e-recovery-1396
-status: implementing
+status: validating
 programme: wickhunter-wh09
 related_issue: 1396
 branch: codex/wh09-e2e-recovery-1396
 base_head: 584538e9867d38a17b3b1a27f7b9cce452af318a
 owner: codex
 paper_only: true
-next_action: Validate the bounded Liquid20 heartbeat-advance polling repair and open the canonical recovery PR.
+next_action: Complete fresh audit and exact-head CI for PR 1502, then merge and run the canonical Liquid20 deployment.
 ---
 
 # WH09 end-to-end production evidence recovery
@@ -52,11 +52,11 @@ No open PR found owning Issue #1396, WH09 recovery, or the Liquid20 deploy paths
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-12T12:10:00Z
-head: 584538e9867d38a17b3b1a27f7b9cce452af318a
+updated_at: 2026-08-12T12:12:00Z
+head: 192b1a706e35e95bc4829a9961f48fbd0a9bf54b
 branch: codex/wh09-e2e-recovery-1396
-pr: none
-status: implementing
+pr: 1502
+status: validating
 context_routes:
   - deploy/synology/liquid20/deploy-live.sh
   - tests/ai_platform_integration/test_synology_liquid20_live_deployment.py
@@ -88,6 +88,15 @@ validation:
   - command: bash -n deploy/synology/liquid20/deploy-live.sh
     result: PASS
     evidence: local shell syntax validation passed.
+  - command: focused deployment pytest excluding Windows-unavailable sh executable check
+    result: PASS
+    evidence: 10 passed and 1 deselected.
+  - command: Ruff check and format check
+    result: PASS
+    evidence: changed Python test passed lint and formatting checks.
+  - command: checkpoint validator and git diff --check
+    result: PASS
+    evidence: task checkpoint and whitespace validation passed.
 blockers: []
-next_action: run focused validation for the heartbeat polling repair
+next_action: complete fresh audit and exact-head CI for PR 1502, then merge and run the canonical Liquid20 deployment
 ```

@@ -134,24 +134,37 @@ jobs:
           text = driver.read_text(encoding="utf-8")
           text = text.replace(
               "except Exception as exc:  # pragma: no cover - defensive adapter boundary",
-              "except Exception as exc:  # noqa: BLE001  # pragma: no cover - defensive adapter boundary",
+              "except Exception as exc:  # noqa: BLE001",
           )
           text = text.replace(
               "except Exception as exc:  # pragma: no cover - concrete backends are unit-tested",
-              "except Exception as exc:  # noqa: BLE001  # pragma: no cover - concrete backends are unit-tested",
+              "except Exception as exc:  # noqa: BLE001",
           )
           driver.write_text(text, encoding="utf-8")
+
+          driver_test = Path("tests/ai_platform/portal/execution/test_driver.py")
+          text = driver_test.read_text(encoding="utf-8")
+          text = text.replace(
+              'raise AssertionError("subprocess timeout must be numeric")',
+              'raise TypeError("subprocess timeout must be numeric")',
+          )
+          driver_test.write_text(text, encoding="utf-8")
 
           transport_test = Path("tests/ai_platform/portal/runtime_supervisor/test_transport.py")
           text = transport_test.read_text(encoding="utf-8")
           text = text.replace(
               "except BaseException as exc:  # test captures the bounded transport failure",
+              "except Exception as exc:  # noqa: BLE001",
+          )
+          text = text.replace(
               "except Exception as exc:  # test captures the bounded transport failure",
+              "except Exception as exc:  # noqa: BLE001",
           )
           transport_test.write_text(text, encoding="utf-8")
           PY
           python -m ruff format \
             ai_platform/portal/execution/driver.py \
+            tests/ai_platform/portal/execution/test_driver.py \
             tests/ai_platform/portal/runtime_supervisor/test_transport.py
 
       - name: Validate focused Supervisor and adapter boundary

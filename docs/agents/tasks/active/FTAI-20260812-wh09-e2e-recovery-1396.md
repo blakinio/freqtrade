@@ -52,11 +52,11 @@ No open PR found owning Issue #1396, WH09 recovery, or the Liquid20 deploy paths
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-12T12:12:00Z
-head: 192b1a706e35e95bc4829a9961f48fbd0a9bf54b
+updated_at: 2026-08-12T12:14:00Z
+head: e3c782b4877e29b5928579d5b1ccaaadae681be1
 branch: codex/wh09-e2e-recovery-1396
 pr: 1502
-status: validating
+status: waiting
 context_routes:
   - deploy/synology/liquid20/deploy-live.sh
   - tests/ai_platform_integration/test_synology_liquid20_live_deployment.py
@@ -98,7 +98,12 @@ validation:
     result: PASS
     evidence: task checkpoint and whitespace validation passed.
 blockers: []
-next_action: complete fresh audit and exact-head CI for PR 1502, then merge and run the canonical Liquid20 deployment
+next_action: observe aggregate PR 1502 CI and review state once after the minimum interval
+```
+
+## Recovery checkpoint
+
+```yaml
 recovery:
   policy_version: 1
   generation: 1

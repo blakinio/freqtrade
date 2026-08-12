@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import pathlib
 import sys
-from pathlib import Path
-from types import ModuleType
+import types
 
 if importlib.util.find_spec("websockets") is None:
-    websockets_stub = ModuleType("websockets")
-    websockets_exceptions_stub = ModuleType("websockets.exceptions")
+    websockets_stub = types.ModuleType("websockets")
+    websockets_exceptions_stub = types.ModuleType("websockets.exceptions")
 
     class WebSocketException(Exception):
         pass
@@ -28,7 +28,7 @@ OkxLiveRunManager = okx_stream.OkxLiveRunManager
 COLLECTOR_COMMIT = "a" * 40
 
 
-def _manager(tmp_path: Path, writes: list[dict[str, bool]]) -> OkxLiveRunManager:
+def _manager(tmp_path: pathlib.Path, writes: list[dict[str, bool]]) -> OkxLiveRunManager:
     manager = OkxLiveRunManager(
         data_root=tmp_path,
         collector_commit=COLLECTOR_COMMIT,
@@ -43,7 +43,7 @@ def _manager(tmp_path: Path, writes: list[dict[str, bool]]) -> OkxLiveRunManager
     return manager
 
 
-def test_startup_activation_defers_partial_state_writes(tmp_path: Path) -> None:
+def test_startup_activation_defers_partial_state_writes(tmp_path: pathlib.Path) -> None:
     writes: list[dict[str, bool]] = []
     manager = _manager(tmp_path, writes)
 
@@ -67,7 +67,7 @@ def test_startup_activation_defers_partial_state_writes(tmp_path: Path) -> None:
     assert all(state.connected is True for state in manager.sources.values())
 
 
-def test_preactivation_disconnect_discards_stale_source_atomically(tmp_path: Path) -> None:
+def test_preactivation_disconnect_discards_stale_source_atomically(tmp_path: pathlib.Path) -> None:
     writes: list[dict[str, bool]] = []
     manager = _manager(tmp_path, writes)
 

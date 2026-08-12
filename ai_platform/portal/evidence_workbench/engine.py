@@ -16,6 +16,9 @@ from ai_platform.portal.evidence_workbench.models import (
 )
 
 
+EVALUATOR_VERSION = "paper-evidence-eligibility-v2"
+
+
 def _classification_reason(item: EvidenceRecord) -> ReasonCode | None:
     if item.classification is EvidenceClassification.AVAILABLE:
         return None
@@ -44,7 +47,7 @@ def _record_reasons(
         reasons.add(ReasonCode.IDENTITY_MISMATCH)
     if not item.provenance:
         reasons.add(ReasonCode.INSUFFICIENT_PROVENANCE)
-    if item.profile_digest not in (None, policy.paper_execution_profile_digest):
+    if item.profile_digest != policy.paper_execution_profile_digest:
         reasons.add(ReasonCode.POLICY_PROFILE_MISMATCH)
     classification_reason = _classification_reason(item)
     if classification_reason is not None:
@@ -63,10 +66,14 @@ def _record_reasons(
 
 
 def _decision_identity(
-    request_digest: str, policy_digest: str, evidence_digests: tuple[str, ...]
+    request_digest: str,
+    policy_digest: str,
+    evidence_digests: tuple[str, ...],
+    evaluator_version: str = EVALUATOR_VERSION,
 ) -> str:
     canonical = json.dumps(
         {
+            "evaluator_version": evaluator_version,
             "evidence_digests": evidence_digests,
             "policy_digest": policy_digest,
             "request_digest": request_digest,
@@ -104,6 +111,23 @@ def evaluate_paper_eligibility(
         reasons.add(ReasonCode.CONFLICTING_EVIDENCE)
 
     records = tuple(exact[key] for key in sorted(exact))
+
+    # Every supplied record participates in the decision identity, so every record must first
+    # satisfy the common scope/provenance/profile/classification fence. Requirement-specific
+    # freshness and validation rules are layered on top below.
+    for item in records:
+        reasons.update(
+            _record_reasons(
+                item,
+                request,
+                policy,
+                max_age_seconds=None,
+                mandatory_validation=False,
+                require_complete_run=False,
+                require_supported_realism=False,
+            )
+        )
+
     for requirement in policy.requirements:
         matches = tuple(item for item in records if item.evidence_type == requirement.evidence_type)
         if not matches:
@@ -126,6 +150,7 @@ def evaluate_paper_eligibility(
     ordered_reasons = tuple(sorted(reasons, key=str))
     return EligibilityDecision(
         decision_id=_decision_identity(request_digest, policy_digest, evidence_digests),
+        evaluator_version=EVALUATOR_VERSION,
         outcome=(
             PaperEligibilityOutcome.INELIGIBLE
             if ordered_reasons

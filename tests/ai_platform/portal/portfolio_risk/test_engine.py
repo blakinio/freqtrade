@@ -12,12 +12,14 @@ from ai_platform.portal.portfolio_risk import (
     AllocationRequest,
     BotBudgetAllocation,
     CorrelationEvidence,
+    InMemoryPortfolioBudgetStore,
     PortfolioBudget,
     PortfolioPosition,
     PortfolioRiskEngine,
     PortfolioRiskOutcome,
     PortfolioRiskPolicy,
     PortfolioRiskSnapshot,
+    SnapshotSourceHealth,
 )
 
 
@@ -33,6 +35,7 @@ def _policy(**updates: object) -> PortfolioRiskPolicy:
         "version": 1,
         "effective_at": NOW - timedelta(days=1),
         "expires_at": NOW + timedelta(days=1),
+        "max_snapshot_age_seconds": 60,
         "max_gross_exposure": Decimal(1000),
         "max_net_exposure": Decimal(1000),
         "max_symbol_exposure": Decimal(700),
@@ -68,6 +71,8 @@ def _snapshot(**updates: object) -> PortfolioRiskSnapshot:
         "snapshot_id": UUID("30000000-0000-4000-8000-000000000001"),
         "tenant_id": TENANT,
         "observed_at": NOW,
+        "source_health": SnapshotSourceHealth.HEALTHY,
+        "drift_detected": False,
         "positions": (),
         "correlations": (),
         "drawdown": Decimal("0.05"),
@@ -151,7 +156,32 @@ def test_aggregate_exposure_across_multiple_bots_is_evaluated() -> None:
     assert "GROSS_EXPOSURE_LIMIT_EXCEEDED" in decision.reason_codes
 
 
-def test_concurrent_requests_against_same_budget_snapshot_allow_only_one() -> None:
+def test_gross_exposure_does_not_net_opposing_positions() -> None:
+    snapshot = _snapshot(
+        positions=(
+            PortfolioPosition(
+                tenant_id=TENANT, bot_id=BOT, symbol="ETH/USDT", signed_notional=Decimal(600)
+            ),
+            PortfolioPosition(
+                tenant_id=TENANT, bot_id="bot-b", symbol="ETH/USDT", signed_notional=Decimal(-600)
+            ),
+        ),
+        correlations=(
+            CorrelationEvidence(
+                left_symbol="BTC/USDT", right_symbol="ETH/USDT", correlation=Decimal("0.2")
+            ),
+        ),
+    )
+    decision = _evaluate(
+        policy=_policy(max_gross_exposure=Decimal(1200)),
+        snapshot=snapshot,
+        request_updates={"notional": Decimal(100)},
+    )
+    assert decision.outcome is PortfolioRiskOutcome.REJECT
+    assert "GROSS_EXPOSURE_LIMIT_EXCEEDED" in decision.reason_codes
+
+
+def test_concurrent_requests_across_engine_instances_share_budget_cas() -> None:
     policy = _policy()
     budget = _budget(
         allocations=(
@@ -160,16 +190,28 @@ def test_concurrent_requests_against_same_budget_snapshot_allow_only_one() -> No
         )
     )
     request = _request(policy, budget, notional=Decimal(100))
-    engine = PortfolioRiskEngine(policy, budget)
+    store = InMemoryPortfolioBudgetStore(budget)
+    engines = (
+        PortfolioRiskEngine(policy, budget, budget_store=store),
+        PortfolioRiskEngine(policy, budget, budget_store=store),
+    )
 
     with ThreadPoolExecutor(max_workers=2) as executor:
-        decisions = tuple(executor.map(lambda _: engine.reserve(request, _snapshot()), range(2)))
+        decisions = tuple(
+            executor.map(lambda engine: engine.reserve(request, _snapshot()), engines)
+        )
 
     assert sorted(decision.outcome for decision in decisions) == [
         PortfolioRiskOutcome.ALLOW,
         PortfolioRiskOutcome.UNAVAILABLE,
     ]
     assert any(decision.reason_codes == ("STALE_BUDGET",) for decision in decisions)
+
+
+def test_reservation_without_shared_store_is_rejected() -> None:
+    policy, budget = _policy(), _budget()
+    with pytest.raises(RuntimeError, match="shared durable budget store"):
+        PortfolioRiskEngine(policy, budget).reserve(_request(policy, budget), _snapshot())
 
 
 @pytest.mark.parametrize(
@@ -181,6 +223,26 @@ def test_stale_policy_or_budget_fails_closed(field: str, reason: str) -> None:
 
     assert decision.outcome is PortfolioRiskOutcome.UNAVAILABLE
     assert decision.reason_codes == (reason,)
+
+
+@pytest.mark.parametrize(
+    ("snapshot", "reason"),
+    [
+        (_snapshot(observed_at=NOW - timedelta(seconds=61)), "STALE_SNAPSHOT"),
+        (_snapshot(observed_at=NOW + timedelta(seconds=1)), "SNAPSHOT_FUTURE"),
+        (
+            _snapshot(source_health=SnapshotSourceHealth.DEGRADED),
+            "SNAPSHOT_SOURCE_UNHEALTHY",
+        ),
+        (_snapshot(drift_detected=True), "SNAPSHOT_DRIFT_DETECTED"),
+    ],
+)
+def test_stale_future_unhealthy_or_drifted_snapshot_fails_closed(
+    snapshot: PortfolioRiskSnapshot, reason: str
+) -> None:
+    decision = _evaluate(snapshot=snapshot)
+    assert decision.outcome is PortfolioRiskOutcome.UNAVAILABLE
+    assert reason in decision.reason_codes
 
 
 def test_concentration_breach_rejects() -> None:

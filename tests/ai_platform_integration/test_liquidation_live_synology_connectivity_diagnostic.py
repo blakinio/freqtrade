@@ -48,6 +48,18 @@ def test_failed_deploy_runs_bounded_secret_free_public_connectivity_diagnostic()
     assert '"protocol"] = classify_protocol(source, payload)' in diagnostic_block
 
 
+def test_each_probe_is_process_isolated_and_terminable() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    diagnostic_block = _diagnostic_block(workflow)
+
+    assert 'multiprocessing.get_context("fork")' in diagnostic_block
+    assert "context.Pipe(duplex=False)" in diagnostic_block
+    assert "if receiver.poll(30):" in diagnostic_block
+    assert "process.terminate()" in diagnostic_block
+    assert "process.kill()" in diagnostic_block
+    assert '"probe_process": "timeout"' in diagnostic_block
+
+
 def test_embedded_connectivity_probe_is_valid_python() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     diagnostic_block = _diagnostic_block(workflow)

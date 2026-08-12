@@ -49,6 +49,7 @@ class GatewayLimits:
     max_request_bytes: int = 64 * 1024
     max_response_bytes: int = 1024 * 1024
     upstream_timeout_seconds: float = 3.0
+    io_timeout_seconds: float = 3.0
 
     def __post_init__(self) -> None:
         if not 256 <= self.max_request_bytes <= 1024 * 1024:
@@ -56,7 +57,9 @@ class GatewayLimits:
         if not 1024 <= self.max_response_bytes <= 8 * 1024 * 1024:
             raise GatewayError("INVALID_LIMIT", "response limit outside reviewed bounds")
         if not 0.05 <= self.upstream_timeout_seconds <= 10.0:
-            raise GatewayError("INVALID_LIMIT", "timeout outside reviewed bounds")
+            raise GatewayError("INVALID_LIMIT", "upstream timeout outside reviewed bounds")
+        if not 0.05 <= self.io_timeout_seconds <= 10.0:
+            raise GatewayError("INVALID_LIMIT", "I/O timeout outside reviewed bounds")
 
 
 @dataclass(frozen=True)

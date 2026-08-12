@@ -54,6 +54,26 @@ def request(operation: Operation = Operation.HEALTH, **overrides: Any) -> Gatewa
     return GatewayRequest(**values)
 
 
+def order(order_id: str, *, is_open: bool) -> dict[str, Any]:
+    return {
+        "pair": "BTC/USDT",
+        "order_id": order_id,
+        "status": "open" if is_open else "closed",
+        "remaining": 0.25 if is_open else 0.0,
+        "amount": 0.5,
+        "safe_price": 100.0,
+        "cost": 50.0,
+        "filled": 0.25 if is_open else 0.5,
+        "ft_order_side": "buy",
+        "order_type": "limit",
+        "is_open": is_open,
+        "order_timestamp": 1_700_000_000_000,
+        "order_filled_timestamp": None,
+        "ft_fee_base": None,
+        "ft_order_tag": None,
+    }
+
+
 @pytest.mark.parametrize("field", ["tenant_id", "bot_id", "generation_id"])
 def test_rejects_wrong_or_cross_generation_identity(binding: GatewayBinding, field: str) -> None:
     gateway = RuntimeGateway(binding, RecordingUpstream())
@@ -98,8 +118,8 @@ def test_maps_allowlisted_reads_to_fixed_endpoints(
 
 
 def test_open_orders_are_derived_from_canonical_status_response(binding: GatewayBinding) -> None:
-    open_order = {"order_id": "open-1", "pair": "BTC/USDT", "is_open": True}
-    closed_order = {"order_id": "closed-1", "pair": "BTC/USDT", "is_open": False}
+    open_order = order("open-1", is_open=True)
+    closed_order = order("closed-1", is_open=False)
     upstream = RecordingUpstream(
         [
             {"trade_id": 1, "orders": [open_order, closed_order]},
@@ -114,7 +134,17 @@ def test_open_orders_are_derived_from_canonical_status_response(binding: Gateway
     assert upstream.endpoints == ["/api/v1/status"]
 
 
-@pytest.mark.parametrize("malformed", [{}, ["not-a-trade"], [{"orders": {}}], [{"orders": [{}]}]])
+@pytest.mark.parametrize(
+    "malformed",
+    [
+        {},
+        ["not-a-trade"],
+        [{"orders": {}}],
+        [{"orders": [{}]}],
+        [{"orders": [{"is_open": True}]}],
+        [{"orders": [order("broken", is_open=True) | {"amount": "not-a-number"}]}],
+    ],
+)
 def test_open_orders_fail_closed_on_malformed_status(
     binding: GatewayBinding, malformed: Any
 ) -> None:
@@ -122,6 +152,17 @@ def test_open_orders_fail_closed_on_malformed_status(
         RuntimeGateway(binding, RecordingUpstream(malformed)).handle(
             request(Operation.READ_OPEN_ORDERS)
         )
+    assert error.value.code == "MALFORMED_UPSTREAM_RESPONSE"
+
+
+def test_closed_orders_are_also_fully_validated_before_exclusion(binding: GatewayBinding) -> None:
+    malformed_closed = order("closed-broken", is_open=False)
+    malformed_closed.pop("pair")
+    with pytest.raises(GatewayError) as error:
+        RuntimeGateway(
+            binding,
+            RecordingUpstream([{"trade_id": 1, "orders": [malformed_closed]}]),
+        ).handle(request(Operation.READ_OPEN_ORDERS))
     assert error.value.code == "MALFORMED_UPSTREAM_RESPONSE"
 
 

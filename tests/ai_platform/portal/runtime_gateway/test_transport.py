@@ -19,6 +19,7 @@ from ai_platform.portal.runtime_gateway.transport import (
     PeerIdentity,
     RuntimeGatewayUnixServer,
     _read_request_frame,
+    _read_socket_frame,
     _validate_socket_path,
 )
 
@@ -56,6 +57,20 @@ def test_excessive_request_body_is_rejected_before_json_decode() -> None:
     assert error.value.code == "REQUEST_TOO_LARGE"
 
 
+def test_partial_socket_frame_has_absolute_deadline() -> None:
+    if os.name == "nt":
+        pytest.skip("Unix socket timeout integration")
+    reader, writer = socket.socketpair()
+    try:
+        writer.sendall(b"{")
+        with pytest.raises(GatewayError) as error:
+            _read_socket_frame(reader, 256, 0.05)
+    finally:
+        reader.close()
+        writer.close()
+    assert error.value.code == "REQUEST_TIMEOUT"
+
+
 def test_stale_socket_and_symlink_are_rejected(tmp_path: Path) -> None:
     if os.name == "nt":
         pytest.skip("Unix ownership and socket mode checks require POSIX")
@@ -78,6 +93,35 @@ def test_socket_parent_must_not_be_group_or_world_writable(tmp_path: Path) -> No
     with pytest.raises(GatewayError) as error:
         _validate_socket_path(tmp_path / "gateway.sock")
     assert error.value.code == "SOCKET_DIRECTORY_PERMISSIONS"
+
+
+def test_distinct_worker_gets_group_socket_access_without_directory_write(tmp_path: Path) -> None:
+    if os.name == "nt" or not hasattr(os, "geteuid"):
+        pytest.skip("POSIX ownership checks required")
+    tmp_path.chmod(0o710)
+    peer = AllowedPeer(uid=os.geteuid() + 1, gid=os.getegid())
+    server = RuntimeGatewayUnixServer(tmp_path / "gateway.sock", _gateway(), peer)
+    try:
+        socket_info = (tmp_path / "gateway.sock").stat()
+        parent_info = tmp_path.stat()
+        assert stat.S_IMODE(socket_info.st_mode) == 0o660
+        assert socket_info.st_gid == peer.gid
+        assert stat.S_IMODE(parent_info.st_mode) == 0o710
+        assert not parent_info.st_mode & stat.S_IWGRP
+    finally:
+        server.server_close()
+
+
+def test_distinct_worker_requires_dedicated_group(tmp_path: Path) -> None:
+    if os.name == "nt" or not hasattr(os, "geteuid"):
+        pytest.skip("POSIX ownership checks required")
+    with pytest.raises(GatewayError) as error:
+        RuntimeGatewayUnixServer(
+            tmp_path / "gateway.sock",
+            _gateway(),
+            AllowedPeer(uid=os.geteuid() + 1),
+        )
+    assert error.value.code == "SOCKET_PEER_ACCESS_UNCONFIGURED"
 
 
 def test_transport_has_no_tcp_or_browser_listener_surface() -> None:

@@ -7,6 +7,7 @@ import stat
 import struct
 from dataclasses import dataclass
 from pathlib import Path
+from time import monotonic
 from typing import Any, Protocol
 
 from ai_platform.portal.runtime_gateway.errors import GatewayError
@@ -54,7 +55,7 @@ class RuntimeGatewayUnixServer(socketserver.TCPServer):
         self.gateway = gateway
         self.allowed_peer = allowed_peer
         self.limits = limits or GatewayLimits()
-        self._socket_path = _validate_socket_path(socket_path)
+        self._socket_path = _validate_socket_path(socket_path, allowed_peer)
         self._bound_identity: tuple[int, int] | None = None
         super().__init__(
             str(self._socket_path),  # type: ignore[arg-type]
@@ -67,7 +68,7 @@ class RuntimeGatewayUnixServer(socketserver.TCPServer):
                 self.server_bind()
             finally:
                 os.umask(old_umask)
-            self._socket_path.chmod(0o600)
+            _grant_peer_filesystem_access(self._socket_path, allowed_peer)
             info = self._socket_path.lstat()
             self._bound_identity = (info.st_dev, info.st_ino)
             self.server_activate()
@@ -86,7 +87,12 @@ class RuntimeGatewayUnixServer(socketserver.TCPServer):
             if not self.allowed_peer.permits(peer):
                 raise GatewayError("CALLER_IDENTITY_MISMATCH", "OS peer identity is not authorized")
         except GatewayError as exc:
-            _send_error(request, exc, self.limits.max_response_bytes)
+            _send_error(
+                request,
+                exc,
+                self.limits.max_response_bytes,
+                self.limits.io_timeout_seconds,
+            )
             return False
         return True
 
@@ -120,12 +126,17 @@ class _RequestHandler(socketserver.StreamRequestHandler):
 
     def handle(self) -> None:
         try:
-            raw = _read_request_frame(self.rfile, self.server.limits.max_request_bytes)
+            raw = _read_socket_frame(
+                self.request,
+                self.server.limits.max_request_bytes,
+                self.server.limits.io_timeout_seconds,
+            )
         except GatewayError as exc:
             _send_error(
                 self.request,
                 exc,
                 self.server.limits.max_response_bytes,
+                self.server.limits.io_timeout_seconds,
             )
             return
         try:
@@ -135,17 +146,70 @@ class _RequestHandler(socketserver.StreamRequestHandler):
             encoded = encode_document(response.as_dict(), self.server.limits.max_response_bytes)
         except GatewayError as exc:
             encoded = _error_bytes(exc, self.server.limits.max_response_bytes)
-        self.request.sendall(encoded)
+        _send_bounded(self.request, encoded, self.server.limits.io_timeout_seconds)
 
 
 def _read_request_frame(stream: _BinaryReader, limit: int) -> bytes:
+    """Bounded pure-reader helper retained for deterministic unit validation."""
+
     raw = stream.readline(limit + 2)
     if len(raw) > limit or not raw.endswith(b"\n"):
         raise GatewayError("REQUEST_TOO_LARGE", "request exceeds reviewed bound")
     return raw[:-1]
 
 
-def _validate_socket_path(path: Path) -> Path:
+def _read_socket_frame(connection: socket.socket, limit: int, timeout_seconds: float) -> bytes:
+    deadline = monotonic() + timeout_seconds
+    payload = bytearray()
+    while True:
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            raise GatewayError("REQUEST_TIMEOUT", "request did not complete within reviewed deadline")
+        connection.settimeout(remaining)
+        try:
+            chunk = connection.recv(min(4096, limit + 2 - len(payload)))
+        except (TimeoutError, socket.timeout) as exc:
+            raise GatewayError(
+                "REQUEST_TIMEOUT", "request did not complete within reviewed deadline"
+            ) from exc
+        except OSError as exc:
+            raise GatewayError("REQUEST_IO_ERROR", "request transport failed") from exc
+        if not chunk:
+            raise GatewayError("MALFORMED_REQUEST", "request ended before frame terminator")
+        payload.extend(chunk)
+        newline = payload.find(b"\n")
+        if newline >= 0:
+            if newline > limit:
+                raise GatewayError("REQUEST_TOO_LARGE", "request exceeds reviewed bound")
+            if newline != len(payload) - 1:
+                raise GatewayError("MALFORMED_REQUEST", "request contains trailing frame data")
+            return bytes(payload[:newline])
+        if len(payload) > limit:
+            raise GatewayError("REQUEST_TOO_LARGE", "request exceeds reviewed bound")
+
+
+def _send_bounded(connection: socket.socket, payload: bytes, timeout_seconds: float) -> None:
+    deadline = monotonic() + timeout_seconds
+    view = memoryview(payload)
+    while view:
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            raise GatewayError("RESPONSE_TIMEOUT", "response exceeded reviewed write deadline")
+        connection.settimeout(remaining)
+        try:
+            sent = connection.send(view)
+        except (TimeoutError, socket.timeout) as exc:
+            raise GatewayError(
+                "RESPONSE_TIMEOUT", "response exceeded reviewed write deadline"
+            ) from exc
+        except OSError as exc:
+            raise GatewayError("RESPONSE_IO_ERROR", "response transport failed") from exc
+        if sent <= 0:
+            raise GatewayError("RESPONSE_IO_ERROR", "response transport closed")
+        view = view[sent:]
+
+
+def _validate_socket_path(path: Path, allowed_peer: AllowedPeer | None = None) -> Path:
     if not path.is_absolute():
         raise GatewayError("INVALID_SOCKET_PATH", "Gateway socket path must be absolute")
     parent = path.parent.resolve(strict=True)
@@ -157,13 +221,54 @@ def _validate_socket_path(path: Path) -> Path:
     get_effective_uid = getattr(os, "geteuid", None)
     if get_effective_uid is None:
         raise GatewayError("UDS_UNAVAILABLE", "POSIX ownership checks are required")
-    if info.st_uid != get_effective_uid():
+    effective_uid = get_effective_uid()
+    peer = allowed_peer or AllowedPeer(uid=effective_uid)
+    if info.st_uid != effective_uid:
         raise GatewayError("SOCKET_DIRECTORY_OWNER_MISMATCH", "socket directory owner mismatch")
     if info.st_mode & 0o022:
         raise GatewayError(
             "SOCKET_DIRECTORY_PERMISSIONS", "socket directory is group/world writable"
         )
+    if info.st_mode & 0o007:
+        raise GatewayError("SOCKET_DIRECTORY_PERMISSIONS", "socket directory is world accessible")
+    if peer.uid != effective_uid:
+        if peer.gid is None:
+            raise GatewayError(
+                "SOCKET_PEER_ACCESS_UNCONFIGURED",
+                "distinct worker identity requires a dedicated filesystem group",
+            )
+        if info.st_gid != peer.gid:
+            raise GatewayError(
+                "SOCKET_DIRECTORY_GROUP_MISMATCH", "socket directory group does not match worker"
+            )
+        if not info.st_mode & stat.S_IXGRP:
+            raise GatewayError(
+                "SOCKET_DIRECTORY_PEER_ACCESS",
+                "socket directory does not grant worker-group traversal",
+            )
     return parent / path.name
+
+
+def _grant_peer_filesystem_access(path: Path, allowed_peer: AllowedPeer) -> None:
+    get_effective_uid = getattr(os, "geteuid", None)
+    if get_effective_uid is None:
+        raise GatewayError("UDS_UNAVAILABLE", "POSIX ownership checks are required")
+    effective_uid = get_effective_uid()
+    if allowed_peer.uid == effective_uid:
+        path.chmod(0o600)
+        return
+    if allowed_peer.gid is None:
+        raise GatewayError(
+            "SOCKET_PEER_ACCESS_UNCONFIGURED",
+            "distinct worker identity requires a dedicated filesystem group",
+        )
+    try:
+        os.chown(path, -1, allowed_peer.gid)
+        path.chmod(0o660)
+    except OSError as exc:
+        raise GatewayError(
+            "SOCKET_PEER_ACCESS_FAILED", "could not grant configured worker filesystem access"
+        ) from exc
 
 
 def _peer_identity(connection: socket.socket) -> PeerIdentity:
@@ -186,8 +291,13 @@ def _error_bytes(error: GatewayError, max_bytes: int) -> bytes:
     return encode_document(response.as_dict(), max_bytes)
 
 
-def _send_error(connection: socket.socket, error: GatewayError, max_bytes: int) -> None:
+def _send_error(
+    connection: socket.socket,
+    error: GatewayError,
+    max_bytes: int,
+    timeout_seconds: float,
+) -> None:
     try:
-        connection.sendall(_error_bytes(error, max_bytes))
-    except OSError:
+        _send_bounded(connection, _error_bytes(error, max_bytes), timeout_seconds)
+    except (GatewayError, OSError):
         pass

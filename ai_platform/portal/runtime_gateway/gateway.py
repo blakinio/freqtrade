@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from pydantic import ValidationError
+
 from ai_platform.portal.runtime_gateway.contract import verify_contract_digest
 from ai_platform.portal.runtime_gateway.errors import GatewayError
 from ai_platform.portal.runtime_gateway.models import (
@@ -12,6 +14,7 @@ from ai_platform.portal.runtime_gateway.models import (
     Operation,
 )
 from ai_platform.portal.runtime_gateway.upstream import FreqtradeUpstream
+from freqtrade.rpc.api_server.api_schemas import OrderSchema
 
 
 _READ_ENDPOINTS = {
@@ -83,7 +86,7 @@ class RuntimeGateway:
 
 
 def _extract_open_orders(status: Any) -> list[dict[str, Any]]:
-    """Derive open-order truth from Freqtrade's canonical open-trade `/status` response."""
+    """Derive validated open-order truth from Freqtrade's canonical `/status` response."""
 
     if not isinstance(status, list):
         raise GatewayError("MALFORMED_UPSTREAM_RESPONSE", "Freqtrade status must be a list")
@@ -97,10 +100,12 @@ def _extract_open_orders(status: Any) -> list[dict[str, Any]]:
                 "MALFORMED_UPSTREAM_RESPONSE", "Freqtrade trade orders must be a list"
             )
         for order in orders:
-            if not isinstance(order, dict) or not isinstance(order.get("is_open"), bool):
+            try:
+                validated = OrderSchema.model_validate(order)
+            except (ValidationError, TypeError) as exc:
                 raise GatewayError(
                     "MALFORMED_UPSTREAM_RESPONSE", "Freqtrade order shape is invalid"
-                )
-            if order["is_open"]:
-                open_orders.append(order)
+                ) from exc
+            if validated.is_open:
+                open_orders.append(validated.model_dump(mode="json"))
     return open_orders

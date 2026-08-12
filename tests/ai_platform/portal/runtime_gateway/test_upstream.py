@@ -82,21 +82,34 @@ def test_rejects_arbitrary_endpoint_and_method_surface(fake_freqtrade: Any) -> N
 
 
 @pytest.mark.parametrize(
-    ("payload", "code"),
+    "payload",
     [
-        (b"not-json", "MALFORMED_UPSTREAM_RESPONSE"),
-        (json.dumps({"nested": {"api_key": "leak"}}).encode(), "CREDENTIAL_DISCLOSURE_BLOCKED"),
+        {"nested": {"api_key": "leak"}},
+        {"nested": {"api_secret": "leak"}},
+        {"nested": {"clientSecret": "leak"}},
+        {"nested": {"refresh_token": "leak"}},
+        {"nested": {"accessToken": "leak"}},
+        {"nested": {"authorization": "Bearer secret-value"}},
     ],
 )
-def test_malformed_or_credential_bearing_response_is_blocked(
-    fake_freqtrade: Any, payload: bytes, code: str
+def test_shared_classifier_blocks_credential_bearing_response(
+    fake_freqtrade: Any, payload: dict[str, Any]
 ) -> None:
     server, handler = fake_freqtrade
-    handler.response_body = payload
+    handler.response_body = json.dumps(payload).encode()
     with pytest.raises(UpstreamError) as error:
         client(server).get("/api/v1/status")
-    assert error.value.code == code
+    assert error.value.code == "CREDENTIAL_DISCLOSURE_BLOCKED"
     assert "leak" not in error.value.message
+    assert "secret-value" not in error.value.message
+
+
+def test_malformed_response_is_blocked(fake_freqtrade: Any) -> None:
+    server, handler = fake_freqtrade
+    handler.response_body = b"not-json"
+    with pytest.raises(UpstreamError) as error:
+        client(server).get("/api/v1/status")
+    assert error.value.code == "MALFORMED_UPSTREAM_RESPONSE"
 
 
 def test_excessive_upstream_response_is_blocked(fake_freqtrade: Any) -> None:

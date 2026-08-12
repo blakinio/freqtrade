@@ -5,12 +5,8 @@ import json
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from ai_platform.portal.contracts.payloads import reject_sensitive_payload_keys
 from ai_platform.portal.runtime_gateway.errors import GatewayError, UpstreamError
-
-
-_SENSITIVE_KEYS = frozenset(
-    {"api_key", "apikey", "authorization", "credential", "password", "secret", "token"}
-)
 
 
 class FreqtradeUpstream(Protocol):
@@ -66,7 +62,20 @@ class LocalFreqtradeHttpClient:
         try:
             connection.request("GET", endpoint, headers=headers)
             response = connection.getresponse()
+            content_length = response.getheader("Content-Length")
+            if content_length is not None:
+                try:
+                    if int(content_length) > self._max_response_bytes:
+                        raise UpstreamError(
+                            "UPSTREAM_RESPONSE_TOO_LARGE", "Freqtrade response exceeds bound"
+                        )
+                except ValueError as exc:
+                    raise UpstreamError(
+                        "MALFORMED_UPSTREAM_RESPONSE", "Freqtrade returned invalid Content-Length"
+                    ) from exc
             payload = response.read(self._max_response_bytes + 1)
+        except UpstreamError:
+            raise
         except (OSError, TimeoutError) as exc:
             raise UpstreamError(
                 "UPSTREAM_UNAVAILABLE", "generation-local Freqtrade unavailable"
@@ -83,7 +92,12 @@ class LocalFreqtradeHttpClient:
             raise UpstreamError(
                 "MALFORMED_UPSTREAM_RESPONSE", "Freqtrade returned invalid JSON"
             ) from exc
-        _reject_sensitive(document)
+        try:
+            reject_sensitive_payload_keys(document, path="runtime_gateway_upstream")
+        except ValueError as exc:
+            raise UpstreamError(
+                "CREDENTIAL_DISCLOSURE_BLOCKED", "sensitive upstream material blocked"
+            ) from exc
         return document
 
 
@@ -92,16 +106,3 @@ def _basic_auth(username: str, password: str) -> str:
 
     token = base64.b64encode(f"{username}:{password}".encode()).decode("ascii")
     return f"Basic {token}"
-
-
-def _reject_sensitive(value: Any) -> None:
-    if isinstance(value, dict):
-        for key, nested in value.items():
-            if str(key).casefold() in _SENSITIVE_KEYS:
-                raise UpstreamError(
-                    "CREDENTIAL_DISCLOSURE_BLOCKED", "sensitive upstream field blocked"
-                )
-            _reject_sensitive(nested)
-    elif isinstance(value, list):
-        for nested in value:
-            _reject_sensitive(nested)

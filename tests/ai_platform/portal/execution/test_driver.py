@@ -1092,7 +1092,9 @@ def test_subprocess_runner_applies_finite_default_timeout(monkeypatch: pytest.Mo
     def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
         del args
         timeout = kwargs.get("timeout")
-        observed["timeout"] = timeout if isinstance(timeout, float) else None
+        if not isinstance(timeout, (int, float)):
+            raise AssertionError("subprocess timeout must be numeric")
+        observed["timeout"] = float(timeout)
         raise subprocess.TimeoutExpired(cmd=["docker", "info"], timeout=float(timeout))
 
     monkeypatch.setattr(subprocess, "run", fake_run)

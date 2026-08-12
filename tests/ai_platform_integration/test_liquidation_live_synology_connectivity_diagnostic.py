@@ -21,7 +21,7 @@ def test_failed_deploy_runs_bounded_secret_free_public_connectivity_diagnostic()
     assert "Diagnose public WebSocket connectivity after deploy failure" in workflow
     assert "if: failure() && steps.deploy.outcome == 'failure'" in workflow
     assert "timeout-minutes: 3" in workflow
-    assert "timeout 150s docker run --rm --interactive" in workflow
+    assert "timeout --kill-after=5s 150s docker run --rm --interactive" in workflow
     assert 'image="local/liquid20-collector:sha-${GITHUB_SHA}"' in workflow
     assert '--name "liquid20-connectivity-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"' in workflow
     assert '--label "freqtrade.task=FTAI-20260812-wh09-e2e-recovery-1396"' in workflow
@@ -63,6 +63,17 @@ def test_each_probe_is_process_isolated_and_terminable() -> None:
     assert "process.terminate()" in diagnostic_block
     assert "process.kill()" in diagnostic_block
     assert '"probe_process": "timeout"' in diagnostic_block
+
+
+def test_diagnostic_container_has_always_run_exact_name_cleanup() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    cleanup_block = workflow.split(
+        "- name: Clean up connectivity diagnostic container", maxsplit=1
+    )[1].split("- name: Publish final status", maxsplit=1)[0]
+
+    assert "if: always()" in cleanup_block
+    assert "continue-on-error: true" in cleanup_block
+    assert 'docker rm -f "liquid20-connectivity-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"' in cleanup_block
 
 
 def test_embedded_connectivity_probe_is_valid_python() -> None:

@@ -1,0 +1,250 @@
+name: Apply runtime supervisor self-audit repair v2
+
+on:
+  push:
+    branches:
+      - codex/portal-runtime-supervisor-1355
+    paths:
+      - .github/workflows/apply-runtime-supervisor-self-audit-repair-v2.yml
+
+permissions: {}
+
+jobs:
+  repair:
+    name: Apply bounded supervisor trust-boundary repairs
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Apply audited repairs
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one match, got {count}")
+              return text.replace(old, new, 1)
+
+          # 1. Never perform failure cleanup through a mutable runtime name.
+          path = Path("ai_platform/portal/execution/driver.py")
+          text = path.read_text(encoding="utf-8")
+          text = once(
+              text,
+              "        self._plan_digests: dict[str, str] = {}\n",
+              "        self._plan_digests: dict[str, str] = {}\n        self._container_ids: dict[str, str] = {}\n",
+              "container id registry",
+          )
+          text = once(
+              text,
+              "            and self._fingerprints.get(runtime_id) == self._fingerprint(spec, plan_digest)\n",
+              "            and self._fingerprints.get(runtime_id) == self._fingerprint(spec, plan_digest)\n            and bool(self._container_ids.get(runtime_id))\n",
+              "generation evidence immutable id",
+          )
+          text = once(
+              text,
+              "        network = self._network_name(spec.runtime_id)\n        self._external.prepare_storage(plan, spec.state_path)\n",
+              "        network = self._network_name(spec.runtime_id)\n        created_container_id: str | None = None\n        self._external.prepare_storage(plan, spec.state_path)\n",
+              "created id local",
+          )
+          text = once(
+              text,
+              "            self._require_success(self._create_args(spec, plan, network), \"DOCKER_CREATE_FAILED\")\n            self._attest_structural(spec, plan, network)\n",
+              "            create_result = self._require_success(\n                self._create_args(spec, plan, network), \"DOCKER_CREATE_FAILED\"\n            )\n            created_container_id = create_result.stdout.strip()\n            if not created_container_id:\n                raise RuntimeDriverError(\n                    \"DOCKER_CREATE_FAILED\",\n                    \"Docker create did not return an immutable container identity\",\n                )\n            self._attest_structural(spec, plan, network)\n",
+              "capture docker create id",
+          )
+          text = once(
+              text,
+              "        except Exception:\n            self._cleanup_failed_runtime(spec.runtime_id, network)\n            raise\n\n        self._attested.add(spec.runtime_id)\n",
+              "        except Exception:\n            self._cleanup_failed_runtime(\n                spec.runtime_id, network, container_id=created_container_id\n            )\n            raise\n\n        self._attested.add(spec.runtime_id)\n",
+              "provision immutable cleanup",
+          )
+          text = once(
+              text,
+              "        self._plan_digests[spec.runtime_id] = binding.isolation_plan_digest\n        return DriverRuntimeState.CREATED\n",
+              "        self._plan_digests[spec.runtime_id] = binding.isolation_plan_digest\n        self._container_ids[spec.runtime_id] = created_container_id\n        return DriverRuntimeState.CREATED\n",
+              "persist container id",
+          )
+          old = '''    def _cleanup_failed_runtime(self, runtime_id: str, network: str) -> None:\n        errors: list[str] = []\n        try:\n            remove = self._runner.run(("docker", "rm", "-f", runtime_id))\n            if remove.returncode != 0 and "no such" not in remove.stderr.lower():\n                errors.append(remove.stderr.strip() or "docker container cleanup failed")\n        except Exception as exc:  # noqa: BLE001\n            errors.append(f"docker container cleanup raised {type(exc).__name__}: {exc}")\n        try:\n            self._external.cleanup_network(network, runtime_id)\n        except Exception as exc:  # noqa: BLE001\n            errors.append(f"network cleanup raised {type(exc).__name__}: {exc}")\n        finally:\n            self._clear_generation_evidence(runtime_id)\n        if errors:\n            raise RuntimeDriverError(\n                "RUNTIME_CLEANUP_FAILED",\n                "runtime cleanup was incomplete: " + "; ".join(errors),\n            )\n'''
+          new = '''    def _cleanup_failed_runtime(\n        self,\n        runtime_id: str,\n        network: str,\n        *,\n        container_id: str | None = None,\n    ) -> None:\n        errors: list[str] = []\n        immutable_container_id = container_id or self._container_ids.get(runtime_id)\n        if immutable_container_id is not None:\n            try:\n                remove = self._runner.run(("docker", "rm", "-f", immutable_container_id))\n                if remove.returncode != 0 and "no such" not in remove.stderr.lower():\n                    errors.append(remove.stderr.strip() or "docker container cleanup failed")\n            except Exception as exc:  # noqa: BLE001\n                errors.append(f"docker container cleanup raised {type(exc).__name__}: {exc}")\n        elif runtime_id in self._attested or runtime_id in self._specs:\n            errors.append("immutable container identity is unavailable; refusing name-based cleanup")\n        try:\n            self._external.cleanup_network(network, runtime_id)\n        except Exception as exc:  # noqa: BLE001\n            errors.append(f"network cleanup raised {type(exc).__name__}: {exc}")\n        finally:\n            self._clear_generation_evidence(runtime_id)\n        if errors:\n            raise RuntimeDriverError(\n                "RUNTIME_CLEANUP_FAILED",\n                "runtime cleanup was incomplete: " + "; ".join(errors),\n            )\n'''
+          text = once(text, old, new, "failure cleanup")
+          text = once(
+              text,
+              "        self._plan_digests.pop(runtime_id, None)\n\n    def _dns_resolvers",
+              "        self._plan_digests.pop(runtime_id, None)\n        self._container_ids.pop(runtime_id, None)\n\n    def _dns_resolvers",
+              "clear container id",
+          )
+          text = once(
+              text,
+              '''    def _require_success(self, args: Sequence[str], reason_code: str) -> None:\n        result = self._runner.run(args)\n        if result.returncode != 0:\n            raise RuntimeDriverError(\n                reason_code,\n                result.stderr.strip() or f"command failed: {args[1]}",\n            )\n''',
+              '''    def _require_success(self, args: Sequence[str], reason_code: str) -> CommandResult:\n        result = self._runner.run(args)\n        if result.returncode != 0:\n            raise RuntimeDriverError(\n                reason_code,\n                result.stderr.strip() or f"command failed: {args[1]}",\n            )\n        return result\n''',
+              "require success result",
+          )
+          path.write_text(text, encoding="utf-8")
+
+          # 2. A distinct lifecycle UID must be granted filesystem access through a dedicated group.
+          path = Path("ai_platform/portal/runtime_supervisor/transport.py")
+          text = path.read_text(encoding="utf-8")
+          text = once(
+              text,
+              "        peer_uid: Callable[[socket.socket], int] = linux_peer_uid,\n        max_workers: int = MAX_CONNECTION_WORKERS,\n",
+              "        peer_uid: Callable[[socket.socket], int] = linux_peer_uid,\n        socket_access_gid: int | None = None,\n        max_workers: int = MAX_CONNECTION_WORKERS,\n",
+              "socket gid arg",
+          )
+          text = once(
+              text,
+              "        if not allowed_peer_uids or any(uid < 0 for uid in allowed_peer_uids):\n            raise ValueError(\"at least one valid peer uid is required\")\n",
+              "        if not allowed_peer_uids or any(uid < 0 for uid in allowed_peer_uids):\n            raise ValueError(\"at least one valid peer uid is required\")\n        if socket_access_gid is not None and socket_access_gid < 0:\n            raise ValueError(\"socket access gid must be non-negative\")\n",
+              "socket gid validation",
+          )
+          text = once(
+              text,
+              "        self._peer_uid = peer_uid\n        self._max_workers = max_workers\n",
+              "        self._peer_uid = peer_uid\n        self._socket_access_gid = socket_access_gid\n        self._max_workers = max_workers\n",
+              "socket gid field",
+          )
+          text = once(
+              text,
+              "            listener.bind(str(self._path))\n            bound_inode = self._path.lstat().st_ino\n            self._path.chmod(0o660)\n            listener.listen(self._max_inflight_connections)\n",
+              "            listener.bind(str(self._path))\n            bound_inode = self._path.lstat().st_ino\n            self._configure_filesystem_access()\n            listener.listen(self._max_inflight_connections)\n",
+              "socket filesystem access",
+          )
+          text = once(
+              text,
+              "        effective_uid = getattr(os, \"geteuid\", lambda: 0)()\n        self._validate_directory_chain(TRUSTED_SOCKET_ROOT.parent, effective_uid)\n        try:\n            TRUSTED_SOCKET_ROOT.mkdir(mode=0o750, parents=False, exist_ok=False)\n        except FileExistsError:\n            pass\n        self._validate_directory_chain(TRUSTED_SOCKET_ROOT, effective_uid)\n",
+              "        effective_uid = getattr(os, \"geteuid\", lambda: 0)()\n        self._validate_directory_chain(TRUSTED_SOCKET_ROOT.parent, effective_uid)\n        created_root = False\n        try:\n            TRUSTED_SOCKET_ROOT.mkdir(mode=0o750, parents=False, exist_ok=False)\n            created_root = True\n        except FileExistsError:\n            pass\n        if created_root and self._requires_group_access(effective_uid):\n            if self._socket_access_gid is None:\n                raise SupervisorTransportError(\n                    \"distinct lifecycle worker requires a dedicated filesystem group\"\n                )\n            try:\n                os.chown(TRUSTED_SOCKET_ROOT, -1, self._socket_access_gid)\n                TRUSTED_SOCKET_ROOT.chmod(0o750)\n            except OSError as exc:\n                raise SupervisorTransportError(\n                    \"could not configure trusted socket-root group ownership\"\n                ) from exc\n        self._validate_directory_chain(TRUSTED_SOCKET_ROOT, effective_uid)\n        self._validate_peer_directory_access(effective_uid)\n",
+              "trusted root group access",
+          )
+          helpers = '''\n    def _requires_group_access(self, effective_uid: int) -> bool:\n        return any(uid != effective_uid for uid in self._allowed_peer_uids)\n\n    def _validate_peer_directory_access(self, effective_uid: int) -> None:\n        info = TRUSTED_SOCKET_ROOT.lstat()\n        if info.st_mode & 0o007:\n            raise SupervisorTransportError(\n                "trusted socket root must not be accessible to unrelated identities"\n            )\n        if not self._requires_group_access(effective_uid):\n            return\n        if self._socket_access_gid is None:\n            raise SupervisorTransportError(\n                "distinct lifecycle worker requires a dedicated filesystem group"\n            )\n        if info.st_gid != self._socket_access_gid or not info.st_mode & stat.S_IXGRP:\n            raise SupervisorTransportError(\n                "trusted socket root does not grant the configured lifecycle-worker group"\n            )\n\n    def _configure_filesystem_access(self) -> None:\n        effective_uid = getattr(os, "geteuid", lambda: 0)()\n        try:\n            if self._requires_group_access(effective_uid):\n                if self._socket_access_gid is None:\n                    raise SupervisorTransportError(\n                        "distinct lifecycle worker requires a dedicated filesystem group"\n                    )\n                os.chown(self._path, -1, self._socket_access_gid)\n                self._path.chmod(0o660)\n            else:\n                self._path.chmod(0o600)\n        except OSError as exc:\n            raise SupervisorTransportError(\n                "could not configure supervisor socket filesystem access"\n            ) from exc\n'''
+          text = once(
+              text,
+              "\n    @classmethod\n    def _validate_directory_chain",
+              helpers + "\n    @classmethod\n    def _validate_directory_chain",
+              "peer filesystem helpers",
+          )
+          path.write_text(text, encoding="utf-8")
+
+          # 3. The adapter must reject a mismatched/misrouted Supervisor response.
+          path = Path("ai_platform/portal/execution/adapter.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''        return self._supervisor.execute(\n            SupervisorRequest(\n                tenant_id=record.tenant_id,\n                bot_id=record.bot_id,\n                generation_id=record.generation_id,\n                generation_spec_digest=record.generation_spec_digest,\n                operation=operation,\n                command_id=command_id,\n                expected_generation_ordinal=record.generation_ordinal,\n                expected_state_version=state_version,\n                correlation_id=context.correlation_id,\n                causation_id=context.causation_id,\n            )\n        )\n'''
+          new = '''        request = SupervisorRequest(\n            tenant_id=record.tenant_id,\n            bot_id=record.bot_id,\n            generation_id=record.generation_id,\n            generation_spec_digest=record.generation_spec_digest,\n            operation=operation,\n            command_id=command_id,\n            expected_generation_ordinal=record.generation_ordinal,\n            expected_state_version=state_version,\n            correlation_id=context.correlation_id,\n            causation_id=context.causation_id,\n        )\n        outcome = self._supervisor.execute(request)\n        if (\n            outcome.tenant_id != request.tenant_id\n            or outcome.bot_id != request.bot_id\n            or outcome.generation_id != request.generation_id\n            or outcome.generation_spec_digest != request.generation_spec_digest\n            or outcome.operation is not request.operation\n            or outcome.command_id != request.command_id\n            or outcome.correlation_id != request.correlation_id\n        ):\n            raise RuntimeRevisionConflictError("Runtime Supervisor outcome identity mismatch")\n        return outcome\n'''
+          text = once(text, old, new, "supervisor outcome identity")
+          path.write_text(text, encoding="utf-8")
+
+          # Driver regressions.
+          path = Path("tests/ai_platform/portal/execution/test_driver.py")
+          text = path.read_text(encoding="utf-8")
+          text = once(
+              text,
+              '''    runner = _Runner(\n        CommandResult(1, stderr="Error: No such object: runtime-1"),\n        CommandResult(1, stderr="No such image"),\n        CommandResult(1, stderr="Error: No such object: runtime-1"),\n    )\n''',
+              '''    runner = _Runner(\n        CommandResult(1, stderr="Error: No such object: runtime-1"),\n        CommandResult(1, stderr="No such image"),\n    )\n''',
+              "missing image runner",
+          )
+          text = once(
+              text,
+              '''    assert exc_info.value.reason_code == "IMAGE_NOT_PRESENT"\n    assert runner.calls[-1] == ("docker", "rm", "-f", "runtime-1")\n    assert attestor.cleaned == [_network()]\n''',
+              '''    assert exc_info.value.reason_code == "IMAGE_NOT_PRESENT"\n    assert all(call[:3] != ("docker", "rm", "-f") for call in runner.calls)\n    assert attestor.cleaned == [_network()]\n''',
+              "missing image no name cleanup",
+          )
+          old_assert = '    assert runner.calls[-1] == ("docker", "rm", "-f", "runtime-1")\n'
+          count = text.count(old_assert)
+          if count != 3:
+              raise SystemExit(f"literal cleanup assertions: expected 3, got {count}")
+          text = text.replace(
+              old_assert,
+              '    assert runner.calls[-1] == ("docker", "rm", "-f", "container-id")\n',
+          )
+          manual = "    driver._plan_digests[spec.runtime_id] = plan.digest()\n"
+          count = text.count(manual)
+          if count < 3:
+              raise SystemExit(f"manual generation evidence: expected at least 3, got {count}")
+          text = text.replace(
+              manual,
+              manual + '    driver._container_ids[spec.runtime_id] = "container-id"\n',
+          )
+          text = text.replace(
+              '    assert runner.calls[-1] == ("docker", "rm", "-f", spec.runtime_id)\n',
+              '    assert runner.calls[-1] == ("docker", "rm", "-f", "container-id")\n',
+          )
+          text = text.replace(
+              '    assert ("docker", "rm", "-f", spec.runtime_id) in runner.calls\n',
+              '    assert ("docker", "rm", "-f", "container-id") in runner.calls\n',
+          )
+          anchor = '''def test_retire_preserves_foreign_container_reusing_runtime_name() -> None:\n    runner = _Runner(\n        CommandResult(0, stdout="exited\\n"),\n        CommandResult(\n            0,\n            stdout=json.dumps(\n                {\n                    "Id": "foreign-container-id",\n                    "Config": {"Labels": {"ai.portal.runtime_id": "runtime-other"}},\n                }\n            ),\n        ),\n    )\n\n    with pytest.raises(RuntimeDriverError) as exc_info:\n        DockerCliRuntimeDriver(runner).retire("runtime-1")\n\n    assert exc_info.value.reason_code == "GENERATION_OWNERSHIP_CONFLICT"\n    assert all(call[:3] != ("docker", "rm", "-f") for call in runner.calls)\n\n\n'''
+          addition = anchor + '''def test_failed_cleanup_uses_captured_immutable_container_id() -> None:\n    runner = _Runner(CommandResult(1, stderr="Error: No such object: owned-container-id"))\n    attestor = _Attestor()\n    driver = DockerCliRuntimeDriver(runner, external_attestor=attestor)\n    driver._container_ids["runtime-1"] = "owned-container-id"\n\n    driver._cleanup_failed_runtime("runtime-1", _network())\n\n    assert runner.calls == [("docker", "rm", "-f", "owned-container-id")]\n    assert all(call != ("docker", "rm", "-f", "runtime-1") for call in runner.calls)\n    assert attestor.cleaned == [_network()]\n\n\n'''
+          text = once(text, anchor, addition, "immutable cleanup regression")
+          path.write_text(text, encoding="utf-8")
+
+          # UDS filesystem-access regression.
+          path = Path("tests/ai_platform/portal/runtime_supervisor/test_transport.py")
+          text = path.read_text(encoding="utf-8")
+          text = once(text, "import json\nimport socket\n", "import json\nimport os\nimport socket\nimport stat\n", "transport imports")
+          anchor = '''def test_linux_peer_uid_uses_kernel_authenticated_credentials() -> None:\n    if not hasattr(socket, "SO_PEERCRED"):\n        return\n    client, accepted = socket.socketpair()\n    try:\n        assert linux_peer_uid(accepted) == __import__("os").getuid()\n    finally:\n        client.close()\n        accepted.close()\n\n\n'''
+          addition = anchor + '''def test_distinct_peer_requires_dedicated_filesystem_group(\n    tmp_path: Path, monkeypatch: pytest.MonkeyPatch\n) -> None:\n    if not hasattr(socket, "AF_UNIX"):\n        return\n    path = tmp_path / "supervisor.sock"\n    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)\n    listener.bind(str(path))\n    try:\n        distinct_uid = os.geteuid() + 1\n        missing_group = UnixSocketSupervisorServer(\n            path,\n            Supervisor(),\n            allowed_peer_uids=frozenset({distinct_uid}),\n            peer_uid=lambda _: distinct_uid,\n        )\n        with pytest.raises(SupervisorTransportError, match="dedicated filesystem group"):\n            missing_group._configure_filesystem_access()\n\n        chowns: list[tuple[Path, int, int]] = []\n        monkeypatch.setattr(\n            os,\n            "chown",\n            lambda target, uid, gid: chowns.append((Path(target), uid, gid)),\n        )\n        configured = UnixSocketSupervisorServer(\n            path,\n            Supervisor(),\n            allowed_peer_uids=frozenset({distinct_uid}),\n            peer_uid=lambda _: distinct_uid,\n            socket_access_gid=os.getegid(),\n        )\n        configured._configure_filesystem_access()\n        assert stat.S_IMODE(path.lstat().st_mode) == 0o660\n        assert chowns == [(path, -1, os.getegid())]\n    finally:\n        listener.close()\n        if path.exists():\n            path.unlink()\n\n\n'''
+          text = once(text, anchor, addition, "filesystem group regression")
+          path.write_text(text, encoding="utf-8")
+
+          # Adapter response-identity regression.
+          path = Path("tests/ai_platform/portal/execution/test_adapter.py")
+          text = path.read_text(encoding="utf-8")
+          anchor = '''class _RawDriver:\n    pass\n\n\n'''
+          addition = anchor + '''class _MismatchedSupervisor(_FakeSupervisor):\n    def execute(self, request: SupervisorRequest) -> SupervisorOutcome:\n        outcome = super().execute(request)\n        return outcome.model_copy(update={"generation_id": "generation-other"})\n\n\n'''
+          text = once(text, anchor, addition, "mismatched supervisor helper")
+          anchor = '''def test_raw_runtime_driver_cannot_be_injected(tmp_path: Path) -> None:\n    resolver = _Resolver()\n    resolver.register(_material())\n    raw_driver = cast(RuntimeSupervisorClient, _RawDriver())\n    with pytest.raises(TypeError, match="Runtime Supervisor"):\n        FreqtradeExecutionAdapter(raw_driver, resolver, RuntimeWorkspaceStore(tmp_path))\n\n\n'''
+          addition = anchor + '''def test_mismatched_supervisor_outcome_identity_is_rejected(tmp_path: Path) -> None:\n    resolver = _Resolver()\n    resolver.register(_material())\n    adapter = FreqtradeExecutionAdapter(\n        _MismatchedSupervisor(),\n        resolver,\n        RuntimeWorkspaceStore(tmp_path),\n        clock=lambda: NOW,\n    )\n\n    with pytest.raises(RuntimeRevisionConflictError, match="outcome identity mismatch"):\n        adapter.provision_bot(_bot(), _context())\n\n\n'''
+          text = once(text, anchor, addition, "outcome identity regression")
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Validate focused repair
+        run: |
+          set -euo pipefail
+          python -m ruff check \
+            ai_platform/portal/execution/driver.py \
+            ai_platform/portal/execution/adapter.py \
+            ai_platform/portal/runtime_supervisor/transport.py \
+            tests/ai_platform/portal/execution/test_driver.py \
+            tests/ai_platform/portal/execution/test_adapter.py \
+            tests/ai_platform/portal/runtime_supervisor/test_transport.py
+          python -m mypy \
+            ai_platform/portal/execution/driver.py \
+            ai_platform/portal/execution/adapter.py \
+            ai_platform/portal/runtime_supervisor/transport.py \
+            tests/ai_platform/portal/execution/test_driver.py \
+            tests/ai_platform/portal/execution/test_adapter.py \
+            tests/ai_platform/portal/runtime_supervisor/test_transport.py
+          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform \
+            tests/ai_platform/portal/execution/test_driver.py \
+            tests/ai_platform/portal/execution/test_adapter.py \
+            tests/ai_platform/portal/runtime_supervisor
+          git diff --check
+
+      - name: Commit repair and remove one-shot workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm \
+            .github/workflows/apply-runtime-supervisor-self-audit-repair.yml \
+            .github/workflows/apply-runtime-supervisor-self-audit-repair-v2.yml
+          git add \
+            ai_platform/portal/execution/driver.py \
+            ai_platform/portal/execution/adapter.py \
+            ai_platform/portal/runtime_supervisor/transport.py \
+            tests/ai_platform/portal/execution/test_driver.py \
+            tests/ai_platform/portal/execution/test_adapter.py \
+            tests/ai_platform/portal/runtime_supervisor/test_transport.py
+          git commit -m "fix(portal): close supervisor self-audit trust gaps"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "HEAD:${GITHUB_REF_NAME}"

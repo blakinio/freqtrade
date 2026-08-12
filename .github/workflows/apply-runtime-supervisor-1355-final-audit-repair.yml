@@ -25,7 +25,7 @@ jobs:
       - name: Apply and validate bounded repair
         shell: bash
         env:
-          EXPECTED_PARENT: 65fa34a01498704e3a4cafae471e536042eaa199
+          EXPECTED_PARENT: 8aaa6bc08c1980f9f3268d9d38e18ca55a854fc2
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"

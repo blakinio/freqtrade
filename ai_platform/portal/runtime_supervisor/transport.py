@@ -112,7 +112,10 @@ class UnixSocketSupervisorServer:
             while True:
                 connection, _ = listener.accept()
                 with connection:
-                    self.handle(connection)
+                    try:
+                        self.handle(connection)
+                    except (TimeoutError, BrokenPipeError, ConnectionError):
+                        continue
         finally:
             listener.close()
             if bound_inode is not None:

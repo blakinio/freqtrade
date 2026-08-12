@@ -66,7 +66,9 @@ class Driver:
         return self.state
 
 
-def generation(*, retired: bool = False) -> SupervisorGeneration:
+def generation(
+    *, retired: bool = False, retirement_authorized: bool = False
+) -> SupervisorGeneration:
     return SupervisorGeneration(
         "tenant-1",
         "bot-1",
@@ -77,6 +79,7 @@ def generation(*, retired: bool = False) -> SupervisorGeneration:
         retired,
         ExecutionMode.DRY_RUN,
         True,
+        retirement_authorized,
         RuntimeContainerSpec(
             "runtime-1",
             "trusted@sha256:" + "b" * 64,
@@ -291,8 +294,11 @@ def test_bounded_operations(
     calls: list[str],
 ) -> None:
     driver = Driver(initial)
+    candidate = generation(
+        retirement_authorized=operation is SupervisorOperation.ENSURE_RETIRED
+    )
     outcome = RuntimeSupervisor(
-        Generations(generation()), driver, InMemoryCommandJournal()
+        Generations(candidate), driver, InMemoryCommandJournal()
     ).execute(request(operation))
     assert outcome.accepted and outcome.state is expected
     assert driver.calls == calls
@@ -310,7 +316,34 @@ def test_restart_from_stopped_retires_and_reprovisions_exact_generation() -> Non
 def test_running_generation_cannot_be_retired() -> None:
     driver = Driver(DriverRuntimeState.RUNNING)
     outcome = RuntimeSupervisor(
-        Generations(generation()), driver, InMemoryCommandJournal()
+        Generations(generation(retirement_authorized=True)), driver, InMemoryCommandJournal()
     ).execute(request(SupervisorOperation.ENSURE_RETIRED))
     assert outcome.code is SupervisorOutcomeCode.INVALID_STATE_TRANSITION
     assert driver.calls == ["inspect"]
+
+
+def test_retirement_requires_trusted_authorization() -> None:
+    driver = Driver(DriverRuntimeState.STOPPED)
+    outcome = RuntimeSupervisor(
+        Generations(generation()), driver, InMemoryCommandJournal()
+    ).execute(request(SupervisorOperation.ENSURE_RETIRED))
+    assert outcome.code is SupervisorOutcomeCode.RETIREMENT_NOT_AUTHORIZED
+    assert driver.calls == []
+
+
+def test_resume_from_paused_reconstructs_generation() -> None:
+    driver = Driver(DriverRuntimeState.PAUSED)
+    outcome = RuntimeSupervisor(
+        Generations(generation()), driver, InMemoryCommandJournal()
+    ).execute(request(SupervisorOperation.ENSURE_RUNNING))
+    assert outcome.accepted
+    assert driver.calls == ["inspect", "stop", "retire", "provision", "start"]
+
+
+def test_provision_from_stopped_reconstructs_generation() -> None:
+    driver = Driver(DriverRuntimeState.STOPPED)
+    outcome = RuntimeSupervisor(
+        Generations(generation()), driver, InMemoryCommandJournal()
+    ).execute(request(SupervisorOperation.ENSURE_PROVISIONED))
+    assert outcome.accepted and outcome.state is DriverRuntimeState.CREATED
+    assert driver.calls == ["inspect", "retire", "provision"]

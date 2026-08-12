@@ -327,6 +327,7 @@ def test_real_docker_driver_provisions_attested_hardened_quarantine(tmp_path: Pa
         retired=False,
         execution_mode=ExecutionMode.DRY_RUN,
         paper_authorized=True,
+        retirement_authorized=True,
         container_spec=spec,
     )
     supervisor = RuntimeSupervisor(_GenerationView(generation), driver, InMemoryCommandJournal())

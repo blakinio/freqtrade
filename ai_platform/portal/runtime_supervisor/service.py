@@ -37,6 +37,7 @@ class SupervisorGeneration:
     retired: bool
     execution_mode: ExecutionMode
     paper_authorized: bool
+    retirement_authorized: bool
     container_spec: RuntimeContainerSpec
 
 
@@ -267,6 +268,14 @@ class RuntimeSupervisor:
                 None,
                 generation.state_version,
             )
+        if (
+            request.operation is SupervisorOperation.ENSURE_RETIRED
+            and not generation.retirement_authorized
+        ):
+            return self._outcome(
+                request, SupervisorOutcomeCode.RETIREMENT_NOT_AUTHORIZED, False, None,
+                generation.state_version,
+            )
 
         try:
             current = self._driver.inspect(generation.container_spec.runtime_id)
@@ -337,11 +346,15 @@ class RuntimeSupervisor:
         if operation is SupervisorOperation.ENSURE_PROVISIONED:
             if current in _ACTIVE_STATES:
                 return current, current
+            if current is DriverRuntimeState.STOPPED:
+                self._driver.retire(spec.runtime_id)
             return DriverRuntimeState.CREATED, self._driver.provision(spec)
         if operation is SupervisorOperation.ENSURE_RUNNING:
             if current is DriverRuntimeState.RUNNING:
                 return current, current
-            if current is DriverRuntimeState.STOPPED:
+            if current in {DriverRuntimeState.STOPPED, DriverRuntimeState.PAUSED}:
+                if current is DriverRuntimeState.PAUSED:
+                    self._driver.stop(spec.runtime_id)
                 self._driver.retire(spec.runtime_id)
                 current = DriverRuntimeState.MISSING
             if current is DriverRuntimeState.MISSING:

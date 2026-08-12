@@ -5,7 +5,10 @@ import socket
 from pathlib import Path
 
 from ai_platform.portal.runtime_supervisor import SupervisorRequest
-from ai_platform.portal.runtime_supervisor.transport import UnixSocketSupervisorServer
+from ai_platform.portal.runtime_supervisor.transport import (
+    UnixSocketSupervisorServer,
+    linux_peer_uid,
+)
 
 
 class Result:
@@ -56,3 +59,14 @@ def test_raw_engine_fields_are_rejected_at_transport_boundary() -> None:
     )
     assert exchange(server, b'{"image":"evil:latest"}\n')["code"] == "INVALID_REQUEST"
     assert supervisor.requests == []
+
+
+def test_linux_peer_uid_uses_kernel_authenticated_credentials() -> None:
+    if not hasattr(socket, "SO_PEERCRED"):
+        return
+    client, accepted = socket.socketpair()
+    try:
+        assert linux_peer_uid(accepted) == __import__("os").getuid()
+    finally:
+        client.close()
+        accepted.close()

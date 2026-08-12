@@ -36,18 +36,21 @@ jobs:
                   raise SystemExit('constant anchor not found')
               text = text.replace(anchor, replacement, 1)
 
-          for indent in ('                    ', '                '):
-              add_line = f'{indent}validated_event_ids.add(event.source_event_id)\n'
-              if text.count(add_line) != 1:
-                  raise SystemExit(f'expected one identity add site at indent {len(indent)}')
-              bounded_add = (
-                  f'{indent}if len(validated_event_ids) >= MAX_LIVE_SNAPSHOT_EVENT_IDENTITIES:\n'
-                  f'{indent}    raise CandidatePaperRuntimeOperatorError(\n'
-                  f'{indent}        "Liquid20 snapshot contains too many event identities"\n'
-                  f'{indent}    )\n'
-                  f'{indent}validated_event_ids.add(event.source_event_id)\n'
-              )
-              text = text.replace(add_line, bounded_add, 1)
+          helper_anchor = '\ndef _read_committed_jsonl_tail(  # noqa: C901\n'
+          helper = '''\n\ndef _record_validated_event_id(validated_event_ids: set[str], event_id: str) -> None:\n    if len(validated_event_ids) >= MAX_LIVE_SNAPSHOT_EVENT_IDENTITIES:\n        raise CandidatePaperRuntimeOperatorError(\n            "Liquid20 snapshot contains too many event identities"\n        )\n    validated_event_ids.add(event_id)\n'''
+          if '_record_validated_event_id(' not in text:
+              if helper_anchor not in text:
+                  raise SystemExit('reader anchor not found')
+              text = text.replace(helper_anchor, helper + helper_anchor, 1)
+
+          add_call = 'validated_event_ids.add(event.source_event_id)'
+          count = text.count(add_call)
+          if count < 2:
+              raise SystemExit(f'expected at least 2 identity add sites, found {count}')
+          text = text.replace(
+              add_call,
+              '_record_validated_event_id(validated_event_ids, event.source_event_id)',
+          )
           operator.write_text(text, encoding='utf-8')
 
           tests = Path('tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py')

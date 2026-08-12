@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 from collections.abc import Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -16,6 +17,7 @@ from ai_platform.portal.execution.driver import (
     DockerCliRuntimeDriver,
     DockerHostCapabilityProbe,
     ExternalIsolationCapabilities,
+    SubprocessCommandRunner,
 )
 from ai_platform.portal.execution.errors import RuntimeDriverError
 from ai_platform.portal.execution.isolation import (
@@ -42,9 +44,16 @@ class _Runner:
     def __init__(self, *results: CommandResult) -> None:
         self.results = list(results)
         self.calls: list[tuple[str, ...]] = []
+        self.timeouts: list[float | None] = []
 
-    def run(self, args: Sequence[str]) -> CommandResult:
+    def run(
+        self,
+        args: Sequence[str],
+        *,
+        timeout_seconds: float | None = None,
+    ) -> CommandResult:
         self.calls.append(tuple(args))
+        self.timeouts.append(timeout_seconds)
         if not self.results:
             raise AssertionError(f"unexpected command: {tuple(args)!r}")
         return self.results.pop(0)
@@ -666,6 +675,26 @@ def test_strategy_stdout_cannot_spoof_application_readiness(tmp_path: Path) -> N
     assert runner.calls[-1][:3] == ("docker", "exec", spec.runtime_id)
     assert "list-pairs" in runner.calls[-1][5]
     assert "Bot heartbeat" not in runner.calls[-1][5]
+    assert runner.timeouts[-1] == DockerCliRuntimeDriver._APPLICATION_PROBE_TIMEOUT_SECONDS
+
+
+def test_subprocess_command_runner_maps_timeout_to_bounded_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def expire(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        del args
+        assert kwargs.get("timeout") == 0.25
+        raise subprocess.TimeoutExpired(cmd=["docker"], timeout=0.25)
+
+    monkeypatch.setattr(subprocess, "run", expire)
+
+    result = SubprocessCommandRunner().run(
+        ("docker", "exec", "runtime-1", "true"),
+        timeout_seconds=0.25,
+    )
+
+    assert result.returncode == 124
+    assert "timed out after 0.25s" in result.stderr
 
 
 def test_running_generation_repeats_current_isolation_attestation(tmp_path: Path) -> None:

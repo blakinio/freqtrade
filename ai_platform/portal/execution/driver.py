@@ -33,17 +33,34 @@ class CommandResult:
 
 
 class CommandRunner(Protocol):
-    def run(self, args: Sequence[str]) -> CommandResult: ...
+    def run(
+        self,
+        args: Sequence[str],
+        *,
+        timeout_seconds: float | None = None,
+    ) -> CommandResult: ...
 
 
 class SubprocessCommandRunner:
-    def run(self, args: Sequence[str]) -> CommandResult:
-        completed = subprocess.run(
-            list(args),
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+    def run(
+        self,
+        args: Sequence[str],
+        *,
+        timeout_seconds: float | None = None,
+    ) -> CommandResult:
+        try:
+            completed = subprocess.run(
+                list(args),
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=timeout_seconds,
+            )
+        except subprocess.TimeoutExpired:
+            return CommandResult(
+                returncode=124,
+                stderr=f"command timed out after {timeout_seconds:g}s",
+            )
         return CommandResult(
             returncode=completed.returncode,
             stdout=completed.stdout,
@@ -411,6 +428,7 @@ class DockerCliRuntimeDriver:
     )
     _MAX_LOG_PROBE_BYTES = 64 * 1024 * 1024
     _LOG_RETENTION_TOLERANCE_BYTES = 256 * 1024
+    _APPLICATION_PROBE_TIMEOUT_SECONDS = 15.0
 
     def __init__(
         self,
@@ -616,7 +634,8 @@ class DockerCliRuntimeDriver:
                 "portal-readiness",
                 exchange_name,
                 quote,
-            )
+            ),
+            timeout_seconds=self._APPLICATION_PROBE_TIMEOUT_SECONDS,
         )
         return probe.returncode == 0
 

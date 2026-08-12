@@ -19,7 +19,8 @@ from pydantic import (
 
 
 NonNegativeDecimal = Annotated[Decimal, Field(ge=0)]
-NonNegativeInt = Annotated[int, Field(ge=0)]
+NonNegativeInt = Annotated[int, Field(ge=0, strict=True)]
+PositiveInt = Annotated[int, Field(gt=0, strict=True)]
 NonBlank = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
@@ -120,7 +121,7 @@ class OrderTypeModel(Assumption):
 
 class LiquidityModel(Assumption):
     max_participation_rate: Annotated[Decimal, Field(ge=0, le=1)] | None
-    depth_levels: Annotated[int, Field(gt=0)] | None
+    depth_levels: PositiveInt | None
 
     @model_validator(mode="after")
     def validate_values(self) -> LiquidityModel:
@@ -135,6 +136,8 @@ class PartialFillModel(Assumption):
     @model_validator(mode="after")
     def validate_values(self) -> PartialFillModel:
         _require_values_for_supported(self, "policy", "minimum_fill_ratio")
+        if self.policy == "all_or_none" and self.minimum_fill_ratio != Decimal("1"):
+            raise ValueError("all_or_none requires minimum_fill_ratio exactly 1")
         return self
 
 
@@ -160,7 +163,7 @@ class StaleDataModel(Assumption):
 
 class FundingModel(Assumption):
     rate_bps_per_interval: Decimal | None
-    interval_seconds: Annotated[int, Field(gt=0)] | None
+    interval_seconds: PositiveInt | None
 
     @model_validator(mode="after")
     def validate_values(self) -> FundingModel:
@@ -189,8 +192,8 @@ class LiquidationModel(Assumption):
 
 
 class ThrottlingModel(Assumption):
-    requests_per_minute: Annotated[int, Field(gt=0)] | None
-    burst_size: Annotated[int, Field(gt=0)] | None
+    requests_per_minute: PositiveInt | None
+    burst_size: PositiveInt | None
 
     @model_validator(mode="after")
     def validate_values(self) -> ThrottlingModel:
@@ -257,6 +260,16 @@ def _normalize(value: Any) -> Any:
     return value
 
 
+def _freeze_evidence(value: Any) -> Any:
+    """Recursively freeze comparison evidence so digest-bound values cannot be mutated."""
+
+    if isinstance(value, dict):
+        return tuple((key, _freeze_evidence(item)) for key, item in sorted(value.items()))
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze_evidence(item) for item in value)
+    return value
+
+
 class ComparisonReasonCode(StrEnum):
     IDENTICAL_PROFILE = "IDENTICAL_PROFILE"
     DIFFERENT_PROFILE_IDENTITY = "DIFFERENT_PROFILE_IDENTITY"
@@ -318,8 +331,8 @@ def _differences(left: Any, right: Any, path: str = "$") -> list[ProfileDifferen
     return [
         ProfileDifference(
             path=path,
-            left=left,
-            right=right,
+            left=_freeze_evidence(left),
+            right=_freeze_evidence(right),
             reason_code=ComparisonReasonCode.MATERIAL_ASSUMPTION_DIFFERENCE,
         )
     ]

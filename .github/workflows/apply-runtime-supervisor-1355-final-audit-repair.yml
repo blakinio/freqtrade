@@ -25,13 +25,13 @@ jobs:
       - name: Apply and validate bounded repair
         shell: bash
         env:
-          EXPECTED_PARENT: 8aaa6bc08c1980f9f3268d9d38e18ca55a854fc2
+          EXPECTED_PARENT: 643661efc3bedc140ffd0fd3cdae5c9447bb9ab9
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
           test "$(git diff --name-only HEAD^..HEAD)" = ".github/workflows/apply-runtime-supervisor-1355-final-audit-repair.yml"
           python tools/agents/run_1355_final_repair.py
-          python -m pip install --disable-pip-version-check -q pytest==9.1.1 ruff mypy 'pydantic>=2.2' 'SQLAlchemy>=2.0.6' 'httpx>=0.24.1' fastapi pyjwt cryptography 'PyYAML>=6.0'
+          python -m pip install --disable-pip-version-check -q pytest==9.1.1 ruff==0.15.21 mypy==2.3.0 'pydantic>=2.2' 'SQLAlchemy>=2.0.6' 'httpx>=0.24.1' fastapi pyjwt cryptography 'PyYAML>=6.0'
           python -m ruff format ai_platform/portal/execution/runtime.py ai_platform/portal/execution/driver.py ai_platform/portal/runtime_supervisor/service.py ai_platform/portal/runtime_supervisor/types.py tests/ai_platform/portal/execution/test_driver.py tests/ai_platform/portal/runtime_supervisor/test_service.py
           python -m ruff check ai_platform/portal/execution/runtime.py ai_platform/portal/execution/driver.py ai_platform/portal/runtime_supervisor/service.py ai_platform/portal/runtime_supervisor/types.py tests/ai_platform/portal/execution/test_driver.py tests/ai_platform/portal/runtime_supervisor/test_service.py
           python -m mypy ai_platform/portal/execution/runtime.py ai_platform/portal/execution/driver.py ai_platform/portal/runtime_supervisor/service.py ai_platform/portal/runtime_supervisor/types.py

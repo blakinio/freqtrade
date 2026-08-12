@@ -1,0 +1,77 @@
+name: Bound WickHunter PR 1487 identity tracking
+
+on:
+  push:
+    branches:
+      - codex/fix-wickhunter-legacy-restart-consumer-1396
+    paths:
+      - .github/workflows/tmp-wickhunter-1487-bound-identities.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: codex/fix-wickhunter-legacy-restart-consumer-1396
+          fetch-depth: 0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13'
+      - name: Apply bounded aggregate identity repair
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          operator = Path('ai_platform/wickhunter/candidate_paper_runtime_operator.py')
+          text = operator.read_text(encoding='utf-8')
+          anchor = 'MAX_LIVE_SOURCE_EVENTS = 250_000\n'
+          replacement = anchor + 'MAX_LIVE_SNAPSHOT_EVENT_IDENTITIES = 500_000\n'
+          if 'MAX_LIVE_SNAPSHOT_EVENT_IDENTITIES' not in text:
+              if anchor not in text:
+                  raise SystemExit('constant anchor not found')
+              text = text.replace(anchor, replacement, 1)
+
+          add_line = '                    validated_event_ids.add(event.source_event_id)\n'
+          bounded_add = (
+              '                    if len(validated_event_ids) >= MAX_LIVE_SNAPSHOT_EVENT_IDENTITIES:\n'
+              '                        raise CandidatePaperRuntimeOperatorError(\n'
+              '                            "Liquid20 snapshot contains too many event identities"\n'
+              '                        )\n'
+              '                    validated_event_ids.add(event.source_event_id)\n'
+          )
+          count = text.count(add_line)
+          if count != 2:
+              raise SystemExit(f'expected 2 identity add sites, found {count}')
+          text = text.replace(add_line, bounded_add)
+          operator.write_text(text, encoding='utf-8')
+
+          tests = Path('tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py')
+          t = tests.read_text(encoding='utf-8')
+          marker = '\ndef test_live_root_retries_mid_publication_pointer_state_mismatch(\n'
+          test = '''\n\ndef test_live_root_rejects_snapshot_identity_overflow(\n    tmp_path: Path,\n    monkeypatch: pytest.MonkeyPatch,\n) -> None:\n    root = _write_live_root(\n        tmp_path / "snapshot-identity-overflow",\n        previous_events=[_event("identity-bound", received_at_ms=NOW_MS - 3_600_000)],\n    )\n    monkeypatch.setattr(operator_module, "MAX_LIVE_SNAPSHOT_EVENT_IDENTITIES", 0)\n\n    with pytest.raises(\n        CandidatePaperRuntimeOperatorError,\n        match="snapshot contains too many event identities",\n    ):\n        load_liquid20_snapshot(root, now_ms=NOW_MS)\n'''
+          if 'test_live_root_rejects_snapshot_identity_overflow' not in t:
+              if marker not in t:
+                  raise SystemExit('test insertion marker not found')
+              t = t.replace(marker, test + marker, 1)
+          tests.write_text(t, encoding='utf-8')
+          PY
+      - name: Validate and publish
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check -q 'ruff==0.15.21'
+          ruff format ai_platform/wickhunter/candidate_paper_runtime_operator.py tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          ruff check ai_platform/wickhunter/candidate_paper_runtime_operator.py tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          ruff format --check ai_platform/wickhunter/candidate_paper_runtime_operator.py tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          python -m compileall -q ai_platform/wickhunter/candidate_paper_runtime_operator.py tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          rm -f .github/workflows/tmp-wickhunter-1487-bound-identities.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ai_platform/wickhunter/candidate_paper_runtime_operator.py tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py .github/workflows/tmp-wickhunter-1487-bound-identities.yml
+          git diff --cached --check
+          git commit -m 'fix(wickhunter): bound snapshot identity tracking'
+          git push origin HEAD:codex/fix-wickhunter-legacy-restart-consumer-1396

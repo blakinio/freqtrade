@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import pytest
+from pydantic import ValidationError
 
 from ai_platform.portal.evidence_workbench import (
     EligibilityPolicy,
@@ -17,6 +18,7 @@ from ai_platform.portal.evidence_workbench import (
     RuntimeMode,
     evaluate_paper_eligibility,
 )
+from ai_platform.portal.evidence_workbench.engine import EVALUATOR_VERSION, _decision_identity
 from ai_platform.portal.evidence_workbench.models import ProvenanceReference
 
 
@@ -105,6 +107,7 @@ def test_identical_replay_is_byte_and_semantically_deterministic() -> None:
     assert first == second
     assert first.canonical_json() == second.canonical_json()
     assert first.outcome is PaperEligibilityOutcome.ELIGIBLE
+    assert first.evaluator_version == EVALUATOR_VERSION
 
 
 @pytest.mark.parametrize(
@@ -129,6 +132,7 @@ def test_identical_replay_is_byte_and_semantically_deterministic() -> None:
             (_evidence(realism_assumption=RealismAssumption.UNKNOWN),),
             ReasonCode.UNSUPPORTED_REALISM_ASSUMPTION,
         ),
+        ((_evidence(profile_digest=None),), ReasonCode.POLICY_PROFILE_MISMATCH),
     ],
 )
 def test_fail_closed_evidence_states(
@@ -188,3 +192,29 @@ def test_material_evidence_mutation_changes_decision_identity() -> None:
     first = _evaluate((_evidence(),))
     second = _evaluate((_evidence(payload_digest="9" * 64),))
     assert first.decision_id != second.decision_id
+
+
+def test_empty_requirements_fail_closed_at_policy_boundary() -> None:
+    with pytest.raises(ValidationError):
+        _policy(requirements=())
+
+
+def test_unconsumed_foreign_record_cannot_contaminate_eligible_decision() -> None:
+    unrelated = _evidence(
+        slot_id="unrelated-primary",
+        evidence_type="unrelated",
+        tenant_id="tenant-foreign",
+        payload_digest="7" * 64,
+    )
+    decision = _evaluate((_evidence(), unrelated))
+    assert decision.outcome is PaperEligibilityOutcome.INELIGIBLE
+    assert ReasonCode.IDENTITY_MISMATCH in decision.reason_codes
+
+
+def test_evaluator_version_is_bound_into_decision_identity() -> None:
+    request_digest = "a" * 64
+    policy_digest = "b" * 64
+    evidence_digests = ("c" * 64,)
+    assert _decision_identity(
+        request_digest, policy_digest, evidence_digests, "rules-v1"
+    ) != _decision_identity(request_digest, policy_digest, evidence_digests, "rules-v2")

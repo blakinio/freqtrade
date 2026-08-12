@@ -347,6 +347,13 @@ def _parse_live_source_event(
     return event
 
 
+def _fixed_timestamp(value: int) -> Callable[[], int]:
+    def timestamp() -> int:
+        return value
+
+    return timestamp
+
+
 def _read_committed_jsonl_tail(  # noqa: C901
     path: Path,
     *,
@@ -763,9 +770,7 @@ def _load_liquid20_live_root_once(  # noqa: C901
                 raise CandidatePaperRuntimeOperatorError(
                     "Liquid20 completed run heartbeat is from the future"
                 )
-            run_suffix_available_at_ms = (
-                lambda boundary=completion_boundary_ms: boundary
-            )
+            run_suffix_available_at_ms = _fixed_timestamp(completion_boundary_ms)
         if historical_run_id == run_id and run_state != active_state:
             raise _TransientLiquid20SnapshotError("Liquid20 active pointer and run state differ")
         for source in EXPECTED_LIVE_SOURCES:

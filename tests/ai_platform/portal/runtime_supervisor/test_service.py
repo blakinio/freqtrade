@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from uuid import uuid4
 
@@ -17,6 +19,7 @@ from ai_platform.portal.runtime_supervisor import (
     SupervisorOutcomeCode,
     SupervisorRequest,
 )
+from ai_platform.portal.runtime_supervisor.service import _KeyedLockRegistry
 
 
 class Generations:
@@ -511,3 +514,41 @@ def test_unbounded_driver_reason_code_is_sanitized() -> None:
         InMemoryCommandJournal(),
     ).execute(request(SupervisorOperation.ENSURE_RUNNING))
     assert outcome.driver_reason_code == "DRIVER_FAILURE_UNCLASSIFIED"
+
+
+def test_keyed_lock_registry_serializes_same_key_and_releases_idle_entries() -> None:
+    registry = _KeyedLockRegistry()
+    first_entered = threading.Event()
+    release_first = threading.Event()
+    second_entered = threading.Event()
+
+    def first() -> None:
+        with registry.hold("same-command"):
+            first_entered.set()
+            assert release_first.wait(2)
+
+    def second() -> None:
+        assert first_entered.wait(1)
+        with registry.hold("same-command"):
+            second_entered.set()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first_future = pool.submit(first)
+        second_future = pool.submit(second)
+        assert first_entered.wait(1)
+        assert not second_entered.wait(0.05)
+        assert len(registry) == 1
+        release_first.set()
+        first_future.result(timeout=2)
+        second_future.result(timeout=2)
+
+    assert second_entered.is_set()
+    assert len(registry) == 0
+
+
+def test_command_lock_registry_does_not_retain_historical_command_ids() -> None:
+    service = RuntimeSupervisor(Generations(generation()), Driver(), InMemoryCommandJournal())
+    for _ in range(128):
+        outcome = service.execute(request(SupervisorOperation.INSPECT_GENERATION))
+        assert outcome.accepted
+    assert len(service._command_locks) == 0

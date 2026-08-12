@@ -567,7 +567,10 @@ class DockerCliRuntimeDriver:
             DriverRuntimeState.RUNNING,
             DriverRuntimeState.PAUSED,
         }:
-            self._require_success(("docker", "stop", runtime_id), "DOCKER_STOP_FAILED")
+            container_id = self._owned_container_id(runtime_id)
+            if container_id is None:
+                raise RuntimeDriverError("RUNTIME_MISSING", "runtime container does not exist")
+            self._require_success(("docker", "stop", container_id), "DOCKER_STOP_FAILED")
             self._clear_generation_evidence(runtime_id)
             return DriverRuntimeState.STOPPED
         if current is DriverRuntimeState.MISSING:
@@ -580,37 +583,44 @@ class DockerCliRuntimeDriver:
         current = self.inspect(runtime_id)
         network = self._networks.get(runtime_id, self._network_name(runtime_id))
         if current is not DriverRuntimeState.MISSING:
-            identity = self._runner.run(("docker", "inspect", "--format", "{{json .}}", runtime_id))
-            if identity.returncode != 0:
-                raise RuntimeDriverError(
-                    "GENERATION_OWNERSHIP_CONFLICT",
-                    identity.stderr.strip() or "runtime ownership evidence is unavailable",
-                )
-            try:
-                payload = json.loads(identity.stdout)
-                container_id = payload["Id"]
-                labels = payload["Config"]["Labels"]
-            except (json.JSONDecodeError, KeyError, TypeError) as exc:
-                raise RuntimeDriverError(
-                    "GENERATION_OWNERSHIP_CONFLICT",
-                    "runtime ownership evidence is invalid",
-                ) from exc
-            if (
-                not isinstance(container_id, str)
-                or not container_id
-                or not isinstance(labels, dict)
-                or labels.get("ai.portal.runtime_id") != runtime_id
-            ):
-                raise RuntimeDriverError(
-                    "GENERATION_OWNERSHIP_CONFLICT",
-                    "runtime identity label does not match the requested generation",
-                )
-            self._require_success(("docker", "rm", "-f", container_id), "DOCKER_REMOVE_FAILED")
+            container_id = self._owned_container_id(runtime_id)
+            if container_id is not None:
+                self._require_success(("docker", "rm", "-f", container_id), "DOCKER_REMOVE_FAILED")
         try:
             self._external.cleanup_network(network, runtime_id)
         finally:
             self._clear_generation_evidence(runtime_id)
         return DriverRuntimeState.MISSING
+
+    def _owned_container_id(self, runtime_id: str) -> str | None:
+        identity = self._runner.run(("docker", "inspect", "--format", "{{json .}}", runtime_id))
+        if identity.returncode != 0:
+            if "no such object" in identity.stderr.lower():
+                return None
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                identity.stderr.strip() or "runtime ownership evidence is unavailable",
+            )
+        try:
+            payload = json.loads(identity.stdout)
+            container_id = payload["Id"]
+            labels = payload["Config"]["Labels"]
+        except (json.JSONDecodeError, KeyError, TypeError) as exc:
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                "runtime ownership evidence is invalid",
+            ) from exc
+        if (
+            not isinstance(container_id, str)
+            or not container_id
+            or not isinstance(labels, dict)
+            or labels.get("ai.portal.runtime_id") != runtime_id
+        ):
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                "runtime identity label does not match the requested generation",
+            )
+        return container_id
 
     def inspect(self, runtime_id: str) -> DriverRuntimeState:
         result = self._runner.run(

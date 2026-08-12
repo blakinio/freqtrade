@@ -806,12 +806,21 @@ def test_stop_stops_released_runtime_while_application_is_starting() -> None:
     runner = _Runner(
         CommandResult(0, stdout="running\n"),
         CommandResult(0),
+        CommandResult(
+            0,
+            stdout=json.dumps(
+                {
+                    "Id": "owned-container-id",
+                    "Config": {"Labels": {"ai.portal.runtime_id": "runtime-1"}},
+                }
+            ),
+        ),
         CommandResult(0),
     )
     driver = DockerCliRuntimeDriver(runner)
 
     assert driver.stop("runtime-1") is DriverRuntimeState.STOPPED
-    assert runner.calls[-1] == ("docker", "stop", "runtime-1")
+    assert runner.calls[-1] == ("docker", "stop", "owned-container-id")
 
 
 def test_paused_foreign_runtime_cannot_be_released() -> None:
@@ -891,6 +900,28 @@ def test_pause_stop_and_unknown_state_are_fail_closed_or_idempotent() -> None:
     with pytest.raises(RuntimeDriverError) as exc_info:
         DockerCliRuntimeDriver(unknown).inspect("runtime-1")
     assert exc_info.value.reason_code == "DOCKER_STATE_UNKNOWN"
+
+
+def test_stop_preserves_foreign_container_reusing_runtime_name() -> None:
+    runner = _Runner(
+        CommandResult(0, stdout="running\n"),
+        CommandResult(1),
+        CommandResult(
+            0,
+            stdout=json.dumps(
+                {
+                    "Id": "foreign-container-id",
+                    "Config": {"Labels": {"ai.portal.runtime_id": "runtime-other"}},
+                }
+            ),
+        ),
+    )
+
+    with pytest.raises(RuntimeDriverError) as exc_info:
+        DockerCliRuntimeDriver(runner).stop("runtime-1")
+
+    assert exc_info.value.reason_code == "GENERATION_OWNERSHIP_CONFLICT"
+    assert all(call[:2] != ("docker", "stop") for call in runner.calls)
 
 
 def test_retire_preserves_foreign_container_reusing_runtime_name() -> None:

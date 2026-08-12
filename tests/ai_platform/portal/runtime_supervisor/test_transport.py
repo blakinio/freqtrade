@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import json
 import socket
+import threading
+import time
 from pathlib import Path
+from uuid import uuid4
 
 from ai_platform.portal.runtime_supervisor import SupervisorRequest
 from ai_platform.portal.runtime_supervisor.transport import (
@@ -70,3 +73,91 @@ def test_linux_peer_uid_uses_kernel_authenticated_credentials() -> None:
     finally:
         client.close()
         accepted.close()
+
+
+def _valid_payload(bot_id: str) -> bytes:
+    request = SupervisorRequest.model_validate(
+        {
+            "tenant_id": "tenant-1",
+            "bot_id": bot_id,
+            "generation_id": "gen-1",
+            "generation_spec_digest": "a" * 64,
+            "operation": "InspectGeneration",
+            "command_id": uuid4(),
+            "expected_generation_ordinal": 1,
+            "expected_state_version": 1,
+            "correlation_id": uuid4(),
+        }
+    )
+    return request.model_dump_json().encode() + b"\n"
+
+
+def test_accept_loop_remains_responsive_while_other_lifecycle_handler_is_blocked(
+    tmp_path: Path,
+) -> None:
+    if not hasattr(socket, "AF_UNIX"):
+        return
+
+    class BlockingSupervisor(Supervisor):
+        def __init__(self) -> None:
+            super().__init__()
+            self.blocked_started = threading.Event()
+            self.release_blocked = threading.Event()
+
+        def execute(self, request: SupervisorRequest) -> Result:
+            self.requests.append(request)
+            if request.bot_id == "bot-1":
+                self.blocked_started.set()
+                assert self.release_blocked.wait(2)
+            return Result()
+
+    root = tmp_path / "runtime-supervisor"
+    root.mkdir(mode=0o750)
+    path = root / "supervisor.sock"
+    supervisor = BlockingSupervisor()
+    server = UnixSocketSupervisorServer(
+        path,
+        supervisor,
+        allowed_peer_uids=frozenset({42}),
+        approved_root=root,
+        peer_uid=lambda _: 42,
+        max_workers=2,
+        max_inflight_connections=2,
+    )
+    stop_event = threading.Event()
+    thread = threading.Thread(
+        target=server.serve_forever,
+        kwargs={"stop_event": stop_event},
+        daemon=True,
+    )
+    thread.start()
+    for _ in range(100):
+        if path.exists():
+            break
+        time.sleep(0.01)
+    assert path.exists()
+
+    first = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    second = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        first.settimeout(2)
+        second.settimeout(1)
+        first.connect(str(path))
+        first.sendall(_valid_payload("bot-1"))
+        assert supervisor.blocked_started.wait(1)
+
+        second.connect(str(path))
+        second.sendall(_valid_payload("bot-2"))
+        assert json.loads(second.recv(65536))["accepted"] is True
+
+        supervisor.release_blocked.set()
+        assert json.loads(first.recv(65536))["accepted"] is True
+    finally:
+        supervisor.release_blocked.set()
+        first.close()
+        second.close()
+        stop_event.set()
+        thread.join(timeout=2)
+
+    assert not thread.is_alive()
+    assert {request.bot_id for request in supervisor.requests} == {"bot-1", "bot-2"}

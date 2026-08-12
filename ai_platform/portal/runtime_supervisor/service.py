@@ -5,6 +5,8 @@ import json
 import re
 import sqlite3
 import threading
+from collections.abc import Hashable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -190,6 +192,42 @@ class _InvalidStateTransition(RuntimeError):
     pass
 
 
+@dataclass
+class _LockEntry:
+    lock: threading.Lock
+    users: int = 0
+
+
+class _KeyedLockRegistry:
+    """Reference-counted keyed locks; idle historical keys are never retained."""
+
+    def __init__(self) -> None:
+        self._guard = threading.Lock()
+        self._entries: dict[Hashable, _LockEntry] = {}
+
+    @contextmanager
+    def hold(self, key: Hashable) -> Iterator[None]:
+        with self._guard:
+            entry = self._entries.get(key)
+            if entry is None:
+                entry = _LockEntry(threading.Lock())
+                self._entries[key] = entry
+            entry.users += 1
+        entry.lock.acquire()
+        try:
+            yield
+        finally:
+            entry.lock.release()
+            with self._guard:
+                entry.users -= 1
+                if entry.users == 0 and self._entries.get(key) is entry:
+                    self._entries.pop(key)
+
+    def __len__(self) -> int:
+        with self._guard:
+            return len(self._entries)
+
+
 class RuntimeSupervisor:
     """Only component allowed to translate lifecycle identity into engine operations."""
 
@@ -202,14 +240,13 @@ class RuntimeSupervisor:
         self._generations = generations
         self._driver = driver
         self._journal = journal
-        self._locks: dict[tuple[str, str], threading.Lock] = {}
-        self._command_locks: dict[str, threading.Lock] = {}
-        self._locks_guard = threading.Lock()
+        self._bot_locks = _KeyedLockRegistry()
+        self._command_locks = _KeyedLockRegistry()
 
     def execute(self, request: SupervisorRequest) -> SupervisorOutcome:
         fingerprint = self._fingerprint(request)
         command_id = str(request.command_id)
-        with self._command_lock_for(command_id):
+        with self._command_locks.hold(command_id):
             prior = self._journal.get(command_id)
             if prior is not None:
                 if prior.fingerprint == fingerprint:
@@ -217,7 +254,7 @@ class RuntimeSupervisor:
                 return self._outcome(
                     request, SupervisorOutcomeCode.COMMAND_REPLAY_CONFLICT, False, None, 0
                 )
-            with self._lock_for(request.tenant_id, request.bot_id):
+            with self._bot_locks.hold((request.tenant_id, request.bot_id)):
                 outcome = self._execute_locked(request)
                 if outcome.code is not SupervisorOutcomeCode.ENGINE_OPERATION_FAILED:
                     self._journal.put(command_id, JournalEntry(fingerprint, outcome))
@@ -425,15 +462,6 @@ class RuntimeSupervisor:
                 self._driver.stop(spec.runtime_id)
             return DriverRuntimeState.MISSING, self._driver.retire(spec.runtime_id)
         raise AssertionError("unsupported supervisor operation")
-
-    def _lock_for(self, tenant_id: str, bot_id: str) -> threading.Lock:
-        key = (tenant_id, bot_id)
-        with self._locks_guard:
-            return self._locks.setdefault(key, threading.Lock())
-
-    def _command_lock_for(self, command_id: str) -> threading.Lock:
-        with self._locks_guard:
-            return self._command_locks.setdefault(command_id, threading.Lock())
 
     @staticmethod
     def _fingerprint(request: SupervisorRequest) -> str:

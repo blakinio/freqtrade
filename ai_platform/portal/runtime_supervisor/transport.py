@@ -5,7 +5,9 @@ import os
 import socket
 import stat
 import struct
+import threading
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Protocol
 
@@ -16,6 +18,9 @@ from .types import SupervisorRequest
 
 MAX_REQUEST_BYTES = 16 * 1024
 REQUEST_TIMEOUT_SECONDS = 5.0
+ACCEPT_POLL_SECONDS = 0.25
+MAX_CONNECTION_WORKERS = 8
+MAX_INFLIGHT_CONNECTIONS = 16
 
 
 class SupervisorTransportError(RuntimeError):
@@ -51,6 +56,8 @@ class UnixSocketSupervisorServer:
         allowed_peer_uids: frozenset[int],
         approved_root: Path = Path("/run/quant-platform"),
         peer_uid: Callable[[socket.socket], int] = linux_peer_uid,
+        max_workers: int = MAX_CONNECTION_WORKERS,
+        max_inflight_connections: int = MAX_INFLIGHT_CONNECTIONS,
     ) -> None:
         normalized_path = str(path).replace("\\", "/")
         normalized_root = str(approved_root).replace("\\", "/")
@@ -62,11 +69,15 @@ class UnixSocketSupervisorServer:
             raise ValueError("supervisor socket must be directly under the approved root")
         if not allowed_peer_uids or any(uid < 0 for uid in allowed_peer_uids):
             raise ValueError("at least one valid peer uid is required")
+        if max_workers <= 0 or max_inflight_connections < max_workers:
+            raise ValueError("bounded worker and inflight limits are invalid")
         self._path = path
         self._supervisor = supervisor
         self._allowed_peer_uids = allowed_peer_uids
         self._peer_uid = peer_uid
         self._approved_root = approved_root
+        self._max_workers = max_workers
+        self._max_inflight_connections = max_inflight_connections
 
     def handle(self, connection: socket.socket) -> None:
         connection.settimeout(REQUEST_TIMEOUT_SECONDS)
@@ -86,7 +97,27 @@ class UnixSocketSupervisorServer:
         outcome = self._supervisor.execute(request)
         connection.sendall(outcome.model_dump_json().encode() + b"\n")
 
-    def serve_forever(self) -> None:
+    def serve_forever(self, *, stop_event: threading.Event | None = None) -> None:
+        address_family = self._validate_socket_root()
+        listener = socket.socket(address_family, socket.SOCK_STREAM)
+        workers = ThreadPoolExecutor(
+            max_workers=self._max_workers, thread_name_prefix="runtime-supervisor-uds"
+        )
+        inflight = threading.BoundedSemaphore(self._max_inflight_connections)
+        bound_inode: int | None = None
+        try:
+            listener.bind(str(self._path))
+            bound_inode = self._path.lstat().st_ino
+            self._path.chmod(0o660)
+            listener.listen(self._max_inflight_connections)
+            listener.settimeout(ACCEPT_POLL_SECONDS)
+            self._accept_loop(listener, workers, inflight, stop_event)
+        finally:
+            listener.close()
+            workers.shutdown(wait=True, cancel_futures=True)
+            self._unlink_owned_socket(bound_inode)
+
+    def _validate_socket_root(self) -> int:
         if os.name != "posix":
             raise SupervisorTransportError("runtime supervisor UDS requires a POSIX host")
         self._approved_root.mkdir(parents=True, mode=0o750, exist_ok=True)
@@ -101,29 +132,58 @@ class UnixSocketSupervisorServer:
         address_family = getattr(socket, "AF_UNIX", None)
         if address_family is None:
             raise SupervisorTransportError("AF_UNIX is unavailable")
-        listener = socket.socket(address_family, socket.SOCK_STREAM)
-        bound_inode: int | None = None
+        return address_family
+
+    def _accept_loop(
+        self,
+        listener: socket.socket,
+        workers: ThreadPoolExecutor,
+        inflight: threading.BoundedSemaphore,
+        stop_event: threading.Event | None,
+    ) -> None:
+        while stop_event is None or not stop_event.is_set():
+            self._dispatch_connection(listener, workers, inflight)
+
+    def _dispatch_connection(
+        self,
+        listener: socket.socket,
+        workers: ThreadPoolExecutor,
+        inflight: threading.BoundedSemaphore,
+    ) -> None:
+        if not inflight.acquire(timeout=ACCEPT_POLL_SECONDS):
+            return
         try:
-            listener.bind(str(self._path))
-            bound_inode = self._path.lstat().st_ino
-            self._path.chmod(0o660)
-            listener.listen(16)
-            while True:
-                connection, _ = listener.accept()
-                with connection:
-                    try:
-                        self.handle(connection)
-                    except (TimeoutError, BrokenPipeError, ConnectionError):
-                        continue
-        finally:
-            listener.close()
-            if bound_inode is not None:
-                try:
-                    current = self._path.lstat()
-                    if stat.S_ISSOCK(current.st_mode) and current.st_ino == bound_inode:
-                        self._path.unlink()
-                except FileNotFoundError:
-                    pass
+            connection, _ = listener.accept()
+        except TimeoutError:
+            inflight.release()
+            return
+        except OSError:
+            inflight.release()
+            raise
+        try:
+            future = workers.submit(self._serve_connection, connection)
+        except RuntimeError:
+            connection.close()
+            inflight.release()
+            raise
+        future.add_done_callback(lambda _future: inflight.release())
+
+    def _serve_connection(self, connection: socket.socket) -> None:
+        with connection:
+            try:
+                self.handle(connection)
+            except (TimeoutError, BrokenPipeError, ConnectionError):
+                return
+
+    def _unlink_owned_socket(self, bound_inode: int | None) -> None:
+        if bound_inode is None:
+            return
+        try:
+            current = self._path.lstat()
+            if stat.S_ISSOCK(current.st_mode) and current.st_ino == bound_inode:
+                self._path.unlink()
+        except FileNotFoundError:
+            pass
 
     @staticmethod
     def _read_request(connection: socket.socket) -> bytes:

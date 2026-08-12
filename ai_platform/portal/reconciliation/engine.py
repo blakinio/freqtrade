@@ -79,13 +79,12 @@ class ReconciliationEngine:
         if record.state == CommandState.VALIDATED or record.is_terminal:
             return record
         self._require_state(record, CommandState.RECEIVED)
-        reason = None
-        if record.envelope.generation_id != current_generation_id:
-            reason = TerminalReasonCode.STALE_GENERATION
-        elif record.envelope.expected_state_version != current_state_version:
-            reason = TerminalReasonCode.STALE_STATE_VERSION
-        elif record.envelope.execution_safety_epoch != current_safety_epoch:
-            reason = TerminalReasonCode.STALE_SAFETY_EPOCH
+        reason = self._fence_reason(
+            record,
+            current_generation_id=current_generation_id,
+            current_state_version=current_state_version,
+            current_safety_epoch=current_safety_epoch,
+        )
         state = CommandState.FAILED_TERMINAL if reason is not None else CommandState.VALIDATED
         return self._persist(self._transition(record, state, recorded_at, reason=reason), version)
 
@@ -101,14 +100,35 @@ class ReconciliationEngine:
         )
 
     def dispatch(
-        self, tenant_id: str, command_id: str, recorded_at: datetime
+        self,
+        tenant_id: str,
+        command_id: str,
+        recorded_at: datetime,
+        *,
+        current_generation_id: str,
+        current_state_version: int,
+        current_safety_epoch: int,
     ) -> ReconciliationRecord:
-        return self._simple_transition(
-            tenant_id,
-            command_id,
-            CommandState.RESERVED,
-            CommandState.DISPATCHED_PENDING_EXTERNAL,
-            recorded_at,
+        """Final authority boundary: revalidate the current execution fence before dispatch."""
+
+        record, version = self._required(tenant_id, command_id)
+        if record.state == CommandState.DISPATCHED_PENDING_EXTERNAL:
+            return record
+        self._require_state(record, CommandState.RESERVED)
+        reason = self._fence_reason(
+            record,
+            current_generation_id=current_generation_id,
+            current_state_version=current_state_version,
+            current_safety_epoch=current_safety_epoch,
+        )
+        if reason is not None:
+            return self._persist(
+                self._transition(record, CommandState.FAILED_TERMINAL, recorded_at, reason=reason),
+                version,
+            )
+        return self._persist(
+            self._transition(record, CommandState.DISPATCHED_PENDING_EXTERNAL, recorded_at),
+            version,
         )
 
     def acknowledge(
@@ -123,6 +143,13 @@ class ReconciliationEngine:
             if record.transport_ack_hash == acknowledgement_hash:
                 return record
             raise ConflictingReplayError("transport acknowledgement hash changed")
+        if record.state in {
+            CommandState.RECONCILED_SUCCESS,
+            CommandState.RECONCILED_REJECTED,
+        }:
+            if record.transport_ack_hash not in (None, acknowledgement_hash):
+                raise ConflictingReplayError("transport acknowledgement hash changed")
+            return record
         self._require_state(record, CommandState.DISPATCHED_PENDING_EXTERNAL)
         updated = self._transition(record, CommandState.ACKNOWLEDGED_BUT_UNRECONCILED, recorded_at)
         updated = updated.model_copy(update={"transport_ack_hash": acknowledgement_hash})
@@ -134,6 +161,10 @@ class ReconciliationEngine:
         record, version = self._required(evidence.tenant_id, evidence.command_id)
         if evidence.canonical_payload_hash in record.observed_hashes:
             return record, ObservationOutcome.EXACT_DUPLICATE
+        if record.is_terminal:
+            raise InvalidTransitionError(
+                "new observed evidence cannot alter terminal command state"
+            )
         if (
             evidence.bot_id != record.envelope.bot_id
             or evidence.generation_id != record.envelope.generation_id
@@ -147,7 +178,7 @@ class ReconciliationEngine:
             )
             return self._persist(poisoned, version), ObservationOutcome.APPLIED
         order = self._observation_order(evidence)
-        current_order = (record.reconciliation_epoch, record.last_source_sequence or -1)
+        current_order = self._record_observation_order(record)
         if order < current_order:
             return record, ObservationOutcome.OUT_OF_ORDER_IGNORED
         if order == current_order and record.last_observation_hash is not None:
@@ -159,10 +190,6 @@ class ReconciliationEngine:
                 evidence_hash=evidence.canonical_payload_hash,
             )
             return self._persist(poisoned, version), ObservationOutcome.APPLIED
-        if record.is_terminal:
-            raise InvalidTransitionError(
-                "new observed evidence cannot alter terminal command state"
-            )
         state = (
             CommandState.RECONCILED_SUCCESS
             if evidence.execution_succeeded
@@ -200,9 +227,10 @@ class ReconciliationEngine:
         record, version = self._required(tenant_id, command_id)
         if record.is_terminal:
             raise InvalidTransitionError("terminal commands cannot be retried")
-        if record.retry.last_attempt_id == attempt_id:
+        if attempt_id in record.retry.attempted_ids:
             return record
-        attempt = record.retry.attempt + 1
+        attempted_ids = (*record.retry.attempted_ids, attempt_id)
+        attempt = len(attempted_ids)
         if attempt >= record.retry.max_attempts:
             updated = self._transition(
                 record,
@@ -216,6 +244,7 @@ class ReconciliationEngine:
                         attempt=attempt,
                         max_attempts=record.retry.max_attempts,
                         last_attempt_id=attempt_id,
+                        attempted_ids=attempted_ids,
                         last_error_code=error_code,
                     )
                 }
@@ -228,6 +257,7 @@ class ReconciliationEngine:
                         attempt=attempt,
                         max_attempts=record.retry.max_attempts,
                         last_attempt_id=attempt_id,
+                        attempted_ids=attempted_ids,
                         next_attempt_at=recorded_at + delay,
                         last_error_code=error_code,
                     )
@@ -268,8 +298,36 @@ class ReconciliationEngine:
             raise InvalidTransitionError(f"expected {expected.value}, found {record.state.value}")
 
     @staticmethod
-    def _observation_order(evidence: ObservationEvidence) -> tuple[int, int]:
-        return evidence.reconciliation_epoch, evidence.source_sequence or -1
+    def _fence_reason(
+        record: ReconciliationRecord,
+        *,
+        current_generation_id: str,
+        current_state_version: int,
+        current_safety_epoch: int,
+    ) -> TerminalReasonCode | None:
+        if record.envelope.generation_id != current_generation_id:
+            return TerminalReasonCode.STALE_GENERATION
+        if record.envelope.expected_state_version != current_state_version:
+            return TerminalReasonCode.STALE_STATE_VERSION
+        if record.envelope.execution_safety_epoch != current_safety_epoch:
+            return TerminalReasonCode.STALE_SAFETY_EPOCH
+        return None
+
+    @staticmethod
+    def _observation_order(evidence: ObservationEvidence) -> tuple[int, str, int]:
+        return (
+            evidence.source_sequence if evidence.source_sequence is not None else -1,
+            evidence.source_version or "",
+            evidence.reconciliation_epoch,
+        )
+
+    @staticmethod
+    def _record_observation_order(record: ReconciliationRecord) -> tuple[int, str, int]:
+        return (
+            record.last_source_sequence if record.last_source_sequence is not None else -1,
+            record.last_source_version or "",
+            record.reconciliation_epoch,
+        )
 
     @staticmethod
     def _transition(

@@ -35,6 +35,7 @@ from ai_platform.scripts.liquidation_live_stream import (
     _write_json_atomic_at,
     discover_binance_symbols,
     discover_bybit_symbols,
+    redact_error,
     run_binance_source,
     run_bybit_source,
     validate_symbols,
@@ -228,7 +229,7 @@ class OkxLiveRunManager(LiveRunManager):
             planned = error == "subscription universe refresh"
             if not planned:
                 state.error_count += 1
-            state.latest_error = None if planned else str(error)[:500] if error is not None else None
+            state.latest_error = None if planned else redact_error(error)
             await asyncio.to_thread(self._write_state)
 
     async def set_okx_instruments(

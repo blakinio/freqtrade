@@ -53,7 +53,7 @@ jobs:
       - name: Apply reviewed closeout repair
         run: python tools/agents/run_1355_authority_closeout.py
 
-      - name: Close pause ownership gap
+      - name: Close pause ownership and private-read fixture gaps
         shell: bash
         run: |
           python - <<'PY'
@@ -72,10 +72,32 @@ jobs:
           marker = '''def test_stop_preserves_foreign_container_reusing_runtime_name() -> None:\n'''
           if tests.count(marker) != 1:
               raise SystemExit("pause ownership test insertion marker not unique")
-          addition = '''def test_pause_preserves_foreign_container_reusing_runtime_name() -> None:\n    runner = _Runner(\n        CommandResult(0, stdout="running\\n"),\n        CommandResult(1),\n        CommandResult(\n            0,\n            stdout=json.dumps(\n                {\n                    "Id": "foreign-container-id",\n                    "Config": {"Labels": {"ai.portal.runtime_id": "runtime-other"}},\n                }\n            ),\n        ),\n    )\n\n    with pytest.raises(RuntimeDriverError) as exc_info:\n        DockerCliRuntimeDriver(runner).pause("runtime-1")\n\n    assert exc_info.value.reason_code == "GENERATION_OWNERSHIP_CONFLICT"\n    assert all(call[:2] != ("docker", "pause") for call in runner.calls)\n\n\n'''
+          addition = '''def test_pause_preserves_foreign_container_reusing_runtime_name(tmp_path: Path) -> None:\n    spec = _spec(tmp_path)\n    runner = _Runner(\n        CommandResult(0, stdout="running\\n"),\n        CommandResult(0),\n        CommandResult(0),\n        CommandResult(\n            0,\n            stdout=json.dumps(\n                {\n                    "Id": "foreign-container-id",\n                    "Config": {"Labels": {"ai.portal.runtime_id": "runtime-other"}},\n                }\n            ),\n        ),\n    )\n    driver = DockerCliRuntimeDriver(runner)\n    driver._specs[spec.runtime_id] = spec\n\n    with pytest.raises(RuntimeDriverError) as exc_info:\n        driver.pause("runtime-1")\n\n    assert exc_info.value.reason_code == "GENERATION_OWNERSHIP_CONFLICT"\n    assert all(call[:2] != ("docker", "pause") for call in runner.calls)\n\n\n'''
           if "test_pause_preserves_foreign_container_reusing_runtime_name" in tests:
               raise SystemExit("pause ownership regression already present")
           test_path.write_text(tests.replace(marker, addition + marker, 1), encoding="utf-8")
+
+          private_path = Path("tests/ai_platform/portal/execution/test_private_read.py")
+          private = private_path.read_text(encoding="utf-8")
+          old_import = '''from ai_platform.portal.execution.runtime import (\n    DriverRuntimeState,\n    ResolvedRuntimeArtifacts,\n    RuntimeContainerSpec,\n)\nfrom ai_platform.portal.execution.workspace import RuntimeWorkspaceStore\n'''
+          new_import = '''from ai_platform.portal.execution.runtime import DriverRuntimeState, ResolvedRuntimeArtifacts\nfrom ai_platform.portal.execution.workspace import RuntimeWorkspaceStore\nfrom ai_platform.portal.runtime_supervisor import (\n    SupervisorOperation,\n    SupervisorOutcome,\n    SupervisorOutcomeCode,\n    SupervisorRequest,\n)\n'''
+          if private.count(old_import) != 1:
+              raise SystemExit("private-read import target not unique")
+          private = private.replace(old_import, new_import, 1)
+          start = private.index("class _Driver:\n")
+          end = private.index("\n\ndef _bot(", start)
+          supervisor = '''class _Supervisor:\n    def __init__(self) -> None:\n        self.states: dict[str, DriverRuntimeState] = {}\n\n    def execute(self, request: SupervisorRequest) -> SupervisorOutcome:\n        current = self.states.get(request.generation_id, DriverRuntimeState.MISSING)\n        if request.operation is SupervisorOperation.ENSURE_PROVISIONED:\n            if current in {DriverRuntimeState.MISSING, DriverRuntimeState.STOPPED}:\n                current = DriverRuntimeState.CREATED\n        elif request.operation is SupervisorOperation.ENSURE_RUNNING:\n            current = DriverRuntimeState.RUNNING\n        elif request.operation is SupervisorOperation.ENSURE_PAUSED:\n            if current is DriverRuntimeState.RUNNING:\n                current = DriverRuntimeState.PAUSED\n        elif request.operation is SupervisorOperation.ENSURE_STOPPED:\n            if current is not DriverRuntimeState.MISSING:\n                current = DriverRuntimeState.STOPPED\n        elif request.operation is SupervisorOperation.ENSURE_RETIRED:\n            current = DriverRuntimeState.MISSING\n        self.states[request.generation_id] = current\n        code = (\n            SupervisorOutcomeCode.OBSERVED\n            if request.operation is SupervisorOperation.INSPECT_GENERATION\n            else SupervisorOutcomeCode.APPLIED\n        )\n        return SupervisorOutcome(\n            accepted=True,\n            code=code,\n            operation=request.operation,\n            tenant_id=request.tenant_id,\n            bot_id=request.bot_id,\n            generation_id=request.generation_id,\n            generation_spec_digest=request.generation_spec_digest,\n            command_id=request.command_id,\n            correlation_id=request.correlation_id,\n            state=current,\n            state_version=max(1, request.expected_state_version),\n            evidence_digest="e" * 64,\n        )\n'''
+          private = private[:start] + supervisor + private[end:]
+          private = private.replace(
+              ''') -> tuple[FreqtradeExecutionAdapter, _Driver, str]:\n    driver = _Driver()\n''',
+              ''') -> tuple[FreqtradeExecutionAdapter, _Supervisor, str]:\n    driver = _Supervisor()\n''',
+              1,
+          )
+          if "_Driver" in private:
+              raise SystemExit("stale private-read raw driver fixture remains")
+          private = private.replace('driver.states[runtime_id] = DriverRuntimeState.RUNNING', 'driver.states["generation-private-read"] = DriverRuntimeState.RUNNING')
+          private = private.replace('driver.states[runtime_id] = DriverRuntimeState.STOPPED', 'driver.states["generation-private-read"] = DriverRuntimeState.STOPPED')
+          private_path.write_text(private, encoding="utf-8")
           PY
 
       - name: Validate focused Supervisor and adapter boundary
@@ -98,6 +120,7 @@ jobs:
             ai_platform/portal/runtime_supervisor \
             tests/ai_platform/portal/execution/test_adapter.py \
             tests/ai_platform/portal/execution/test_driver.py \
+            tests/ai_platform/portal/execution/test_private_read.py \
             tests/ai_platform/portal/runtime_supervisor
           python -m mypy \
             ai_platform/portal/execution/adapter.py \
@@ -105,6 +128,7 @@ jobs:
             ai_platform/portal/execution/driver.py \
             ai_platform/portal/runtime_supervisor \
             tests/ai_platform/portal/execution/test_adapter.py \
+            tests/ai_platform/portal/execution/test_private_read.py \
             tests/ai_platform/portal/runtime_supervisor
           git diff --check
 

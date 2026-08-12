@@ -356,6 +356,7 @@ def _read_committed_jsonl_tail(  # noqa: C901
     source: str,
     observed_at_ms: int,
     suffix_available_at_ms: Callable[[], int],
+    validated_event_ids: set[str],
 ) -> tuple[dict[str, Any], ...]:
     if path.is_symlink() or not path.is_file():
         raise CandidatePaperRuntimeOperatorError(f"{field} must be a regular file")
@@ -373,7 +374,6 @@ def _read_committed_jsonl_tail(  # noqa: C901
     committed_seen = 0
     suffix_seen = 0
     bytes_seen = 0
-    seen_event_ids: set[str] = set()
     previous_received_at_ms: int | None = None
     try:
         with path.open("rb") as handle:
@@ -400,11 +400,11 @@ def _read_committed_jsonl_tail(  # noqa: C901
                         source=source,
                         observed_at_ms=observed_at_ms,
                     )
-                    if event.source_event_id in seen_event_ids:
+                    if event.source_event_id in validated_event_ids:
                         raise CandidatePaperRuntimeOperatorError(
                             f"{field} contains duplicate event identities"
                         )
-                    seen_event_ids.add(event.source_event_id)
+                    validated_event_ids.add(event.source_event_id)
                     previous_received_at_ms = event.received_at_ms
                     rows.append(row)
                     committed_seen += 1
@@ -421,7 +421,7 @@ def _read_committed_jsonl_tail(  # noqa: C901
                     source=source,
                     observed_at_ms=suffix_available_at_ms(),
                 )
-                if event.source_event_id in seen_event_ids:
+                if event.source_event_id in validated_event_ids:
                     raise CandidatePaperRuntimeOperatorError(
                         f"{field} contains duplicate event identities"
                     )
@@ -432,7 +432,7 @@ def _read_committed_jsonl_tail(  # noqa: C901
                     raise CandidatePaperRuntimeOperatorError(
                         f"{field} suffix reception order regressed"
                     )
-                seen_event_ids.add(event.source_event_id)
+                validated_event_ids.add(event.source_event_id)
                 previous_received_at_ms = event.received_at_ms
     except CandidatePaperRuntimeOperatorError:
         raise
@@ -611,6 +611,7 @@ def _read_live_source_events(
     suffix_available_at_ms: Callable[[], int],
     history_start_ms: int,
     allow_uncommitted_suffix: bool,
+    validated_event_ids: set[str],
 ) -> tuple[LiquidationEvent, ...]:
     event_path = run_root / f"{source}.ndjson"
     events_written = _non_negative_integer(
@@ -641,6 +642,7 @@ def _read_live_source_events(
         source=source,
         observed_at_ms=observed_at_ms,
         suffix_available_at_ms=suffix_available_at_ms,
+        validated_event_ids=validated_event_ids,
     )
     if events_written == 0:
         if source_row.get("last_event_received_at_ms") is not None:
@@ -734,6 +736,7 @@ def _load_liquid20_live_root_once(  # noqa: C901
         history_start_ms=history_start_ms,
     )
     events: list[LiquidationEvent] = []
+    validated_event_ids: set[str] = set()
     for historical_run_id in relevant_run_ids:
         run_root = runs_root / historical_run_id
         run_state = _read_bounded_json(
@@ -750,6 +753,19 @@ def _load_liquid20_live_root_once(  # noqa: C901
             expected_state == "completed"
             and run_state.get("completion_reason") == "collector-restart"
         )
+        run_suffix_available_at_ms = suffix_available_at_ms
+        if allow_legacy_restart_suffix:
+            completion_boundary_ms = _integer(
+                run_state.get("collector_heartbeat_at_ms"),
+                field=f"Liquid20 completed run heartbeat {historical_run_id}",
+            )
+            if completion_boundary_ms > observed_at_ms:
+                raise CandidatePaperRuntimeOperatorError(
+                    "Liquid20 completed run heartbeat is from the future"
+                )
+            run_suffix_available_at_ms = (
+                lambda boundary=completion_boundary_ms: boundary
+            )
         if historical_run_id == run_id and run_state != active_state:
             raise _TransientLiquid20SnapshotError("Liquid20 active pointer and run state differ")
         for source in EXPECTED_LIVE_SOURCES:
@@ -763,11 +779,12 @@ def _load_liquid20_live_root_once(  # noqa: C901
                     source=source,
                     source_row=source_row,
                     observed_at_ms=observed_at_ms,
-                    suffix_available_at_ms=suffix_available_at_ms,
+                    suffix_available_at_ms=run_suffix_available_at_ms,
                     history_start_ms=history_start_ms,
                     allow_uncommitted_suffix=(
                         historical_run_id == run_id or allow_legacy_restart_suffix
                     ),
+                    validated_event_ids=validated_event_ids,
                 )
             )
 

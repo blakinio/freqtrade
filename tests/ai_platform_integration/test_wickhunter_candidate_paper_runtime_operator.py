@@ -493,6 +493,44 @@ def test_live_root_accepts_bounded_legacy_restart_suffix_as_uncommitted(
     assert "previous-uncommitted" not in event_ids
 
 
+def test_live_root_rejects_legacy_restart_suffix_after_completion_boundary(
+    tmp_path: Path,
+) -> None:
+    suffix = _event(
+        "legacy-after-completion",
+        received_at_ms=NOW_MS - 30_000,
+    )
+    root, _, _ = _write_legacy_restart_suffix_root(
+        tmp_path / "legacy-after-completion",
+        suffix=suffix,
+    )
+
+    with pytest.raises(
+        CandidatePaperRuntimeOperatorError,
+        match="unavailable at live observation time",
+    ):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
+def test_live_root_rejects_legacy_suffix_identity_duplicated_in_active_run(
+    tmp_path: Path,
+) -> None:
+    suffix = _event(
+        "event-history",
+        received_at_ms=NOW_MS - 3_500_000,
+    )
+    root, _, _ = _write_legacy_restart_suffix_root(
+        tmp_path / "legacy-cross-run-duplicate",
+        suffix=suffix,
+    )
+
+    with pytest.raises(
+        CandidatePaperRuntimeOperatorError,
+        match="duplicate event identities",
+    ):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
 @pytest.mark.parametrize(
     ("mutation", "message"),
     (

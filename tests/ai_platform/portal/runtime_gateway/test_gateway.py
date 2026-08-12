@@ -83,17 +83,46 @@ def test_runtime_identity_preserves_exact_generation_tcb(binding: GatewayBinding
     [
         (Operation.HEALTH, "/api/v1/ping"),
         (Operation.READ_POSITIONS, "/api/v1/status"),
-        (Operation.READ_OPEN_ORDERS, "/api/v1/open_orders"),
+        (Operation.READ_OPEN_ORDERS, "/api/v1/status"),
         (Operation.READ_TRADES, "/api/v1/trades"),
     ],
 )
 def test_maps_allowlisted_reads_to_fixed_endpoints(
     binding: GatewayBinding, operation: Operation, endpoint: str
 ) -> None:
-    upstream = RecordingUpstream([])
+    response_data: Any = [] if endpoint != "/api/v1/ping" else {"status": "pong"}
+    upstream = RecordingUpstream(response_data)
     response = RuntimeGateway(binding, upstream).handle(request(operation))
     assert response.ok is True
     assert upstream.endpoints == [endpoint]
+
+
+def test_open_orders_are_derived_from_canonical_status_response(binding: GatewayBinding) -> None:
+    open_order = {"order_id": "open-1", "pair": "BTC/USDT", "is_open": True}
+    closed_order = {"order_id": "closed-1", "pair": "BTC/USDT", "is_open": False}
+    upstream = RecordingUpstream(
+        [
+            {"trade_id": 1, "orders": [open_order, closed_order]},
+            {"trade_id": 2, "orders": []},
+        ]
+    )
+
+    response = RuntimeGateway(binding, upstream).handle(request(Operation.READ_OPEN_ORDERS))
+
+    assert response.authoritative is True
+    assert response.data == [open_order]
+    assert upstream.endpoints == ["/api/v1/status"]
+
+
+@pytest.mark.parametrize("malformed", [{}, ["not-a-trade"], [{"orders": {}}], [{"orders": [{}]}]])
+def test_open_orders_fail_closed_on_malformed_status(
+    binding: GatewayBinding, malformed: Any
+) -> None:
+    with pytest.raises(GatewayError) as error:
+        RuntimeGateway(binding, RecordingUpstream(malformed)).handle(
+            request(Operation.READ_OPEN_ORDERS)
+        )
+    assert error.value.code == "MALFORMED_UPSTREAM_RESPONSE"
 
 
 def test_rejects_arbitrary_arguments_and_proxy_shape(binding: GatewayBinding) -> None:

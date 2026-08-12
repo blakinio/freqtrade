@@ -15,6 +15,7 @@ from ai_platform.portal.contracts.risk import TradeSide
 NonNegativeDecimal = Annotated[Decimal, Field(ge=0)]
 PositiveDecimal = Annotated[Decimal, Field(gt=0)]
 UnitDecimal = Annotated[Decimal, Field(ge=0, le=1)]
+PositiveInt = Annotated[int, Field(gt=0, strict=True)]
 
 
 def _digest(model: ContractModel) -> str:
@@ -25,6 +26,12 @@ class PortfolioRiskOutcome(StrEnum):
     ALLOW = "ALLOW"
     REJECT = "REJECT"
     SUSPEND = "SUSPEND"
+    UNAVAILABLE = "UNAVAILABLE"
+
+
+class SnapshotSourceHealth(StrEnum):
+    HEALTHY = "HEALTHY"
+    DEGRADED = "DEGRADED"
     UNAVAILABLE = "UNAVAILABLE"
 
 
@@ -40,6 +47,7 @@ class PortfolioRiskPolicy(ContractModel):
     version: Annotated[int, Field(ge=1)]
     effective_at: UtcDateTime
     expires_at: UtcDateTime | None = None
+    max_snapshot_age_seconds: PositiveInt
     max_gross_exposure: PositiveDecimal
     max_net_exposure: PositiveDecimal
     max_symbol_exposure: PositiveDecimal
@@ -113,6 +121,8 @@ class PortfolioRiskSnapshot(ContractModel):
     snapshot_id: UUID
     tenant_id: NonEmptyStr
     observed_at: UtcDateTime
+    source_health: SnapshotSourceHealth
+    drift_detected: bool
     positions: tuple[PortfolioPosition, ...]
     correlations: tuple[CorrelationEvidence, ...] | None
     drawdown: UnitDecimal | None

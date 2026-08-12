@@ -1,0 +1,122 @@
+name: One-shot WickHunter PR 1487 repair
+
+on:
+  push:
+    branches:
+      - codex/fix-wickhunter-legacy-restart-consumer-1396
+    paths:
+      - ".github/workflows/tmp-wickhunter-1487-repair.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout task branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+          ref: codex/fix-wickhunter-legacy-restart-consumer-1396
+
+      - name: Apply bounded P2 repairs and regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          code_path = Path("ai_platform/wickhunter/candidate_paper_runtime_operator.py")
+          test_path = Path("tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py")
+          code = code_path.read_text(encoding="utf-8")
+          tests = test_path.read_text(encoding="utf-8")
+
+          def replace_once(text: str, old: str, new: str, *, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected exactly one match, got {count}")
+              return text.replace(old, new, 1)
+
+          code = replace_once(
+              code,
+              "    observed_at_ms: int,\n    suffix_available_at_ms: Callable[[], int],\n) -> tuple[dict[str, Any], ...]:\n",
+              "    observed_at_ms: int,\n    suffix_available_at_ms: Callable[[], int],\n    validated_event_ids: set[str],\n) -> tuple[dict[str, Any], ...]:\n",
+              label="tail signature",
+          )
+          code = replace_once(
+              code,
+              "    seen_event_ids: set[str] = set()\n    previous_received_at_ms: int | None = None\n",
+              "    previous_received_at_ms: int | None = None\n",
+              label="local identity set",
+          )
+          code = code.replace(
+              "if event.source_event_id in seen_event_ids:",
+              "if event.source_event_id in validated_event_ids:",
+          )
+          code = code.replace(
+              "seen_event_ids.add(event.source_event_id)",
+              "validated_event_ids.add(event.source_event_id)",
+          )
+          if "seen_event_ids" in code[code.index("def _read_committed_jsonl_tail"):code.index("def _live_source_state")]:
+              raise SystemExit("tail still contains local identity set references")
+
+          code = replace_once(
+              code,
+              "    history_start_ms: int,\n    allow_uncommitted_suffix: bool,\n) -> tuple[LiquidationEvent, ...]:\n",
+              "    history_start_ms: int,\n    allow_uncommitted_suffix: bool,\n    validated_event_ids: set[str],\n) -> tuple[LiquidationEvent, ...]:\n",
+              label="source reader signature",
+          )
+          code = replace_once(
+              code,
+              "        observed_at_ms=observed_at_ms,\n        suffix_available_at_ms=suffix_available_at_ms,\n    )\n",
+              "        observed_at_ms=observed_at_ms,\n        suffix_available_at_ms=suffix_available_at_ms,\n        validated_event_ids=validated_event_ids,\n    )\n",
+              label="tail shared identity argument",
+          )
+          code = replace_once(
+              code,
+              "    events: list[LiquidationEvent] = []\n    for historical_run_id in relevant_run_ids:\n",
+              "    events: list[LiquidationEvent] = []\n    validated_event_ids: set[str] = set()\n    for historical_run_id in relevant_run_ids:\n",
+              label="snapshot identity set",
+          )
+          code = replace_once(
+              code,
+              "        allow_legacy_restart_suffix = (\n            expected_state == \"completed\"\n            and run_state.get(\"completion_reason\") == \"collector-restart\"\n        )\n        if historical_run_id == run_id and run_state != active_state:\n",
+              "        allow_legacy_restart_suffix = (\n            expected_state == \"completed\"\n            and run_state.get(\"completion_reason\") == \"collector-restart\"\n        )\n        run_suffix_available_at_ms = suffix_available_at_ms\n        if allow_legacy_restart_suffix:\n            completion_boundary_ms = _integer(\n                run_state.get(\"collector_heartbeat_at_ms\"),\n                field=f\"Liquid20 completed run heartbeat {historical_run_id}\",\n            )\n            if completion_boundary_ms > observed_at_ms:\n                raise CandidatePaperRuntimeOperatorError(\n                    \"Liquid20 completed run heartbeat is from the future\"\n                )\n            run_suffix_available_at_ms = (\n                lambda boundary=completion_boundary_ms: boundary\n            )\n        if historical_run_id == run_id and run_state != active_state:\n",
+              label="historical completion boundary",
+          )
+          code = replace_once(
+              code,
+              "                    suffix_available_at_ms=suffix_available_at_ms,\n                    history_start_ms=history_start_ms,\n                    allow_uncommitted_suffix=(\n                        historical_run_id == run_id or allow_legacy_restart_suffix\n                    ),\n",
+              "                    suffix_available_at_ms=run_suffix_available_at_ms,\n                    history_start_ms=history_start_ms,\n                    allow_uncommitted_suffix=(\n                        historical_run_id == run_id or allow_legacy_restart_suffix\n                    ),\n                    validated_event_ids=validated_event_ids,\n",
+              label="source reader snapshot arguments",
+          )
+
+          marker = '''def test_live_root_accepts_bounded_legacy_restart_suffix_as_uncommitted(\n    tmp_path: Path,\n) -> None:\n    root, _, _ = _write_legacy_restart_suffix_root(tmp_path / "legacy-restart-suffix")\n\n    snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS)\n\n    event_ids = {event.source_event_id for event in snapshot.events}\n    assert "previous-committed" in event_ids\n    assert "previous-uncommitted" not in event_ids\n\n\n'''
+          addition = marker + '''def test_live_root_rejects_legacy_restart_suffix_after_completion_boundary(\n    tmp_path: Path,\n) -> None:\n    suffix = _event(\n        "legacy-after-completion",\n        received_at_ms=NOW_MS - 30_000,\n    )\n    root, _, _ = _write_legacy_restart_suffix_root(\n        tmp_path / "legacy-after-completion",\n        suffix=suffix,\n    )\n\n    with pytest.raises(\n        CandidatePaperRuntimeOperatorError,\n        match="unavailable at live observation time",\n    ):\n        load_liquid20_snapshot(root, now_ms=NOW_MS)\n\n\ndef test_live_root_rejects_legacy_suffix_identity_duplicated_in_active_run(\n    tmp_path: Path,\n) -> None:\n    suffix = _event(\n        "event-history",\n        received_at_ms=NOW_MS - 3_500_000,\n    )\n    root, _, _ = _write_legacy_restart_suffix_root(\n        tmp_path / "legacy-cross-run-duplicate",\n        suffix=suffix,\n    )\n\n    with pytest.raises(\n        CandidatePaperRuntimeOperatorError,\n        match="duplicate event identities",\n    ):\n        load_liquid20_snapshot(root, now_ms=NOW_MS)\n\n\n'''
+          tests = replace_once(tests, marker, addition, label="legacy regression insertion")
+
+          code_path.write_text(code, encoding="utf-8")
+          test_path.write_text(tests, encoding="utf-8")
+          PY
+
+          python -m compileall -q \
+            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          git diff --check
+
+      - name: Remove one-shot workflow and commit repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/tmp-wickhunter-1487-repair.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py \
+            .github/workflows/tmp-wickhunter-1487-repair.yml
+          git diff --cached --check
+          git commit -m "fix(wickhunter): harden legacy suffix reconciliation"
+          git push origin HEAD:codex/fix-wickhunter-legacy-restart-consumer-1396

@@ -517,6 +517,40 @@ def test_live_root_accepts_bounded_legacy_restart_suffix_as_uncommitted(
     assert "previous-uncommitted" not in event_ids
 
 
+def test_live_root_rejects_legacy_restart_suffix_for_unprovenanced_okx(
+    tmp_path: Path,
+) -> None:
+    root, previous_root, state = _write_legacy_restart_suffix_root(
+        tmp_path / "legacy-okx-suffix"
+    )
+    committed = _event(
+        "okx-committed",
+        received_at_ms=NOW_MS - 3_600_000,
+        source="okx-swap",
+    )
+    suffix = _event(
+        "okx-uncommitted",
+        received_at_ms=NOW_MS - 3_500_000,
+        source="okx-swap",
+    )
+    (previous_root / "okx-swap.ndjson").write_text(
+        json.dumps(committed, sort_keys=True) + "\n" + json.dumps(suffix, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    okx_state = cast(dict[str, object], state["sources"])["okx-swap"]
+    assert isinstance(okx_state, dict)
+    okx_state["events_written"] = 1
+    okx_state["last_event_at_ms"] = committed["occurred_at_ms"]
+    okx_state["last_event_received_at_ms"] = committed["received_at_ms"]
+    (previous_root / "run-state-v1.json").write_text(
+        json.dumps(state, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(CandidatePaperRuntimeOperatorError, match="contradicts events_written"):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
 def test_live_root_accepts_legacy_suffix_after_heartbeat_before_completion(
     tmp_path: Path,
 ) -> None:

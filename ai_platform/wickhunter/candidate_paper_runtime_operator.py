@@ -64,6 +64,7 @@ LIVE_POINTER_NAME = "live-state-v1.json"
 RUN_STATE_NAME = "run-state-v1.json"
 LIQUID20_LIVE_CONTRACT = "liquidation-live-state-v1"
 EXPECTED_LIVE_SOURCES = ("binance-usdm", "bybit-linear", "okx-swap")
+LEGACY_RESTART_SUMMARY_SOURCES = frozenset(("binance-usdm", "bybit-linear"))
 MAX_LIVE_RUNS_PER_WINDOW = 64
 MAX_LIVE_SOURCE_BYTES = 128 * 1024 * 1024
 MAX_LIVE_SOURCE_EVENTS = 250_000
@@ -362,7 +363,7 @@ def _legacy_restart_source_summaries_match(
     run_id: str,
     source_payloads: dict[str, Any],
 ) -> bool:
-    for source in ("bybit-linear", "binance-usdm"):
+    for source in LEGACY_RESTART_SUMMARY_SOURCES:
         try:
             summary = _read_bounded_json(
                 run_root / f"{source}-summary.json",
@@ -870,9 +871,16 @@ def _load_liquid20_live_root_once(  # noqa: C901
                     suffix_available_at_ms=run_suffix_available_at_ms,
                     history_start_ms=history_start_ms,
                     allow_uncommitted_suffix=(
-                        historical_run_id == run_id or allow_legacy_restart_suffix
+                        historical_run_id == run_id
+                        or (
+                            allow_legacy_restart_suffix
+                            and source in LEGACY_RESTART_SUMMARY_SOURCES
+                        )
                     ),
-                    require_legacy_suffix_checkpoint=allow_legacy_restart_suffix,
+                    require_legacy_suffix_checkpoint=(
+                        allow_legacy_restart_suffix
+                        and source in LEGACY_RESTART_SUMMARY_SOURCES
+                    ),
                     validated_event_ids=validated_event_ids,
                 )
             )

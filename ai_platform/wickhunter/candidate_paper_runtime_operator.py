@@ -67,6 +67,7 @@ EXPECTED_LIVE_SOURCES = ("binance-usdm", "bybit-linear", "okx-swap")
 MAX_LIVE_RUNS_PER_WINDOW = 64
 MAX_LIVE_SOURCE_BYTES = 128 * 1024 * 1024
 MAX_LIVE_SOURCE_EVENTS = 250_000
+MAX_LIVE_EVENT_ROW_BYTES = 1024 * 1024
 MAX_UNCOMMITTED_LIVE_EVENTS = 10_000
 LIVE_SNAPSHOT_READ_ATTEMPTS = 10
 LIVE_SNAPSHOT_RETRY_SECONDS = 0.1
@@ -372,13 +373,17 @@ def _read_committed_jsonl_tail(  # noqa: C901
     committed_seen = 0
     suffix_seen = 0
     bytes_seen = 0
+    seen_event_ids: set[str] = set()
+    previous_received_at_ms: int | None = None
     try:
         with path.open("rb") as handle:
             while bytes_seen < size:
-                raw = handle.readline(size - bytes_seen)
+                raw = handle.readline(min(size - bytes_seen, MAX_LIVE_EVENT_ROW_BYTES + 1))
                 if not raw:
                     raise CandidatePaperRuntimeOperatorError(f"{field} changed during bounded read")
                 bytes_seen += len(raw)
+                if len(raw) > MAX_LIVE_EVENT_ROW_BYTES:
+                    raise CandidatePaperRuntimeOperatorError(f"{field} contains an oversized event")
                 if bytes_seen > MAX_LIVE_SOURCE_BYTES:
                     raise CandidatePaperRuntimeOperatorError(
                         f"{field} size is outside the accepted bound"
@@ -390,6 +395,17 @@ def _read_committed_jsonl_tail(  # noqa: C901
                 payload = json.loads(raw.decode("utf-8"))
                 row = _require_object(payload, field=field)
                 if committed_seen < committed_rows:
+                    event = _parse_live_source_event(
+                        row,
+                        source=source,
+                        observed_at_ms=observed_at_ms,
+                    )
+                    if event.source_event_id in seen_event_ids:
+                        raise CandidatePaperRuntimeOperatorError(
+                            f"{field} contains duplicate event identities"
+                        )
+                    seen_event_ids.add(event.source_event_id)
+                    previous_received_at_ms = event.received_at_ms
                     rows.append(row)
                     committed_seen += 1
                     continue
@@ -400,11 +416,24 @@ def _read_committed_jsonl_tail(  # noqa: C901
                     raise CandidatePaperRuntimeOperatorError(
                         f"{field} contains too many uncommitted events"
                     )
-                _parse_live_source_event(
+                event = _parse_live_source_event(
                     row,
                     source=source,
                     observed_at_ms=suffix_available_at_ms(),
                 )
+                if event.source_event_id in seen_event_ids:
+                    raise CandidatePaperRuntimeOperatorError(
+                        f"{field} contains duplicate event identities"
+                    )
+                if (
+                    previous_received_at_ms is not None
+                    and event.received_at_ms < previous_received_at_ms
+                ):
+                    raise CandidatePaperRuntimeOperatorError(
+                        f"{field} suffix reception order regressed"
+                    )
+                seen_event_ids.add(event.source_event_id)
+                previous_received_at_ms = event.received_at_ms
     except CandidatePaperRuntimeOperatorError:
         raise
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -717,6 +746,10 @@ def _load_liquid20_live_root_once(  # noqa: C901
             run_id=historical_run_id,
             expected_run_state=expected_state,
         )
+        allow_legacy_restart_suffix = (
+            expected_state == "completed"
+            and run_state.get("completion_reason") == "collector-restart"
+        )
         if historical_run_id == run_id and run_state != active_state:
             raise _TransientLiquid20SnapshotError("Liquid20 active pointer and run state differ")
         for source in EXPECTED_LIVE_SOURCES:
@@ -732,7 +765,9 @@ def _load_liquid20_live_root_once(  # noqa: C901
                     observed_at_ms=observed_at_ms,
                     suffix_available_at_ms=suffix_available_at_ms,
                     history_start_ms=history_start_ms,
-                    allow_uncommitted_suffix=historical_run_id == run_id,
+                    allow_uncommitted_suffix=(
+                        historical_run_id == run_id or allow_legacy_restart_suffix
+                    ),
                 )
             )
 

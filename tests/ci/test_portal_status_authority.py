@@ -38,12 +38,16 @@ ALLOWED_CURRENT_AUTHORITY_CLAIM_PATHS = {
     "docs/ai_platform/portal/DELIVERY_ROADMAP.md",
     "docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.md",
     "docs/ai_platform/portal/IMPLEMENTATION_STATUS_AUTHORITY.md",
+    "docs/ai_platform/portal/NEXT_WORK_AND_REPAIR_PLAN.md",
+    "docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md",
     "docs/ai_platform/portal/README.md",
     "docs/ai_platform/portal/UI_DELIVERY_STATUS.md",
 }
 RECONCILED_LEGACY_CLAIM_PATHS = {
     "docs/ai_platform/portal/DELIVERY_ROADMAP.md",
     "docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.md",
+    "docs/ai_platform/portal/NEXT_WORK_AND_REPAIR_PLAN.md",
+    "docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md",
     "docs/ai_platform/portal/README.md",
 }
 CURRENT_AUTHORITY_CLAIM_PHRASES = (
@@ -52,6 +56,7 @@ CURRENT_AUTHORITY_CLAIM_PHRASES = (
     "current implementation-completeness authority",
     "current status authority",
     "current status is defined only by",
+    "current work selection is derived from",
     "completeness is defined only by",
     "only active completeness-status authority",
     "sole current exact-head implementation inventory",

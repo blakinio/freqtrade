@@ -1,13 +1,13 @@
 ---
 task_id: FTAI-20260812-wh09-e2e-recovery-1396
-status: implementing
+status: validating
 programme: wickhunter-wh09
 related_issue: 1396
 branch: codex/wh09-e2e-recovery-closeout-1396
 base_head: c0c484a1fe9139e6039e0c79512c3b0527c32446
 owner: chatgpt
 paper_only: true
-next_action: Validate and review the bounded failure-only WebSocket diagnostic on PR 1503, then merge it and collect the next canonical Synology deploy evidence.
+next_action: Complete fresh review and exact-head CI for PR 1503, then merge to collect the bounded exact-host Liquid20 connectivity evidence.
 ---
 
 # WH09 end-to-end production evidence recovery
@@ -55,14 +55,14 @@ PR #1503 is the single current recovery PR. No separate runtime implementation P
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-12T13:24:00Z
-head: e0f7323ea5b7256dd726f32a9f4515ac24ba7f6c
+updated_at: 2026-08-12T13:31:00Z
+head: 490f45a4fef185b9f7e274b9e2886985f6516b21
 branch: codex/wh09-e2e-recovery-closeout-1396
 pr: 1503
-status: implementing
-phase: diagnose-liquid20-source-connectivity
+status: validating
+phase: validate-liquid20-source-connectivity-diagnostic
 execution_mode: github
-execution_reason: authenticated GitHub connector can mutate the owned PR branch and GitHub Actions provides the Synology runner validation path
+execution_reason: authenticated GitHub connector owns the PR branch and GitHub Actions is the canonical remote validation path
 context_pressure: medium
 context_growth: stable
 decomposition_decision: phased
@@ -78,7 +78,8 @@ proven:
   - Run 31596389251 failed because the candidate did not reach the public three-source connected readiness state.
   - Candidate discovery completed with Binance 524, Bybit 702 and OKX 431 subscription symbols while all public connected fields remained false.
   - Current persisted source state cannot expose the private pre-activation source connection set.
-  - Failure-only diagnostic added to PR 1503 uses the exact built image, no credentials or mounts, read-only/cap-drop/no-new-privileges controls, finite DNS/TLS/WebSocket/protocol bounds, sanitized error signatures, and artifact capture.
+  - PR 1503 adds a failure-only diagnostic using the exact built image, no credentials or mounts, read-only/cap-drop/no-new-privileges controls, finite DNS/TLS/WebSocket/protocol bounds, sanitized error signatures, and artifact capture.
+  - Focused static coverage asserts failure-only execution, bounds, hardening, exact-image identity, absence of credential names, sanitized error signatures, artifact upload, and compiles the embedded Python probe.
 derived:
   - The next exact-host diagnostic can distinguish DNS, TLS, WebSocket handshake and subscription-protocol failure without changing collector readiness or production state.
 unknown:
@@ -96,17 +97,23 @@ validation:
   - command: canonical Liquid20 deployment run 31596389251
     result: FAIL with new evidence
     evidence: heartbeat advanced; readiness failed at three-source connectivity; artifact 9141752696.
+  - command: GitHub Actions Security Analysis with zizmor on pre-checkpoint diagnostic head
+    result: PASS
+    evidence: run 31601549771 completed successfully for 490f45a4fef185b9f7e274b9e2886985f6516b21.
+  - command: exact-head PR CI and fresh independent review
+    result: PENDING
+    evidence: validation generation started after final checkpoint update.
 blockers: []
 anti_stall:
   invocation_started_at: 2026-08-12T13:10:00Z
-  last_progress_at: 2026-08-12T13:24:00Z
+  last_progress_at: 2026-08-12T13:31:00Z
   ci_checks_for_current_head: 0
-  unchanged_state_checks: 2
+  unchanged_state_checks: 0
   identical_failure_retries: 0
   repair_cycles_for_current_gate: 1
   context_reconstruction_attempts: 1
   stall_warnings: 0
-next_action: run focused and exact-head PR validation plus fresh review for the bounded diagnostic, then merge PR 1503 if all gates pass
+next_action: complete fresh review and exact-head CI for PR 1503, then merge if all gates pass
 ```
 
 ## Recovery checkpoint
@@ -114,16 +121,16 @@ next_action: run focused and exact-head PR validation plus fresh review for the 
 ```yaml
 recovery:
   policy_version: 1
-  generation: 3
+  generation: 4
   session_id: 20260812T131000Z-wh09-recovery-1396
-  phase: diagnose-liquid20-source-connectivity
-  exact_head: e0f7323ea5b7256dd726f32a9f4515ac24ba7f6c
+  phase: validate-liquid20-source-connectivity-diagnostic
+  pre_checkpoint_code_head: 490f45a4fef185b9f7e274b9e2886985f6516b21
   pull_request: 1503
   external_run_ids:
     - 31596389251
   operational_artifacts:
     - 9141752696
-  status: implementing
+  status: validating
   safe_to_resume: true
-  next_action: validate and review PR 1503 exact head, then merge to trigger the canonical Liquid20 deployment diagnostic
+  next_action: complete fresh review and exact-head CI, merge PR 1503 if green, then inspect the canonical deployment diagnostic artifact
 ```

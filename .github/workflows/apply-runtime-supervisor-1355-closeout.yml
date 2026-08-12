@@ -25,12 +25,12 @@ jobs:
       - name: Apply exact fresh-audit repairs
         shell: bash
         env:
-          EXPECTED_PARENT: 3d30cc6af9c05d068aa017b2a827e29b588f02fb
+          EXPECTED_PARENT: 811b88155961bd07bcbcd0a76d8e817267156f68
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
           test "$(git diff --name-only HEAD^..HEAD)" = ".github/workflows/apply-runtime-supervisor-1355-closeout.yml"
-          python tools/agents/apply_1355_final_closeout_findings.py
+          python tools/agents/run_1355_final_closeout_findings.py
 
           python -m pip install --disable-pip-version-check -q \
             pytest==9.1.1 ruff==0.15.21 mypy==2.3.0 \

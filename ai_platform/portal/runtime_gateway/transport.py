@@ -164,11 +164,13 @@ def _read_socket_frame(connection: socket.socket, limit: int, timeout_seconds: f
     while True:
         remaining = deadline - monotonic()
         if remaining <= 0:
-            raise GatewayError("REQUEST_TIMEOUT", "request did not complete within reviewed deadline")
+            raise GatewayError(
+                "REQUEST_TIMEOUT", "request did not complete within reviewed deadline"
+            )
         connection.settimeout(remaining)
         try:
             chunk = connection.recv(min(4096, limit + 2 - len(payload)))
-        except (TimeoutError, socket.timeout) as exc:
+        except TimeoutError as exc:
             raise GatewayError(
                 "REQUEST_TIMEOUT", "request did not complete within reviewed deadline"
             ) from exc
@@ -198,7 +200,7 @@ def _send_bounded(connection: socket.socket, payload: bytes, timeout_seconds: fl
         connection.settimeout(remaining)
         try:
             sent = connection.send(view)
-        except (TimeoutError, socket.timeout) as exc:
+        except TimeoutError as exc:
             raise GatewayError(
                 "RESPONSE_TIMEOUT", "response exceeded reviewed write deadline"
             ) from exc

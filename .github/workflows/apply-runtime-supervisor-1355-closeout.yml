@@ -25,7 +25,7 @@ jobs:
       - name: Apply exact fresh-audit repairs
         shell: bash
         env:
-          EXPECTED_PARENT: 811b88155961bd07bcbcd0a76d8e817267156f68
+          EXPECTED_PARENT: eb9ecc4875a43d5706508d06d33ae9ed4ecc9998
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"

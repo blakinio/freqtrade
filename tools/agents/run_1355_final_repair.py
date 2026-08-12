@@ -35,3 +35,16 @@ for obsolete in obsolete_blocks:
         raise SystemExit(f"expected obsolete replacement once, got {count}")
     source = source.replace(obsolete, "", 1)
 exec(compile(source, str(source_path), "exec"), {"__name__": "__main__"})
+
+path = Path("tests/ai_platform/portal/execution/test_driver.py")
+text = path.read_text(encoding="utf-8")
+marker = "\ndef test_current_generation_evidence_is_process_local_and_exact"
+if text.count(marker) != 1:
+    raise SystemExit("expected appended generation-evidence test exactly once")
+prefix, tail = text.split(marker, 1)
+old = "        external_attestor=_Attestor(),\n    )\n"
+new = "        external_attestor=_Attestor(),\n        gateway_attestor=_Attestor(),\n    )\n"
+if tail.count(old) != 1:
+    raise SystemExit(f"expected generation-evidence driver constructor once, got {tail.count(old)}")
+tail = tail.replace(old, new, 1)
+path.write_text(prefix + marker + tail, encoding="utf-8")

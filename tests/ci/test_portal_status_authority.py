@@ -150,21 +150,33 @@ def test_competing_current_authority_claims_are_discovered_fail_closed() -> None
     ]
 
     status_authority_true_paths: list[str] = []
+    authority_contract_paths: list[str] = []
     for path in _tracked_json_files():
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             continue
-        if isinstance(payload, dict) and payload.get("status_authority") is True:
-            status_authority_true_paths.append(path.relative_to(REPO_ROOT).as_posix())
+        if not isinstance(payload, dict):
+            continue
+        relative = path.relative_to(REPO_ROOT).as_posix()
+        if payload.get("status_authority") is True:
+            status_authority_true_paths.append(relative)
+        if (
+            payload.get("schema_version") == "portal-status-authority-v1"
+            or "implementation_authority" in payload
+            or "authority_grants" in payload
+        ):
+            authority_contract_paths.append(relative)
 
     assert status_authority_true_paths == [LEGACY_SNAPSHOT_PATH]
+    assert authority_contract_paths == [AUTHORITY_CONTRACT_PATH]
+    assert _load_json(AUTHORITY_PATH).get("authority_grants") == EXPECTED_AUTHORITY_GRANTS
 
     claim_paths: set[str] = set()
     for path in _text_files(PORTAL_DOC_ROOT):
         relative = path.relative_to(REPO_ROOT).as_posix()
-        lowered = path.read_text(encoding="utf-8").lower()
-        if any(phrase in lowered for phrase in CURRENT_AUTHORITY_CLAIM_PHRASES):
+        normalized = " ".join(path.read_text(encoding="utf-8").lower().split())
+        if any(phrase in normalized for phrase in CURRENT_AUTHORITY_CLAIM_PHRASES):
             claim_paths.add(relative)
 
     assert claim_paths

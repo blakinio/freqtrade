@@ -35,22 +35,3 @@ for obsolete in obsolete_blocks:
         raise SystemExit(f"expected obsolete replacement once, got {count}")
     source = source.replace(obsolete, "", 1)
 exec(compile(source, str(source_path), "exec"), {"__name__": "__main__"})
-
-driver_path = Path("ai_platform/portal/execution/driver.py")
-driver = driver_path.read_text(encoding="utf-8")
-old_one = "except Exception as exc:  # pragma: no cover - defensive adapter boundary"
-old_two = "except Exception as exc:  # pragma: no cover - concrete backends are unit-tested"
-for old, new in (
-    (
-        old_one,
-        "except Exception as exc:  # noqa: BLE001 - cleanup must aggregate adapter failures",
-    ),
-    (
-        old_two,
-        "except Exception as exc:  # noqa: BLE001 - cleanup must aggregate backend failures",
-    ),
-):
-    if driver.count(old) != 1:
-        raise SystemExit(f"expected cleanup guard once: {old}")
-    driver = driver.replace(old, new, 1)
-driver_path.write_text(driver, encoding="utf-8")

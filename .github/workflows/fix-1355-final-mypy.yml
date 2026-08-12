@@ -1,0 +1,59 @@
+name: Fix 1355 Final Mypy
+
+on:
+  push:
+    branches:
+      - codex/portal-runtime-supervisor-1355
+    paths:
+      - .github/workflows/fix-1355-final-mypy.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact task branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: codex/portal-runtime-supervisor-1355
+          fetch-depth: 2
+
+      - name: Apply exact typing-only repair
+        shell: bash
+        env:
+          EXPECTED_PARENT: d172c4b9dc2e7e5b4cecf3093649499d86153d32
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
+          test "$(git diff --name-only HEAD^..HEAD)" = ".github/workflows/fix-1355-final-mypy.yml"
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("tests/ai_platform/portal/execution/test_driver.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''        timeout = kwargs.get("timeout")
+          observed["timeout"] = timeout if isinstance(timeout, float) else None
+          raise subprocess.TimeoutExpired(cmd=["docker", "info"], timeout=float(timeout))
+'''
+          new = '''        timeout = kwargs.get("timeout")
+          if not isinstance(timeout, (int, float)):
+              raise AssertionError("subprocess timeout must be numeric")
+          observed["timeout"] = float(timeout)
+          raise subprocess.TimeoutExpired(cmd=["docker", "info"], timeout=float(timeout))
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f"expected exact mypy block once, got {text.count(old)}")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+          python -m pip install --disable-pip-version-check -q mypy==2.3.0 pytest==9.1.1
+          python -m mypy tests/ai_platform/portal/execution/test_driver.py
+          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform tests/ai_platform/portal/execution/test_driver.py
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tests/ai_platform/portal/execution/test_driver.py
+          git commit -m 'test(portal): type default runtime command timeout probe (#1355)'
+          git push origin HEAD:codex/portal-runtime-supervisor-1355

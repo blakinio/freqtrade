@@ -581,3 +581,33 @@ def test_command_lock_registry_does_not_retain_historical_command_ids() -> None:
         outcome = service.execute(request(SupervisorOperation.INSPECT_GENERATION))
         assert outcome.accepted
     assert len(service._command_locks) == 0
+
+
+@pytest.mark.parametrize("initial", [DriverRuntimeState.RUNNING, DriverRuntimeState.PAUSED])
+def test_restart_observed_active_runtime_reconstructs_before_provision_success(
+    initial: DriverRuntimeState,
+) -> None:
+    driver = Driver(initial, has_evidence=False)
+    outcome = RuntimeSupervisor(
+        Generations(generation()), driver, InMemoryCommandJournal()
+    ).execute(request(SupervisorOperation.ENSURE_PROVISIONED))
+    assert outcome.accepted and outcome.state is DriverRuntimeState.CREATED
+    assert driver.calls == ["inspect", "stop", "retire", "provision"]
+
+
+def test_same_session_running_is_reattested_before_provision_success() -> None:
+    driver = Driver(DriverRuntimeState.RUNNING, has_evidence=True)
+    outcome = RuntimeSupervisor(
+        Generations(generation()), driver, InMemoryCommandJournal()
+    ).execute(request(SupervisorOperation.ENSURE_PROVISIONED))
+    assert outcome.accepted and outcome.state is DriverRuntimeState.RUNNING
+    assert driver.calls == ["inspect", "start"]
+
+
+def test_same_session_paused_provision_remains_idempotent_with_exact_evidence() -> None:
+    driver = Driver(DriverRuntimeState.PAUSED, has_evidence=True)
+    outcome = RuntimeSupervisor(
+        Generations(generation()), driver, InMemoryCommandJournal()
+    ).execute(request(SupervisorOperation.ENSURE_PROVISIONED))
+    assert outcome.accepted and outcome.state is DriverRuntimeState.PAUSED
+    assert driver.calls == ["inspect"]

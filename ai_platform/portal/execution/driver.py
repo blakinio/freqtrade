@@ -559,7 +559,10 @@ class DockerCliRuntimeDriver:
         if current is DriverRuntimeState.PAUSED:
             return current
         if current is DriverRuntimeState.RUNNING:
-            self._require_success(("docker", "pause", runtime_id), "DOCKER_PAUSE_FAILED")
+            container_id = self._owned_container_id(runtime_id)
+            if container_id is None:
+                raise RuntimeDriverError("RUNTIME_MISSING", "runtime container does not exist")
+            self._require_success(("docker", "pause", container_id), "DOCKER_PAUSE_FAILED")
             return DriverRuntimeState.PAUSED
         if current is DriverRuntimeState.MISSING:
             raise RuntimeDriverError("RUNTIME_MISSING", "runtime container does not exist")
@@ -1179,11 +1182,11 @@ class DockerCliRuntimeDriver:
             remove = self._runner.run(("docker", "rm", "-f", runtime_id))
             if remove.returncode != 0 and "no such" not in remove.stderr.lower():
                 errors.append(remove.stderr.strip() or "docker container cleanup failed")
-        except Exception as exc:  # pragma: no cover - defensive adapter boundary
+        except Exception as exc:  # noqa: BLE001
             errors.append(f"docker container cleanup raised {type(exc).__name__}: {exc}")
         try:
             self._external.cleanup_network(network, runtime_id)
-        except Exception as exc:  # pragma: no cover - concrete backends are unit-tested
+        except Exception as exc:  # noqa: BLE001
             errors.append(f"network cleanup raised {type(exc).__name__}: {exc}")
         finally:
             self._clear_generation_evidence(runtime_id)

@@ -903,6 +903,32 @@ def test_pause_stop_and_unknown_state_are_fail_closed_or_idempotent() -> None:
     assert exc_info.value.reason_code == "DOCKER_STATE_UNKNOWN"
 
 
+def test_pause_preserves_foreign_container_reusing_runtime_name(tmp_path: Path) -> None:
+    spec = _spec(tmp_path)
+    runner = _Runner(
+        CommandResult(0, stdout="running\n"),
+        CommandResult(0),
+        CommandResult(0),
+        CommandResult(
+            0,
+            stdout=json.dumps(
+                {
+                    "Id": "foreign-container-id",
+                    "Config": {"Labels": {"ai.portal.runtime_id": "runtime-other"}},
+                }
+            ),
+        ),
+    )
+    driver = DockerCliRuntimeDriver(runner)
+    driver._specs[spec.runtime_id] = spec
+
+    with pytest.raises(RuntimeDriverError) as exc_info:
+        driver.pause("runtime-1")
+
+    assert exc_info.value.reason_code == "GENERATION_OWNERSHIP_CONFLICT"
+    assert all(call[:2] != ("docker", "pause") for call in runner.calls)
+
+
 def test_stop_preserves_foreign_container_reusing_runtime_name() -> None:
     runner = _Runner(
         CommandResult(0, stdout="running\n"),
@@ -1093,7 +1119,7 @@ def test_subprocess_runner_applies_finite_default_timeout(monkeypatch: pytest.Mo
         del args
         timeout = kwargs.get("timeout")
         if not isinstance(timeout, (int, float)):
-            raise AssertionError("subprocess timeout must be numeric")
+            raise TypeError("subprocess timeout must be numeric")
         observed["timeout"] = float(timeout)
         raise subprocess.TimeoutExpired(cmd=["docker", "info"], timeout=float(timeout))
 

@@ -128,16 +128,14 @@ def test_accept_loop_remains_responsive_while_other_lifecycle_handler_is_blocked
     )
     monkeypatch.setattr(server, "_validate_socket_root", lambda: socket.AF_UNIX)
     stop_event = threading.Event()
+    ready_event = threading.Event()
     thread = threading.Thread(
         target=server.serve_forever,
-        kwargs={"stop_event": stop_event},
+        kwargs={"stop_event": stop_event, "ready_event": ready_event},
         daemon=True,
     )
     thread.start()
-    for _ in range(100):
-        if path.exists():
-            break
-        time.sleep(0.01)
+    assert ready_event.wait(1)
     assert path.exists()
 
     first = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -219,7 +217,7 @@ def test_shutdown_is_bounded_and_retains_socket_for_hung_worker(
     def run_server() -> None:
         try:
             server.serve_forever(stop_event=stop_event)
-        except BaseException as exc:  # test captures the bounded transport failure
+        except Exception as exc:  # noqa: BLE001
             errors.append(exc)
 
     thread = threading.Thread(target=run_server, daemon=True)

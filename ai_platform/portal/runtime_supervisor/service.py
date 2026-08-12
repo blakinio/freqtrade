@@ -466,8 +466,18 @@ class RuntimeSupervisor:
                 self._driver.stop(spec.runtime_id)
                 self._driver.retire(spec.runtime_id)
                 return DriverRuntimeState.CREATED, self._driver.provision(spec)
-            if current in _ACTIVE_STATES and current is not DriverRuntimeState.STARTING:
-                return current, current
+            if current is DriverRuntimeState.RUNNING:
+                if self._driver.has_current_generation_evidence(spec.runtime_id, spec):
+                    return current, self._driver.start(spec.runtime_id)
+                self._driver.stop(spec.runtime_id)
+                self._driver.retire(spec.runtime_id)
+                return DriverRuntimeState.CREATED, self._driver.provision(spec)
+            if current is DriverRuntimeState.PAUSED:
+                if self._driver.has_current_generation_evidence(spec.runtime_id, spec):
+                    return current, current
+                self._driver.stop(spec.runtime_id)
+                self._driver.retire(spec.runtime_id)
+                return DriverRuntimeState.CREATED, self._driver.provision(spec)
             if current in {DriverRuntimeState.STOPPED, DriverRuntimeState.STARTING}:
                 if current is DriverRuntimeState.STARTING:
                     self._driver.stop(spec.runtime_id)

@@ -100,7 +100,12 @@ class UnixSocketSupervisorServer:
         outcome = self._supervisor.execute(request)
         connection.sendall(outcome.model_dump_json().encode() + b"\n")
 
-    def serve_forever(self, *, stop_event: threading.Event | None = None) -> None:
+    def serve_forever(
+        self,
+        *,
+        stop_event: threading.Event | None = None,
+        ready_event: threading.Event | None = None,
+    ) -> None:
         address_family = self._validate_socket_root()
         listener = socket.socket(address_family, socket.SOCK_STREAM)
         workers = ThreadPoolExecutor(
@@ -114,6 +119,8 @@ class UnixSocketSupervisorServer:
             self._path.chmod(0o660)
             listener.listen(self._max_inflight_connections)
             listener.settimeout(ACCEPT_POLL_SECONDS)
+            if ready_event is not None:
+                ready_event.set()
             self._accept_loop(listener, workers, inflight, stop_event)
         finally:
             listener.close()

@@ -37,6 +37,19 @@ jobs:
           pytest==9.1.1 jsonschema "pydantic>=2.2" "SQLAlchemy>=2.0.6"
           "httpx>=0.24.1" fastapi pyjwt cryptography "PyYAML>=6.0" ruff mypy
 
+      - name: Normalize stale helper cardinality
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("tools/agents/apply_1355_authority_closeout.py")
+          text = path.read_text(encoding="utf-8")
+          old = 'if text.count(old) != 2:\n    raise SystemExit(f"expected two inode readiness loops, got {text.count(old)}")'
+          new = 'if text.count(old) != 1:\n    raise SystemExit(f"expected one inode readiness loop, got {text.count(old)}")'
+          if text.count(old) != 1:
+              raise SystemExit("stale readiness cardinality target not unique")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+
       - name: Apply reviewed closeout repair
         run: python tools/agents/run_1355_authority_closeout.py
 

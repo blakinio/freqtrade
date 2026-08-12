@@ -28,6 +28,7 @@ EXPECTED_LEGACY_STATUS_PATHS = {
 LIVING_AUTHORITY_PATH = "tools/portal_audit/ledger/index.json"
 AUTHORITY_CONTRACT_PATH = "tools/portal_audit/ledger/status_authority.json"
 LEGACY_SNAPSHOT_PATH = "docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.json"
+WEB_SHELL_FOUNDATION_PATH = "docs/ai_platform/portal/WEB_SHELL_FOUNDATION.md"
 EXPECTED_LEGACY_AS_OF_SHA = "b39b29c3e831ba491aa3376e5de86a8c09e2b537"
 EXPECTED_LEGACY_GIT_BLOB_SHA = "4893b73ef020621529612192ff942fef79fb3cfc"
 CURRENT_AUTHORITY_MARKER_PREFIX = "<!-- portal-current-status-authority:"
@@ -58,6 +59,7 @@ CURRENT_AUTHORITY_CLAIM_PHRASES = (
     "current status is defined only by",
     "current work selection is derived from",
     "completeness is defined only by",
+    "is authoritative in",
     "only active completeness-status authority",
     "sole current exact-head implementation inventory",
 )
@@ -187,6 +189,12 @@ def test_competing_current_authority_claims_are_discovered_fail_closed() -> None
         normalized = " ".join(text.split())
         assert LIVING_AUTHORITY_PATH in text
         assert "compatibility metadata" in normalized
+
+    web_shell = (REPO_ROOT / WEB_SHELL_FOUNDATION_PATH).read_text(encoding="utf-8")
+    web_shell_normalized = " ".join(web_shell.lower().split())
+    assert LIVING_AUTHORITY_PATH in web_shell
+    assert "compatibility/read-model roll-up" in web_shell_normalized
+    assert "is authoritative in" not in web_shell_normalized
 
 
 def test_all_legacy_status_surfaces_are_classified_and_non_authoritative() -> None:

@@ -172,8 +172,9 @@ def test_competing_current_authority_claims_are_discovered_fail_closed() -> None
     assert RECONCILED_LEGACY_CLAIM_PATHS <= claim_paths
     for relative in RECONCILED_LEGACY_CLAIM_PATHS:
         text = (REPO_ROOT / relative).read_text(encoding="utf-8")
+        normalized = " ".join(text.split())
         assert LIVING_AUTHORITY_PATH in text
-        assert "compatibility metadata" in text
+        assert "compatibility metadata" in normalized
 
 
 def test_all_legacy_status_surfaces_are_classified_and_non_authoritative() -> None:

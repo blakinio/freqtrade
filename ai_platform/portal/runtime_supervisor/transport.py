@@ -57,8 +57,7 @@ class UnixSocketSupervisorServer:
         if not path.is_absolute() and not normalized_path.startswith("/"):
             raise ValueError("supervisor socket path must be absolute")
         if (
-            not approved_root.is_absolute()
-            and not normalized_root.startswith("/")
+            not approved_root.is_absolute() and not normalized_root.startswith("/")
         ) or normalized_path.rsplit("/", 1)[0] != normalized_root.rstrip("/"):
             raise ValueError("supervisor socket must be directly under the approved root")
         if not allowed_peer_uids or any(uid < 0 for uid in allowed_peer_uids):

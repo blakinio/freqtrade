@@ -158,13 +158,16 @@ def test_retired_generation_cannot_be_provisioned_or_started() -> None:
 def test_non_paper_generation_fails_closed_before_engine_access() -> None:
     candidate = generation()
     candidate = SupervisorGeneration(
-        **{**candidate.__dict__, "execution_mode": ExecutionMode.SIMULATED,
-           "paper_authorized": False}
+        **{
+            **candidate.__dict__,
+            "execution_mode": ExecutionMode.SIMULATED,
+            "paper_authorized": False,
+        }
     )
     driver = Driver()
-    outcome = RuntimeSupervisor(
-        Generations(candidate), driver, InMemoryCommandJournal()
-    ).execute(request())
+    outcome = RuntimeSupervisor(Generations(candidate), driver, InMemoryCommandJournal()).execute(
+        request()
+    )
     assert outcome.code is SupervisorOutcomeCode.PAPER_AUTHORIZATION_REQUIRED
     assert driver.calls == []
 
@@ -294,12 +297,10 @@ def test_bounded_operations(
     calls: list[str],
 ) -> None:
     driver = Driver(initial)
-    candidate = generation(
-        retirement_authorized=operation is SupervisorOperation.ENSURE_RETIRED
+    candidate = generation(retirement_authorized=operation is SupervisorOperation.ENSURE_RETIRED)
+    outcome = RuntimeSupervisor(Generations(candidate), driver, InMemoryCommandJournal()).execute(
+        request(operation)
     )
-    outcome = RuntimeSupervisor(
-        Generations(candidate), driver, InMemoryCommandJournal()
-    ).execute(request(operation))
     assert outcome.accepted and outcome.state is expected
     assert driver.calls == calls
 

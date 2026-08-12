@@ -145,7 +145,8 @@ class SqliteCommandJournal:
         with self._lock, self._connect() as connection:
             row = connection.execute(
                 "SELECT generation_id FROM supervisor_active_generations "
-                "WHERE tenant_id = ? AND bot_id = ?", (tenant_id, bot_id)
+                "WHERE tenant_id = ? AND bot_id = ?",
+                (tenant_id, bot_id),
             ).fetchone()
         return None if row is None else str(row[0])
 
@@ -154,7 +155,8 @@ class SqliteCommandJournal:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
                 "SELECT generation_id FROM supervisor_active_generations "
-                "WHERE tenant_id = ? AND bot_id = ?", (tenant_id, bot_id)
+                "WHERE tenant_id = ? AND bot_id = ?",
+                (tenant_id, bot_id),
             ).fetchone()
             if row is not None and row[0] != generation_id:
                 return False
@@ -169,7 +171,8 @@ class SqliteCommandJournal:
         with self._lock, self._connect() as connection:
             connection.execute(
                 "DELETE FROM supervisor_active_generations WHERE tenant_id = ? "
-                "AND bot_id = ? AND generation_id = ?", (tenant_id, bot_id, generation_id)
+                "AND bot_id = ? AND generation_id = ?",
+                (tenant_id, bot_id, generation_id),
             )
 
 
@@ -243,7 +246,10 @@ class RuntimeSupervisor:
             or not generation.paper_authorized
         ):
             return self._outcome(
-                request, SupervisorOutcomeCode.PAPER_AUTHORIZATION_REQUIRED, False, None,
+                request,
+                SupervisorOutcomeCode.PAPER_AUTHORIZATION_REQUIRED,
+                False,
+                None,
                 generation.state_version,
             )
         if (
@@ -273,7 +279,10 @@ class RuntimeSupervisor:
             and not generation.retirement_authorized
         ):
             return self._outcome(
-                request, SupervisorOutcomeCode.RETIREMENT_NOT_AUTHORIZED, False, None,
+                request,
+                SupervisorOutcomeCode.RETIREMENT_NOT_AUTHORIZED,
+                False,
+                None,
                 generation.state_version,
             )
 
@@ -303,8 +312,11 @@ class RuntimeSupervisor:
                     request.tenant_id, request.bot_id, request.generation_id
                 ):
                     return self._outcome(
-                        request, SupervisorOutcomeCode.CONFLICTING_GENERATION_ACTIVE, False,
-                        current, generation.state_version,
+                        request,
+                        SupervisorOutcomeCode.CONFLICTING_GENERATION_ACTIVE,
+                        False,
+                        current,
+                        generation.state_version,
                     )
             target, state = self._apply(request.operation, generation.container_spec, current)
             if request.operation in {

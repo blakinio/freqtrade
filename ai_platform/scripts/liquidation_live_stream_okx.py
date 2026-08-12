@@ -192,29 +192,44 @@ class OkxLiveRunManager(LiveRunManager):
         self._write_okx_snapshot(directory_fd=run_fd)
 
     async def connected(self, source: str) -> None:
-        if self._startup_activation_complete:
-            await super().connected(source)
-            return
         async with self._lock:
             if source not in REQUIRED_LIVE_SOURCES:
                 raise ValueError("unsupported live liquidation source")
-            self._startup_connected_sources.add(source)
             state = self.sources[source]
             state.last_heartbeat_at_ms = self._now_ms()
             state.latest_error = None
-            if self._startup_connected_sources == REQUIRED_LIVE_SOURCES:
-                activated_at_ms = self._now_ms()
-                for item in self.sources.values():
-                    item.connected = True
-                    item.last_heartbeat_at_ms = activated_at_ms
-                    item.latest_error = None
-                self._startup_activation_complete = True
+            if self._startup_activation_complete:
+                state.connected = True
+                await asyncio.to_thread(self._write_state)
+                return
+
+            self._startup_connected_sources.add(source)
+            if self._startup_connected_sources != REQUIRED_LIVE_SOURCES:
+                return
+
+            activated_at_ms = self._now_ms()
+            for item in self.sources.values():
+                item.connected = True
+                item.last_heartbeat_at_ms = activated_at_ms
+                item.latest_error = None
+            self._startup_activation_complete = True
             await asyncio.to_thread(self._write_state)
 
     async def disconnected(self, source: str, error: BaseException | str | None) -> None:
-        if not self._startup_activation_complete:
-            self._startup_connected_sources.discard(source)
-        await super().disconnected(source, error)
+        async with self._lock:
+            if source not in REQUIRED_LIVE_SOURCES:
+                raise ValueError("unsupported live liquidation source")
+            if not self._startup_activation_complete:
+                self._startup_connected_sources.discard(source)
+            state = self.sources[source]
+            state.connected = False
+            state.reconnect_count += 1
+            state.last_heartbeat_at_ms = self._now_ms()
+            planned = error == "subscription universe refresh"
+            if not planned:
+                state.error_count += 1
+            state.latest_error = None if planned else str(error)[:500] if error is not None else None
+            await asyncio.to_thread(self._write_state)
 
     async def set_okx_instruments(
         self,

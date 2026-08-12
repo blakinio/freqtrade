@@ -27,401 +27,200 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          op = Path('ai_platform/wickhunter/candidate_paper_runtime_operator.py')
-          text = op.read_text()
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected exactly one anchor, found {count}")
+              return text.replace(old, new, 1)
 
-          old = '''def _fixed_timestamp(value: int) -> Callable[[], int]:
-              def timestamp() -> int:
-                  return value
+          op = Path("ai_platform/wickhunter/candidate_paper_runtime_operator.py")
+          text = op.read_text(encoding="utf-8")
 
-              return timestamp
+          marker = "\ndef _read_committed_jsonl_tail(  # noqa: C901\n"
+          helper = '''
 
+def _legacy_restart_source_summaries_match(
+    run_root: Path,
+    *,
+    run_id: str,
+    source_payloads: dict[str, Any],
+) -> bool:
+    for source in ("bybit-linear", "binance-usdm"):
+        try:
+            summary = _read_bounded_json(
+                run_root / f"{source}-summary.json",
+                field=f"Liquid20 legacy source summary {source}",
+            )
+        except CandidatePaperRuntimeOperatorError:
+            return False
+        source_identity = summary.get("source")
+        if not isinstance(source_identity, dict) or source_identity.get("id") != source:
+            return False
+        if (
+            summary.get("schema_version") != 1
+            or summary.get("run_id") != run_id
+            or summary.get("run_state") != "active"
+            or summary.get("trading_credentials_present") is not False
+            or summary.get("execution_enabled") is not False
+            or summary.get("stats") != source_payloads.get(source)
+        ):
+            return False
+    return True
+'''
+          text = replace_once(text, marker, helper + marker, "legacy provenance helper")
 
-          def _read_committed_jsonl_tail(  # noqa: C901
-          '''
-          new = '''def _fixed_timestamp(value: int) -> Callable[[], int]:
-              def timestamp() -> int:
-                  return value
+          text = replace_once(
+              text,
+              "    suffix_available_at_ms: Callable[[], int],\n    validated_event_ids: set[str],\n) -> tuple[dict[str, Any], ...]:\n",
+              "    suffix_available_at_ms: Callable[[], int],\n    validated_event_ids: set[str],\n    require_suffix_checkpoint: bool = False,\n    suffix_checkpoint: tuple[int, int] | None = None,\n) -> tuple[dict[str, Any], ...]:\n",
+              "tail signature",
+          )
+          text = replace_once(
+              text,
+              "    previous_received_at_ms: int | None = None\n    try:\n",
+              "    previous_received_at_ms: int | None = None\n    last_committed_event: LiquidationEvent | None = None\n    try:\n",
+              "last committed state",
+          )
+          text = replace_once(
+              text,
+              "                    validated_event_ids.add(event.source_event_id)\n                    previous_received_at_ms = event.received_at_ms\n                    rows.append(row)\n",
+              "                    validated_event_ids.add(event.source_event_id)\n                    previous_received_at_ms = event.received_at_ms\n                    last_committed_event = event\n                    rows.append(row)\n",
+              "last committed assignment",
+          )
+          text = replace_once(
+              text,
+              "                if not allow_uncommitted_suffix:\n                    raise CandidatePaperRuntimeOperatorError(f\"{field} contradicts events_written\")\n                if suffix_seen > MAX_UNCOMMITTED_LIVE_EVENTS:\n",
+              "                if not allow_uncommitted_suffix:\n                    raise CandidatePaperRuntimeOperatorError(f\"{field} contradicts events_written\")\n                if suffix_seen == 1 and require_suffix_checkpoint:\n                    if last_committed_event is None or suffix_checkpoint is None:\n                        raise CandidatePaperRuntimeOperatorError(\n                            f\"{field} legacy suffix has no committed checkpoint\"\n                        )\n                    expected_occurred_at_ms, expected_received_at_ms = suffix_checkpoint\n                    if (\n                        last_committed_event.occurred_at_ms != expected_occurred_at_ms\n                        or last_committed_event.received_at_ms != expected_received_at_ms\n                    ):\n                        raise CandidatePaperRuntimeOperatorError(\n                            f\"{field} committed prefix does not match the persisted checkpoint\"\n                        )\n                if suffix_seen > MAX_UNCOMMITTED_LIVE_EVENTS:\n",
+              "suffix checkpoint validation",
+          )
 
-              return timestamp
+          text = replace_once(
+              text,
+              "    history_start_ms: int,\n    allow_uncommitted_suffix: bool,\n    validated_event_ids: set[str],\n) -> tuple[LiquidationEvent, ...]:\n",
+              "    history_start_ms: int,\n    allow_uncommitted_suffix: bool,\n    require_legacy_suffix_checkpoint: bool,\n    validated_event_ids: set[str],\n) -> tuple[LiquidationEvent, ...]:\n",
+              "source reader signature",
+          )
+          text = replace_once(
+              text,
+              "    event_rows = _read_committed_jsonl_tail(\n        event_path,\n        field=f\"Liquid20 source events {source}\",\n        committed_rows=events_written,\n        allow_uncommitted_suffix=allow_uncommitted_suffix and configured,\n        source=source,\n        observed_at_ms=observed_at_ms,\n        suffix_available_at_ms=suffix_available_at_ms,\n        validated_event_ids=validated_event_ids,\n    )\n",
+              "    suffix_checkpoint: tuple[int, int] | None = None\n    if require_legacy_suffix_checkpoint and events_written > 0:\n        suffix_checkpoint = (\n            _integer(source_row.get(\"last_event_at_ms\"), field=f\"{source} last event occurrence\"),\n            _integer(\n                source_row.get(\"last_event_received_at_ms\"),\n                field=f\"{source} last event receipt\",\n            ),\n        )\n    event_rows = _read_committed_jsonl_tail(\n        event_path,\n        field=f\"Liquid20 source events {source}\",\n        committed_rows=events_written,\n        allow_uncommitted_suffix=allow_uncommitted_suffix and configured,\n        source=source,\n        observed_at_ms=observed_at_ms,\n        suffix_available_at_ms=suffix_available_at_ms,\n        validated_event_ids=validated_event_ids,\n        require_suffix_checkpoint=require_legacy_suffix_checkpoint,\n        suffix_checkpoint=suffix_checkpoint,\n    )\n",
+              "source reader checkpoint call",
+          )
 
+          text = replace_once(
+              text,
+              "        allow_legacy_restart_suffix = (\n            expected_state == \"completed\"\n            and run_state.get(\"completion_reason\") == \"collector-restart\"\n        )\n        run_suffix_available_at_ms = suffix_available_at_ms\n        if allow_legacy_restart_suffix:\n            completion_boundary_ms = _integer(\n                run_state.get(\"collector_heartbeat_at_ms\"),\n                field=f\"Liquid20 completed run heartbeat {historical_run_id}\",\n            )\n            if completion_boundary_ms > observed_at_ms:\n                raise CandidatePaperRuntimeOperatorError(\n                    \"Liquid20 completed run heartbeat is from the future\"\n                )\n            run_suffix_available_at_ms = _fixed_timestamp(completion_boundary_ms)\n",
+              "        allow_legacy_restart_suffix = (\n            expected_state == \"completed\"\n            and run_state.get(\"completion_reason\") == \"collector-restart\"\n            and _legacy_restart_source_summaries_match(\n                run_root,\n                run_id=historical_run_id,\n                source_payloads=run_source_payloads,\n            )\n        )\n        run_suffix_available_at_ms = suffix_available_at_ms\n        if allow_legacy_restart_suffix:\n            completion_boundary_ms = _integer(\n                run_state.get(\"completed_at_ms\"),\n                field=f\"Liquid20 completed run completion {historical_run_id}\",\n            )\n            heartbeat_boundary_ms = _integer(\n                run_state.get(\"collector_heartbeat_at_ms\"),\n                field=f\"Liquid20 completed run heartbeat {historical_run_id}\",\n            )\n            if completion_boundary_ms < heartbeat_boundary_ms:\n                raise CandidatePaperRuntimeOperatorError(\n                    \"Liquid20 completed run completion precedes its heartbeat\"\n                )\n            if completion_boundary_ms > observed_at_ms:\n                raise CandidatePaperRuntimeOperatorError(\n                    \"Liquid20 completed run completion is from the future\"\n                )\n            run_suffix_available_at_ms = _fixed_timestamp(completion_boundary_ms)\n",
+              "legacy time/provenance boundary",
+          )
+          text = replace_once(
+              text,
+              "                    allow_uncommitted_suffix=(\n                        historical_run_id == run_id or allow_legacy_restart_suffix\n                    ),\n                    validated_event_ids=validated_event_ids,\n",
+              "                    allow_uncommitted_suffix=(\n                        historical_run_id == run_id or allow_legacy_restart_suffix\n                    ),\n                    require_legacy_suffix_checkpoint=allow_legacy_restart_suffix,\n                    validated_event_ids=validated_event_ids,\n",
+              "legacy checkpoint call",
+          )
+          op.write_text(text, encoding="utf-8")
 
-          def _legacy_restart_source_summaries_match(
-              run_root: Path,
-              *,
-              run_id: str,
-              source_payloads: dict[str, Any],
-          ) -> bool:
-              for source in EXPECTED_LIVE_SOURCES:
-                  summary_path = run_root / f"{source}-summary.json"
-                  try:
-                      summary = _read_bounded_json(
-                          summary_path,
-                          field=f"Liquid20 legacy source summary {source}",
-                      )
-                  except CandidatePaperRuntimeOperatorError:
-                      return False
-                  source_identity = summary.get("source")
-                  if not isinstance(source_identity, dict) or source_identity.get("id") != source:
-                      return False
-                  if (
-                      summary.get("schema_version") != 1
-                      or summary.get("run_id") != run_id
-                      or summary.get("run_state") != "active"
-                      or summary.get("trading_credentials_present") is not False
-                      or summary.get("execution_enabled") is not False
-                      or summary.get("stats") != source_payloads.get(source)
-                  ):
-                      return False
-              return True
+          tests = Path("tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py")
+          text = tests.read_text(encoding="utf-8")
+          text = replace_once(
+              text,
+              "        sources[source] = {\n            \"configured\": True,\n            \"connected\": run_state == \"active\",\n            \"events_written\": len(source_events),\n            \"last_event_received_at_ms\": last_received,\n",
+              "        last_occurred = (\n            int(cast(int | str, source_events[-1][\"occurred_at_ms\"]))\n            if source_events\n            else None\n        )\n        sources[source] = {\n            \"configured\": True,\n            \"connected\": run_state == \"active\",\n            \"events_written\": len(source_events),\n            \"last_event_at_ms\": last_occurred,\n            \"last_event_received_at_ms\": last_received,\n",
+              "test source occurrence checkpoint",
+          )
+          text = replace_once(
+              text,
+              "    state[\"completion_reason\"] = completion_reason\n    source_state = cast(dict[str, object], state[\"sources\"])[\"binance-usdm\"]\n    assert isinstance(source_state, dict)\n    source_state[\"events_written\"] = 1\n    source_state[\"last_event_received_at_ms\"] = committed[\"received_at_ms\"]\n    state_path.write_text(json.dumps(state, sort_keys=True) + \"\\n\", encoding=\"utf-8\")\n    return live_root, previous_root, state\n",
+              "    state[\"completion_reason\"] = completion_reason\n    state[\"completed_at_ms\"] = NOW_MS - 20_000\n    source_payloads = cast(dict[str, object], state[\"sources\"])\n    source_state = source_payloads[\"binance-usdm\"]\n    assert isinstance(source_state, dict)\n    source_state[\"events_written\"] = 1\n    source_state[\"last_event_at_ms\"] = committed[\"occurred_at_ms\"]\n    source_state[\"last_event_received_at_ms\"] = committed[\"received_at_ms\"]\n    for source in (\"bybit-linear\", \"binance-usdm\"):\n        source_row = source_payloads[source]\n        assert isinstance(source_row, dict)\n        source_row[\"connected\"] = True\n        summary = {\n            \"schema_version\": 1,\n            \"source\": {\"id\": source},\n            \"run_id\": state[\"run_id\"],\n            \"run_state\": \"active\",\n            \"stats\": source_row,\n            \"trading_credentials_present\": False,\n            \"execution_enabled\": False,\n        }\n        (previous_root / f\"{source}-summary.json\").write_text(\n            json.dumps(summary, sort_keys=True) + \"\\n\",\n            encoding=\"utf-8\",\n        )\n    state_path.write_text(json.dumps(state, sort_keys=True) + \"\\n\", encoding=\"utf-8\")\n    return live_root, previous_root, state\n",
+              "legacy test fixture",
+          )
 
+          anchor = "def test_live_root_rejects_legacy_restart_suffix_after_completion_boundary(\n"
+          additions = '''def test_live_root_accepts_legacy_suffix_after_heartbeat_before_completion(
+    tmp_path: Path,
+) -> None:
+    suffix = _event("legacy-after-heartbeat", received_at_ms=NOW_MS - 30_000)
+    root, _, _ = _write_legacy_restart_suffix_root(
+        tmp_path / "legacy-after-heartbeat",
+        suffix=suffix,
+    )
 
-          def _read_committed_jsonl_tail(  # noqa: C901
-          '''
-          if old not in text:
-              raise SystemExit('helper anchor not found')
-          text = text.replace(old, new, 1)
+    snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS)
 
-          old = '''    suffix_available_at_ms: Callable[[], int],
-              validated_event_ids: set[str],
-          ) -> tuple[dict[str, Any], ...]:
-          '''
-          new = '''    suffix_available_at_ms: Callable[[], int],
-              validated_event_ids: set[str],
-              suffix_checkpoint: tuple[int, int] | None = None,
-          ) -> tuple[dict[str, Any], ...]:
-          '''
-          if old not in text:
-              raise SystemExit('signature anchor not found')
-          text = text.replace(old, new, 1)
-
-          old = '''    previous_received_at_ms: int | None = None
-              try:
-          '''
-          new = '''    previous_received_at_ms: int | None = None
-              last_committed_event: LiquidationEvent | None = None
-              try:
-          '''
-          if old not in text:
-              raise SystemExit('last committed anchor not found')
-          text = text.replace(old, new, 1)
-
-          old = '''                validated_event_ids.add(event.source_event_id)
-                      previous_received_at_ms = event.received_at_ms
-                      rows.append(row)
-          '''
-          new = '''                validated_event_ids.add(event.source_event_id)
-                      previous_received_at_ms = event.received_at_ms
-                      last_committed_event = event
-                      rows.append(row)
-          '''
-          if old not in text:
-              raise SystemExit('committed event anchor not found')
-          text = text.replace(old, new, 1)
-
-          old = '''            suffix_seen += 1
-                  if not allow_uncommitted_suffix:
-                      raise CandidatePaperRuntimeOperatorError(f"{field} contradicts events_written")
-                  if suffix_seen > MAX_UNCOMMITTED_LIVE_EVENTS:
-          '''
-          new = '''            suffix_seen += 1
-                  if not allow_uncommitted_suffix:
-                      raise CandidatePaperRuntimeOperatorError(f"{field} contradicts events_written")
-                  if suffix_seen == 1 and suffix_checkpoint is not None:
-                      if last_committed_event is None:
-                          raise CandidatePaperRuntimeOperatorError(
-                              f"{field} legacy suffix has no committed checkpoint"
-                          )
-                      expected_occurred_at_ms, expected_received_at_ms = suffix_checkpoint
-                      if (
-                          last_committed_event.occurred_at_ms != expected_occurred_at_ms
-                          or last_committed_event.received_at_ms != expected_received_at_ms
-                      ):
-                          raise CandidatePaperRuntimeOperatorError(
-                              f"{field} committed prefix does not match the persisted checkpoint"
-                          )
-                  if suffix_seen > MAX_UNCOMMITTED_LIVE_EVENTS:
-          '''
-          if old not in text:
-              raise SystemExit('suffix checkpoint anchor not found')
-          text = text.replace(old, new, 1)
-
-          old = '''    allow_uncommitted_suffix: bool,
-              validated_event_ids: set[str],
-          ) -> tuple[LiquidationEvent, ...]:
-          '''
-          new = '''    allow_uncommitted_suffix: bool,
-              require_legacy_suffix_checkpoint: bool,
-              validated_event_ids: set[str],
-          ) -> tuple[LiquidationEvent, ...]:
-          '''
-          if old not in text:
-              raise SystemExit('live source signature anchor not found')
-          text = text.replace(old, new, 1)
-
-          old = '''    event_rows = _read_committed_jsonl_tail(
-                  event_path,
-                  field=f"Liquid20 source events {source}",
-                  committed_rows=events_written,
-                  allow_uncommitted_suffix=allow_uncommitted_suffix and configured,
-                  source=source,
-                  observed_at_ms=observed_at_ms,
-                  suffix_available_at_ms=suffix_available_at_ms,
-                  validated_event_ids=validated_event_ids,
-              )
-          '''
-          new = '''    suffix_checkpoint: tuple[int, int] | None = None
-              if require_legacy_suffix_checkpoint and events_written > 0:
-                  suffix_checkpoint = (
-                      _integer(
-                          source_row.get("last_event_at_ms"),
-                          field=f"{source} last event occurrence",
-                      ),
-                      _integer(
-                          source_row.get("last_event_received_at_ms"),
-                          field=f"{source} last event receipt",
-                      ),
-                  )
-              event_rows = _read_committed_jsonl_tail(
-                  event_path,
-                  field=f"Liquid20 source events {source}",
-                  committed_rows=events_written,
-                  allow_uncommitted_suffix=allow_uncommitted_suffix and configured,
-                  source=source,
-                  observed_at_ms=observed_at_ms,
-                  suffix_available_at_ms=suffix_available_at_ms,
-                  validated_event_ids=validated_event_ids,
-                  suffix_checkpoint=suffix_checkpoint,
-              )
-          '''
-          if old not in text:
-              raise SystemExit('read tail call anchor not found')
-          text = text.replace(old, new, 1)
-
-          old = '''        allow_legacy_restart_suffix = (
-                  expected_state == "completed"
-                  and run_state.get("completion_reason") == "collector-restart"
-              )
-              run_suffix_available_at_ms = suffix_available_at_ms
-              if allow_legacy_restart_suffix:
-                  completion_boundary_ms = _integer(
-                      run_state.get("collector_heartbeat_at_ms"),
-                      field=f"Liquid20 completed run heartbeat {historical_run_id}",
-                  )
-                  if completion_boundary_ms > observed_at_ms:
-                      raise CandidatePaperRuntimeOperatorError(
-                          "Liquid20 completed run heartbeat is from the future"
-                      )
-                  run_suffix_available_at_ms = _fixed_timestamp(completion_boundary_ms)
-          '''
-          new = '''        allow_legacy_restart_suffix = (
-                  expected_state == "completed"
-                  and run_state.get("completion_reason") == "collector-restart"
-                  and _legacy_restart_source_summaries_match(
-                      run_root,
-                      run_id=historical_run_id,
-                      source_payloads=run_source_payloads,
-                  )
-              )
-              run_suffix_available_at_ms = suffix_available_at_ms
-              if allow_legacy_restart_suffix:
-                  completion_boundary_ms = _integer(
-                      run_state.get("completed_at_ms"),
-                      field=f"Liquid20 completed run completion {historical_run_id}",
-                  )
-                  heartbeat_boundary_ms = _integer(
-                      run_state.get("collector_heartbeat_at_ms"),
-                      field=f"Liquid20 completed run heartbeat {historical_run_id}",
-                  )
-                  if completion_boundary_ms < heartbeat_boundary_ms:
-                      raise CandidatePaperRuntimeOperatorError(
-                          "Liquid20 completed run completion precedes its heartbeat"
-                      )
-                  if completion_boundary_ms > observed_at_ms:
-                      raise CandidatePaperRuntimeOperatorError(
-                          "Liquid20 completed run completion is from the future"
-                      )
-                  run_suffix_available_at_ms = _fixed_timestamp(completion_boundary_ms)
-          '''
-          if old not in text:
-              raise SystemExit('legacy boundary anchor not found')
-          text = text.replace(old, new, 1)
-
-          old = '''                    allow_uncommitted_suffix=(
-                          historical_run_id == run_id or allow_legacy_restart_suffix
-                      ),
-                      validated_event_ids=validated_event_ids,
-          '''
-          new = '''                    allow_uncommitted_suffix=(
-                          historical_run_id == run_id or allow_legacy_restart_suffix
-                      ),
-                      require_legacy_suffix_checkpoint=allow_legacy_restart_suffix,
-                      validated_event_ids=validated_event_ids,
-          '''
-          if old not in text:
-              raise SystemExit('call checkpoint anchor not found')
-          text = text.replace(old, new, 1)
-          op.write_text(text)
-
-          tests = Path('tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py')
-          text = tests.read_text()
-
-          old = '''        last_received = (
-                  max(int(cast(int | str, item["received_at_ms"])) for item in source_events)
-                  if source_events
-                  else None
-              )
-              sources[source] = {
-                  "configured": True,
-                  "connected": run_state == "active",
-                  "events_written": len(source_events),
-                  "last_event_received_at_ms": last_received,
-          '''
-          new = '''        last_received = (
-                  max(int(cast(int | str, item["received_at_ms"])) for item in source_events)
-                  if source_events
-                  else None
-              )
-              last_occurred = (
-                  max(int(cast(int | str, item["occurred_at_ms"])) for item in source_events)
-                  if source_events
-                  else None
-              )
-              sources[source] = {
-                  "configured": True,
-                  "connected": run_state == "active",
-                  "events_written": len(source_events),
-                  "last_event_at_ms": last_occurred,
-                  "last_event_received_at_ms": last_received,
-          '''
-          if old not in text:
-              raise SystemExit('test source checkpoint anchor not found')
-          text = text.replace(old, new, 1)
-
-          old = '''    state["completion_reason"] = completion_reason
-              source_state = cast(dict[str, object], state["sources"])["binance-usdm"]
-              assert isinstance(source_state, dict)
-              source_state["events_written"] = 1
-              source_state["last_event_received_at_ms"] = committed["received_at_ms"]
-              state_path.write_text(json.dumps(state, sort_keys=True) + "\\n", encoding="utf-8")
-              return live_root, previous_root, state
-          '''
-          new = '''    state["completion_reason"] = completion_reason
-              state["completed_at_ms"] = NOW_MS - 20_000
-              source_payloads = cast(dict[str, object], state["sources"])
-              source_state = source_payloads["binance-usdm"]
-              assert isinstance(source_state, dict)
-              source_state["events_written"] = 1
-              source_state["last_event_at_ms"] = committed["occurred_at_ms"]
-              source_state["last_event_received_at_ms"] = committed["received_at_ms"]
-              for source in operator_module.EXPECTED_LIVE_SOURCES:
-                  source_row = source_payloads[source]
-                  assert isinstance(source_row, dict)
-                  source_row["connected"] = True
-                  summary = {
-                      "schema_version": 1,
-                      "source": {"id": source},
-                      "run_id": state["run_id"],
-                      "run_state": "active",
-                      "stats": source_row,
-                      "trading_credentials_present": False,
-                      "execution_enabled": False,
-                  }
-                  (previous_root / f"{source}-summary.json").write_text(
-                      json.dumps(summary, sort_keys=True) + "\\n",
-                      encoding="utf-8",
-                  )
-              state_path.write_text(json.dumps(state, sort_keys=True) + "\\n", encoding="utf-8")
-              return live_root, previous_root, state
-          '''
-          if old not in text:
-              raise SystemExit('legacy helper anchor not found')
-          text = text.replace(old, new, 1)
-
-          anchor = '''def test_live_root_rejects_legacy_restart_suffix_after_completion_boundary(
-              tmp_path: Path,
-          ) -> None:
-          '''
-          insertion = '''def test_live_root_accepts_legacy_suffix_after_heartbeat_before_completion(
-              tmp_path: Path,
-          ) -> None:
-              suffix = _event("legacy-after-heartbeat", received_at_ms=NOW_MS - 30_000)
-              root, _, _ = _write_legacy_restart_suffix_root(
-                  tmp_path / "legacy-after-heartbeat",
-                  suffix=suffix,
-              )
-
-              snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS)
-
-              assert "legacy-after-heartbeat" not in {event.source_event_id for event in snapshot.events}
+    assert "legacy-after-heartbeat" not in {event.source_event_id for event in snapshot.events}
 
 
-          def test_live_root_rejects_modern_restart_suffix_without_legacy_summary_provenance(
-              tmp_path: Path,
-          ) -> None:
-              root, previous_root, _ = _write_legacy_restart_suffix_root(
-                  tmp_path / "modern-restart-mutation"
-              )
-              for source in operator_module.EXPECTED_LIVE_SOURCES:
-                  summary_path = previous_root / f"{source}-summary.json"
-                  summary = json.loads(summary_path.read_text(encoding="utf-8"))
-                  summary["run_state"] = "completed"
-                  summary_path.write_text(
-                      json.dumps(summary, sort_keys=True) + "\\n",
-                      encoding="utf-8",
-                  )
+def test_live_root_rejects_restart_suffix_without_legacy_active_summary_provenance(
+    tmp_path: Path,
+) -> None:
+    root, previous_root, _ = _write_legacy_restart_suffix_root(
+        tmp_path / "modern-restart-mutation"
+    )
+    for source in ("bybit-linear", "binance-usdm"):
+        summary_path = previous_root / f"{source}-summary.json"
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        summary["run_state"] = "completed"
+        summary_path.write_text(json.dumps(summary, sort_keys=True) + "\n", encoding="utf-8")
 
-              with pytest.raises(CandidatePaperRuntimeOperatorError, match="contradicts events_written"):
-                  load_liquid20_snapshot(root, now_ms=NOW_MS)
+    with pytest.raises(CandidatePaperRuntimeOperatorError, match="contradicts events_written"):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
 
 
-          @pytest.mark.parametrize("checkpoint_field", ["last_event_at_ms", "last_event_received_at_ms"])
-          def test_live_root_rejects_legacy_suffix_when_committed_prefix_checkpoint_mismatches(
-              tmp_path: Path,
-              checkpoint_field: str,
-          ) -> None:
-              root, previous_root, state = _write_legacy_restart_suffix_root(
-                  tmp_path / f"legacy-checkpoint-{checkpoint_field}"
-              )
-              source_state = cast(dict[str, object], state["sources"])["binance-usdm"]
-              assert isinstance(source_state, dict)
-              source_state[checkpoint_field] = int(cast(int, source_state[checkpoint_field])) + 1
-              state_path = previous_root / "run-state-v1.json"
-              state_path.write_text(json.dumps(state, sort_keys=True) + "\\n", encoding="utf-8")
-              summary_path = previous_root / "binance-usdm-summary.json"
-              summary = json.loads(summary_path.read_text(encoding="utf-8"))
-              summary["stats"] = source_state
-              summary_path.write_text(
-                  json.dumps(summary, sort_keys=True) + "\\n",
-                  encoding="utf-8",
-              )
+@pytest.mark.parametrize("checkpoint_field", ["last_event_at_ms", "last_event_received_at_ms"])
+def test_live_root_rejects_legacy_suffix_when_committed_checkpoint_mismatches(
+    tmp_path: Path,
+    checkpoint_field: str,
+) -> None:
+    root, previous_root, state = _write_legacy_restart_suffix_root(
+        tmp_path / f"legacy-checkpoint-{checkpoint_field}"
+    )
+    source_state = cast(dict[str, object], state["sources"])["binance-usdm"]
+    assert isinstance(source_state, dict)
+    source_state[checkpoint_field] = int(cast(int, source_state[checkpoint_field])) + 1
+    (previous_root / "run-state-v1.json").write_text(
+        json.dumps(state, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    summary_path = previous_root / "binance-usdm-summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["stats"] = source_state
+    summary_path.write_text(json.dumps(summary, sort_keys=True) + "\n", encoding="utf-8")
 
-              with pytest.raises(
-                  CandidatePaperRuntimeOperatorError,
-                  match="committed prefix does not match the persisted checkpoint",
-              ):
-                  load_liquid20_snapshot(root, now_ms=NOW_MS)
+    with pytest.raises(
+        CandidatePaperRuntimeOperatorError,
+        match="committed prefix does not match the persisted checkpoint",
+    ):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
 
 
-          ''' + anchor
-          if anchor not in text:
-              raise SystemExit('new tests anchor not found')
-          text = text.replace(anchor, insertion, 1)
+def test_live_root_rejects_zero_prefix_legacy_suffix_without_checkpoint(tmp_path: Path) -> None:
+    root, previous_root, state = _write_legacy_restart_suffix_root(tmp_path / "legacy-zero-prefix")
+    source_state = cast(dict[str, object], state["sources"])["binance-usdm"]
+    assert isinstance(source_state, dict)
+    source_state["events_written"] = 0
+    source_state["last_event_at_ms"] = None
+    source_state["last_event_received_at_ms"] = None
+    (previous_root / "run-state-v1.json").write_text(
+        json.dumps(state, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    summary_path = previous_root / "binance-usdm-summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    summary["stats"] = source_state
+    summary_path.write_text(json.dumps(summary, sort_keys=True) + "\n", encoding="utf-8")
 
-          old = '''    suffix = _event(
-                  "legacy-after-completion",
-                  received_at_ms=NOW_MS - 30_000,
-              )
-          '''
-          new = '''    suffix = _event(
-                  "legacy-after-completion",
-                  received_at_ms=NOW_MS - 10_000,
-              )
-          '''
-          if old not in text:
-              raise SystemExit('boundary test timestamp anchor not found')
-          text = text.replace(old, new, 1)
-          tests.write_text(text)
+    with pytest.raises(CandidatePaperRuntimeOperatorError, match="legacy suffix has no committed checkpoint"):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
+'''
+          text = replace_once(text, anchor, additions + anchor, "new regression tests")
+          text = replace_once(
+              text,
+              '        "legacy-after-completion",\n        received_at_ms=NOW_MS - 30_000,\n',
+              '        "legacy-after-completion",\n        received_at_ms=NOW_MS - 10_000,\n',
+              "post-completion test timestamp",
+          )
+          tests.write_text(text, encoding="utf-8")
           PY
       - name: Validate focused repair
         shell: bash
@@ -434,8 +233,6 @@ jobs:
           git diff --check
       - name: Commit coherent repair and remove workflow
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           rm .github/workflows/tmp-wickhunter-1487-final-p2-repair.yml
           git config user.name 'github-actions[bot]'

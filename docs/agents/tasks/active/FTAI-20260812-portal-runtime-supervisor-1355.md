@@ -8,7 +8,7 @@ priority: critical
 repository: blakinio/freqtrade
 base_branch: develop
 branch: codex/portal-runtime-supervisor-1355
-related_pr: pending
+related_pr: 1496
 issue: 1355
 created: 2026-08-12
 updated: 2026-08-12
@@ -40,7 +40,7 @@ updated_at: 2026-08-12T00:00:00Z
 head: LIVE_BRANCH_HEAD_REQUIRED
 head_role: supervisor_producer_candidate
 branch: codex/portal-runtime-supervisor-1355
-pr: pending
+pr: 1496
 status: ready
 context_routes:
   - issue #1355

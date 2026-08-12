@@ -117,6 +117,8 @@ class EligibilityPolicy(ContractModel):
 
     @model_validator(mode="after")
     def validate_requirements(self) -> Self:
+        if not self.requirements:
+            raise ValueError("eligibility policy requires at least one authoritative evidence requirement")
         keys = [item.evidence_type for item in self.requirements]
         if keys != sorted(keys) or len(keys) != len(set(keys)):
             raise ValueError("requirements must use unique deterministic evidence-type ordering")
@@ -143,6 +145,7 @@ class EligibilityRequest(ContractModel):
 
 class EligibilityDecision(ContractModel):
     decision_id: Sha256Hex
+    evaluator_version: NonEmptyStr
     outcome: PaperEligibilityOutcome
     reason_codes: tuple[ReasonCode, ...]
     request_id: UUID

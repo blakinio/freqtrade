@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import sys
-from importlib import import_module, util
 from pathlib import Path
 from types import ModuleType
 
-if util.find_spec("websockets") is None:
+if importlib.util.find_spec("websockets") is None:
     websockets_stub = ModuleType("websockets")
     websockets_exceptions_stub = ModuleType("websockets.exceptions")
 
@@ -18,8 +18,8 @@ if util.find_spec("websockets") is None:
     sys.modules["websockets"] = websockets_stub
     sys.modules["websockets.exceptions"] = websockets_exceptions_stub
 
-live_stream = import_module("ai_platform.scripts.liquidation_live_stream")
-okx_stream = import_module("ai_platform.scripts.liquidation_live_stream_okx")
+live_stream = importlib.import_module("ai_platform.scripts.liquidation_live_stream")
+okx_stream = importlib.import_module("ai_platform.scripts.liquidation_live_stream_okx")
 BINANCE_SOURCE = live_stream.BINANCE_SOURCE
 BYBIT_SOURCE = live_stream.BYBIT_SOURCE
 OKX_SOURCE = live_stream.OKX_SOURCE

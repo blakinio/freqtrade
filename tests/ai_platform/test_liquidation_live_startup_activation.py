@@ -1,14 +1,30 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from pathlib import Path
+from types import ModuleType
 
-from ai_platform.scripts.liquidation_live_stream import (
+try:
+    import websockets  # noqa: F401
+except ModuleNotFoundError:
+    websockets_stub = ModuleType("websockets")
+    websockets_exceptions_stub = ModuleType("websockets.exceptions")
+
+    class WebSocketException(Exception):
+        pass
+
+    setattr(websockets_exceptions_stub, "WebSocketException", WebSocketException)
+    setattr(websockets_stub, "exceptions", websockets_exceptions_stub)
+    sys.modules["websockets"] = websockets_stub
+    sys.modules["websockets.exceptions"] = websockets_exceptions_stub
+
+from ai_platform.scripts.liquidation_live_stream import (  # noqa: E402
     BINANCE_SOURCE,
     BYBIT_SOURCE,
     OKX_SOURCE,
 )
-from ai_platform.scripts.liquidation_live_stream_okx import OkxLiveRunManager
+from ai_platform.scripts.liquidation_live_stream_okx import OkxLiveRunManager  # noqa: E402
 
 
 COLLECTOR_COMMIT = "a" * 40

@@ -7,8 +7,10 @@ The original dependency-ordered PI backlog remains preserved as dated planning a
 repository-acceptance evidence. It is no longer an active completeness-status authority because
 terms such as `done`, `active` and `planned` combined different evidence layers.
 
-Current PI and P-stage status is defined only by
-`docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.json`.
+Current PI and P-stage implementation status is defined only by the living exact-head ledger at
+`tools/portal_audit/ledger/index.json`. The immutable
+`docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.json` snapshot is historical compatibility
+metadata, not current implementation authority.
 
 Historical pre-ledger evidence is preserved exactly at:
 
@@ -31,8 +33,8 @@ blob_sha: 513dfa306a36c20f9afe601fdff26e3a2b63e522
 
 ## Current work routing
 
-Use the canonical ledger's PI records and linked open audit Issues. A package with a merged bounded
-component may still be `PARTIAL` or `DISCONNECTED` in runtime composition and may require
+Use the living exact-head ledger's PI records and linked open audit Issues. A package with a merged
+bounded component may still be `PARTIAL` or `DISCONNECTED` in runtime composition and may require
 `EXTERNAL_ACCEPTANCE_REQUIRED` for its real target.
 
 The full pre-ledger package specifications, dependency graph, acceptance statements and merge

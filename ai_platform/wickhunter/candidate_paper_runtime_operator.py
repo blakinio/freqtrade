@@ -873,13 +873,11 @@ def _load_liquid20_live_root_once(  # noqa: C901
                     allow_uncommitted_suffix=(
                         historical_run_id == run_id
                         or (
-                            allow_legacy_restart_suffix
-                            and source in LEGACY_RESTART_SUMMARY_SOURCES
+                            allow_legacy_restart_suffix and source in LEGACY_RESTART_SUMMARY_SOURCES
                         )
                     ),
                     require_legacy_suffix_checkpoint=(
-                        allow_legacy_restart_suffix
-                        and source in LEGACY_RESTART_SUMMARY_SOURCES
+                        allow_legacy_restart_suffix and source in LEGACY_RESTART_SUMMARY_SOURCES
                     ),
                     validated_event_ids=validated_event_ids,
                 )

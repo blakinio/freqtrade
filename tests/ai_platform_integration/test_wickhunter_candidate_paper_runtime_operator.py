@@ -520,9 +520,7 @@ def test_live_root_accepts_bounded_legacy_restart_suffix_as_uncommitted(
 def test_live_root_rejects_legacy_restart_suffix_for_unprovenanced_okx(
     tmp_path: Path,
 ) -> None:
-    root, previous_root, state = _write_legacy_restart_suffix_root(
-        tmp_path / "legacy-okx-suffix"
-    )
+    root, previous_root, state = _write_legacy_restart_suffix_root(tmp_path / "legacy-okx-suffix")
     committed = _event(
         "okx-committed",
         received_at_ms=NOW_MS - 3_600_000,

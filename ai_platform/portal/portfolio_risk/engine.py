@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
-from threading import Lock
 from uuid import NAMESPACE_URL, uuid5
 
 from ai_platform.portal.contracts.risk import TradeSide
@@ -14,7 +13,9 @@ from ai_platform.portal.portfolio_risk.models import (
     PortfolioRiskOutcome,
     PortfolioRiskPolicy,
     PortfolioRiskSnapshot,
+    SnapshotSourceHealth,
 )
+from ai_platform.portal.portfolio_risk.store import PortfolioBudgetStore
 
 
 ALLOW = "ALLOW"
@@ -31,8 +32,12 @@ LIQUIDITY_LIMIT_EXCEEDED = "LIQUIDITY_LIMIT_EXCEEDED"
 NET_EXPOSURE_LIMIT_EXCEEDED = "NET_EXPOSURE_LIMIT_EXCEEDED"
 NO_BOT_ALLOCATION = "NO_BOT_ALLOCATION"
 PORTFOLIO_SUSPENDED = "PORTFOLIO_SUSPENDED"
+SNAPSHOT_DRIFT_DETECTED = "SNAPSHOT_DRIFT_DETECTED"
+SNAPSHOT_FUTURE = "SNAPSHOT_FUTURE"
+SNAPSHOT_SOURCE_UNHEALTHY = "SNAPSHOT_SOURCE_UNHEALTHY"
 STALE_BUDGET = "STALE_BUDGET"
 STALE_POLICY = "STALE_POLICY"
+STALE_SNAPSHOT = "STALE_SNAPSHOT"
 SYMBOL_EXPOSURE_LIMIT_EXCEEDED = "SYMBOL_EXPOSURE_LIMIT_EXCEEDED"
 TENANT_MISMATCH = "TENANT_MISMATCH"
 TURNOVER_EVIDENCE_UNAVAILABLE = "TURNOVER_EVIDENCE_UNAVAILABLE"
@@ -40,14 +45,20 @@ TURNOVER_LIMIT_EXCEEDED = "TURNOVER_LIMIT_EXCEEDED"
 
 
 class PortfolioRiskEngine:
-    """Pure evaluator plus optional in-process compare-and-swap reservation boundary."""
+    """Pure evaluator plus an explicit shared CAS reservation boundary."""
 
-    def __init__(self, policy: PortfolioRiskPolicy, budget: PortfolioBudget) -> None:
+    def __init__(
+        self,
+        policy: PortfolioRiskPolicy,
+        budget: PortfolioBudget,
+        *,
+        budget_store: PortfolioBudgetStore | None = None,
+    ) -> None:
         if policy.tenant_id != budget.tenant_id:
             raise ValueError("policy and budget tenants must match")
         self._policy = policy
         self._budget = budget
-        self._lock = Lock()
+        self._budget_store = budget_store
 
     def evaluate(
         self,
@@ -61,20 +72,34 @@ class PortfolioRiskEngine:
         request: AllocationRequest,
         snapshot: PortfolioRiskSnapshot,
     ) -> PortfolioRiskDecision:
-        """Allow at most one reservation against an exact immutable budget revision."""
-        with self._lock:
-            decision = evaluate_portfolio_risk(self._policy, self._budget, request, snapshot)
-            if decision.outcome is PortfolioRiskOutcome.ALLOW:
-                allocations = tuple(
-                    item.model_copy(update={"amount": item.amount - request.notional})
-                    if item.bot_id == request.bot_id
-                    else item
-                    for item in self._budget.allocations
-                )
-                self._budget = self._budget.model_copy(
-                    update={"revision": self._budget.revision + 1, "allocations": allocations}
-                )
-            return decision
+        """Atomically consume a budget revision in the configured shared store."""
+
+        if self._budget_store is None:
+            raise RuntimeError("portfolio reservation requires a shared durable budget store")
+        # A losing CAS must re-evaluate against the authoritative replacement revision. Since the
+        # request binds its input budget digest, that re-evaluation deterministically fails closed.
+        for _ in range(2):
+            budget = self._budget_store.load(self._budget.budget_id)
+            decision = evaluate_portfolio_risk(self._policy, budget, request, snapshot)
+            if decision.outcome is not PortfolioRiskOutcome.ALLOW:
+                return decision
+            allocations = tuple(
+                item.model_copy(update={"amount": item.amount - request.notional})
+                if item.bot_id == request.bot_id
+                else item
+                for item in budget.allocations
+            )
+            replacement = budget.model_copy(
+                update={"revision": budget.revision + 1, "allocations": allocations}
+            )
+            if self._budget_store.compare_and_swap(
+                budget.budget_id,
+                budget.revision,
+                replacement,
+            ):
+                return decision
+        budget = self._budget_store.load(self._budget.budget_id)
+        return evaluate_portfolio_risk(self._policy, budget, request, snapshot)
 
 
 def evaluate_portfolio_risk(  # noqa: C901 - one ordered deterministic decision table
@@ -97,6 +122,18 @@ def evaluate_portfolio_risk(  # noqa: C901 - one ordered deterministic decision 
     budget_active = _active(budget.effective_at, budget.expires_at, request.requested_at)
     if request.budget_digest != budget.digest() or not budget_active:
         unavailable.add(STALE_BUDGET)
+
+    snapshot_age_seconds = (request.requested_at - snapshot.observed_at).total_seconds()
+    metrics["snapshot_age_seconds"] = str(snapshot_age_seconds)
+    if snapshot_age_seconds < 0:
+        unavailable.add(SNAPSHOT_FUTURE)
+    elif snapshot_age_seconds > policy.max_snapshot_age_seconds:
+        unavailable.add(STALE_SNAPSHOT)
+    if snapshot.source_health is not SnapshotSourceHealth.HEALTHY:
+        unavailable.add(SNAPSHOT_SOURCE_UNHEALTHY)
+    if snapshot.drift_detected:
+        unavailable.add(SNAPSHOT_DRIFT_DETECTED)
+
     if snapshot.portfolio_suspended:
         suspend.add(PORTFOLIO_SUSPENDED)
     if request.bot_id in snapshot.suspended_bot_ids:
@@ -109,13 +146,22 @@ def evaluate_portfolio_risk(  # noqa: C901 - one ordered deterministic decision 
         rejects.add(BOT_ALLOCATION_EXCEEDED)
     metrics["bot_budget_available"] = str(allocation) if allocation is not None else "UNAVAILABLE"
 
-    symbol_exposure: dict[str, Decimal] = defaultdict(Decimal)
-    for position in snapshot.positions:
-        symbol_exposure[position.symbol] += position.signed_notional
+    # Gross exposure is position-level absolute exposure; opposing bots/positions must never net
+    # before the absolute-value step. The request mutates only its exact bot/symbol position.
+    positions: dict[tuple[str, str], Decimal] = {
+        (position.bot_id, position.symbol): position.signed_notional
+        for position in snapshot.positions
+    }
     delta = request.notional if request.side is TradeSide.BUY else -request.notional
-    symbol_exposure[request.symbol] += delta
-    gross = sum((abs(value) for value in symbol_exposure.values()), Decimal(0))
-    net = abs(sum(symbol_exposure.values(), Decimal(0)))
+    request_key = (request.bot_id, request.symbol)
+    positions[request_key] = positions.get(request_key, Decimal(0)) + delta
+    gross = sum((abs(value) for value in positions.values()), Decimal(0))
+    net = abs(sum(positions.values(), Decimal(0)))
+
+    symbol_exposure: dict[str, Decimal] = defaultdict(Decimal)
+    for (bot_id, symbol), value in positions.items():
+        del bot_id
+        symbol_exposure[symbol] += value
     requested_symbol = abs(symbol_exposure[request.symbol])
     concentration = requested_symbol / budget.virtual_capital
     metrics.update(

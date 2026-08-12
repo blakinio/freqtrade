@@ -88,7 +88,7 @@ jobs:
           fi
 
           set +e
-          timeout 150s docker run --rm --interactive \
+          timeout --kill-after=5s 150s docker run --rm --interactive \
             --name "liquid20-connectivity-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             --label "freqtrade.task=FTAI-20260812-wh09-e2e-recovery-1396" \
             --label "freqtrade.github-run-id=${GITHUB_RUN_ID}" \
@@ -328,6 +328,13 @@ jobs:
             printf '{"schema_version":1,"diagnostic_process":"failed","exit_code":%d}\n' \
               "$diagnostic_status" > "$report"
           fi
+
+      - name: Clean up connectivity diagnostic container
+        if: always()
+        continue-on-error: true
+        run: |
+          docker rm -f "liquid20-connectivity-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            >/dev/null 2>&1 || true
 
       - name: Publish final status
         if: always()

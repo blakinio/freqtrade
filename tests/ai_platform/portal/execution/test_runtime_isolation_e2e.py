@@ -10,6 +10,7 @@ from uuid import uuid4
 
 import pytest
 
+from ai_platform.portal.contracts.environment import ExecutionMode
 from ai_platform.portal.execution.driver import (
     DockerCliRuntimeDriver,
     DockerHostCapabilityProbe,
@@ -324,6 +325,8 @@ def test_real_docker_driver_provisions_attested_hardened_quarantine(tmp_path: Pa
         generation_spec_digest="5" * 64,
         state_version=1,
         retired=False,
+        execution_mode=ExecutionMode.DRY_RUN,
+        paper_authorized=True,
         container_spec=spec,
     )
     supervisor = RuntimeSupervisor(_GenerationView(generation), driver, InMemoryCommandJournal())

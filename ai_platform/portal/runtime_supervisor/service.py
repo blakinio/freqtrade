@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from ai_platform.portal.contracts.environment import ExecutionMode
 from ai_platform.portal.execution.errors import RuntimeDriverError
 from ai_platform.portal.execution.runtime import (
     DriverRuntimeState,
@@ -34,6 +35,8 @@ class SupervisorGeneration:
     generation_spec_digest: str
     state_version: int
     retired: bool
+    execution_mode: ExecutionMode
+    paper_authorized: bool
     container_spec: RuntimeContainerSpec
 
 
@@ -54,18 +57,41 @@ class CommandJournal(Protocol):
 
     def put(self, command_id: str, entry: JournalEntry) -> None: ...
 
+    def active_generation(self, tenant_id: str, bot_id: str) -> str | None: ...
+
+    def claim_active(self, tenant_id: str, bot_id: str, generation_id: str) -> bool: ...
+
+    def release_active(self, tenant_id: str, bot_id: str, generation_id: str) -> None: ...
+
 
 class InMemoryCommandJournal:
     """Test/development journal; deployments must inject a durable implementation."""
 
     def __init__(self) -> None:
         self._entries: dict[str, JournalEntry] = {}
+        self._active: dict[tuple[str, str], str] = {}
 
     def get(self, command_id: str) -> JournalEntry | None:
         return self._entries.get(command_id)
 
     def put(self, command_id: str, entry: JournalEntry) -> None:
         self._entries[command_id] = entry
+
+    def active_generation(self, tenant_id: str, bot_id: str) -> str | None:
+        return self._active.get((tenant_id, bot_id))
+
+    def claim_active(self, tenant_id: str, bot_id: str, generation_id: str) -> bool:
+        key = (tenant_id, bot_id)
+        active = self._active.get(key)
+        if active not in {None, generation_id}:
+            return False
+        self._active[key] = generation_id
+        return True
+
+    def release_active(self, tenant_id: str, bot_id: str, generation_id: str) -> None:
+        key = (tenant_id, bot_id)
+        if self._active.get(key) == generation_id:
+            self._active.pop(key)
 
 
 class SqliteCommandJournal:
@@ -89,6 +115,11 @@ class SqliteCommandJournal:
                 "command_id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, "
                 "outcome_json TEXT NOT NULL)"
             )
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS supervisor_active_generations ("
+                "tenant_id TEXT NOT NULL, bot_id TEXT NOT NULL, generation_id TEXT NOT NULL, "
+                "PRIMARY KEY (tenant_id, bot_id))"
+            )
 
     def get(self, command_id: str) -> JournalEntry | None:
         with self._lock, self._connect() as connection:
@@ -107,6 +138,37 @@ class SqliteCommandJournal:
                 "INSERT OR IGNORE INTO supervisor_commands(command_id, fingerprint, outcome_json) "
                 "VALUES (?, ?, ?)",
                 (command_id, entry.fingerprint, encoded),
+            )
+
+    def active_generation(self, tenant_id: str, bot_id: str) -> str | None:
+        with self._lock, self._connect() as connection:
+            row = connection.execute(
+                "SELECT generation_id FROM supervisor_active_generations "
+                "WHERE tenant_id = ? AND bot_id = ?", (tenant_id, bot_id)
+            ).fetchone()
+        return None if row is None else str(row[0])
+
+    def claim_active(self, tenant_id: str, bot_id: str, generation_id: str) -> bool:
+        with self._lock, self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT generation_id FROM supervisor_active_generations "
+                "WHERE tenant_id = ? AND bot_id = ?", (tenant_id, bot_id)
+            ).fetchone()
+            if row is not None and row[0] != generation_id:
+                return False
+            connection.execute(
+                "INSERT OR REPLACE INTO supervisor_active_generations "
+                "(tenant_id, bot_id, generation_id) VALUES (?, ?, ?)",
+                (tenant_id, bot_id, generation_id),
+            )
+        return True
+
+    def release_active(self, tenant_id: str, bot_id: str, generation_id: str) -> None:
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                "DELETE FROM supervisor_active_generations WHERE tenant_id = ? "
+                "AND bot_id = ? AND generation_id = ?", (tenant_id, bot_id, generation_id)
             )
 
 
@@ -151,10 +213,13 @@ class RuntimeSupervisor:
                 )
             with self._lock_for(request.tenant_id, request.bot_id):
                 outcome = self._execute_locked(request)
-                self._journal.put(command_id, JournalEntry(fingerprint, outcome))
+                if outcome.code is not SupervisorOutcomeCode.ENGINE_OPERATION_FAILED:
+                    self._journal.put(command_id, JournalEntry(fingerprint, outcome))
                 return outcome
 
-    def _execute_locked(self, request: SupervisorRequest) -> SupervisorOutcome:
+    def _execute_locked(  # noqa: C901 - explicit fail-closed validation sequence.
+        self, request: SupervisorRequest
+    ) -> SupervisorOutcome:
         generation = self._generations.resolve(request.generation_id)
         if generation is None:
             return self._outcome(
@@ -170,6 +235,14 @@ class RuntimeSupervisor:
                 SupervisorOutcomeCode.GENERATION_SPEC_CONFLICT,
                 False,
                 None,
+                generation.state_version,
+            )
+        if (
+            generation.execution_mode is not ExecutionMode.DRY_RUN
+            or not generation.paper_authorized
+        ):
+            return self._outcome(
+                request, SupervisorOutcomeCode.PAPER_AUTHORIZATION_REQUIRED, False, None,
                 generation.state_version,
             )
         if (
@@ -205,7 +278,10 @@ class RuntimeSupervisor:
                 SupervisorOperation.ENSURE_PROVISIONED,
                 SupervisorOperation.ENSURE_RUNNING,
             }:
-                active = self._generations.active_generation(request.tenant_id, request.bot_id)
+                active = self._journal.active_generation(request.tenant_id, request.bot_id)
+                active = active or self._generations.active_generation(
+                    request.tenant_id, request.bot_id
+                )
                 if active is not None and active != request.generation_id:
                     return self._outcome(
                         request,
@@ -214,7 +290,21 @@ class RuntimeSupervisor:
                         current,
                         generation.state_version,
                     )
+                if not self._journal.claim_active(
+                    request.tenant_id, request.bot_id, request.generation_id
+                ):
+                    return self._outcome(
+                        request, SupervisorOutcomeCode.CONFLICTING_GENERATION_ACTIVE, False,
+                        current, generation.state_version,
+                    )
             target, state = self._apply(request.operation, generation.container_spec, current)
+            if request.operation in {
+                SupervisorOperation.ENSURE_STOPPED,
+                SupervisorOperation.ENSURE_RETIRED,
+            } and state in {DriverRuntimeState.STOPPED, DriverRuntimeState.MISSING}:
+                self._journal.release_active(
+                    request.tenant_id, request.bot_id, request.generation_id
+                )
             code = (
                 SupervisorOutcomeCode.ALREADY_SATISFIED
                 if current is target

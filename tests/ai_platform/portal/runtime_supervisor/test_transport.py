@@ -40,7 +40,7 @@ def exchange(server: UnixSocketSupervisorServer, payload: bytes) -> dict[str, ob
 def test_unauthorized_peer_is_rejected_before_parsing() -> None:
     supervisor = Supervisor()
     server = UnixSocketSupervisorServer(
-        Path("/run/supervisor.sock"),
+        Path("/run/quant-platform/supervisor.sock"),
         supervisor,
         allowed_peer_uids=frozenset({42}),
         peer_uid=lambda _: 7,
@@ -52,7 +52,7 @@ def test_unauthorized_peer_is_rejected_before_parsing() -> None:
 def test_raw_engine_fields_are_rejected_at_transport_boundary() -> None:
     supervisor = Supervisor()
     server = UnixSocketSupervisorServer(
-        Path("/run/supervisor.sock"),
+        Path("/run/quant-platform/supervisor.sock"),
         supervisor,
         allowed_peer_uids=frozenset({42}),
         peer_uid=lambda _: 42,

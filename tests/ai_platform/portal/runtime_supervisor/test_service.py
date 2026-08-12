@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
+from ai_platform.portal.contracts.environment import ExecutionMode
 from ai_platform.portal.execution.runtime import DriverRuntimeState, RuntimeContainerSpec
 from ai_platform.portal.runtime_supervisor import (
     InMemoryCommandJournal,
@@ -74,6 +75,8 @@ def generation(*, retired: bool = False) -> SupervisorGeneration:
         "a" * 64,
         7,
         retired,
+        ExecutionMode.DRY_RUN,
+        True,
         RuntimeContainerSpec(
             "runtime-1",
             "trusted@sha256:" + "b" * 64,
@@ -149,6 +152,20 @@ def test_retired_generation_cannot_be_provisioned_or_started() -> None:
     assert driver.calls == []
 
 
+def test_non_paper_generation_fails_closed_before_engine_access() -> None:
+    candidate = generation()
+    candidate = SupervisorGeneration(
+        **{**candidate.__dict__, "execution_mode": ExecutionMode.SIMULATED,
+           "paper_authorized": False}
+    )
+    driver = Driver()
+    outcome = RuntimeSupervisor(
+        Generations(candidate), driver, InMemoryCommandJournal()
+    ).execute(request())
+    assert outcome.code is SupervisorOutcomeCode.PAPER_AUTHORIZATION_REQUIRED
+    assert driver.calls == []
+
+
 def test_conflicting_generation_fence_prevents_side_effect() -> None:
     driver = Driver()
     service = RuntimeSupervisor(
@@ -156,6 +173,21 @@ def test_conflicting_generation_fence_prevents_side_effect() -> None:
     )
     assert service.execute(request()).code is SupervisorOutcomeCode.CONFLICTING_GENERATION_ACTIVE
     assert driver.calls == ["inspect"]
+
+
+def test_supervisor_claims_active_generation_before_next_request() -> None:
+    journal = InMemoryCommandJournal()
+    driver = Driver()
+    first = RuntimeSupervisor(Generations(generation()), driver, journal)
+    assert first.execute(request()).accepted
+    other = generation()
+    other = SupervisorGeneration(
+        **{**other.__dict__, "generation_id": "gen-2", "generation_ordinal": 3}
+    )
+    blocked = RuntimeSupervisor(Generations(other), driver, journal).execute(
+        request(generation_id="gen-2", expected_generation_ordinal=3)
+    )
+    assert blocked.code is SupervisorOutcomeCode.CONFLICTING_GENERATION_ACTIVE
 
 
 def test_replay_is_stable_and_conflicting_body_is_rejected() -> None:
@@ -183,6 +215,23 @@ def test_sqlite_journal_survives_supervisor_restart(tmp_path: Path) -> None:
     ).execute(original)
     assert recovered == first
     assert driver.calls == ["inspect", "provision", "start"]
+
+
+def test_retryable_engine_failure_is_not_permanently_journaled() -> None:
+    class FlakyDriver(Driver):
+        def start(self, runtime_id: str) -> DriverRuntimeState:
+            if "failed" not in self.calls:
+                self.calls.append("failed")
+                from ai_platform.portal.execution.errors import RuntimeDriverError
+
+                raise RuntimeDriverError("TRANSIENT", "transient")
+            return super().start(runtime_id)
+
+    driver = FlakyDriver(DriverRuntimeState.CREATED)
+    original = request()
+    service = RuntimeSupervisor(Generations(generation()), driver, InMemoryCommandJournal())
+    assert service.execute(original).code is SupervisorOutcomeCode.ENGINE_OPERATION_FAILED
+    assert service.execute(original).accepted
 
 
 def test_pause_from_non_running_state_fails_without_driver_mutation() -> None:

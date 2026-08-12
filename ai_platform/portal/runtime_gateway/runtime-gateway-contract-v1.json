@@ -1,0 +1,15 @@
+{
+  "contract_version": "runtime-gateway.v1",
+  "mode": "PAPER",
+  "operations": {
+    "health": {"method": "READ", "authoritative": false},
+    "read_open_orders": {"method": "READ", "authoritative": true},
+    "read_positions": {"method": "READ", "authoritative": true},
+    "read_trades": {"method": "READ", "authoritative": true},
+    "runtime_identity": {"method": "READ", "authoritative": true}
+  },
+  "transport": "unix-domain-socket",
+  "public_ingress": false,
+  "generic_proxy": false,
+  "live_available": false
+}

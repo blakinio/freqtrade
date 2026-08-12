@@ -257,9 +257,7 @@ def test_restart_snapshot_is_canonical_and_recovers_nonterminal_work() -> None:
 
     assert restarted_store.export_json() == serialized
     assert [item.envelope.command_id for item in restarted.recoverable()] == ["command-1"]
-    record = restarted.acknowledge(
-        "tenant-a", "command-1", HASH_C, NOW + timedelta(seconds=4)
-    )
+    record = restarted.acknowledge("tenant-a", "command-1", HASH_C, NOW + timedelta(seconds=4))
     assert record.state == CommandState.ACKNOWLEDGED_BUT_UNRECONCILED
 
 
@@ -276,9 +274,7 @@ def test_replayed_transition_and_retry_attempt_are_idempotent_after_restart() ->
         recorded_at=NOW + timedelta(seconds=1),
     )
     first_reservation = engine.reserve("tenant-a", "command-1", NOW + timedelta(seconds=2))
-    replayed_reservation = engine.reserve(
-        "tenant-a", "command-1", NOW + timedelta(seconds=20)
-    )
+    replayed_reservation = engine.reserve("tenant-a", "command-1", NOW + timedelta(seconds=20))
     first_retry = engine.record_retry(
         "tenant-a",
         "command-1",
@@ -325,7 +321,7 @@ def test_concurrent_exact_receive_converges_to_existing_record() -> None:
             super().__init__()
             self.inject_race = True
 
-        def create(self, record):  # type: ignore[no-untyped-def]
+        def create(self, record):
             if self.inject_race:
                 self.inject_race = False
                 super().create(record)

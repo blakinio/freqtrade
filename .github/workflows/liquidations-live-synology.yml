@@ -88,7 +88,7 @@ jobs:
           fi
 
           set +e
-          timeout 120s docker run --rm --interactive \
+          timeout 150s docker run --rm --interactive \
             --name "liquid20-connectivity-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             --label "freqtrade.task=FTAI-20260812-wh09-e2e-recovery-1396" \
             --label "freqtrade.github-run-id=${GITHUB_RUN_ID}" \
@@ -211,7 +211,7 @@ jobs:
                   if writer is not None:
                       writer.close()
                       try:
-                          await writer.wait_closed()
+                          await asyncio.wait_for(writer.wait_closed(), timeout=2)
                       except Exception:
                           pass
 
@@ -275,7 +275,7 @@ jobs:
               process.start()
               sender.close()
               try:
-                  if receiver.poll(30):
+                  if receiver.poll(40):
                       result = receiver.recv()
                       process.join(timeout=1)
                       if process.is_alive():
@@ -363,6 +363,14 @@ jobs:
           path: |
             ${{ runner.temp }}/liquidations-live-synology-report.json
             ${{ runner.temp }}/liquidations-live-synology.log
-            ${{ runner.temp }}/liquidations-live-connectivity-diagnostic.json
           if-no-files-found: warn
           retention-days: 30
+
+      - name: Upload disposable connectivity diagnostic
+        if: failure() && steps.deploy.outcome == 'failure'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: liquidations-live-connectivity-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/liquidations-live-connectivity-diagnostic.json
+          if-no-files-found: warn
+          retention-days: 1

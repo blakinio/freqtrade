@@ -98,7 +98,14 @@ def test_deployment_maps_runner_state_to_docker_host_candidate_root() -> None:
     assert 'install -d -m 0750 -o "$puid" -g "$pgid" "$candidate_runner_root"' in script
     assert 'start_container "$candidate" "$image" "$candidate_host_root"' in script
     assert 'wait_for_state "$candidate"' in script
-    assert 'state_observation "$candidate"' in script
+    assert 'state_observation "$selected_container"' in script
+    assert 'wait_for_heartbeat_advance "$candidate" "$candidate_first"' in script
+    assert "deadline=$((SECONDS + 30))" in script
+    assert 'state_observation "$selected_container" "$remaining"' in script
+    assert 'timeout "${observation_timeout_seconds}s" docker exec' in script
+    assert "Collector heartbeat did not advance within 30 seconds" in script
+    assert "sleep 6" not in script
+    assert "seq 1 15" not in script
     assert 'docker exec --interactive "$selected_container" python' in script
 
 

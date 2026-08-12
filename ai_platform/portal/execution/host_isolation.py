@@ -503,9 +503,43 @@ class LinuxNftablesBtrfsIsolationAttestor:
         )
 
     def cleanup_network(self, network_name: str, runtime_id: str) -> None:
-        del runtime_id
         table = self._table_name(network_name)
-        network_result = self._runner.run(("docker", "network", "rm", network_name))
+        inspect_result = self._runner.run(
+            ("docker", "network", "inspect", "--format", "{{json .}}", network_name)
+        )
+        network_id: str | None = None
+        if inspect_result.returncode == 0:
+            try:
+                network = json.loads(inspect_result.stdout)
+                network_id = network["Id"]
+                labels = network["Labels"]
+            except (json.JSONDecodeError, KeyError, TypeError) as exc:
+                raise RuntimeDriverError(
+                    "GENERATION_OWNERSHIP_CONFLICT",
+                    "generation network ownership evidence is invalid",
+                ) from exc
+            if (
+                not isinstance(network_id, str)
+                or not network_id
+                or not isinstance(labels, dict)
+                or labels.get("ai.portal.runtime_id") != runtime_id
+            ):
+                raise RuntimeDriverError(
+                    "GENERATION_OWNERSHIP_CONFLICT",
+                    "generation network identity label does not match runtime",
+                )
+        elif not self._cleanup_target_absent(inspect_result):
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                inspect_result.stderr.strip()
+                or "generation network ownership evidence is unavailable",
+            )
+
+        network_result = (
+            self._runner.run(("docker", "network", "rm", network_id))
+            if network_id is not None
+            else inspect_result
+        )
         if network_result.returncode != 0 and not self._cleanup_target_absent(network_result):
             raise RuntimeDriverError(
                 "HOST_NETWORK_CLEANUP_FAILED",

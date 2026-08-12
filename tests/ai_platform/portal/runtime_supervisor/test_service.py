@@ -314,6 +314,34 @@ def test_restart_from_stopped_retires_and_reprovisions_exact_generation() -> Non
     assert driver.calls == ["inspect", "retire", "provision", "start"]
 
 
+@pytest.mark.parametrize(
+    ("operation", "expected", "calls"),
+    [
+        (
+            SupervisorOperation.ENSURE_RUNNING,
+            DriverRuntimeState.RUNNING,
+            ["inspect", "stop", "retire", "provision", "start"],
+        ),
+        (
+            SupervisorOperation.ENSURE_PROVISIONED,
+            DriverRuntimeState.CREATED,
+            ["inspect", "stop", "retire", "provision"],
+        ),
+    ],
+)
+def test_restart_from_starting_reconstructs_fail_closed(
+    operation: SupervisorOperation,
+    expected: DriverRuntimeState,
+    calls: list[str],
+) -> None:
+    driver = Driver(DriverRuntimeState.STARTING)
+    outcome = RuntimeSupervisor(
+        Generations(generation()), driver, InMemoryCommandJournal()
+    ).execute(request(operation))
+    assert outcome.accepted and outcome.state is expected
+    assert driver.calls == calls
+
+
 def test_running_generation_cannot_be_retired() -> None:
     driver = Driver(DriverRuntimeState.RUNNING)
     outcome = RuntimeSupervisor(

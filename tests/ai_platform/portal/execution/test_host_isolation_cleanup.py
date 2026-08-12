@@ -35,33 +35,53 @@ def _backend(runner: _Runner, tmp_path: Path) -> LinuxNftablesBtrfsIsolationAtte
 
 
 def test_cleanup_retains_firewall_when_docker_network_removal_fails(tmp_path: Path) -> None:
-    runner = _Runner(CommandResult(1, stderr="network has active endpoints"))
+    runner = _Runner(
+        CommandResult(
+            0,
+            stdout='{"Id":"network-id","Labels":{"ai.portal.runtime_id":"runtime-1"}}',
+        ),
+        CommandResult(1, stderr="network has active endpoints"),
+    )
 
     with pytest.raises(RuntimeDriverError) as exc_info:
         _backend(runner, tmp_path).cleanup_network("portal-net-1", "runtime-1")
 
     assert exc_info.value.reason_code == "HOST_NETWORK_CLEANUP_FAILED"
     assert "retaining nftables policy" in str(exc_info.value)
-    assert runner.calls == [("docker", "network", "rm", "portal-net-1")]
+    assert runner.calls[-1] == ("docker", "network", "rm", "network-id")
 
 
 def test_cleanup_removes_firewall_only_after_network_teardown(tmp_path: Path) -> None:
-    runner = _Runner(CommandResult(0), CommandResult(0))
+    runner = _Runner(
+        CommandResult(
+            0,
+            stdout='{"Id":"network-id","Labels":{"ai.portal.runtime_id":"runtime-1"}}',
+        ),
+        CommandResult(0),
+        CommandResult(0),
+    )
 
     _backend(runner, tmp_path).cleanup_network("portal-net-1", "runtime-1")
 
-    assert runner.calls[0] == ("docker", "network", "rm", "portal-net-1")
-    assert runner.calls[1][:4] == ("nft", "delete", "table", "inet")
+    assert runner.calls[1] == ("docker", "network", "rm", "network-id")
+    assert runner.calls[2][:4] == ("nft", "delete", "table", "inet")
 
 
 def test_cleanup_reports_nft_failure_after_network_is_absent(tmp_path: Path) -> None:
-    runner = _Runner(CommandResult(0), CommandResult(1, stderr="nft backend unavailable"))
+    runner = _Runner(
+        CommandResult(
+            0,
+            stdout='{"Id":"network-id","Labels":{"ai.portal.runtime_id":"runtime-1"}}',
+        ),
+        CommandResult(0),
+        CommandResult(1, stderr="nft backend unavailable"),
+    )
 
     with pytest.raises(RuntimeDriverError) as exc_info:
         _backend(runner, tmp_path).cleanup_network("portal-net-1", "runtime-1")
 
     assert exc_info.value.reason_code == "HOST_NETWORK_CLEANUP_FAILED"
-    assert len(runner.calls) == 2
+    assert len(runner.calls) == 3
 
 
 def test_cleanup_is_idempotent_when_resources_are_already_absent(tmp_path: Path) -> None:
@@ -73,3 +93,18 @@ def test_cleanup_is_idempotent_when_resources_are_already_absent(tmp_path: Path)
     _backend(runner, tmp_path).cleanup_network("portal-net-1", "runtime-1")
 
     assert len(runner.calls) == 2
+
+
+def test_cleanup_preserves_foreign_network_reusing_expected_name(tmp_path: Path) -> None:
+    runner = _Runner(
+        CommandResult(
+            0,
+            stdout='{"Id":"foreign-network-id","Labels":{"ai.portal.runtime_id":"runtime-other"}}',
+        )
+    )
+
+    with pytest.raises(RuntimeDriverError) as exc_info:
+        _backend(runner, tmp_path).cleanup_network("portal-net-1", "runtime-1")
+
+    assert exc_info.value.reason_code == "GENERATION_OWNERSHIP_CONFLICT"
+    assert len(runner.calls) == 1

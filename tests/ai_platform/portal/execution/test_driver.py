@@ -893,6 +893,27 @@ def test_pause_stop_and_unknown_state_are_fail_closed_or_idempotent() -> None:
     assert exc_info.value.reason_code == "DOCKER_STATE_UNKNOWN"
 
 
+def test_retire_preserves_foreign_container_reusing_runtime_name() -> None:
+    runner = _Runner(
+        CommandResult(0, stdout="exited\n"),
+        CommandResult(
+            0,
+            stdout=json.dumps(
+                {
+                    "Id": "foreign-container-id",
+                    "Config": {"Labels": {"ai.portal.runtime_id": "runtime-other"}},
+                }
+            ),
+        ),
+    )
+
+    with pytest.raises(RuntimeDriverError) as exc_info:
+        DockerCliRuntimeDriver(runner).retire("runtime-1")
+
+    assert exc_info.value.reason_code == "GENERATION_OWNERSHIP_CONFLICT"
+    assert all(call[:3] != ("docker", "rm", "-f") for call in runner.calls)
+
+
 def test_host_probe_reports_cgroup_v2_and_approved_external_backends(
     tmp_path: Path,
 ) -> None:

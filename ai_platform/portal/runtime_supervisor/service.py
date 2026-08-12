@@ -356,16 +356,22 @@ class RuntimeSupervisor:
         current: DriverRuntimeState,
     ) -> tuple[DriverRuntimeState, DriverRuntimeState]:
         if operation is SupervisorOperation.ENSURE_PROVISIONED:
-            if current in _ACTIVE_STATES:
+            if current in _ACTIVE_STATES and current is not DriverRuntimeState.STARTING:
                 return current, current
-            if current is DriverRuntimeState.STOPPED:
+            if current in {DriverRuntimeState.STOPPED, DriverRuntimeState.STARTING}:
+                if current is DriverRuntimeState.STARTING:
+                    self._driver.stop(spec.runtime_id)
                 self._driver.retire(spec.runtime_id)
             return DriverRuntimeState.CREATED, self._driver.provision(spec)
         if operation is SupervisorOperation.ENSURE_RUNNING:
             if current is DriverRuntimeState.RUNNING:
                 return current, current
-            if current in {DriverRuntimeState.STOPPED, DriverRuntimeState.PAUSED}:
-                if current is DriverRuntimeState.PAUSED:
+            if current in {
+                DriverRuntimeState.STOPPED,
+                DriverRuntimeState.PAUSED,
+                DriverRuntimeState.STARTING,
+            }:
+                if current in {DriverRuntimeState.PAUSED, DriverRuntimeState.STARTING}:
                     self._driver.stop(spec.runtime_id)
                 self._driver.retire(spec.runtime_id)
                 current = DriverRuntimeState.MISSING

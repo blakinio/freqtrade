@@ -6,10 +6,12 @@
 Current work selection is derived from:
 
 1. live GitHub Issue, claim, ownership, PR and required-CI state;
-2. `docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.json`;
+2. the living exact-head implementation ledger at `tools/portal_audit/ledger/index.json`;
 3. repository governance under `docs/agents/`.
 
-This document does not maintain a second static completion snapshot.
+The immutable `docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.json` snapshot is retained only as
+historical compatibility metadata and is not current implementation authority. This document does
+not maintain a second static completion snapshot.
 
 Historical pre-ledger evidence is preserved exactly at:
 

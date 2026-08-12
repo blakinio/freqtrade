@@ -2,7 +2,7 @@
 task_id: FTAI-20260809-portal-runtime-isolation-1354
 programme_id: FTAI-PROGRAM-AI-TRADING-PORTAL
 project_lane: freqtrade-portal
-status: implementing
+status: validating
 task_kind: implementation
 priority: high
 repository: blakinio/freqtrade
@@ -21,74 +21,58 @@ host_firewall_mutation_authorized: false
 
 ## Current truth
 
-Issue `#1354` remains open and PR `#1464` remains the sole delivery PR. This task is **implementing**, not completed. Exact-head CI and the privileged runtime-isolation E2E passed on `745a53fc72b11c250efb8c1796a7b04d8ea8c400`, but fresh audit opened two material closeout findings that must be repaired before merge: unconditional workflow cleanup may remove a recorded nftables table when its Docker network removal failed, and the host-controlled readiness probe has no driver-owned subprocess deadline.
+Issue `#1354` remains open and PR `#1464` remains the sole delivery PR. The implementation is frozen for final validation after repairing the two material findings from the previous audit. Current `develop@ec41d2542bff57f74cd10856b7dc22265213d991` is an ancestor of the feature branch through integration commit `ac00dbaaa384c78cef90a14e16aba28a1479f815`; compare reports `behind_by=0`. Integration PR `#1486` is terminal and its changes are represented by that integration commit.
 
 PAPER remains the only authorized operational mode. LIVE/live-capital authority, private exchange credentials, real-order submission, withdrawals, protected production deployment and target-host firewall mutation are not authorized by this task.
 
 ## Implemented candidate scope
 
-The current delivery candidate provides the ADR-020 generation-bound isolation envelope for Portal-managed PAPER/dry-run Freqtrade runtimes, including:
-
-- immutable isolation profile and resolved-plan binding;
-- digest-pinned hardened runtime image and quarantine bootstrap;
-- non-root UID/GID, no-new-privileges, capability-drop-all, default seccomp and read-only root;
-- hard memory/swap/PID/CPU, tmpfs, local-log and durable-state bounds;
-- Btrfs qgroup enforcement and exact runtime-state owner/mode attestation;
-- generation-scoped deny-by-default networking with explicit public market-data and DNS policy;
-- structural/effective nftables attestation before release;
-- fail-closed paused-runtime handling requiring reprovisioning before release;
-- real Docker plus concrete Linux nftables/Btrfs E2E, including non-root state writeability;
-- unconditional task-owned Docker/Btrfs/nftables cleanup with post-cleanup verification.
+The delivery candidate provides the ADR-020 generation-bound isolation envelope for Portal-managed PAPER/dry-run Freqtrade runtimes, including immutable plan binding, digest-pinned hardened runtime image and quarantine bootstrap, non-root/no-new-privileges/cap-drop/read-only-root enforcement, hard memory/swap/PID/CPU/tmpfs/log/state bounds, Btrfs qgroups and state ownership attestation, deny-by-default generation networking with explicit public-data/DNS policy, pre-release and active re-attestation, fail-closed paused/reprovision lifecycle, host-controlled application readiness, and real privileged Docker/nftables/Btrfs acceptance coverage.
 
 No Runtime Supervisor authority from `#1355` is implemented here.
 
-## Repair/audit findings addressed in the candidate
+## Final audit repairs
 
-Material findings repaired in the branch include stale formatting/type failures, missing workflow registry normalization, root UID/GID guardrails, approved-state-root protection, pre-release re-attestation, approved DNS enforcement, canonical nftables comparison, immutable quarantine bootstrap, concrete Linux isolation E2E, effective log-rotation evidence, real Btrfs quota overrun evidence, paused-runtime stale-release handling, Btrfs runtime owner/mode enforcement, qgroup header parsing, state-owner E2E, explicit nftables cleanup, STARTING stop semantics, durable RUNNING log re-attestation, host-controlled application readiness after a successful pairlist probe, forged-stdout rejection, and real privileged memory/swap, PID and CPU-throttling probes.
+The previous exact-head audit findings are repaired in the code parent `ac00dbaaa384c78cef90a14e16aba28a1479f815`:
 
-These repairs are candidate evidence only until the final unchanged head earns all required gates.
+- `PRRT_kwDOTdDTU86YZdA9` — unconditional workflow cleanup now retains the exact nftables table whenever the corresponding Docker network teardown fails or cannot be proven; cleanup still returns failure and verifies residual state instead of stripping the firewall from a surviving network/runtime.
+- `PRRT_kwDOTdDTU86YZdBB` — the host-controlled readiness `docker exec` uses a driver-owned 15-second deadline; `SubprocessCommandRunner` converts `TimeoutExpired` to a bounded failed probe and `inspect()` remains `STARTING` rather than blocking lifecycle control indefinitely.
+
+The readiness repair was focused-validated before publication with `test_driver.py`, Ruff, formatting, mypy and `git diff --check`. The temporary publisher workflow was removed before this final-validation candidate.
 
 ## Remaining closeout gates
 
 ```yaml
 closeout:
   implementation_candidate_present: true
-  implementation_complete: false
+  implementation_complete: true
   outcome_verified: false
   audit:
-    result: remediation_required
-    material_findings_open: 2
+    result: pending_fresh_exact_head
+    material_findings_open: unknown_until_fresh_audit
   e2e:
-    result: passed_on_pre_repair_head_745a53fc72b11c250efb8c1796a7b04d8ea8c400
+    result: pending_exact_final_head
   final_ci:
-    result: passed_on_pre_repair_head_745a53fc72b11c250efb8c1796a7b04d8ea8c400
+    result: pending_exact_final_head
   pull_requests:
     sole_delivery_pr: blakinio/freqtrade#1464
+    current_base_sync_pr: blakinio/freqtrade#1486 terminal
     historical_delivery_pr: blakinio/freqtrade#1431 closed-unmerged
-  task_status: implementing
+  task_status: validating
   task_archived: false
   ownership_released: false
 ```
-
-## Required next actions
-
-1. repair fail-closed nftables cleanup so a table remains whenever its corresponding Docker network teardown fails;
-2. add a driver-owned finite deadline to the host-controlled readiness subprocess and fail closed on timeout;
-3. run focused validation, then the dedicated privileged E2E and affected exact-head CI;
-4. obtain a fresh independent exact-head audit and remediate every remaining material finding;
-5. verify zero unresolved review threads and squash-merge PR `#1464` only after all closeout gates are green;
-6. perform terminal lifecycle/archive reconciliation after the merge is verified.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-12T06:36:00Z
-head: 745a53fc72b11c250efb8c1796a7b04d8ea8c400
-head_role: pre_final_audit_repair_candidate
+updated_at: 2026-08-12T06:57:00Z
+head: ac00dbaaa384c78cef90a14e16aba28a1479f815
+head_role: final_code_parent_before_metadata_freeze
 branch: fix/portal-runtime-isolation-1354
 pr: 1464
-status: implementing
+status: validating
 context_routes:
   - issue #1354
   - pull request #1464
@@ -99,31 +83,19 @@ owned_paths:
   - .github/workflows/portal-runtime-isolation-e2e.yml
   - docs/agents/tasks/active/FTAI-20260809-portal-runtime-isolation-1354.md
 proven:
-  - exact-head 745a53fc72b11c250efb8c1796a7b04d8ea8c400 passed Portal Runtime Isolation E2E, Freqtrade CI, CodeQL, Exact-Image, risk-aware, zizmor and browser E2E checks
-  - source-independent readiness no longer trusts strategy stdout
-  - STARTING runtimes are stopped on request
-  - active RUNNING re-attestation uses bounded current Docker logs rather than bootstrap markers
-  - host isolation cleanup removes Docker network before deleting its nftables table
-  - privileged E2E contains real memory/swap, PID and CPU-throttling negative probes
+  - current develop ec41d2542bff57f74cd10856b7dc22265213d991 is an ancestor of the delivery branch and compare is behind_by=0
+  - previous exact head 745a53fc72b11c250efb8c1796a7b04d8ea8c400 passed Runtime Isolation E2E and all applicable major CI before the final two audit repairs
+  - unconditional workflow cleanup no longer deletes a task nftables table when corresponding network teardown failed or is unproven
+  - application readiness remains host-controlled and now has a driver-owned finite subprocess deadline
+  - STARTING runtimes are stoppable; active RUNNING re-attestation uses bounded current Docker-log evidence
+  - privileged E2E contains memory/swap, PID, CPU, storage, networking, ownership and release-path negative/positive probes
 unknown:
-  - post-repair exact-head CI and privileged E2E result
-  - fresh post-repair independent audit result
+  - fresh independent audit result on the final metadata head
+  - exact-final-head privileged E2E and CI result
+  - unresolved review-thread count after final audit reconciliation
 conflicts: []
-material_findings:
-  - id: PRRT_kwDOTdDTU86YZdA9
-    severity: P1
-    summary: unconditional workflow cleanup deletes task nftables tables even when Docker network removal fails
-  - id: PRRT_kwDOTdDTU86YZdBB
-    severity: P2
-    summary: readiness docker-exec subprocess is not bounded by a driver-owned timeout
-changed_paths:
-  - docs/agents/tasks/active/FTAI-20260809-portal-runtime-isolation-1354.md
-validation:
-  - head: 745a53fc72b11c250efb8c1796a7b04d8ea8c400
-    result: PASS_WITH_AUDIT_FINDINGS
-    evidence: all required workflows green; two current review findings remain
 blockers: []
-next_action: Implement the two current audit repairs with focused validation, then remove any temporary validation workflow before exact-head E2E and CI.
+next_action: Resolve the final PR head produced by this metadata commit, request a fresh independent exact-head audit, run/reconcile exact-head E2E and CI, resolve all review threads, and squash-merge PR #1464 only if every closeout gate passes.
 ```
 
 ## Recovery checkpoint
@@ -131,22 +103,22 @@ next_action: Implement the two current audit repairs with focused validation, th
 ```yaml
 recovery:
   policy_version: 1
-  generation: 1
+  generation: 2
   session_id: chat-20260812-0836-paper-closeout-1354
   session_started_at: 2026-08-12T06:36:00Z
-  checkpointed_at: 2026-08-12T06:36:00Z
-  last_progress_at: 2026-08-12T06:36:00Z
-  phase: implement_final_audit_repairs
-  exact_head: 745a53fc72b11c250efb8c1796a7b04d8ea8c400
+  checkpointed_at: 2026-08-12T06:57:00Z
+  last_progress_at: 2026-08-12T06:57:00Z
+  phase: final_exact_head_validation
+  exact_head: ac00dbaaa384c78cef90a14e16aba28a1479f815
   pull_request: 1464
-  active_operation: prepare bounded repair and focused validation
+  active_operation: fresh independent audit plus exact-head CI/E2E
   external_run_ids: []
-  operation_started_at: null
-  wait_deadline_at: null
-  check_generation: null
+  operation_started_at: 2026-08-12T06:57:00Z
+  wait_deadline_at: 2026-08-12T07:42:00Z
+  check_generation: final-closeout-v1
   checks_used: 0
   status: active
   safe_to_resume: true
-  resume_condition: branch remains the sole delivery lane and no conflicting writer owns PR #1464
-  next_action: Repair fail-closed nftables cleanup and bound the readiness subprocess, then run focused validation.
+  resume_condition: PR #1464 head remains unchanged and no conflicting writer owns the branch
+  next_action: Request fresh independent audit on the exact metadata head and reconcile exact-head required CI/E2E before review-thread cleanup and merge.
 ```

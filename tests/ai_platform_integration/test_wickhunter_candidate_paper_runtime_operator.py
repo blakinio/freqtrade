@@ -728,6 +728,22 @@ def test_live_root_rejects_snapshot_identity_overflow(
         load_liquid20_snapshot(root, now_ms=NOW_MS)
 
 
+def test_live_root_rejects_oversized_source_event_identity(
+    tmp_path: Path,
+) -> None:
+    oversized_event_id = "ż" * (operator_module.MAX_LIVE_SOURCE_EVENT_ID_BYTES // 2 + 1)
+    root = _write_live_root(
+        tmp_path / "oversized-source-event-id",
+        previous_events=[_event(oversized_event_id, received_at_ms=NOW_MS - 3_600_000)],
+    )
+
+    with pytest.raises(
+        CandidatePaperRuntimeOperatorError,
+        match="source event identity is too large",
+    ):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
 def test_live_root_retries_mid_publication_pointer_state_mismatch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

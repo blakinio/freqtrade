@@ -68,6 +68,7 @@ MAX_LIVE_RUNS_PER_WINDOW = 64
 MAX_LIVE_SOURCE_BYTES = 128 * 1024 * 1024
 MAX_LIVE_SOURCE_EVENTS = 250_000
 MAX_LIVE_SNAPSHOT_EVENT_IDENTITIES = 500_000
+MAX_LIVE_SOURCE_EVENT_ID_BYTES = 512
 MAX_LIVE_EVENT_ROW_BYTES = 1024 * 1024
 MAX_UNCOMMITTED_LIVE_EVENTS = 10_000
 LIVE_SNAPSHOT_READ_ATTEMPTS = 10
@@ -385,6 +386,8 @@ def _legacy_restart_source_summaries_match(
 
 
 def _record_validated_event_id(validated_event_ids: set[str], event_id: str) -> None:
+    if len(event_id.encode("utf-8")) > MAX_LIVE_SOURCE_EVENT_ID_BYTES:
+        raise CandidatePaperRuntimeOperatorError("Liquid20 source event identity is too large")
     if len(validated_event_ids) >= MAX_LIVE_SNAPSHOT_EVENT_IDENTITIES:
         raise CandidatePaperRuntimeOperatorError(
             "Liquid20 snapshot contains too many event identities"

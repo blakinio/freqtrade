@@ -5,6 +5,7 @@ import asyncio
 import json
 import os
 import re
+import stat
 import time
 import urllib.parse
 import urllib.request
@@ -23,7 +24,6 @@ from ai_platform.research.liquidations.bybit import parse_bybit_all_liquidation
 from ai_platform.research.liquidations.contracts import LiquidationEvent
 from ai_platform.research.liquidations.staging import (
     trading_credentials_present_in_environment,
-    write_json_atomic,
 )
 from ai_platform.scripts.liquidation_binance_collector import trading_credentials_present
 
@@ -42,6 +42,9 @@ DEFAULT_BINANCE_ENDPOINT = "wss://fstream.binance.com/market/ws"
 DEFAULT_BINANCE_EXCHANGE_INFO_URL = "https://fapi.binance.com/fapi/v1/exchangeInfo"
 EXPECTED_CONNECTION_EXCEPTIONS = (OSError, ValueError, WebSocketException)
 REDACTED = "[redacted]"
+MAX_RECOVERY_SOURCE_BYTES = 128 * 1024 * 1024
+MAX_RECOVERY_SOURCE_EVENTS = 250_000
+MAX_RECOVERY_ROW_BYTES = 1024 * 1024
 
 
 @dataclass(slots=True)
@@ -85,14 +88,35 @@ class AppendOnlyNdjsonWriter:
         *,
         flush_interval_seconds: float = 1.0,
         flush_event_count: int = 100,
+        directory_fd: int | None = None,
     ) -> None:
         if flush_interval_seconds <= 0:
             raise ValueError("flush_interval_seconds must be > 0")
         if flush_event_count < 1:
             raise ValueError("flush_event_count must be >= 1")
-        path.parent.mkdir(parents=True, exist_ok=True)
         self.path = path
-        self._handle = path.open("a", encoding="utf-8")
+        if directory_fd is None:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self._handle = path.open("a", encoding="utf-8")
+        else:
+            nofollow_flag = getattr(os, "O_NOFOLLOW", None)
+            if nofollow_flag is None:
+                raise RuntimeError("secure Liquid20 writer file access is unsupported")
+            descriptor = os.open(
+                path.name,
+                os.O_WRONLY
+                | os.O_CREAT
+                | os.O_APPEND
+                | nofollow_flag
+                | getattr(os, "O_NONBLOCK", 0)
+                | getattr(os, "O_CLOEXEC", 0),
+                0o640,
+                dir_fd=directory_fd,
+            )
+            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                os.close(descriptor)
+                raise RuntimeError("Liquid20 writer target is not a regular file")
+            self._handle = os.fdopen(descriptor, "a", encoding="utf-8")
         self._flush_interval_seconds = flush_interval_seconds
         self._flush_event_count = flush_event_count
         self._pending = 0
@@ -115,10 +139,419 @@ class AppendOnlyNdjsonWriter:
         self._pending = 0
         self._last_flush = time.monotonic()
 
+    @property
+    def closed(self) -> bool:
+        return self._handle.closed
+
+    def assert_canonical_identity(self, directory_fd: int) -> None:
+        if self.closed:
+            return
+        try:
+            current = os.stat(self.path.name, dir_fd=directory_fd, follow_symlinks=False)
+        except OSError as exc:
+            raise RuntimeError("Liquid20 source file changed after writer anchoring") from exc
+        anchored = os.fstat(self._handle.fileno())
+        if not stat.S_ISREG(current.st_mode) or (anchored.st_dev, anchored.st_ino) != (
+            current.st_dev,
+            current.st_ino,
+        ):
+            raise RuntimeError("Liquid20 source file changed after writer anchoring")
+
     def close(self) -> None:
-        if not self._handle.closed:
+        if not self.closed:
             self.flush()
             self._handle.close()
+
+
+def _secure_directory_flags() -> int:
+    directory_flag = getattr(os, "O_DIRECTORY", None)
+    nofollow_flag = getattr(os, "O_NOFOLLOW", None)
+    if directory_flag is None or nofollow_flag is None:
+        raise RuntimeError("secure Liquid20 restart filesystem traversal is unsupported")
+    return os.O_RDONLY | directory_flag | nofollow_flag | getattr(os, "O_CLOEXEC", 0)
+
+
+def _open_restart_run_root_fd(data_root: Path, run_id: str) -> int | None:
+    flags = _secure_directory_flags()
+    opened: list[int] = []
+    try:
+        current_fd = os.open(data_root, flags)
+        opened.append(current_fd)
+        if not stat.S_ISDIR(os.fstat(current_fd).st_mode):
+            raise RuntimeError("Liquid20 data root is not a regular directory")
+        for component in ("live", "runs", run_id):
+            current_fd = os.open(component, flags, dir_fd=current_fd)
+            opened.append(current_fd)
+            if not stat.S_ISDIR(os.fstat(current_fd).st_mode):
+                raise RuntimeError("previous live run root is not a regular directory")
+        return opened.pop()
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise RuntimeError("previous live run root is not a regular directory") from exc
+    finally:
+        for descriptor in reversed(opened):
+            os.close(descriptor)
+
+
+def _open_live_runtime_fds(data_root: Path) -> tuple[int, int]:
+    flags = _secure_directory_flags()
+    data_fd = os.open(data_root, flags)
+    try:
+        live_fd = os.open("live", flags, dir_fd=data_fd)
+    except BaseException:
+        os.close(data_fd)
+        raise
+    os.close(data_fd)
+    try:
+        runs_fd = os.open("runs", flags, dir_fd=live_fd)
+    except BaseException:
+        os.close(live_fd)
+        raise
+    return live_fd, runs_fd
+
+
+def _open_child_directory_fd(
+    parent_fd: int,
+    name: str,
+    *,
+    label: str,
+    missing_ok: bool = False,
+) -> int | None:
+    try:
+        descriptor = os.open(name, _secure_directory_flags(), dir_fd=parent_fd)
+    except FileNotFoundError:
+        if missing_ok:
+            return None
+        raise RuntimeError(f"{label} is missing") from None
+    except OSError as exc:
+        raise RuntimeError(f"{label} is not a regular directory") from exc
+    if not stat.S_ISDIR(os.fstat(descriptor).st_mode):
+        os.close(descriptor)
+        raise RuntimeError(f"{label} is not a regular directory")
+    return descriptor
+
+
+def _assert_runtime_roots_still_anchored(
+    *,
+    data_root: Path,
+    live_fd: int,
+    runs_fd: int,
+    run_id: str | None = None,
+    run_fd: int | None = None,
+) -> None:
+    if (run_id is None) != (run_fd is None):
+        raise ValueError("run_id and run_fd must be provided together")
+    flags = _secure_directory_flags()
+    opened: list[int] = []
+    try:
+        data_fd = os.open(data_root, flags)
+        opened.append(data_fd)
+        current_live_fd = os.open("live", flags, dir_fd=data_fd)
+        opened.append(current_live_fd)
+        current_runs_fd = os.open("runs", flags, dir_fd=current_live_fd)
+        opened.append(current_runs_fd)
+        comparisons = [(live_fd, current_live_fd), (runs_fd, current_runs_fd)]
+        if run_id is not None and run_fd is not None:
+            current_run_fd = os.open(run_id, flags, dir_fd=current_runs_fd)
+            opened.append(current_run_fd)
+            comparisons.append((run_fd, current_run_fd))
+        for anchored_fd, current_fd in comparisons:
+            anchored = os.fstat(anchored_fd)
+            current = os.fstat(current_fd)
+            if (anchored.st_dev, anchored.st_ino) != (current.st_dev, current.st_ino):
+                raise RuntimeError("Liquid20 runtime roots changed after anchoring")
+    except OSError as exc:
+        raise RuntimeError("Liquid20 runtime roots changed after anchoring") from exc
+    finally:
+        for descriptor in reversed(opened):
+            os.close(descriptor)
+
+
+def _read_json_regular_at(directory_fd: int, file_name: str) -> dict[str, object] | None:
+    nofollow_flag = getattr(os, "O_NOFOLLOW", None)
+    if nofollow_flag is None:
+        raise RuntimeError("secure Liquid20 restart file access is unsupported")
+    try:
+        descriptor = os.open(
+            file_name,
+            os.O_RDONLY
+            | nofollow_flag
+            | getattr(os, "O_NONBLOCK", 0)
+            | getattr(os, "O_CLOEXEC", 0),
+            dir_fd=directory_fd,
+        )
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise RuntimeError("previous live state path is not a regular file") from exc
+    item = os.fstat(descriptor)
+    if not stat.S_ISREG(item.st_mode):
+        os.close(descriptor)
+        raise RuntimeError("previous live state path is not a regular file")
+    with os.fdopen(descriptor, "r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    if not isinstance(payload, dict):
+        raise TypeError("previous live state is invalid")
+    return payload
+
+
+def _write_json_atomic_at(directory_fd: int, file_name: str, payload: dict[str, object]) -> None:
+    nofollow_flag = getattr(os, "O_NOFOLLOW", None)
+    if nofollow_flag is None:
+        raise RuntimeError("secure Liquid20 restart file access is unsupported")
+    temporary_name = f".{file_name}.{os.getpid()}.{time.time_ns()}.tmp"
+    descriptor = -1
+    try:
+        descriptor = os.open(
+            temporary_name,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow_flag | getattr(os, "O_CLOEXEC", 0),
+            0o640,
+            dir_fd=directory_fd,
+        )
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            descriptor = -1
+            json.dump(payload, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(
+            temporary_name,
+            file_name,
+            src_dir_fd=directory_fd,
+            dst_dir_fd=directory_fd,
+        )
+        os.fsync(directory_fd)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        try:
+            os.unlink(temporary_name, dir_fd=directory_fd)
+        except FileNotFoundError:
+            pass
+
+
+def _source_directory_fd(path: Path, directory_fd: int | None, source: str) -> tuple[int, bool]:
+    if directory_fd is not None:
+        return directory_fd, False
+    try:
+        return os.open(path.parent, _secure_directory_flags()), True
+    except OSError as exc:
+        raise RuntimeError(f"previous {source} source path is not a regular file") from exc
+
+
+def _open_committed_source_fd(
+    directory_fd: int,
+    file_name: str,
+    *,
+    committed_rows: int,
+    source: str,
+    allow_missing: bool,
+) -> int | None:
+    nofollow_flag = getattr(os, "O_NOFOLLOW", None)
+    if nofollow_flag is None:
+        raise RuntimeError("secure Liquid20 restart file access is unsupported")
+    try:
+        descriptor = os.open(
+            file_name,
+            os.O_RDWR | nofollow_flag | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_CLOEXEC", 0),
+            dir_fd=directory_fd,
+        )
+    except FileNotFoundError:
+        if allow_missing and committed_rows == 0:
+            return None
+        if committed_rows == 0:
+            raise RuntimeError(f"previous {source} source file is missing")
+        raise RuntimeError(f"previous {source} source file is missing committed rows")
+    except OSError as exc:
+        raise RuntimeError(f"previous {source} source path is not a regular file") from exc
+    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        os.close(descriptor)
+        raise RuntimeError(f"previous {source} source path is not a regular file")
+    return descriptor
+
+
+def _validate_committed_ndjson_fd(
+    path: Path,
+    *,
+    committed_rows: int,
+    source: str,
+    allow_missing: bool,
+    directory_fd: int | None = None,
+) -> tuple[int | None, int]:
+    if (
+        isinstance(committed_rows, bool)
+        or not isinstance(committed_rows, int)
+        or committed_rows < 0
+        or committed_rows > MAX_RECOVERY_SOURCE_EVENTS
+    ):
+        raise RuntimeError(f"previous {source} events_written is invalid")
+    source_directory_fd, owned = _source_directory_fd(path, directory_fd, source)
+    descriptor: int | None = None
+    try:
+        descriptor = _open_committed_source_fd(
+            source_directory_fd,
+            path.name,
+            committed_rows=committed_rows,
+            source=source,
+            allow_missing=allow_missing,
+        )
+        if descriptor is None:
+            return None, 0
+        if os.fstat(descriptor).st_size > MAX_RECOVERY_SOURCE_BYTES:
+            raise RuntimeError(f"previous {source} source file exceeds recovery size bound")
+        committed_end = 0
+        with os.fdopen(os.dup(descriptor), "rb") as handle:
+            for _ in range(committed_rows):
+                row = handle.readline(MAX_RECOVERY_ROW_BYTES + 1)
+                if len(row) > MAX_RECOVERY_ROW_BYTES:
+                    raise RuntimeError(f"previous {source} source row exceeds recovery bound")
+                if not row or not row.endswith(b"\n") or not row.strip():
+                    raise RuntimeError(
+                        f"previous {source} source file has fewer rows than committed"
+                    )
+                committed_end = handle.tell()
+        return descriptor, committed_end
+    except BaseException:
+        if descriptor is not None:
+            os.close(descriptor)
+        raise
+    finally:
+        if owned:
+            os.close(source_directory_fd)
+
+
+def _seal_validated_committed_ndjson(descriptor: int, committed_end: int) -> None:
+    with os.fdopen(descriptor, "r+b") as handle:
+        handle.seek(committed_end)
+        if handle.read(1):
+            handle.truncate(committed_end)
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def _seal_committed_ndjson(
+    path: Path,
+    *,
+    committed_rows: int,
+    source: str,
+    allow_missing: bool,
+    directory_fd: int | None = None,
+) -> None:
+    descriptor, committed_end = _validate_committed_ndjson_fd(
+        path,
+        committed_rows=committed_rows,
+        source=source,
+        allow_missing=allow_missing,
+        directory_fd=directory_fd,
+    )
+    if descriptor is not None:
+        _seal_validated_committed_ndjson(descriptor, committed_end)
+
+
+def _seal_restart_sources(
+    run_root: Path, run_root_fd: int, sources: dict[str, object]
+) -> list[tuple[str, int | None]]:
+    validated: list[tuple[str, int | None, int]] = []
+    retained: list[tuple[str, int | None]] = []
+    try:
+        for source in (BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE):
+            committed_rows, allow_missing = _restart_source_commit_state(
+                sources[source], source=source
+            )
+            descriptor, committed_end = _validate_committed_ndjson_fd(
+                run_root / f"{source}.ndjson",
+                committed_rows=committed_rows,
+                source=source,
+                allow_missing=allow_missing,
+                directory_fd=run_root_fd,
+            )
+            validated.append((source, descriptor, committed_end))
+        for source, descriptor, committed_end in validated:
+            if descriptor is not None:
+                _seal_validated_committed_ndjson(os.dup(descriptor), committed_end)
+            retained.append((source, descriptor))
+        return retained
+    except BaseException:
+        for _, descriptor, _ in validated:
+            if descriptor is not None:
+                os.close(descriptor)
+        raise
+
+
+def _assert_recovered_source_identities(
+    run_root_fd: int, retained: Sequence[tuple[str, int | None]]
+) -> None:
+    for source, descriptor in retained:
+        name = f"{source}.ndjson"
+        if descriptor is None:
+            try:
+                os.stat(name, dir_fd=run_root_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                continue
+            except OSError as exc:
+                raise RuntimeError("previous live source changed during recovery") from exc
+            raise RuntimeError("previous live source changed during recovery")
+        try:
+            current = os.stat(name, dir_fd=run_root_fd, follow_symlinks=False)
+        except OSError as exc:
+            raise RuntimeError("previous live source changed during recovery") from exc
+        anchored = os.fstat(descriptor)
+        if not stat.S_ISREG(current.st_mode) or (current.st_dev, current.st_ino) != (
+            anchored.st_dev,
+            anchored.st_ino,
+        ):
+            raise RuntimeError("previous live source changed during recovery")
+
+
+def _close_recovered_source_descriptors(
+    retained: Sequence[tuple[str, int | None]],
+) -> None:
+    for _, descriptor in retained:
+        if descriptor is not None:
+            os.close(descriptor)
+
+
+def _prepare_live_roots(*, data_root: Path, live_root: Path, runs_root: Path) -> None:
+    for path, label in (
+        (data_root, "Liquid20 data root"),
+        (live_root, "Liquid20 live root"),
+        (runs_root, "Liquid20 runs root"),
+    ):
+        try:
+            item = path.lstat()
+        except FileNotFoundError:
+            try:
+                path.mkdir(parents=False, exist_ok=False)
+            except FileExistsError:
+                pass
+            item = path.lstat()
+        if not stat.S_ISDIR(item.st_mode) or stat.S_ISLNK(item.st_mode):
+            raise RuntimeError(f"{label} is not a regular directory")
+
+
+def _validate_restart_zero_authority(state: dict[str, object]) -> None:
+    for field_name in (
+        "execution_enabled",
+        "trading_authorized",
+        "trading_credentials_present",
+    ):
+        if state.get(field_name) is not False:
+            raise RuntimeError(f"previous live run must keep {field_name}=false")
+    if state.get("orders_submitted", 0) != 0:
+        raise RuntimeError("previous live run must keep orders_submitted=0")
+
+
+def _restart_source_commit_state(source_state: object, *, source: str) -> tuple[int, bool]:
+    if not isinstance(source_state, dict):
+        raise RuntimeError(f"previous {source} source state is invalid")
+    if "events_written" not in source_state:
+        raise RuntimeError(f"previous {source} events_written is missing")
+    configured = source_state.get("configured")
+    if not isinstance(configured, bool):
+        raise RuntimeError(f"previous {source} configured is invalid")
+    allow_missing = configured is False and source_state.get("last_event_received_at_ms") is None
+    return source_state["events_written"], allow_missing
 
 
 class LiveRunManager:
@@ -133,6 +566,7 @@ class LiveRunManager:
     ) -> None:
         if not re.fullmatch(r"[0-9a-fA-F]{40}", collector_commit):
             raise ValueError("collector_commit must be a 40-character Git SHA")
+        self.data_root = data_root
         self.live_root = data_root / "live"
         self.runs_root = self.live_root / "runs"
         self.collector_commit = collector_commit.lower()
@@ -150,6 +584,9 @@ class LiveRunManager:
         self._last_event_at_ms: int | None = None
         self._last_event_received_at_ms: int | None = None
         self._writers: dict[str, AppendOnlyNdjsonWriter] = {}
+        self._live_root_fd: int | None = None
+        self._runs_root_fd: int | None = None
+        self._run_root_fd: int | None = None
         self.sources = {
             BYBIT_SOURCE: SourceState(configured=True),
             BINANCE_SOURCE: SourceState(configured=True),
@@ -168,18 +605,58 @@ class LiveRunManager:
             raise RuntimeError("live run has not started")
         return self._run_root
 
+    @staticmethod
+    def _require_fd(descriptor: int | None, *, label: str) -> int:
+        if descriptor is None:
+            raise RuntimeError(f"{label} is not open")
+        return descriptor
+
+    def _open_runtime_root_fds(self) -> None:
+        self._close_runtime_root_fds()
+        try:
+            self._live_root_fd, self._runs_root_fd = _open_live_runtime_fds(self.data_root)
+        except OSError as exc:
+            raise RuntimeError("Liquid20 runtime roots are not stable regular directories") from exc
+
+    def _close_run_root_fd(self) -> None:
+        if self._run_root_fd is not None:
+            os.close(self._run_root_fd)
+            self._run_root_fd = None
+
+    def _close_runtime_root_fds(self) -> None:
+        self._close_run_root_fd()
+        if self._runs_root_fd is not None:
+            os.close(self._runs_root_fd)
+            self._runs_root_fd = None
+        if self._live_root_fd is not None:
+            os.close(self._live_root_fd)
+            self._live_root_fd = None
+
     async def start(self) -> None:
         async with self._lock:
-            self.runs_root.mkdir(parents=True, exist_ok=True)
-            await asyncio.to_thread(self._complete_previous_active_run)
-            self._start_new_run(self._now_ms())
-            await asyncio.to_thread(self._write_state)
+            await asyncio.to_thread(
+                _prepare_live_roots,
+                data_root=self.data_root,
+                live_root=self.live_root,
+                runs_root=self.runs_root,
+            )
+            await asyncio.to_thread(self._open_runtime_root_fds)
+            try:
+                await asyncio.to_thread(self._complete_previous_active_run)
+                self._start_new_run(self._now_ms())
+                await asyncio.to_thread(self._write_state)
+            except BaseException as startup_error:
+                try:
+                    await asyncio.to_thread(self._close_writers_and_runtime_fds)
+                except BaseException as cleanup_error:
+                    startup_error.add_note(
+                        f"Liquid20 startup cleanup also failed: {type(cleanup_error).__name__}"
+                    )
+                raise
 
     async def heartbeat(self) -> None:
         async with self._lock:
             self._rotate_if_needed(self._now_ms())
-            for writer in self._writers.values():
-                await asyncio.to_thread(writer.flush)
             await asyncio.to_thread(self._write_state)
 
     async def set_subscription(self, source: str, symbols: Sequence[str]) -> None:
@@ -242,52 +719,123 @@ class LiveRunManager:
 
     async def stop(self, *, reason: str = "collector-stopped") -> None:
         async with self._lock:
-            if self._run_id is None:
+            if self._run_id is None or self._run_root_fd is None:
+                await asyncio.to_thread(self._close_runtime_root_fds)
                 return
             self._run_state = "completed"
             self._completion_reason = reason
             self._completed_at_ms = self._now_ms()
             for state in self.sources.values():
                 state.connected = False
+            try:
+                await asyncio.to_thread(self._write_state)
+            finally:
+                await asyncio.to_thread(self._close_writers_and_runtime_fds)
+
+    def _close_writers_and_runtime_fds(self) -> None:
+        cleanup_error: BaseException | None = None
+        try:
             for writer in self._writers.values():
-                await asyncio.to_thread(writer.close)
-            await asyncio.to_thread(self._write_state)
+                try:
+                    writer.close()
+                except BaseException as exc:
+                    if cleanup_error is None:
+                        cleanup_error = exc
+        finally:
             self._writers.clear()
+            self._close_runtime_root_fds()
+        if cleanup_error is not None:
+            raise cleanup_error
 
     def _complete_previous_active_run(self) -> None:
-        pointer = self.live_root / LIVE_STATE_FILE
-        if not pointer.exists() or pointer.is_symlink():
-            return
+        live_fd = self._require_fd(self._live_root_fd, label="Liquid20 live root")
+        runs_fd = self._require_fd(self._runs_root_fd, label="Liquid20 runs root")
         try:
-            payload = json.loads(pointer.read_text(encoding="utf-8"))
-            run_id = payload.get("active_run_id")
-            if not isinstance(run_id, str) or not RUN_ID_PATTERN.fullmatch(run_id):
-                return
-            run_root = self.runs_root / run_id
-            state_path = run_root / RUN_STATE_FILE
-            if not state_path.is_file() or state_path.is_symlink():
-                return
-            state = json.loads(state_path.read_text(encoding="utf-8"))
-            if state.get("run_state") != "active":
-                return
-            state["run_state"] = "completed"
-            state["data_mode"] = "historical"
-            state["completed_at_ms"] = self._now_ms()
-            state["completion_reason"] = "collector-restart"
-            write_json_atomic(state_path, state)
-        except (OSError, TypeError, ValueError, json.JSONDecodeError):
+            payload = _read_json_regular_at(live_fd, LIVE_STATE_FILE)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return
+        if payload is None:
+            return
+        if payload.get("schema_version") != 1 or payload.get("contract") != LIVE_CONTRACT:
+            raise RuntimeError("previous live pointer contract is invalid")
+        run_id = payload.get("active_run_id")
+        if not isinstance(run_id, str) or not RUN_ID_PATTERN.fullmatch(run_id):
             return
 
+        run_root_fd = _open_child_directory_fd(
+            runs_fd,
+            run_id,
+            label="previous live run root",
+            missing_ok=True,
+        )
+        if run_root_fd is None:
+            return
+        try:
+            try:
+                state = _read_json_regular_at(run_root_fd, RUN_STATE_FILE)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                return
+            if state is None or state.get("run_state") != "active":
+                return
+            if state.get("schema_version") != 1 or state.get("contract") != LIVE_CONTRACT:
+                raise RuntimeError("previous live run contract is invalid")
+            if state.get("run_id") != run_id:
+                raise RuntimeError("previous live run_id does not match active pointer")
+            _validate_restart_zero_authority(state)
+            _assert_runtime_roots_still_anchored(
+                data_root=self.data_root,
+                live_fd=live_fd,
+                runs_fd=runs_fd,
+                run_id=run_id,
+                run_fd=run_root_fd,
+            )
+            sources = state.get("sources")
+            if not isinstance(sources, dict):
+                raise RuntimeError("previous live source state is invalid")
+            expected_sources = {BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE}
+            if set(sources) != expected_sources:
+                raise RuntimeError("previous live source set is invalid")
+            run_root = self.runs_root / run_id
+            retained_sources = _seal_restart_sources(run_root, run_root_fd, sources)
+            try:
+                state["run_state"] = "completed"
+                state["data_mode"] = "historical"
+                state["completed_at_ms"] = self._now_ms()
+                state["completion_reason"] = "collector-restart"
+                self._write_source_summaries(run_root_fd, state)
+                _assert_recovered_source_identities(run_root_fd, retained_sources)
+                _assert_runtime_roots_still_anchored(
+                    data_root=self.data_root,
+                    live_fd=live_fd,
+                    runs_fd=runs_fd,
+                    run_id=run_id,
+                    run_fd=run_root_fd,
+                )
+                _write_json_atomic_at(run_root_fd, RUN_STATE_FILE, state)
+            finally:
+                _close_recovered_source_descriptors(retained_sources)
+        finally:
+            os.close(run_root_fd)
+
     def _start_new_run(self, now_ms: int) -> None:
+        runs_fd = self._require_fd(self._runs_root_fd, label="Liquid20 runs root")
         instant = datetime.fromtimestamp(now_ms / 1000, tz=UTC)
         day = instant.strftime("%Y%m%d")
         base = f"liquid20-{day}T000000Z"
         attempt = 0
-        while (self.runs_root / f"{base}-{attempt}").exists():
-            attempt += 1
-        run_id = f"{base}-{attempt}"
+        while True:
+            run_id = f"{base}-{attempt}"
+            try:
+                os.mkdir(run_id, mode=0o750, dir_fd=runs_fd)
+                break
+            except FileExistsError:
+                attempt += 1
+        self._close_run_root_fd()
+        run_root_fd = _open_child_directory_fd(runs_fd, run_id, label="new live run root")
+        if run_root_fd is None:
+            raise RuntimeError("new live run root is missing")
+        self._run_root_fd = run_root_fd
         run_root = self.runs_root / run_id
-        run_root.mkdir(parents=False, exist_ok=False)
         self._run_id = run_id
         self._run_root = run_root
         self._collector_started_at_ms = now_ms
@@ -301,10 +849,12 @@ class LiveRunManager:
             BYBIT_SOURCE: AppendOnlyNdjsonWriter(
                 run_root / "bybit-linear.ndjson",
                 flush_interval_seconds=self._flush_interval_seconds,
+                directory_fd=run_root_fd,
             ),
             BINANCE_SOURCE: AppendOnlyNdjsonWriter(
                 run_root / "binance-usdm.ndjson",
                 flush_interval_seconds=self._flush_interval_seconds,
+                directory_fd=run_root_fd,
             ),
         }
         for state in self.sources.values():
@@ -336,9 +886,9 @@ class LiveRunManager:
         self._run_state = "completed"
         self._completion_reason = "daily-rotation"
         self._completed_at_ms = now_ms
+        self._write_state()
         for writer in self._writers.values():
             writer.close()
-        self._write_state()
         self._start_new_run(now_ms)
         # Reconnect and error counters are scoped to the new run epoch created above.
         # Carrying them across rotation would divide an old cumulative count by a new uptime.
@@ -372,20 +922,50 @@ class LiveRunManager:
             "sources": {source: state.as_json_dict() for source, state in self.sources.items()},
         }
 
-    def _write_state(self) -> None:
-        payload = self._state_payload()
-        write_json_atomic(self.run_root / RUN_STATE_FILE, payload)
+    def _write_source_summaries(self, run_fd: int, payload: dict[str, object]) -> None:
+        sources = payload.get("sources")
+        run_id = payload.get("run_id")
+        run_state = payload.get("run_state")
+        if not isinstance(sources, dict) or not isinstance(run_id, str):
+            raise RuntimeError("Liquid20 source summary payload is invalid")
+        if not isinstance(run_state, str):
+            raise RuntimeError("Liquid20 run-state summary payload is invalid")
         for source in (BYBIT_SOURCE, BINANCE_SOURCE):
+            stats = sources.get(source)
+            if not isinstance(stats, dict):
+                raise RuntimeError(f"Liquid20 {source} source summary payload is invalid")
             source_payload = {
                 "schema_version": 1,
                 "source": {"id": source},
-                "run_id": self.run_id,
-                "run_state": self._run_state,
-                "stats": self.sources[source].as_json_dict(),
+                "run_id": run_id,
+                "run_state": run_state,
+                "stats": stats,
                 "trading_credentials_present": False,
                 "execution_enabled": False,
             }
-            write_json_atomic(self.run_root / f"{source}-summary.json", source_payload)
+            _write_json_atomic_at(run_fd, f"{source}-summary.json", source_payload)
+
+    def _write_state(self) -> None:
+        run_fd = self._require_fd(self._run_root_fd, label="Liquid20 active run root")
+        live_fd = self._require_fd(self._live_root_fd, label="Liquid20 live root")
+        runs_fd = self._require_fd(self._runs_root_fd, label="Liquid20 runs root")
+        _assert_runtime_roots_still_anchored(
+            data_root=self.data_root,
+            live_fd=live_fd,
+            runs_fd=runs_fd,
+            run_id=self.run_id,
+            run_fd=run_fd,
+        )
+        for writer in self._writers.values():
+            if not writer.closed:
+                writer.flush()
+        payload = self._state_payload()
+        # Summaries may be rewritten while the prior run-state remains authoritative.
+        # Revalidate source identities immediately before committing that run-state.
+        self._write_source_summaries(run_fd, payload)
+        for writer in self._writers.values():
+            writer.assert_canonical_identity(run_fd)
+        _write_json_atomic_at(run_fd, RUN_STATE_FILE, payload)
         pointer_payload = {
             "schema_version": 1,
             "contract": LIVE_CONTRACT,
@@ -393,7 +973,16 @@ class LiveRunManager:
             "collector_heartbeat_at_ms": payload["collector_heartbeat_at_ms"],
             "state": payload,
         }
-        write_json_atomic(self.live_root / LIVE_STATE_FILE, pointer_payload)
+        _assert_runtime_roots_still_anchored(
+            data_root=self.data_root,
+            live_fd=live_fd,
+            runs_fd=runs_fd,
+            run_id=self.run_id,
+            run_fd=run_fd,
+        )
+        for writer in self._writers.values():
+            writer.assert_canonical_identity(run_fd)
+        _write_json_atomic_at(live_fd, LIVE_STATE_FILE, pointer_payload)
 
 
 def redact_error(error: BaseException | str | None) -> str | None:

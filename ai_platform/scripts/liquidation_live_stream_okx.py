@@ -21,7 +21,6 @@ from ai_platform.research.liquidations.okx import (
 )
 from ai_platform.research.liquidations.staging import (
     trading_credentials_present_in_environment,
-    write_json_atomic,
 )
 from ai_platform.scripts.liquidation_binance_collector import trading_credentials_present
 from ai_platform.scripts.liquidation_live_stream import (
@@ -33,6 +32,7 @@ from ai_platform.scripts.liquidation_live_stream import (
     LiveRunManager,
     _bounded_backoff_sleep,
     _fetch_json,
+    _write_json_atomic_at,
     discover_binance_symbols,
     discover_bybit_symbols,
     run_binance_source,
@@ -145,10 +145,17 @@ class OkxLiveRunManager(LiveRunManager):
         payload["orders_submitted"] = 0
         return payload
 
-    def _write_okx_snapshot(self) -> None:
+    def _write_okx_snapshot(self, *, directory_fd: int | None = None) -> None:
         if self._okx_instrument_snapshot is not None:
-            write_json_atomic(
-                self.run_root / OKX_INSTRUMENT_SNAPSHOT_FILE,
+            run_fd = directory_fd
+            if run_fd is None:
+                run_fd = self._require_fd(
+                    self._run_root_fd,
+                    label="Liquid20 active run root",
+                )
+            _write_json_atomic_at(
+                run_fd,
+                OKX_INSTRUMENT_SNAPSHOT_FILE,
                 self._okx_instrument_snapshot,
             )
 
@@ -157,23 +164,32 @@ class OkxLiveRunManager(LiveRunManager):
         self._writers[OKX_SOURCE] = AppendOnlyNdjsonWriter(
             self.run_root / "okx-swap.ndjson",
             flush_interval_seconds=self._flush_interval_seconds,
+            directory_fd=self._require_fd(self._run_root_fd, label="Liquid20 active run root"),
         )
         self._write_okx_snapshot()
 
-    def _write_state(self) -> None:
-        super()._write_state()
+    def _write_source_summaries(self, run_fd: int, payload: dict[str, object]) -> None:
+        super()._write_source_summaries(run_fd, payload)
+        sources = payload.get("sources")
+        run_id = payload.get("run_id")
+        run_state = payload.get("run_state")
+        if not isinstance(sources, dict) or not isinstance(run_id, str):
+            raise RuntimeError("Liquid20 OKX source summary payload is invalid")
+        stats = sources.get(OKX_SOURCE)
+        if not isinstance(stats, dict) or not isinstance(run_state, str):
+            raise RuntimeError("Liquid20 OKX source summary state is invalid")
         source_payload = {
             "schema_version": 1,
             "source": {"id": OKX_SOURCE},
-            "run_id": self.run_id,
-            "run_state": self._run_state,
-            "stats": self.sources[OKX_SOURCE].as_json_dict(),
+            "run_id": run_id,
+            "run_state": run_state,
+            "stats": stats,
             "trading_credentials_present": False,
             "execution_enabled": False,
             "orders_submitted": 0,
         }
-        write_json_atomic(self.run_root / "okx-swap-summary.json", source_payload)
-        self._write_okx_snapshot()
+        _write_json_atomic_at(run_fd, "okx-swap-summary.json", source_payload)
+        self._write_okx_snapshot(directory_fd=run_fd)
 
     async def connected(self, source: str) -> None:
         if self._startup_activation_complete:

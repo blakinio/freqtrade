@@ -51,7 +51,6 @@ class LocalFreqtradeHttpClient:
         if endpoint not in {
             "/api/v1/ping",
             "/api/v1/status",
-            "/api/v1/open_orders",
             "/api/v1/trades",
         }:
             raise GatewayError("ARBITRARY_ENDPOINT_FORBIDDEN", "endpoint is not reviewed")

@@ -83,7 +83,14 @@ def advance_to_dispatched(engine: ReconciliationEngine) -> None:
         recorded_at=NOW + timedelta(seconds=1),
     )
     engine.reserve("tenant-a", "command-1", NOW + timedelta(seconds=2))
-    engine.dispatch("tenant-a", "command-1", NOW + timedelta(seconds=3))
+    engine.dispatch(
+        "tenant-a",
+        "command-1",
+        NOW + timedelta(seconds=3),
+        current_generation_id="generation-7",
+        current_state_version=5,
+        current_safety_epoch=3,
+    )
 
 
 def test_exact_replay_is_stable_and_conflicting_replay_fails_closed() -> None:
@@ -162,6 +169,7 @@ def test_out_of_order_evidence_is_ignored_before_newer_terminal_evidence() -> No
         update={
             "reconciliation_epoch": 3,
             "last_source_sequence": 20,
+            "last_source_version": "source-20",
             "last_observation_hash": HASH_C,
             "observed_hashes": (HASH_C,),
         }
@@ -185,6 +193,7 @@ def test_same_order_conflict_is_poisoned_without_blocking_other_tenant() -> None
         update={
             "reconciliation_epoch": 2,
             "last_source_sequence": 10,
+            "last_source_version": "source-10",
             "last_observation_hash": HASH_C,
             "observed_hashes": (HASH_C,),
         }

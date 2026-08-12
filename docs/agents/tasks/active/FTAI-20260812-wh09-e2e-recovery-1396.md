@@ -7,7 +7,7 @@ branch: codex/wh09-e2e-recovery-closeout-1396
 base_head: c0c484a1fe9139e6039e0c79512c3b0527c32446
 owner: chatgpt
 paper_only: true
-next_action: Complete fresh review and exact-head CI for PR 1503 after the process-isolation repair, then merge to collect the bounded exact-host Liquid20 connectivity evidence.
+next_action: Complete fresh exact-head CI and independent review for PR 1503, then merge if all gates pass.
 ---
 
 # WH09 end-to-end production evidence recovery
@@ -55,17 +55,15 @@ PR #1503 is the single current recovery PR. No separate runtime implementation P
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-12T13:34:00Z
-head: fb68dba05d24a1c6ee2faa30a341657957ba724d
+updated_at: 2026-08-12T15:45:00Z
+head: 0e6e41f27ca3dc9da6778753f665b3ee6ec1c0ad
 branch: codex/wh09-e2e-recovery-closeout-1396
 pr: 1503
 status: validating
-phase: validate-liquid20-source-connectivity-diagnostic
-execution_mode: github
-execution_reason: authenticated GitHub connector owns the PR branch and GitHub Actions is the canonical remote validation path
-context_pressure: medium
-context_growth: stable
-decomposition_decision: phased
+context_routes:
+  - PR 1503 conversation and review threads
+  - GitHub Actions exact-head validation for PR 1503
+  - canonical Liquidations Live Synology deployment evidence
 owned_paths:
   - .github/workflows/liquidations-live-synology.yml
   - deploy/synology/liquid20/deploy-live.sh
@@ -73,56 +71,47 @@ owned_paths:
   - tests/ai_platform_integration/test_liquidation_live_synology_connectivity_diagnostic.py
   - docs/agents/tasks/active/FTAI-20260812-wh09-e2e-recovery-1396.md
 proven:
-  - PR 1502 merged as c0c484a1fe9139e6039e0c79512c3b0527c32446 after exact-head CI and fresh Codex review passed.
-  - Deploy run 31596389251 no longer failed on candidate heartbeat advancement.
-  - Run 31596389251 failed because the candidate did not reach the public three-source connected readiness state.
-  - Candidate discovery completed with Binance 524, Bybit 702 and OKX 431 subscription symbols while all public connected fields remained false.
-  - Current persisted source state cannot expose the private pre-activation source connection set.
-  - PR 1503 adds a failure-only diagnostic using the exact built image, no credentials or mounts, read-only/cap-drop/no-new-privileges controls, finite DNS/TLS/WebSocket/protocol bounds, sanitized error signatures, and artifact capture.
-  - Focused static coverage asserts failure-only execution, bounds, hardening, exact-image identity, absence of credential names, sanitized error signatures, artifact upload, embedded-Python compilation, and process isolation.
-  - Fresh Codex audit found P2 `PRRT_kwDOTdDTU86YlbrS`: asyncio thread-backed DNS timeout could delay `asyncio.run()` shutdown until the outer process timeout and lose the already-classified DNS result.
-  - Repair isolates every exchange probe in its own forked process, sends the classified source result over a one-way pipe before child shutdown, terminates a child that remains alive after result delivery, and returns a bounded source-level process timeout when no result is delivered.
+  - PR 1502 merged as c0c484a1fe9139e6039e0c79512c3b0527c32446 after exact-head CI and fresh review passed.
+  - Deploy run 31596389251 proved candidate heartbeat advancement and then failed at three-source connectivity readiness.
+  - Run 31596389251 discovered Binance 524, Bybit 702 and OKX 431 subscription symbols while all public connected fields remained false.
+  - Artifact 9141752696 contains the operational evidence from run 31596389251.
+  - Persisted public state cannot identify the private pre-activation source connection set.
+  - PR 1503 diagnostic is failure-only, uses the exact built image, passes no credentials or mounts, and preserves fail-closed readiness.
+  - Per-source probes are process-isolated with bounded DNS, TLS, WebSocket, protocol and cleanup phases.
+  - The diagnostic container has deterministic run identity and ownership labels plus always-run exact-name forced cleanup.
+  - GNU timeout uses kill-after so a TERM-resistant docker run is forcibly bounded.
+  - Disposable connectivity evidence is uploaded separately with one-day retention.
 derived:
-  - The repaired exact-host diagnostic can distinguish DNS, TLS, WebSocket handshake and subscription-protocol failure without allowing a stuck resolver or websocket shutdown to erase completed source evidence.
+  - Accepted diagnostic evidence can distinguish source connection-phase failure without changing PAPER/LIVE authority or readiness semantics.
 unknown:
   - The source of the original SIGTERM that produced exit code 143.
   - Which public source or connection phase prevents current atomic three-source activation.
+conflicts: []
+first_failure:
+  marker: canonical deploy run 31596389251 failed at three-source connected readiness
+  evidence: heartbeat advanced and subscription discovery completed, but public connected remained false for Binance, Bybit and OKX; artifact 9141752696
 rejected_hypotheses:
   - OOM caused exit 143; Docker reported oom_killed false.
-  - A repository revision change is proven to have stopped the original production container.
-  - The post-1502 deploy is still failing because the candidate heartbeat does not advance.
+  - The post-1502 deploy still fails because candidate heartbeat does not advance.
 changed_paths:
   - .github/workflows/liquidations-live-synology.yml
   - tests/ai_platform_integration/test_liquidation_live_synology_connectivity_diagnostic.py
   - docs/agents/tasks/active/FTAI-20260812-wh09-e2e-recovery-1396.md
 validation:
   - command: canonical Liquid20 deployment run 31596389251
-    result: FAIL with new evidence
-    evidence: heartbeat advanced; readiness failed at three-source connectivity; artifact 9141752696.
-  - command: GitHub Actions Security Analysis with zizmor on pre-repair diagnostic head
+    result: FAIL
+    evidence: heartbeat advanced; readiness failed at three-source connectivity; artifact 9141752696
+  - command: GitHub Actions Security Analysis with zizmor on d8802e1671d69898bac9a1b516dec5fd8917c578
     result: PASS
-    evidence: run 31601549771 completed successfully for 490f45a4fef185b9f7e274b9e2886985f6516b21.
-  - command: exact-head PR CI and fresh independent re-review after P2 repair
-    result: PENDING
-    evidence: final validation generation starts from the checkpoint commit following fb68dba05d24a1c6ee2faa30a341657957ba724d.
-audit:
-  validator: codex
-  findings:
-    - id: PRRT_kwDOTdDTU86YlbrS
-      severity: P2
-      status: repaired_pending_reverification
-      evidence: process-isolation repair in .github/workflows/liquidations-live-synology.yml with focused assertions.
+    evidence: run 31612662140 completed successfully
+  - command: CodeQL Security Analysis on d8802e1671d69898bac9a1b516dec5fd8917c578
+    result: PASS
+    evidence: run 31612662138 completed successfully
+  - command: exact-head CI and independent review after forced-cleanup and checkpoint-schema repairs
+    result: NOT_RUN
+    evidence: new exact head is created by this checkpoint update and must be validated before merge
 blockers: []
-anti_stall:
-  invocation_started_at: 2026-08-12T13:10:00Z
-  last_progress_at: 2026-08-12T13:34:00Z
-  ci_checks_for_current_head: 0
-  unchanged_state_checks: 0
-  identical_failure_retries: 0
-  repair_cycles_for_current_gate: 2
-  context_reconstruction_attempts: 1
-  stall_warnings: 0
-next_action: complete fresh re-review and exact-head CI for PR 1503, resolve the repaired review thread, then merge if all gates pass
+next_action: run checkpoint validation, exact-head CI and fresh independent review for PR 1503, then merge if all gates pass
 ```
 
 ## Recovery checkpoint
@@ -130,10 +119,10 @@ next_action: complete fresh re-review and exact-head CI for PR 1503, resolve the
 ```yaml
 recovery:
   policy_version: 1
-  generation: 5
+  generation: 6
   session_id: 20260812T131000Z-wh09-recovery-1396
   phase: validate-liquid20-source-connectivity-diagnostic
-  pre_checkpoint_code_head: fb68dba05d24a1c6ee2faa30a341657957ba724d
+  pre_checkpoint_code_head: 0e6e41f27ca3dc9da6778753f665b3ee6ec1c0ad
   pull_request: 1503
   external_run_ids:
     - 31596389251
@@ -141,5 +130,5 @@ recovery:
     - 9141752696
   status: validating
   safe_to_resume: true
-  next_action: complete fresh re-review and exact-head CI, resolve repaired P2, merge PR 1503 if green, then inspect the canonical deployment diagnostic artifact
+  next_action: validate the exact head and merge PR 1503 if CI and independent review pass
 ```

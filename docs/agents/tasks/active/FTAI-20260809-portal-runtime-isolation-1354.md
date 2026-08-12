@@ -2,7 +2,7 @@
 task_id: FTAI-20260809-portal-runtime-isolation-1354
 programme_id: FTAI-PROGRAM-AI-TRADING-PORTAL
 project_lane: freqtrade-portal
-status: validating
+status: implementing
 task_kind: implementation
 priority: high
 repository: blakinio/freqtrade
@@ -21,7 +21,7 @@ host_firewall_mutation_authorized: false
 
 ## Current truth
 
-Issue `#1354` remains open and PR `#1464` remains the sole delivery PR. This task is **validating**, not completed. Source-independent application readiness is implemented at `10f5488504acf6b05ed2f73516e01a0b118214cc`; forged strategy stdout cannot create `RUNNING`, and the temporary readiness workflow has been removed. Fresh independent audit, exact-final-head CI/E2E, review-thread cleanup, merge, and post-merge terminal lifecycle reconciliation are still required.
+Issue `#1354` remains open and PR `#1464` remains the sole delivery PR. This task is **implementing**, not completed. Exact-head CI and the privileged runtime-isolation E2E passed on `745a53fc72b11c250efb8c1796a7b04d8ea8c400`, but fresh audit opened two material closeout findings that must be repaired before merge: unconditional workflow cleanup may remove a recorded nftables table when its Docker network removal failed, and the host-controlled readiness probe has no driver-owned subprocess deadline.
 
 PAPER remains the only authorized operational mode. LIVE/live-capital authority, private exchange credentials, real-order submission, withdrawals, protected production deployment and target-host firewall mutation are not authorized by this task.
 
@@ -56,38 +56,39 @@ closeout:
   implementation_complete: false
   outcome_verified: false
   audit:
-    result: pending
-    material_findings_open: unknown_until_fresh_audit
+    result: remediation_required
+    material_findings_open: 2
   e2e:
-    result: pending_exact_final_head
+    result: passed_on_pre_repair_head_745a53fc72b11c250efb8c1796a7b04d8ea8c400
   final_ci:
-    result: pending_exact_final_head
+    result: passed_on_pre_repair_head_745a53fc72b11c250efb8c1796a7b04d8ea8c400
   pull_requests:
     sole_delivery_pr: blakinio/freqtrade#1464
     historical_delivery_pr: blakinio/freqtrade#1431 closed-unmerged
-  task_status: validating
+  task_status: implementing
   task_archived: false
   ownership_released: false
 ```
 
 ## Required next actions
 
-1. obtain a fresh independent audit of the exact current PR head and remediate every material finding;
-2. run the dedicated real Docker/Linux isolation E2E and all applicable required CI on that unchanged final head;
-3. verify zero unresolved material review threads;
-4. squash-merge PR `#1464` only after all closeout gates are proven on the exact final head;
-5. perform terminal lifecycle/archive reconciliation only after the merge is verified.
+1. repair fail-closed nftables cleanup so a table remains whenever its corresponding Docker network teardown fails;
+2. add a driver-owned finite deadline to the host-controlled readiness subprocess and fail closed on timeout;
+3. run focused validation, then the dedicated privileged E2E and affected exact-head CI;
+4. obtain a fresh independent exact-head audit and remediate every remaining material finding;
+5. verify zero unresolved review threads and squash-merge PR `#1464` only after all closeout gates are green;
+6. perform terminal lifecycle/archive reconciliation after the merge is verified.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-12T00:45:00Z
-head: 10f5488504acf6b05ed2f73516e01a0b118214cc
-head_role: source_independent_readiness_implementation_parent
+updated_at: 2026-08-12T06:36:00Z
+head: 745a53fc72b11c250efb8c1796a7b04d8ea8c400
+head_role: pre_final_audit_repair_candidate
 branch: fix/portal-runtime-isolation-1354
 pr: 1464
-status: validating
+status: implementing
 context_routes:
   - issue #1354
   - pull request #1464
@@ -95,53 +96,57 @@ context_routes:
 owned_paths:
   - ai_platform/portal/execution/driver.py
   - tests/ai_platform/portal/execution/test_driver.py
-  - tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py
   - .github/workflows/portal-runtime-isolation-e2e.yml
   - docs/agents/tasks/active/FTAI-20260809-portal-runtime-isolation-1354.md
 proven:
-  - paused runtimes cannot use docker unpause and exact in-session generations have a fresh reprovision path
-  - release requires independently re-hashed read-only Gateway artifact and versioned contract evidence
-  - integrated Linux E2E invokes driver.start, runs a successful Freqtrade list-pairs public-data operation and checks sustained running
-  - exact nftables table identifiers are persisted before network creation for unconditional cleanup
-  - STARTING runtimes are stopped on request instead of continuing after lifecycle cancellation
-  - ongoing RUNNING attestation uses durable local-log backend usage evidence after bootstrap markers rotate
-  - application RUNNING readiness is derived from a host-issued immutable-runtime pairlist probe and never from strategy stdout
-  - forged heartbeat/RUNNING strategy stdout leaves the runtime in STARTING when the host probe fails
+  - exact-head 745a53fc72b11c250efb8c1796a7b04d8ea8c400 passed Portal Runtime Isolation E2E, Freqtrade CI, CodeQL, Exact-Image, risk-aware, zizmor and browser E2E checks
+  - source-independent readiness no longer trusts strategy stdout
+  - STARTING runtimes are stopped on request
+  - active RUNNING re-attestation uses bounded current Docker logs rather than bootstrap markers
+  - host isolation cleanup removes Docker network before deleting its nftables table
   - privileged E2E contains real memory/swap, PID and CPU-throttling negative probes
-  - FTAI-ARCH-RUNTIME-ISOLATION remains open in ARCHITECTURE_REGISTRY.yaml
-  - focused readiness/runtime-image suite passed with 32 tests and 3 privileged-environment skips
-derived:
-  - this checkpoint commit is metadata-only; fresh audit and CI must target the actual PR head returned by GitHub after this commit
 unknown:
-  - exact-head GitHub CI and privileged Linux E2E result
-  - unresolved review-thread state after publication
+  - post-repair exact-head CI and privileged E2E result
+  - fresh post-repair independent audit result
 conflicts: []
-first_failure:
-  marker: privileged_linux_e2e_not_available_locally
-  evidence: six environment-gated tests skipped because the local repair checkout lacks the dedicated privileged Btrfs/nftables runner fixture
-rejected_hypotheses:
-  - isolation-plan Gateway digest labels alone are sufficient artifact evidence
+material_findings:
+  - id: PRRT_kwDOTdDTU86YZdA9
+    severity: P1
+    summary: unconditional workflow cleanup deletes task nftables tables even when Docker network removal fails
+  - id: PRRT_kwDOTdDTU86YZdBB
+    severity: P2
+    summary: readiness docker-exec subprocess is not bounded by a driver-owned timeout
 changed_paths:
-  - ai_platform/portal/execution/driver.py
-  - tests/ai_platform/portal/execution/test_driver.py
-  - tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py
-  - tests/ai_platform/portal/execution/test_runtime_image.py
-  - ai_platform/portal/execution/runtime_image/portal-runtime-quarantine
-  - .github/workflows/portal-runtime-isolation-e2e.yml
   - docs/agents/tasks/active/FTAI-20260809-portal-runtime-isolation-1354.md
 validation:
-  - command: python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform tests/ai_platform/portal/execution
-    result: PASS
-    evidence: 142 passed and 6 privileged-environment tests skipped
-  - command: python -m mypy ai_platform/portal/execution/driver.py tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py
-    result: PASS
-    evidence: no issues found
-  - command: python -m ruff check changed Python paths
-    result: PASS
-    evidence: all checks passed
-  - command: python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform tests/ai_platform/portal/execution/test_driver.py tests/ai_platform/portal/execution/test_runtime_image.py tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py
-    result: PASS
-    evidence: 32 passed and 3 privileged-environment tests skipped
+  - head: 745a53fc72b11c250efb8c1796a7b04d8ea8c400
+    result: PASS_WITH_AUDIT_FINDINGS
+    evidence: all required workflows green; two current review findings remain
 blockers: []
-next_action: Resolve the current PR head from GitHub, run fresh independent audit plus privileged Linux E2E and required CI on that exact unchanged SHA, remediate any material finding, then merge only if all closeout gates are green.
+next_action: Implement the two current audit repairs with focused validation, then remove any temporary validation workflow before exact-head E2E and CI.
+```
+
+## Recovery checkpoint
+
+```yaml
+recovery:
+  policy_version: 1
+  generation: 1
+  session_id: chat-20260812-0836-paper-closeout-1354
+  session_started_at: 2026-08-12T06:36:00Z
+  checkpointed_at: 2026-08-12T06:36:00Z
+  last_progress_at: 2026-08-12T06:36:00Z
+  phase: implement_final_audit_repairs
+  exact_head: 745a53fc72b11c250efb8c1796a7b04d8ea8c400
+  pull_request: 1464
+  active_operation: prepare bounded repair and focused validation
+  external_run_ids: []
+  operation_started_at: null
+  wait_deadline_at: null
+  check_generation: null
+  checks_used: 0
+  status: active
+  safe_to_resume: true
+  resume_condition: branch remains the sole delivery lane and no conflicting writer owns PR #1464
+  next_action: Repair fail-closed nftables cleanup and bound the readiness subprocess, then run focused validation.
 ```

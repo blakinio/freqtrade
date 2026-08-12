@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from ai_platform.portal.execution.driver import (
+    DEFAULT_ENGINE_COMMAND_TIMEOUT_SECONDS,
     CommandResult,
     DockerCliRuntimeDriver,
     DockerHostCapabilityProbe,
@@ -1083,3 +1084,20 @@ def test_current_generation_evidence_is_process_local_and_exact(tmp_path: Path) 
         gateway_attestor=_Attestor(),
     )
     assert not fresh.has_current_generation_evidence("runtime-1", spec)
+
+
+def test_subprocess_runner_applies_finite_default_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    observed: dict[str, float | None] = {}
+
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        del args
+        timeout = kwargs.get("timeout")
+        observed["timeout"] = timeout if isinstance(timeout, float) else None
+        raise subprocess.TimeoutExpired(cmd=["docker", "info"], timeout=float(timeout))
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    result = SubprocessCommandRunner().run(("docker", "info"))
+
+    assert observed["timeout"] == DEFAULT_ENGINE_COMMAND_TIMEOUT_SECONDS
+    assert result.returncode == 124
+    assert "timed out" in result.stderr

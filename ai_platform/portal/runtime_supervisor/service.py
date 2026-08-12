@@ -57,6 +57,10 @@ class JournalEntry:
 
 
 class CommandJournal(Protocol):
+    def fingerprint(self, command_id: str) -> str | None: ...
+
+    def reserve(self, command_id: str, fingerprint: str) -> bool: ...
+
     def get(self, command_id: str) -> JournalEntry | None: ...
 
     def put(self, command_id: str, entry: JournalEntry) -> None: ...
@@ -73,7 +77,18 @@ class InMemoryCommandJournal:
 
     def __init__(self) -> None:
         self._entries: dict[str, JournalEntry] = {}
+        self._fingerprints: dict[str, str] = {}
         self._active: dict[tuple[str, str], str] = {}
+
+    def fingerprint(self, command_id: str) -> str | None:
+        return self._fingerprints.get(command_id)
+
+    def reserve(self, command_id: str, fingerprint: str) -> bool:
+        existing = self._fingerprints.get(command_id)
+        if existing is not None and existing != fingerprint:
+            return False
+        self._fingerprints[command_id] = fingerprint
+        return True
 
     def get(self, command_id: str) -> JournalEntry | None:
         return self._entries.get(command_id)
@@ -115,6 +130,10 @@ class SqliteCommandJournal:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as connection:
             connection.execute(
+                "CREATE TABLE IF NOT EXISTS supervisor_command_fingerprints ("
+                "command_id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL)"
+            )
+            connection.execute(
                 "CREATE TABLE IF NOT EXISTS supervisor_commands ("
                 "command_id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, "
                 "outcome_json TEXT NOT NULL)"
@@ -124,6 +143,30 @@ class SqliteCommandJournal:
                 "tenant_id TEXT NOT NULL, bot_id TEXT NOT NULL, generation_id TEXT NOT NULL, "
                 "PRIMARY KEY (tenant_id, bot_id))"
             )
+
+    def fingerprint(self, command_id: str) -> str | None:
+        with self._lock, self._connect() as connection:
+            row = connection.execute(
+                "SELECT fingerprint FROM supervisor_command_fingerprints WHERE command_id = ?",
+                (command_id,),
+            ).fetchone()
+        return None if row is None else str(row[0])
+
+    def reserve(self, command_id: str, fingerprint: str) -> bool:
+        with self._lock, self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT fingerprint FROM supervisor_command_fingerprints WHERE command_id = ?",
+                (command_id,),
+            ).fetchone()
+            if row is not None and row[0] != fingerprint:
+                return False
+            connection.execute(
+                "INSERT OR IGNORE INTO supervisor_command_fingerprints(command_id, fingerprint) "
+                "VALUES (?, ?)",
+                (command_id, fingerprint),
+            )
+        return True
 
     def get(self, command_id: str) -> JournalEntry | None:
         with self._lock, self._connect() as connection:
@@ -247,10 +290,19 @@ class RuntimeSupervisor:
         fingerprint = self._fingerprint(request)
         command_id = str(request.command_id)
         with self._command_locks.hold(command_id):
+            reserved_fingerprint = self._journal.fingerprint(command_id)
+            if reserved_fingerprint is not None and reserved_fingerprint != fingerprint:
+                return self._outcome(
+                    request, SupervisorOutcomeCode.COMMAND_REPLAY_CONFLICT, False, None, 0
+                )
             prior = self._journal.get(command_id)
             if prior is not None:
                 if prior.fingerprint == fingerprint:
                     return prior.outcome
+                return self._outcome(
+                    request, SupervisorOutcomeCode.COMMAND_REPLAY_CONFLICT, False, None, 0
+                )
+            if not self._journal.reserve(command_id, fingerprint):
                 return self._outcome(
                     request, SupervisorOutcomeCode.COMMAND_REPLAY_CONFLICT, False, None, 0
                 )

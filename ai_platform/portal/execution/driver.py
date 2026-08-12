@@ -25,6 +25,9 @@ from ai_platform.portal.execution.isolation import (
 from ai_platform.portal.execution.runtime import DriverRuntimeState, RuntimeContainerSpec
 
 
+DEFAULT_ENGINE_COMMAND_TIMEOUT_SECONDS = 30.0
+
+
 @dataclass(frozen=True)
 class CommandResult:
     returncode: int
@@ -48,18 +51,23 @@ class SubprocessCommandRunner:
         *,
         timeout_seconds: float | None = None,
     ) -> CommandResult:
+        effective_timeout = (
+            DEFAULT_ENGINE_COMMAND_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds
+        )
+        if effective_timeout <= 0:
+            raise ValueError("command timeout must be positive")
         try:
             completed = subprocess.run(
                 list(args),
                 check=False,
                 capture_output=True,
                 text=True,
-                timeout=timeout_seconds,
+                timeout=effective_timeout,
             )
         except subprocess.TimeoutExpired:
             return CommandResult(
                 returncode=124,
-                stderr=f"command timed out after {timeout_seconds:g}s",
+                stderr=f"command timed out after {effective_timeout:g}s",
             )
         return CommandResult(
             returncode=completed.returncode,

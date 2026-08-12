@@ -235,7 +235,7 @@ def test_sqlite_journal_survives_supervisor_restart(tmp_path: Path) -> None:
     assert driver.calls == ["inspect", "provision", "start"]
 
 
-def test_retryable_engine_failure_is_not_permanently_journaled() -> None:
+def test_retryable_engine_failure_preserves_fingerprint_but_retries_outcome() -> None:
     class FlakyDriver(Driver):
         def start(self, runtime_id: str) -> DriverRuntimeState:
             if "failed" not in self.calls:
@@ -249,7 +249,36 @@ def test_retryable_engine_failure_is_not_permanently_journaled() -> None:
     original = request()
     service = RuntimeSupervisor(Generations(generation()), driver, InMemoryCommandJournal())
     assert service.execute(original).code is SupervisorOutcomeCode.ENGINE_OPERATION_FAILED
+    conflict = original.model_copy(update={"operation": SupervisorOperation.ENSURE_STOPPED})
+    assert service.execute(conflict).code is SupervisorOutcomeCode.COMMAND_REPLAY_CONFLICT
     assert service.execute(original).accepted
+
+
+def test_sqlite_retryable_failure_preserves_replay_fingerprint_across_restart(
+    tmp_path: Path,
+) -> None:
+    from ai_platform.portal.execution.errors import RuntimeDriverError
+
+    class FailingDriver(Driver):
+        def start(self, runtime_id: str) -> DriverRuntimeState:
+            self.calls.append("failed")
+            raise RuntimeDriverError("TRANSIENT", "transient")
+
+    path = tmp_path / "retryable-fingerprint.sqlite3"
+    original = request()
+    first_driver = FailingDriver(DriverRuntimeState.CREATED)
+    first = RuntimeSupervisor(
+        Generations(generation()), first_driver, SqliteCommandJournal(path)
+    ).execute(original)
+    assert first.code is SupervisorOutcomeCode.ENGINE_OPERATION_FAILED
+
+    second_driver = Driver(DriverRuntimeState.RUNNING)
+    recovered = RuntimeSupervisor(
+        Generations(generation()), second_driver, SqliteCommandJournal(path)
+    )
+    conflict = original.model_copy(update={"operation": SupervisorOperation.ENSURE_STOPPED})
+    assert recovered.execute(conflict).code is SupervisorOutcomeCode.COMMAND_REPLAY_CONFLICT
+    assert second_driver.calls == []
 
 
 def test_pause_from_non_running_state_fails_without_driver_mutation() -> None:

@@ -7,8 +7,11 @@ import time
 from pathlib import Path
 from uuid import uuid4
 
+import pytest
+
 from ai_platform.portal.runtime_supervisor import SupervisorRequest
 from ai_platform.portal.runtime_supervisor.transport import (
+    SupervisorTransportError,
     UnixSocketSupervisorServer,
     linux_peer_uid,
 )
@@ -93,7 +96,7 @@ def _valid_payload(bot_id: str) -> bytes:
 
 
 def test_accept_loop_remains_responsive_while_other_lifecycle_handler_is_blocked(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     if not hasattr(socket, "AF_UNIX"):
         return
@@ -119,11 +122,11 @@ def test_accept_loop_remains_responsive_while_other_lifecycle_handler_is_blocked
         path,
         supervisor,
         allowed_peer_uids=frozenset({42}),
-        approved_root=root,
         peer_uid=lambda _: 42,
         max_workers=2,
         max_inflight_connections=2,
     )
+    monkeypatch.setattr(server, "_validate_socket_root", lambda: socket.AF_UNIX)
     stop_event = threading.Event()
     thread = threading.Thread(
         target=server.serve_forever,
@@ -161,3 +164,84 @@ def test_accept_loop_remains_responsive_while_other_lifecycle_handler_is_blocked
 
     assert not thread.is_alive()
     assert {request.bot_id for request in supervisor.requests} == {"bot-1", "bot-2"}
+
+
+def test_directory_validation_rejects_symlink_and_writable_directory(tmp_path: Path) -> None:
+    safe = tmp_path / "safe"
+    safe.mkdir(mode=0o750)
+    symlink = tmp_path / "link"
+    symlink.symlink_to(safe, target_is_directory=True)
+    with __import__("pytest").raises(SupervisorTransportError):
+        UnixSocketSupervisorServer._validate_directory(symlink, __import__("os").geteuid())
+
+    writable = tmp_path / "writable"
+    writable.mkdir(mode=0o777)
+    writable.chmod(0o777)
+    with __import__("pytest").raises(SupervisorTransportError):
+        UnixSocketSupervisorServer._validate_directory(writable, __import__("os").geteuid())
+
+
+def test_shutdown_is_bounded_and_retains_socket_for_hung_worker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if not hasattr(socket, "AF_UNIX"):
+        return
+
+    class HungSupervisor(Supervisor):
+        def __init__(self) -> None:
+            super().__init__()
+            self.started = threading.Event()
+            self.release = threading.Event()
+
+        def execute(self, request: SupervisorRequest) -> Result:
+            self.requests.append(request)
+            self.started.set()
+            assert self.release.wait(2)
+            return Result()
+
+    root = tmp_path / "runtime-supervisor-shutdown"
+    root.mkdir(mode=0o750)
+    path = root / "supervisor.sock"
+    supervisor = HungSupervisor()
+    server = UnixSocketSupervisorServer(
+        path,
+        supervisor,
+        allowed_peer_uids=frozenset({42}),
+        peer_uid=lambda _: 42,
+        max_workers=1,
+        max_inflight_connections=1,
+        worker_shutdown_timeout_seconds=0.05,
+    )
+    monkeypatch.setattr(server, "_validate_socket_root", lambda: socket.AF_UNIX)
+    stop_event = threading.Event()
+    errors: list[BaseException] = []
+
+    def run_server() -> None:
+        try:
+            server.serve_forever(stop_event=stop_event)
+        except BaseException as exc:  # test captures the bounded transport failure
+            errors.append(exc)
+
+    thread = threading.Thread(target=run_server, daemon=True)
+    thread.start()
+    for _ in range(100):
+        if path.exists():
+            break
+        time.sleep(0.01)
+    assert path.exists()
+
+    client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        client.connect(str(path))
+        client.sendall(_valid_payload("bot-hung"))
+        assert supervisor.started.wait(1)
+        stop_event.set()
+        thread.join(timeout=0.5)
+        assert not thread.is_alive()
+        assert errors and isinstance(errors[0], SupervisorTransportError)
+        assert path.exists()
+    finally:
+        supervisor.release.set()
+        client.close()
+        if path.exists():
+            path.unlink()

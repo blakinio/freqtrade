@@ -71,6 +71,271 @@ jobs:
           set -o pipefail
           bash deploy/synology/liquid20/deploy-live.sh 2>&1 | tee "$LIQUID20_DEPLOY_LOG"
 
+      - name: Diagnose public WebSocket connectivity after deploy failure
+        if: failure() && steps.deploy.outcome == 'failure'
+        continue-on-error: true
+        timeout-minutes: 3
+        env:
+          LIQUID20_CONNECTIVITY_REPORT: ${{ runner.temp }}/liquidations-live-connectivity-diagnostic.json
+        run: |
+          set -euo pipefail
+          image="local/liquid20-collector:sha-${GITHUB_SHA}"
+          report="$LIQUID20_CONNECTIVITY_REPORT"
+          temporary="${report}.tmp"
+          if ! docker image inspect "$image" >/dev/null 2>&1; then
+            printf '%s\n' '{"schema_version":1,"diagnostic_process":"image_unavailable"}' > "$report"
+            exit 0
+          fi
+
+          set +e
+          timeout --kill-after=5s 150s docker run --rm --interactive \
+            --name "liquid20-connectivity-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --label "freqtrade.task=FTAI-20260812-wh09-e2e-recovery-1396" \
+            --label "freqtrade.github-run-id=${GITHUB_RUN_ID}" \
+            --label "freqtrade.github-run-attempt=${GITHUB_RUN_ATTEMPT}" \
+            --read-only \
+            --tmpfs /tmp:size=16m,mode=1777 \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --memory 256m \
+            --entrypoint python \
+            "$image" - > "$temporary" <<'PY'
+          import asyncio
+          import json
+          import multiprocessing
+          import socket
+          import ssl
+          import urllib.parse
+
+          import websockets
+
+          PROBES = (
+              (
+                  "bybit-linear",
+                  "wss://stream.bybit.com/v5/public/linear",
+                  {"op": "subscribe", "args": ["allLiquidation.BTCUSDT"]},
+              ),
+              (
+                  "binance-usdm",
+                  "wss://fstream.binance.com/market/ws",
+                  {"method": "SUBSCRIBE", "params": ["!forceOrder@arr"], "id": 1},
+              ),
+              (
+                  "okx-swap",
+                  "wss://ws.okx.com:8443/ws/v5/public",
+                  {
+                      "op": "subscribe",
+                      "args": [{"channel": "liquidation-orders", "instType": "SWAP"}],
+                  },
+              ),
+          )
+
+
+          def error_signature(error):
+              signature = {"type": type(error).__name__}
+              errno = getattr(error, "errno", None)
+              if isinstance(errno, int):
+                  signature["errno"] = errno
+              response = getattr(error, "response", None)
+              status_code = getattr(response, "status_code", None)
+              if isinstance(status_code, int):
+                  signature["http_status"] = status_code
+              return signature
+
+
+          def classify_protocol(source, payload):
+              if not isinstance(payload, dict):
+                  return "non_object"
+              if source == "bybit-linear":
+                  if payload.get("success") is True:
+                      return "ack"
+                  if payload.get("success") is False:
+                      return "error"
+                  return "other"
+              if source == "binance-usdm":
+                  if payload.get("id") == 1 and "result" in payload:
+                      return "ack" if payload.get("result") is None else "error"
+                  return "other"
+              if source == "okx-swap":
+                  if payload.get("event") == "subscribe":
+                      return "ack"
+                  if payload.get("event") == "error":
+                      return "error"
+                  return "other"
+              return "other"
+
+
+          async def probe(source, endpoint, subscription):
+              result = {
+                  "source": source,
+                  "dns": "not_run",
+                  "tls": "not_run",
+                  "websocket": "not_run",
+                  "protocol": "not_run",
+              }
+              parsed = urllib.parse.urlsplit(endpoint)
+              host = parsed.hostname
+              port = parsed.port or 443
+              if host is None:
+                  result["dns"] = "invalid_endpoint"
+                  return result
+
+              try:
+                  addresses = await asyncio.wait_for(
+                      asyncio.to_thread(socket.getaddrinfo, host, port, type=socket.SOCK_STREAM),
+                      timeout=5,
+                  )
+                  result["dns"] = "ok" if addresses else "empty"
+              except Exception as error:
+                  result["dns"] = "error"
+                  result["dns_error"] = error_signature(error)
+                  return result
+
+              writer = None
+              try:
+                  _reader, writer = await asyncio.wait_for(
+                      asyncio.open_connection(
+                          host,
+                          port,
+                          ssl=ssl.create_default_context(),
+                          server_hostname=host,
+                      ),
+                      timeout=8,
+                  )
+                  result["tls"] = "ok"
+              except Exception as error:
+                  result["tls"] = "error"
+                  result["tls_error"] = error_signature(error)
+                  return result
+              finally:
+                  if writer is not None:
+                      writer.close()
+                      try:
+                          await asyncio.wait_for(writer.wait_closed(), timeout=2)
+                      except Exception:
+                          pass
+
+              try:
+                  async with websockets.connect(
+                      endpoint,
+                      open_timeout=8,
+                      close_timeout=3,
+                      ping_interval=None,
+                      max_queue=16,
+                  ) as websocket:
+                      result["websocket"] = "ok"
+                      await websocket.send(json.dumps(subscription, separators=(",", ":")))
+                      try:
+                          raw = await asyncio.wait_for(websocket.recv(), timeout=8)
+                      except TimeoutError:
+                          result["protocol"] = "timeout"
+                      else:
+                          try:
+                              payload = json.loads(raw)
+                          except (UnicodeDecodeError, json.JSONDecodeError):
+                              result["protocol"] = "malformed"
+                          else:
+                              result["protocol"] = classify_protocol(source, payload)
+              except Exception as error:
+                  result["websocket"] = "error"
+                  result["websocket_error"] = error_signature(error)
+              return result
+
+
+          async def send_probe_result(source, endpoint, subscription, connection):
+              try:
+                  connection.send(await probe(source, endpoint, subscription))
+              except BaseException as error:
+                  connection.send(
+                      {
+                          "source": source,
+                          "dns": "not_run",
+                          "tls": "not_run",
+                          "websocket": "not_run",
+                          "protocol": "not_run",
+                          "probe_error": error_signature(error),
+                      }
+                  )
+
+
+          def probe_process(source, endpoint, subscription, connection):
+              try:
+                  asyncio.run(send_probe_result(source, endpoint, subscription, connection))
+              finally:
+                  connection.close()
+
+
+          def isolated_probe(source, endpoint, subscription):
+              context = multiprocessing.get_context("fork")
+              receiver, sender = context.Pipe(duplex=False)
+              process = context.Process(
+                  target=probe_process,
+                  args=(source, endpoint, subscription, sender),
+              )
+              process.start()
+              sender.close()
+              try:
+                  if receiver.poll(40):
+                      result = receiver.recv()
+                      process.join(timeout=1)
+                      if process.is_alive():
+                          process.terminate()
+                          process.join(timeout=2)
+                      return result
+                  process.terminate()
+                  process.join(timeout=2)
+                  return {
+                      "source": source,
+                      "dns": "not_run",
+                      "tls": "not_run",
+                      "websocket": "not_run",
+                      "protocol": "not_run",
+                      "probe_process": "timeout",
+                  }
+              finally:
+                  receiver.close()
+                  if process.is_alive():
+                      process.kill()
+                      process.join(timeout=2)
+
+
+          def main():
+              results = []
+              for source, endpoint, subscription in PROBES:
+                  results.append(isolated_probe(source, endpoint, subscription))
+              print(
+                  json.dumps(
+                      {
+                          "schema_version": 1,
+                          "diagnostic_process": "completed",
+                          "probes": results,
+                      },
+                      separators=(",", ":"),
+                      sort_keys=True,
+                  )
+              )
+
+
+          main()
+          PY
+          diagnostic_status=$?
+          set -e
+
+          if [[ "$diagnostic_status" -eq 0 ]]; then
+            mv "$temporary" "$report"
+          else
+            rm -f "$temporary"
+            printf '{"schema_version":1,"diagnostic_process":"failed","exit_code":%d}\n' \
+              "$diagnostic_status" > "$report"
+          fi
+
+      - name: Clean up connectivity diagnostic container
+        if: always()
+        continue-on-error: true
+        run: |
+          docker rm -f "liquid20-connectivity-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            >/dev/null 2>&1 || true
+
       - name: Publish final status
         if: always()
         continue-on-error: true
@@ -107,3 +372,12 @@ jobs:
             ${{ runner.temp }}/liquidations-live-synology.log
           if-no-files-found: warn
           retention-days: 30
+
+      - name: Upload disposable connectivity diagnostic
+        if: failure() && steps.deploy.outcome == 'failure'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: liquidations-live-connectivity-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/liquidations-live-connectivity-diagnostic.json
+          if-no-files-found: warn
+          retention-days: 1

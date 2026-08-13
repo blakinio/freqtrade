@@ -1,0 +1,49 @@
+name: RS stop retire identity repair
+
+on:
+  push:
+    branches:
+      - codex/portal-runtime-supervisor-1355
+    paths:
+      - ".github/workflows/rs-stop-retire-identity-repair.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - name: Keep immutable identity until retirement
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path("ai_platform/portal/execution/driver.py")
+          s = p.read_text()
+          old = '            self._clear_generation_evidence(runtime_id)\n            return DriverRuntimeState.STOPPED\n'
+          new = '            self._clear_generation_evidence(runtime_id, keep_container_id=True)\n            return DriverRuntimeState.STOPPED\n'
+          assert s.count(old) == 1
+          s = s.replace(old, new, 1)
+          old = '    def _clear_generation_evidence(self, runtime_id: str) -> None:\n'
+          new = '    def _clear_generation_evidence(self, runtime_id: str, *, keep_container_id: bool = False) -> None:\n'
+          assert s.count(old) == 1
+          s = s.replace(old, new, 1)
+          old = '        self._container_ids.pop(runtime_id, None)\n'
+          new = '        if not keep_container_id:\n            self._container_ids.pop(runtime_id, None)\n'
+          assert s.count(old) == 1
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Commit repair
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ai_platform/portal/execution/driver.py
+          git diff --cached --check
+          git commit -m "fix(portal): retain immutable id through stopped state"
+          git push origin HEAD:"$GITHUB_REF_NAME"

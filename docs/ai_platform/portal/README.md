@@ -3,13 +3,16 @@
 
 ## Status authority
 
-Current package, runtime, browser-E2E, deployment and protected-target completeness is defined only by:
+Current implementation completeness is defined by the living exact-head inventory at
+`tools/portal_audit/ledger/index.json`, subject to its deterministic exact-head validation and
+`tools/portal_audit/ledger/status_authority.json`.
 
-- `docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.json`;
-- `docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.md`.
+The `portal-status-authority` marker above is retained only as compatibility metadata for the
+historical #1101 feature-completeness snapshot. `FEATURE_COMPLETENESS_LEDGER.json` and its Markdown
+projection remain dated evidence; neither is the current implementation authority.
 
-Architecture statements in this README remain active. Any completion wording from the pre-ledger
-version is historical evidence only and cannot override the canonical ledger.
+Architecture statements in this README remain active. Any completion wording from the pre-living-ledger
+version is historical evidence only and cannot override the living exact-head inventory.
 
 Historical pre-ledger evidence is preserved exactly at:
 
@@ -47,7 +50,8 @@ Every package and user-facing module is recorded across five independent dimensi
 4. deployment package;
 5. protected-target acceptance.
 
-Use only the approved statuses in the JSON ledger. Do not use `done`, `integrated`, `ready`,
+Use only the approved statuses in the living exact-head inventory for current claims. Historical
+snapshots may preserve their dated vocabulary. Do not use `done`, `integrated`, `ready`,
 `production-ready` or similar prose as active completeness authority.
 
 ## Canonical architecture and programme documents
@@ -63,12 +67,13 @@ Use only the approved statuses in the JSON ledger. Do not use `done`, `integrate
 - `docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md`
 
 Historical roadmaps and status narratives remain linked for architectural context, but current work
-selection and closure claims must be derived from the canonical ledger plus live GitHub Issue/PR/CI
-state.
+selection and closure claims must be derived from the living exact-head inventory plus live GitHub
+Issue/PR/CI state.
 
 ## Validation
 
 ```bash
 python tools/agents/check_portal_completeness_ledger.py
 pytest -q tests/tools/test_check_portal_completeness_ledger.py
+pytest -q tests/ci/test_portal_status_authority.py
 ```

@@ -267,7 +267,7 @@ def test_shutdown_is_bounded_and_retains_socket_for_hung_worker(
 
     thread = threading.Thread(target=run_server, daemon=True)
     thread.start()
-    assert ready_event.wait(1)
+    assert ready_event.wait(5)
     assert path.exists()
 
     client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)

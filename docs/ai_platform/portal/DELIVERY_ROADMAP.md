@@ -6,10 +6,10 @@
 The P0–P14 roadmap is retained as architecture, sequencing and bounded stage-acceptance history.
 It is not a current whole-product completeness table.
 
-Current status is defined only by
-`docs/ai_platform/portal/FEATURE_COMPLETENESS_LEDGER.json`, which separates repository components,
-trusted runtime composition, API-mode browser E2E, deployment packages and protected-target
-acceptance.
+Current implementation completeness is defined by the living exact-head inventory at
+`tools/portal_audit/ledger/index.json`, subject to its deterministic validation and
+`tools/portal_audit/ledger/status_authority.json`. The legacy `portal-status-authority` marker above
+is compatibility metadata for the historical #1101 snapshot only.
 
 Historical pre-ledger evidence is preserved exactly at:
 
@@ -31,7 +31,7 @@ blob_sha: d09e76b49eca69fe508d76c0b7d1847e02908545
 ## Change policy
 
 Do not silently change historical stage acceptance. Record new product findings in GitHub Issues and
-the canonical ledger. Update a stage only when its declared acceptance contract changes through a
-governed programme decision.
+the living exact-head inventory. Update a stage only when its declared acceptance contract changes
+through a governed programme decision.
 
 No roadmap status grants production deployment, credentials, withdrawals or live capital.

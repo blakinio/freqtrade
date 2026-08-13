@@ -727,9 +727,7 @@ class LinuxNftablesBtrfsIsolationAttestor:
         return payload
 
     @staticmethod
-    def _require_network_identity(
-        network: dict[str, Any], runtime_id: str, expected: str
-    ) -> None:
+    def _require_network_identity(network: dict[str, Any], runtime_id: str, expected: str) -> None:
         network_id = network.get("Id")
         labels = network.get("Labels")
         if (

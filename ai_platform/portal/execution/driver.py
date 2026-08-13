@@ -458,7 +458,9 @@ class DockerCliRuntimeDriver:
         self._plan_digests: dict[str, str] = {}
         self._container_ids: dict[str, str] = {}
 
-    def has_current_generation_evidence(self, runtime_id: str, spec: RuntimeContainerSpec) -> bool:
+    def has_current_generation_evidence(
+        self, runtime_id: str, spec: RuntimeContainerSpec
+    ) -> bool:
         if runtime_id not in self._attested:
             return False
         if self._specs.get(runtime_id) != spec:
@@ -667,7 +669,9 @@ class DockerCliRuntimeDriver:
         container_id = self._owned_container_id(runtime_id)
         if container_id is None:
             return DriverRuntimeState.MISSING
-        result = self._runner.run(("docker", "inspect", "--format", "{{.State.Status}}", container_id))
+        result = self._runner.run(
+            ("docker", "inspect", "--format", "{{.State.Status}}", container_id)
+        )
         if result.returncode != 0:
             if "no such object" in result.stderr.lower():
                 return DriverRuntimeState.MISSING
@@ -1239,7 +1243,9 @@ class DockerCliRuntimeDriver:
                 "runtime cleanup was incomplete: " + "; ".join(errors),
             )
 
-    def _clear_generation_evidence(self, runtime_id: str, *, keep_container_id: bool = False) -> None:
+    def _clear_generation_evidence(
+        self, runtime_id: str, *, keep_container_id: bool = False
+    ) -> None:
         self._attested.discard(runtime_id)
         self._released.discard(runtime_id)
         self._fingerprints.pop(runtime_id, None)

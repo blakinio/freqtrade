@@ -105,6 +105,19 @@ def _tracked_json_files() -> list[Path]:
     return [REPO_ROOT / line for line in result.stdout.splitlines() if line]
 
 
+def _classified_text_status_paths(authority: dict[str, object]) -> set[str]:
+    legacy_surfaces = authority.get("legacy_surfaces")
+    assert isinstance(legacy_surfaces, list)
+    paths: set[str] = set()
+    for entry in legacy_surfaces:
+        assert isinstance(entry, dict)
+        path = entry.get("path")
+        assert isinstance(path, str)
+        if Path(path).suffix.lower() in {".md", ".txt", ".yaml", ".yml"}:
+            paths.add(path)
+    return paths
+
+
 def test_portal_status_authority_has_one_current_implementation_source() -> None:
     authority = _load_json(AUTHORITY_PATH)
     index = _load_json(LIVING_INDEX_PATH)
@@ -138,6 +151,7 @@ def test_portal_status_authority_has_one_current_implementation_source() -> None
 
 
 def test_competing_current_authority_claims_are_discovered_fail_closed() -> None:
+    authority = _load_json(AUTHORITY_PATH)
     marker_hits: list[tuple[str, str]] = []
 
     for path in _text_files(REPO_ROOT / "docs"):
@@ -172,11 +186,18 @@ def test_competing_current_authority_claims_are_discovered_fail_closed() -> None
 
     assert status_authority_true_paths == [LEGACY_SNAPSHOT_PATH]
     assert authority_contract_paths == [AUTHORITY_CONTRACT_PATH]
-    assert _load_json(AUTHORITY_PATH).get("authority_grants") == EXPECTED_AUTHORITY_GRANTS
+    assert authority.get("authority_grants") == EXPECTED_AUTHORITY_GRANTS
+
+    classified_text_paths = _classified_text_status_paths(authority)
+    assert "docs/agents/programs/FTAI_PORTAL_REMEDIATION_PROGRAM.md" in classified_text_paths
+    claim_surface_paths = classified_text_paths | {
+        path.relative_to(REPO_ROOT).as_posix() for path in _text_files(PORTAL_DOC_ROOT)
+    }
 
     claim_paths: set[str] = set()
-    for path in _text_files(PORTAL_DOC_ROOT):
-        relative = path.relative_to(REPO_ROOT).as_posix()
+    for relative in sorted(claim_surface_paths):
+        path = REPO_ROOT / relative
+        assert path.exists()
         normalized = " ".join(path.read_text(encoding="utf-8").lower().split())
         if any(phrase in normalized for phrase in CURRENT_AUTHORITY_CLAIM_PHRASES):
             claim_paths.add(relative)

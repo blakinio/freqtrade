@@ -1182,12 +1182,12 @@ class LinuxNftablesBtrfsIsolationAttestor:
         reason_code: str,
         *,
         allow_already_enabled: bool = False,
-    ) -> None:
+    ) -> CommandResult:
         result = self._runner.run(args)
         if result.returncode == 0:
-            return
+            return result
         if allow_already_enabled and "already enabled" in result.stderr.lower():
-            return
+            return result
         self._raise_command(reason_code, result, f"command failed: {args[0]}")
 
     @staticmethod

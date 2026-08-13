@@ -64,7 +64,9 @@ def _spec(revision: int, mode: BotMode) -> BotSpec:
         strategy_version="WickHunter-WH09",
         model_version="H900",
         risk_policy_version=(
-            "wh09-paper-zero-authority-v1" if mode is BotMode.PAPER else "wh09-shadow-zero-authority-v1"
+            "wh09-paper-zero-authority-v1"
+            if mode is BotMode.PAPER
+            else "wh09-shadow-zero-authority-v1"
         ),
         exchange_connection_ref="public-market-data-only",
         pair_universe=("BTC/USDT",),

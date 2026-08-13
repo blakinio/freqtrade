@@ -1,0 +1,49 @@
+name: Normalize WickHunter 1396 reconciliation test formatting
+
+on:
+  push:
+    branches:
+      - fix/wickhunter-1396-observed-generation-reconciliation-20260813
+    paths:
+      - .github/workflows/fix-wickhunter-1396-reconciliation-test-format.yml
+
+permissions: {}
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Normalize one long test expression and retrigger canonical repair validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test_file=tests/ai_platform/portal/control_plane/test_runtime_adoption_replacement.py
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("tests/ai_platform/portal/control_plane/test_runtime_adoption_replacement.py")
+          text = path.read_text(encoding="utf-8")
+          old = '            "wh09-paper-zero-authority-v1" if mode is BotMode.PAPER else "wh09-shadow-zero-authority-v1"\n'
+          new = (
+              '            "wh09-paper-zero-authority-v1"\n'
+              '            if mode is BotMode.PAPER\n'
+              '            else "wh09-shadow-zero-authority-v1"\n'
+          )
+          if text.count(old) != 1:
+              raise SystemExit("expected one test formatting anchor")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+          printf '\n# retrigger after test-format normalization\n' >> .github/workflows/apply-wickhunter-1396-observed-reconciliation.yml
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/fix-wickhunter-1396-reconciliation-test-format.yml
+          git add "$test_file" .github/workflows/apply-wickhunter-1396-observed-reconciliation.yml
+          git commit -m "test(portal): normalize reconciliation fixture formatting"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${GITHUB_REF_NAME}"

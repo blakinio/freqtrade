@@ -29,7 +29,8 @@ jobs:
           new='ai_platform.wickhunter.candidate_paper_runtime_parity_supervisor'
           [[ "$(grep -Foc "$old" "$target")" == "1" ]]
           sed -i "s/$old/$new/" "$target"
-          [[ "$(grep -Foc "$new" "$target")" == "1" ]]
+          [[ "$(grep -Foc "$old" "$target")" == "0" ]]
+          grep -Fq "$new" "$target"
           git diff --check
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

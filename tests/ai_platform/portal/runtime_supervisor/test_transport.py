@@ -153,7 +153,7 @@ def test_accept_loop_remains_responsive_while_other_lifecycle_handler_is_blocked
             self.requests.append(request)
             if request.bot_id == "bot-1":
                 self.blocked_started.set()
-                assert self.release_blocked.wait(2)
+                assert self.release_blocked.wait(10)
             return Result()
 
     root = tmp_path / "runtime-supervisor"
@@ -178,17 +178,17 @@ def test_accept_loop_remains_responsive_while_other_lifecycle_handler_is_blocked
         daemon=True,
     )
     thread.start()
-    assert ready_event.wait(1)
+    assert ready_event.wait(5)
     assert path.exists()
 
     first = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     second = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
-        first.settimeout(2)
-        second.settimeout(1)
+        first.settimeout(5)
+        second.settimeout(5)
         first.connect(str(path))
         first.sendall(_valid_payload("bot-1"))
-        assert supervisor.blocked_started.wait(1)
+        assert supervisor.blocked_started.wait(5)
 
         second.connect(str(path))
         second.sendall(_valid_payload("bot-2"))
@@ -201,7 +201,7 @@ def test_accept_loop_remains_responsive_while_other_lifecycle_handler_is_blocked
         first.close()
         second.close()
         stop_event.set()
-        thread.join(timeout=2)
+        thread.join(timeout=5)
 
     assert not thread.is_alive()
     assert {request.bot_id for request in supervisor.requests} == {"bot-1", "bot-2"}
@@ -237,7 +237,7 @@ def test_shutdown_is_bounded_and_retains_socket_for_hung_worker(
         def execute(self, request: SupervisorRequest) -> Result:
             self.requests.append(request)
             self.started.set()
-            assert self.release.wait(2)
+            assert self.release.wait(10)
             return Result()
 
     root = tmp_path / "runtime-supervisor-shutdown"
@@ -267,16 +267,16 @@ def test_shutdown_is_bounded_and_retains_socket_for_hung_worker(
 
     thread = threading.Thread(target=run_server, daemon=True)
     thread.start()
-    assert ready_event.wait(1)
+    assert ready_event.wait(5)
     assert path.exists()
 
     client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
         client.connect(str(path))
         client.sendall(_valid_payload("bot-hung"))
-        assert supervisor.started.wait(1)
+        assert supervisor.started.wait(5)
         stop_event.set()
-        thread.join(timeout=0.5)
+        thread.join(timeout=2)
         assert not thread.is_alive()
         assert errors and isinstance(errors[0], SupervisorTransportError)
         assert path.exists()

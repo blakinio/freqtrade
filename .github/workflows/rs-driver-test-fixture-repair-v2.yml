@@ -20,7 +20,40 @@ jobs:
           fetch-depth: 0
       - name: Apply repair
         run: |
-          sed -i 's/\\\\(/\\(/g; s/\\\\Z/\\Z/g' tools/portal_audit/rs_fix_driver_tests.py
+          python - <<'PY'
+          from pathlib import Path
+          p = Path("tools/portal_audit/rs_fix_driver_tests.py")
+          s = p.read_text()
+          s = s.replace(r"\\(", r"\(").replace(r"\\Z", r"\Z")
+          old = '''for name in (
+              "test_release_repeats_attestation_then_activates_egress_before_gate",
+              "test_release_fails_closed_if_structure_changes_after_initial_attestation",
+              "test_release_activation_failure_removes_runtime_before_application_gate",
+              "test_running_generation_repeats_current_isolation_attestation",
+              "test_running_generation_tamper_fails_closed_and_removes_runtime",
+              "test_running_generation_rejects_unbounded_active_log_backend",
+          ):
+              prepend_ownership(name)'''
+          new = '''for name in (
+              "test_release_repeats_attestation_then_activates_egress_before_gate",
+              "test_release_fails_closed_if_structure_changes_after_initial_attestation",
+              "test_release_activation_failure_removes_runtime_before_application_gate",
+          ):
+              edit(
+                  name,
+                  '    runner.results.extend(\\n        [\\n            CommandResult(0, stdout="running\\\\n"),\\n',
+                  '    runner.results.extend(\\n        [\\n            _ownership_result(),\\n            CommandResult(0, stdout="running\\\\n"),\\n',
+              )
+          for name in (
+              "test_running_generation_repeats_current_isolation_attestation",
+              "test_running_generation_tamper_fails_closed_and_removes_runtime",
+              "test_running_generation_rejects_unbounded_active_log_backend",
+          ):
+              prepend_ownership(name)'''
+          if old not in s:
+              raise SystemExit("repair loop anchor missing")
+          p.write_text(s.replace(old, new, 1))
+          PY
           python tools/portal_audit/rs_fix_driver_tests.py
           python -m py_compile tests/ai_platform/portal/execution/test_driver.py
       - name: Commit repaired fixtures

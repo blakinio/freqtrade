@@ -343,3 +343,75 @@ def test_external_runtime_replacement_fails_closed_on_wrong_rollout_lineage(
         row = session.get(BotRow, (context.tenant_id, BOT_ID))
         assert row is not None
         assert row.observed_runtime_generation_id == shadow.generation_id
+
+
+def test_persisted_stop_proof_advances_superseding_replacement_rollout(
+    session_factory: SessionFactory,
+) -> None:
+    context, service, shadow, _, first_rollout, _ = _shadow_then_paper(session_factory)
+
+    stopped = _observation(
+        shadow,
+        runtime_instance_id="sha256:" + "1" * 64,
+        observed_state="STOPPED",
+        reconciled_at=NOW + timedelta(seconds=1),
+    )
+    record_external_runtime_stop_observation(
+        session_factory,
+        _context(admin=True),
+        BOT_ID,
+        stopped,
+    )
+
+    revised = service.revise_bot(context, BOT_ID, _spec(3, BotMode.PAPER))
+    assert revised.latest_authored_revision_id is not None
+    paper_revision = service.promote_revision(
+        context,
+        BOT_ID,
+        revised.latest_authored_revision_id,
+        revised.state_version,
+    )
+    current = service.get_bot(context, BOT_ID)
+    pending, replacement, replacement_rollout = service.apply_revision(
+        context,
+        BOT_ID,
+        paper_revision.revision_id,
+        current.state_version,
+        "issue-1396-paper-superseding",
+    )
+
+    assert pending.observed_runtime_generation_id == shadow.generation_id
+    assert pending.desired_runtime_generation_id == replacement.generation_id
+    assert replacement_rollout.from_generation_id == shadow.generation_id
+    assert replacement_rollout.rollout_id != first_rollout.rollout_id
+    assert replacement_rollout.status == "REQUESTED"
+
+    reused = record_external_runtime_stop_observation(
+        session_factory,
+        _context(admin=True),
+        BOT_ID,
+        stopped,
+    )
+    assert reused == stopped
+
+    with session_factory() as session:
+        rollout_row = session.get(BotRolloutRow, replacement_rollout.rollout_id)
+        assert rollout_row is not None
+        assert rollout_row.status == "PREVIOUS_STOPPED"
+        assert rollout_row.reason_code == "EXTERNAL_PREVIOUS_RUNTIME_STOPPED"
+
+    replacement_observation = _observation(
+        replacement,
+        runtime_instance_id="sha256:" + "3" * 64,
+        reconciled_at=NOW + timedelta(seconds=2),
+    )
+    result = reconcile_external_runtime_observation(
+        session_factory,
+        _context(admin=True),
+        BOT_ID,
+        replacement_observation,
+    )
+
+    assert result.bot.observed_runtime_generation_id == replacement.generation_id
+    assert result.bot.desired_runtime_generation_id == replacement.generation_id
+    assert result.observation == replacement_observation

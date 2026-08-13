@@ -112,9 +112,7 @@ def _material(
             else None
         ),
         paper_candidate_manifest_sha256=(
-            "9f5ba852e33915678ca085c2eeafbf526457a079ba8f6f2fb7c1097f1d20ab79"
-            if paper
-            else None
+            "9f5ba852e33915678ca085c2eeafbf526457a079ba8f6f2fb7c1097f1d20ab79" if paper else None
         ),
     )
 
@@ -225,11 +223,14 @@ def test_external_runtime_replacement_converges_shadow_to_eligible_paper(
         assert rollout_row.status == "SUCCEEDED"
         assert rollout_row.reason_code == "EXTERNAL_RUNTIME_ADOPTED"
 
-    assert latest_runtime_observation(
-        session_factory,
-        _context(admin=True),
-        BOT_ID,
-    ) == paper_observation
+    assert (
+        latest_runtime_observation(
+            session_factory,
+            _context(admin=True),
+            BOT_ID,
+        )
+        == paper_observation
+    )
 
 
 def test_external_runtime_replacement_fails_closed_on_wrong_rollout_lineage(

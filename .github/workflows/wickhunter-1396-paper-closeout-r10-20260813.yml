@@ -98,7 +98,7 @@ jobs:
           git worktree remove --force "$root"
           trap - EXIT
           [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$OPERATOR_IMAGE")" == "$IMPLEMENTATION_SHA" ]]
-          [[ "$(docker image inspect --format '{{json .Config.Entrypoint}}' "$OPERATOR_IMAGE")" == '["python","-m","ai_platform.wickhunter.candidate_paper_runtime_supervisor"]' ]]
+          [[ "$(docker image inspect --format '{{json .Config.Entrypoint}}' "$OPERATOR_IMAGE")" == '["python","-m","ai_platform.wickhunter.candidate_paper_runtime_parity_supervisor"]' ]]
           docker image inspect --format '{{.Id}}' "$OPERATOR_IMAGE" | tee "$RUNNER_TEMP/wickhunter-1396-paper-image-id.txt"
           reader_gid="$(docker run --rm --read-only --entrypoint stat \
             --mount "type=bind,src=$LIQUID20_LIVE_HOST,dst=/runtime/liquid20,readonly" \

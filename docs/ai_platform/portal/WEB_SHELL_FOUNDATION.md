@@ -81,4 +81,4 @@ P6.1 intentionally did not implement:
 - the full set of core operations/product surfaces;
 - live-capital authorization.
 
-Some of these capabilities were delivered by later bounded workstreams. The remaining UI and read-model status is authoritative in `UI_DELIVERY_STATUS.md`; historical P6.1 completion must not be used to claim that the entire P6 stage was complete at PR #135.
+Some of these capabilities were delivered by later bounded workstreams. `UI_DELIVERY_STATUS.md` remains a compatibility/read-model roll-up, while current exact-head implementation status is defined by the living ledger at `tools/portal_audit/ledger/index.json`. Historical P6.1 completion must not be used to claim that the entire P6 stage was complete at PR #135.

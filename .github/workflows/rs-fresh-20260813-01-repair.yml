@@ -1,0 +1,46 @@
+name: RS FRESH 20260813 01 repair
+
+on:
+  push:
+    branches:
+      - codex/portal-runtime-supervisor-1355
+    paths:
+      - ".github/workflows/rs-fresh-20260813-01-repair.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - name: Verify bounded target
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = "codex/portal-runtime-supervisor-1355"
+          git merge-base --is-ancestor 20c5eaa80e59ea8ed7d742467ba6561497f79524 HEAD
+      - name: Apply immutable identity repair
+        run: |
+          python tools/portal_audit/rs_fix_driver_targets.py
+          python tools/portal_audit/rs_fix_driver_identity.py
+          python tools/portal_audit/rs_fix_driver_inspect.py
+          python tools/portal_audit/rs_fix_driver_attestation.py
+          python tools/portal_audit/rs_fix_network_capture.py
+          python tools/portal_audit/rs_fix_network_cleanup.py
+      - name: Compile repair
+        run: python -m compileall -q ai_platform/portal/execution
+      - name: Commit product repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ai_platform/portal/execution/driver.py ai_platform/portal/execution/host_isolation.py
+          git diff --cached --check
+          git commit -m "fix(portal): bind runtime lifecycle to immutable engine ids"
+          git push origin HEAD:"$GITHUB_REF_NAME"

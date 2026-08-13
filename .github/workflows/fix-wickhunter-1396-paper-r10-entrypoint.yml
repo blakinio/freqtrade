@@ -1,0 +1,39 @@
+name: Repair WickHunter 1396 PAPER r10 entrypoint assertion
+
+on:
+  push:
+    branches:
+      - ops/wickhunter-1396-paper-closeout-r10-20260813
+    paths:
+      - .github/workflows/fix-wickhunter-1396-paper-r10-entrypoint.yml
+
+permissions: {}
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Repair exact current parity supervisor assertion
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          target=.github/workflows/wickhunter-1396-paper-closeout-r10-20260813.yml
+          old='ai_platform.wickhunter.candidate_paper_runtime_supervisor'
+          new='ai_platform.wickhunter.candidate_paper_runtime_parity_supervisor'
+          [[ "$(grep -Foc "$old" "$target")" == "1" ]]
+          sed -i "s/$old/$new/" "$target"
+          [[ "$(grep -Foc "$new" "$target")" == "1" ]]
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/fix-wickhunter-1396-paper-r10-entrypoint.yml
+          git add "$target"
+          git commit -m "ci(wickhunter): align PAPER proof with parity supervisor"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${GITHUB_REF_NAME}"

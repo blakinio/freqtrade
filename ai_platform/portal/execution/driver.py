@@ -456,6 +456,7 @@ class DockerCliRuntimeDriver:
         self._networks: dict[str, str] = {}
         self._specs: dict[str, RuntimeContainerSpec] = {}
         self._plan_digests: dict[str, str] = {}
+        self._container_ids: dict[str, str] = {}
 
     def has_current_generation_evidence(self, runtime_id: str, spec: RuntimeContainerSpec) -> bool:
         if runtime_id not in self._attested:
@@ -471,6 +472,7 @@ class DockerCliRuntimeDriver:
             self._plan_digests.get(runtime_id) == plan_digest
             and self._networks.get(runtime_id) == self._network_name(runtime_id)
             and self._fingerprints.get(runtime_id) == self._fingerprint(spec, plan_digest)
+            and bool(self._container_ids.get(runtime_id))
         )
 
     def provision(self, spec: RuntimeContainerSpec) -> DriverRuntimeState:
@@ -502,16 +504,27 @@ class DockerCliRuntimeDriver:
             self._cleanup_failed_runtime(spec.runtime_id, self._network_name(spec.runtime_id))
 
         network = self._network_name(spec.runtime_id)
+        created_container_id: str | None = None
         self._external.prepare_storage(plan, spec.state_path)
         self._external.prepare_network(plan, network, spec.runtime_id)
         try:
             self._require_image_present(spec.image, plan.runtime_image_digest)
-            self._require_success(self._create_args(spec, plan, network), "DOCKER_CREATE_FAILED")
+            create_result = self._require_success(
+                self._create_args(spec, plan, network), "DOCKER_CREATE_FAILED"
+            )
+            created_container_id = create_result.stdout.strip()
+            if not created_container_id:
+                raise RuntimeDriverError(
+                    "DOCKER_CREATE_FAILED",
+                    "Docker create did not return an immutable container identity",
+                )
             self._attest_structural(spec, plan, network)
             self._require_success(("docker", "start", spec.runtime_id), "DOCKER_START_FAILED")
             self._attest_effective(spec, plan, network)
         except Exception:
-            self._cleanup_failed_runtime(spec.runtime_id, network)
+            self._cleanup_failed_runtime(
+                spec.runtime_id, network, container_id=created_container_id
+            )
             raise
 
         self._attested.add(spec.runtime_id)
@@ -519,6 +532,7 @@ class DockerCliRuntimeDriver:
         self._networks[spec.runtime_id] = network
         self._specs[spec.runtime_id] = spec
         self._plan_digests[spec.runtime_id] = binding.isolation_plan_digest
+        self._container_ids[spec.runtime_id] = created_container_id
         return DriverRuntimeState.CREATED
 
     def start(self, runtime_id: str) -> DriverRuntimeState:
@@ -1176,17 +1190,29 @@ class DockerCliRuntimeDriver:
         )
         self._released.add(runtime_id)
 
-    def _cleanup_failed_runtime(self, runtime_id: str, network: str) -> None:
+    def _cleanup_failed_runtime(
+        self,
+        runtime_id: str,
+        network: str,
+        *,
+        container_id: str | None = None,
+    ) -> None:
         errors: list[str] = []
-        try:
-            remove = self._runner.run(("docker", "rm", "-f", runtime_id))
-            if remove.returncode != 0 and "no such" not in remove.stderr.lower():
-                errors.append(remove.stderr.strip() or "docker container cleanup failed")
-        except Exception as exc:  # noqa: BLE001
-            errors.append(f"docker container cleanup raised {type(exc).__name__}: {exc}")
+        immutable_container_id = container_id or self._container_ids.get(runtime_id)
+        if immutable_container_id is not None:
+            try:
+                remove = self._runner.run(("docker", "rm", "-f", immutable_container_id))
+                if remove.returncode != 0 and "no such" not in remove.stderr.lower():
+                    errors.append(remove.stderr.strip() or "docker container cleanup failed")
+            except Exception as exc:
+                errors.append(f"docker container cleanup raised {type(exc).__name__}: {exc}")
+        elif runtime_id in self._attested or runtime_id in self._specs:
+            errors.append(
+                "immutable container identity is unavailable; refusing name-based cleanup"
+            )
         try:
             self._external.cleanup_network(network, runtime_id)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             errors.append(f"network cleanup raised {type(exc).__name__}: {exc}")
         finally:
             self._clear_generation_evidence(runtime_id)
@@ -1203,6 +1229,7 @@ class DockerCliRuntimeDriver:
         self._networks.pop(runtime_id, None)
         self._specs.pop(runtime_id, None)
         self._plan_digests.pop(runtime_id, None)
+        self._container_ids.pop(runtime_id, None)
 
     def _dns_resolvers(self, plan: RuntimeIsolationPlan) -> tuple[str, ...]:
         resolvers = self._external.dns_resolvers(plan)
@@ -1222,13 +1249,14 @@ class DockerCliRuntimeDriver:
             )
         return probe_bytes
 
-    def _require_success(self, args: Sequence[str], reason_code: str) -> None:
+    def _require_success(self, args: Sequence[str], reason_code: str) -> CommandResult:
         result = self._runner.run(args)
         if result.returncode != 0:
             raise RuntimeDriverError(
                 reason_code,
                 result.stderr.strip() or f"command failed: {args[1]}",
             )
+        return result
 
     @staticmethod
     def _require_probe(result: CommandResult, area: str) -> None:

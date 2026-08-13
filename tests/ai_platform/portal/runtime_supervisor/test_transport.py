@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import socket
+import stat
 import threading
 from pathlib import Path
 from uuid import uuid4
@@ -77,6 +79,47 @@ def test_linux_peer_uid_uses_kernel_authenticated_credentials() -> None:
         accepted.close()
 
 
+def test_distinct_peer_requires_dedicated_filesystem_group(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if not hasattr(socket, "AF_UNIX"):
+        return
+    path = tmp_path / "supervisor.sock"
+    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    listener.bind(str(path))
+    try:
+        distinct_uid = os.geteuid() + 1
+        missing_group = UnixSocketSupervisorServer(
+            path,
+            Supervisor(),
+            allowed_peer_uids=frozenset({distinct_uid}),
+            peer_uid=lambda _: distinct_uid,
+        )
+        with pytest.raises(SupervisorTransportError, match="dedicated filesystem group"):
+            missing_group._configure_filesystem_access()
+
+        chowns: list[tuple[Path, int, int]] = []
+        monkeypatch.setattr(
+            os,
+            "chown",
+            lambda target, uid, gid: chowns.append((Path(target), uid, gid)),
+        )
+        configured = UnixSocketSupervisorServer(
+            path,
+            Supervisor(),
+            allowed_peer_uids=frozenset({distinct_uid}),
+            peer_uid=lambda _: distinct_uid,
+            socket_access_gid=os.getegid(),
+        )
+        configured._configure_filesystem_access()
+        assert stat.S_IMODE(path.lstat().st_mode) == 0o660
+        assert chowns == [(path, -1, os.getegid())]
+    finally:
+        listener.close()
+        if path.exists():
+            path.unlink()
+
+
 def _valid_payload(bot_id: str) -> bytes:
     request = SupervisorRequest.model_validate(
         {
@@ -122,6 +165,7 @@ def test_accept_loop_remains_responsive_while_other_lifecycle_handler_is_blocked
         supervisor,
         allowed_peer_uids=frozenset({42}),
         peer_uid=lambda _: 42,
+        socket_access_gid=__import__("os").getegid(),
         max_workers=2,
         max_inflight_connections=2,
     )
@@ -205,6 +249,7 @@ def test_shutdown_is_bounded_and_retains_socket_for_hung_worker(
         supervisor,
         allowed_peer_uids=frozenset({42}),
         peer_uid=lambda _: 42,
+        socket_access_gid=__import__("os").getegid(),
         max_workers=1,
         max_inflight_connections=1,
         worker_shutdown_timeout_seconds=0.05,
@@ -217,7 +262,7 @@ def test_shutdown_is_bounded_and_retains_socket_for_hung_worker(
     def run_server() -> None:
         try:
             server.serve_forever(stop_event=stop_event, ready_event=ready_event)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             errors.append(exc)
 
     thread = threading.Thread(target=run_server, daemon=True)

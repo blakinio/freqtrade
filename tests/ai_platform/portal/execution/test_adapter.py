@@ -188,6 +188,12 @@ class _RawDriver:
     pass
 
 
+class _MismatchedSupervisor(_FakeSupervisor):
+    def execute(self, request: SupervisorRequest) -> SupervisorOutcome:
+        outcome = super().execute(request)
+        return outcome.model_copy(update={"generation_id": "generation-other"})
+
+
 def _bot(
     tenant_id: str = "tenant-a",
     bot_id: str = "bot-1",
@@ -246,6 +252,20 @@ def test_raw_runtime_driver_cannot_be_injected(tmp_path: Path) -> None:
     raw_driver = cast(RuntimeSupervisorClient, _RawDriver())
     with pytest.raises(TypeError, match="Runtime Supervisor"):
         FreqtradeExecutionAdapter(raw_driver, resolver, RuntimeWorkspaceStore(tmp_path))
+
+
+def test_mismatched_supervisor_outcome_identity_is_rejected(tmp_path: Path) -> None:
+    resolver = _Resolver()
+    resolver.register(_material())
+    adapter = FreqtradeExecutionAdapter(
+        _MismatchedSupervisor(),
+        resolver,
+        RuntimeWorkspaceStore(tmp_path),
+        clock=lambda: NOW,
+    )
+
+    with pytest.raises(RuntimeRevisionConflictError, match="outcome identity mismatch"):
+        adapter.provision_bot(_bot(), _context())
 
 
 def test_provisioning_is_generation_scoped_isolated_and_correlation_labeled(

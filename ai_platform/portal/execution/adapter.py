@@ -510,20 +510,30 @@ class FreqtradeExecutionAdapter:
                 )
             ),
         )
-        return self._supervisor.execute(
-            SupervisorRequest(
-                tenant_id=record.tenant_id,
-                bot_id=record.bot_id,
-                generation_id=record.generation_id,
-                generation_spec_digest=record.generation_spec_digest,
-                operation=operation,
-                command_id=command_id,
-                expected_generation_ordinal=record.generation_ordinal,
-                expected_state_version=state_version,
-                correlation_id=context.correlation_id,
-                causation_id=context.causation_id,
-            )
+        request = SupervisorRequest(
+            tenant_id=record.tenant_id,
+            bot_id=record.bot_id,
+            generation_id=record.generation_id,
+            generation_spec_digest=record.generation_spec_digest,
+            operation=operation,
+            command_id=command_id,
+            expected_generation_ordinal=record.generation_ordinal,
+            expected_state_version=state_version,
+            correlation_id=context.correlation_id,
+            causation_id=context.causation_id,
         )
+        outcome = self._supervisor.execute(request)
+        if (
+            outcome.tenant_id != request.tenant_id
+            or outcome.bot_id != request.bot_id
+            or outcome.generation_id != request.generation_id
+            or outcome.generation_spec_digest != request.generation_spec_digest
+            or outcome.operation is not request.operation
+            or outcome.command_id != request.command_id
+            or outcome.correlation_id != request.correlation_id
+        ):
+            raise RuntimeRevisionConflictError("Runtime Supervisor outcome identity mismatch")
+        return outcome
 
     @staticmethod
     def _outcome_reason(outcome: SupervisorOutcome) -> str:

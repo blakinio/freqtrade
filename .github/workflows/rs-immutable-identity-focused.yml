@@ -21,3 +21,5 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --disable-pip-version-check pytest==9.1.1 "pydantic>=2.2" "SQLAlchemy>=2.0.6" httpx fastapi pyjwt cryptography "PyYAML>=6.0"
       - run: python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform tests/ai_platform/portal/execution/test_driver.py tests/ai_platform/portal/execution/test_host_isolation_cleanup.py tests/ai_platform/portal/execution/test_immutable_runtime_identity.py
+
+# Re-run after immutable-ID fixture alignment.

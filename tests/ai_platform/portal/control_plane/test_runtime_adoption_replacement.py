@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -123,6 +123,7 @@ def _observation(
     *,
     runtime_instance_id: str,
     observed_state: str = "RUNNING",
+    reconciled_at: datetime = NOW,
 ) -> RuntimeGenerationObservation:
     return RuntimeGenerationObservation(
         observation_id=str(uuid4()),
@@ -136,8 +137,8 @@ def _observation(
         observed_config_digest=generation.normalized_runtime_config_digest,
         source_sequence=5,
         source_version="0bc9fd995a63fac469fa4f014195f5cc83983dec",
-        source_observed_at=NOW,
-        reconciled_at=NOW,
+        source_observed_at=reconciled_at,
+        reconciled_at=reconciled_at,
         identity_status=RuntimeIdentityStatus.MATCHED,
         freshness_status=ReconciliationFreshnessStatus.CURRENT,
         completeness_status=ReconciliationCompletenessStatus.COMPLETE,
@@ -209,6 +210,7 @@ def test_external_runtime_replacement_converges_shadow_to_eligible_paper(
     paper_observation = _observation(
         paper,
         runtime_instance_id="sha256:" + "2" * 64,
+        reconciled_at=NOW + timedelta(seconds=2),
     )
     with pytest.raises(ControlPlaneConflictError, match="stop evidence is required"):
         reconcile_external_runtime_observation(
@@ -222,6 +224,7 @@ def test_external_runtime_replacement_converges_shadow_to_eligible_paper(
         shadow,
         runtime_instance_id="sha256:" + "1" * 64,
         observed_state="STOPPED",
+        reconciled_at=NOW + timedelta(seconds=1),
     )
     recorded = record_external_runtime_stop_observation(
         session_factory,
@@ -268,6 +271,31 @@ def test_external_runtime_replacement_converges_shadow_to_eligible_paper(
     )
 
 
+def test_previous_runtime_stop_proof_rejects_non_monotonic_timestamp(
+    session_factory: SessionFactory,
+) -> None:
+    _, _, shadow, _, _, _ = _shadow_then_paper(session_factory)
+
+    with pytest.raises(ControlPlaneConflictError, match="strictly follow"):
+        record_external_runtime_stop_observation(
+            session_factory,
+            _context(admin=True),
+            BOT_ID,
+            _observation(
+                shadow,
+                runtime_instance_id="sha256:" + "1" * 64,
+                observed_state="STOPPED",
+                reconciled_at=NOW,
+            ),
+        )
+
+    with session_factory() as session:
+        row = session.get(BotRow, ("tenant-a", BOT_ID))
+        assert row is not None
+        assert row.observed_runtime_generation_id == shadow.generation_id
+        assert row.observed_state == "RUNNING"
+
+
 def test_previous_runtime_stop_proof_rejects_different_runtime_instance(
     session_factory: SessionFactory,
 ) -> None:
@@ -282,6 +310,7 @@ def test_previous_runtime_stop_proof_rejects_different_runtime_instance(
                 shadow,
                 runtime_instance_id="sha256:" + "9" * 64,
                 observed_state="STOPPED",
+                reconciled_at=NOW + timedelta(seconds=1),
             ),
         )
 

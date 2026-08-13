@@ -240,11 +240,11 @@ class RuntimeAdoptionService:
                 raise ControlPlaneConflictError(
                     "previous runtime stop proof does not match the observed runtime instance"
                 )
-            if (
-                _restore_utc(latest.reconciled_at) or datetime.max.replace(tzinfo=UTC)
-            ) > observation.reconciled_at:
+            latest_running_at = _restore_utc(latest.reconciled_at)
+            if latest_running_at is None or latest_running_at >= observation.reconciled_at:
                 raise ControlPlaneConflictError(
-                    "previous runtime stop proof predates the current RUNNING observation"
+                    "previous runtime stop proof must strictly follow "
+                    "the current RUNNING observation"
                 )
 
             rollout = session.scalar(
@@ -420,17 +420,40 @@ class RuntimeAdoptionService:
                     )
                     .limit(1)
                 )
+                latest_previous_running = session.scalar(
+                    select(RuntimeGenerationObservationRow)
+                    .where(
+                        RuntimeGenerationObservationRow.generation_id
+                        == previous_observed_generation_id,
+                        RuntimeGenerationObservationRow.observed_state
+                        == BotObservedState.RUNNING.value,
+                    )
+                    .order_by(
+                        RuntimeGenerationObservationRow.reconciled_at.desc(),
+                        RuntimeGenerationObservationRow.observation_id.desc(),
+                    )
+                    .limit(1)
+                )
+                latest_previous_at = (
+                    _restore_utc(latest_previous.reconciled_at)
+                    if latest_previous is not None
+                    else None
+                )
+                latest_previous_running_at = (
+                    _restore_utc(latest_previous_running.reconciled_at)
+                    if latest_previous_running is not None
+                    else None
+                )
                 if (
                     latest_previous is None
                     or latest_previous.observed_state != BotObservedState.STOPPED.value
-                    or (
-                        _restore_utc(latest_previous.reconciled_at)
-                        or datetime.max.replace(tzinfo=UTC)
-                    )
-                    > observation.reconciled_at
+                    or latest_previous_at is None
+                    or latest_previous_at >= observation.reconciled_at
+                    or latest_previous_running_at is None
+                    or latest_previous_running_at >= latest_previous_at
                 ):
                     raise ControlPlaneConflictError(
-                        "previous runtime STOPPED observation is missing or newer than replacement"
+                        "previous runtime STOPPED observation is missing, stale, or superseded"
                     )
             if rollout.status == "SUCCEEDED":
                 if replacing_observed_generation:

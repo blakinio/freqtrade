@@ -221,6 +221,41 @@ class RuntimeAdoptionService:
                     raise ControlPlaneConflictError(
                         "persisted stop observation does not match current observed runtime state"
                     )
+                latest = session.scalar(
+                    select(RuntimeGenerationObservationRow)
+                    .where(RuntimeGenerationObservationRow.generation_id == generation.generation_id)
+                    .order_by(
+                        RuntimeGenerationObservationRow.reconciled_at.desc(),
+                        RuntimeGenerationObservationRow.observation_id.desc(),
+                    )
+                    .limit(1)
+                )
+                if latest is None or latest.observation_id != observation.observation_id:
+                    raise ControlPlaneConflictError(
+                        "persisted stop observation is no longer the latest runtime evidence"
+                    )
+                rollout = session.scalar(
+                    select(BotRolloutRow)
+                    .where(
+                        BotRolloutRow.tenant_id == context.tenant_id,
+                        BotRolloutRow.bot_id == bot_id,
+                        BotRolloutRow.to_generation_id == bot.desired_runtime_generation_id,
+                    )
+                    .order_by(BotRolloutRow.updated_at.desc(), BotRolloutRow.rollout_id.desc())
+                    .limit(1)
+                )
+                if rollout is None or rollout.from_generation_id != generation.generation_id:
+                    raise ControlPlaneConflictError(
+                        "persisted stop proof requires a canonical replacement rollout"
+                    )
+                if rollout.status in _PREVIOUS_STOP_ATTESTATION_ROLLOUT_STATES:
+                    rollout.status = BotRolloutStatus.PREVIOUS_STOPPED.value
+                    rollout.reason_code = EXTERNAL_STOP_REASON
+                    session.flush()
+                elif rollout.status != BotRolloutStatus.PREVIOUS_STOPPED.value:
+                    raise ControlPlaneConflictError(
+                        "rollout state does not permit persisted stop-proof reuse"
+                    )
                 return persisted
 
             latest = session.scalar(

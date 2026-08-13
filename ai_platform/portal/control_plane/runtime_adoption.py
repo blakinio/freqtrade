@@ -13,6 +13,7 @@ from ai_platform.portal.contracts.audit import AuditAction, AuditEvent, AuditRes
 from ai_platform.portal.contracts.bots import BotInstance, BotObservedState
 from ai_platform.portal.contracts.identity import Permission
 from ai_platform.portal.contracts.runtime_generation import (
+    BotRolloutStatus,
     ReconciliationCompletenessStatus,
     ReconciliationFreshnessStatus,
     RuntimeGeneration,
@@ -35,12 +36,19 @@ from ai_platform.portal.security.authorization import require_permission
 
 
 EXTERNAL_ADOPTION_REASON = "EXTERNAL_RUNTIME_ADOPTED"
+EXTERNAL_STOP_REASON = "EXTERNAL_PREVIOUS_RUNTIME_STOPPED"
+_PREVIOUS_STOP_ATTESTATION_ROLLOUT_STATES = {
+    BotRolloutStatus.REQUESTED.value,
+    BotRolloutStatus.PRECHECK.value,
+    BotRolloutStatus.STOPPING_PREVIOUS.value,
+}
 _PENDING_ADOPTION_ROLLOUT_STATES = {
-    "REQUESTED",
-    "PRECHECK",
-    "PROVISIONING",
-    "STARTING",
-    "VERIFYING",
+    BotRolloutStatus.REQUESTED.value,
+    BotRolloutStatus.PRECHECK.value,
+    BotRolloutStatus.PREVIOUS_STOPPED.value,
+    BotRolloutStatus.PROVISIONING.value,
+    BotRolloutStatus.STARTING.value,
+    BotRolloutStatus.VERIFYING.value,
 }
 
 
@@ -110,7 +118,10 @@ def _add_observation(session: Session, observation: RuntimeGenerationObservation
 
 
 def _validate_exact_observation(
-    *, generation: RuntimeGeneration, observation: RuntimeGenerationObservation
+    *,
+    generation: RuntimeGeneration,
+    observation: RuntimeGenerationObservation,
+    required_state: BotObservedState = BotObservedState.RUNNING,
 ) -> BotObservedState:
     if observation.generation_id != generation.generation_id:
         raise ControlPlaneConflictError("runtime observation generation mismatch")
@@ -130,22 +141,173 @@ def _validate_exact_observation(
         observed_state = BotObservedState(observation.observed_state)
     except ValueError as exc:
         raise ControlPlaneConflictError("runtime observed state is unsupported") from exc
-    if observed_state is not BotObservedState.RUNNING:
-        raise ControlPlaneConflictError("external runtime adoption requires RUNNING observation")
+    if observed_state is not required_state:
+        raise ControlPlaneConflictError(
+            f"external runtime reconciliation requires {required_state.value} observation"
+        )
     return observed_state
 
 
 class RuntimeAdoptionService:
-    """Trusted system reconciliation for a runtime that already exists outside Portal.
+    """Trusted reconciliation for a runtime that already exists outside Portal.
 
-    This service never creates, starts, stops, restarts or replaces a runtime. It only
-    converges a canonical desired RuntimeGeneration to observed after exact immutable
-    identity evidence is supplied by the host-side reconciler.
+    This service never creates, starts, stops or restarts a runtime. The trusted host-side
+    reconciler owns those effects. Portal may move the observed pointer from the currently
+    observed generation to the canonical desired generation only when an exact canonical
+    rollout links those generations and fresh immutable runtime identity evidence matches
+    the desired generation. This preserves RuntimeGeneration as the sole authority while
+    allowing an externally managed generation replacement to reconcile truthfully.
     """
 
     def __init__(self, session_factory: SessionFactory) -> None:
         self._session_factory = session_factory
         self._repository = BotRepository()
+
+    def record_previous_runtime_stopped(  # noqa: C901 - fail-closed proof checks stay visible
+        self,
+        context: RequestContext,
+        bot_id: str,
+        observation: RuntimeGenerationObservation,
+    ) -> RuntimeGenerationObservation:
+        """Record exact host proof that the currently observed runtime stopped.
+
+        The observed generation pointer intentionally remains on the previous generation.
+        This operation only records STOPPED truth and advances the canonical replacement
+        rollout to PREVIOUS_STOPPED. A later exact RUNNING observation for the desired
+        generation is still required before Portal may move the observed pointer.
+        """
+
+        require_permission(context.permissions, Permission.ADMIN_MANAGE)
+
+        with self._session_factory() as session, session.begin():
+            bot = self._repository.get_bot(session, context.tenant_id, bot_id)
+            if bot is None:
+                raise BotNotFoundError("bot not found")
+            if bot.observed_runtime_generation_id != observation.generation_id:
+                raise ControlPlaneConflictError(
+                    "stop observation must target the current observed RuntimeGeneration"
+                )
+            if (
+                bot.desired_runtime_generation_id is None
+                or bot.desired_runtime_generation_id == observation.generation_id
+            ):
+                raise ControlPlaneConflictError(
+                    "previous-runtime stop proof requires a different desired RuntimeGeneration"
+                )
+            generation = self._repository.get_runtime_generation(
+                session, context.tenant_id, observation.generation_id
+            )
+            if generation is None or generation.bot_id != bot_id:
+                raise ControlPlaneConflictError("runtime generation does not belong to bot")
+            _validate_exact_observation(
+                generation=generation,
+                observation=observation,
+                required_state=BotObservedState.STOPPED,
+            )
+
+            existing = session.get(RuntimeGenerationObservationRow, observation.observation_id)
+            if existing is not None:
+                persisted = _observation_from_row(existing)
+                if persisted != observation:
+                    raise ControlPlaneConflictError(
+                        "runtime observation id already has different immutable evidence"
+                    )
+                row = session.get(BotRow, (context.tenant_id, bot_id))
+                if (
+                    row is None
+                    or row.observed_runtime_generation_id != generation.generation_id
+                    or row.observed_state != BotObservedState.STOPPED.value
+                ):
+                    raise ControlPlaneConflictError(
+                        "persisted stop observation does not match current observed runtime state"
+                    )
+                return persisted
+
+            latest = session.scalar(
+                select(RuntimeGenerationObservationRow)
+                .where(RuntimeGenerationObservationRow.generation_id == generation.generation_id)
+                .order_by(
+                    RuntimeGenerationObservationRow.reconciled_at.desc(),
+                    RuntimeGenerationObservationRow.observation_id.desc(),
+                )
+                .limit(1)
+            )
+            if latest is None or latest.observed_state != BotObservedState.RUNNING.value:
+                raise ControlPlaneConflictError(
+                    "previous runtime stop proof requires a prior RUNNING observation"
+                )
+            if latest.runtime_instance_id != observation.runtime_instance_id:
+                raise ControlPlaneConflictError(
+                    "previous runtime stop proof does not match the observed runtime instance"
+                )
+            latest_running_at = _restore_utc(latest.reconciled_at)
+            if latest_running_at is None or latest_running_at >= observation.reconciled_at:
+                raise ControlPlaneConflictError(
+                    "previous runtime stop proof must strictly follow "
+                    "the current RUNNING observation"
+                )
+
+            rollout = session.scalar(
+                select(BotRolloutRow)
+                .where(
+                    BotRolloutRow.tenant_id == context.tenant_id,
+                    BotRolloutRow.bot_id == bot_id,
+                    BotRolloutRow.to_generation_id == bot.desired_runtime_generation_id,
+                )
+                .order_by(BotRolloutRow.updated_at.desc(), BotRolloutRow.rollout_id.desc())
+                .limit(1)
+            )
+            if rollout is None:
+                raise ControlPlaneConflictError(
+                    "previous runtime stop proof requires a canonical replacement rollout"
+                )
+            if rollout.from_generation_id != generation.generation_id:
+                raise ControlPlaneConflictError(
+                    "replacement rollout does not start from the stopped RuntimeGeneration"
+                )
+            if rollout.status not in _PREVIOUS_STOP_ATTESTATION_ROLLOUT_STATES:
+                raise ControlPlaneConflictError(
+                    "rollout state does not permit previous runtime stop attestation"
+                )
+
+            _add_observation(session, observation)
+            row = session.get(BotRow, (context.tenant_id, bot_id))
+            if row is None:
+                raise BotNotFoundError("bot not found")
+            row.observed_state = BotObservedState.STOPPED.value
+            row.state_version = (row.state_version or 0) + 1
+            rollout.status = BotRolloutStatus.PREVIOUS_STOPPED.value
+            rollout.reason_code = EXTERNAL_STOP_REASON
+            rollout.updated_at = observation.reconciled_at
+
+            self._repository.add_audit_event(
+                session,
+                AuditEvent(
+                    audit_id=uuid4(),
+                    occurred_at=observation.reconciled_at,
+                    actor_type=context.actor_type,
+                    actor_id=context.actor_id,
+                    tenant_id=context.tenant_id,
+                    resource_type="bot",
+                    resource_id=bot_id,
+                    action=AuditAction.BOT_STOPPED,
+                    result=AuditResult.SUCCEEDED,
+                    request_id=context.request_id,
+                    correlation_id=context.correlation_id,
+                    causation_id=context.causation_id,
+                    reason_code=EXTERNAL_STOP_REASON,
+                    details={
+                        "generation_id": generation.generation_id,
+                        "runtime_instance_id": observation.runtime_instance_id,
+                        "observation_id": observation.observation_id,
+                        "evidence_hash": observation.evidence_hash,
+                        "desired_generation_id": bot.desired_runtime_generation_id,
+                    },
+                ),
+            )
+            session.flush()
+
+        return observation
 
     def adopt_external_runtime(  # noqa: C901 - explicit fail-closed checks stay visible
         self,
@@ -163,13 +325,7 @@ class RuntimeAdoptionService:
                 raise ControlPlaneConflictError(
                     "external runtime may only adopt the canonical desired generation"
                 )
-            if (
-                bot.observed_runtime_generation_id is not None
-                and bot.observed_runtime_generation_id != observation.generation_id
-            ):
-                raise ControlPlaneConflictError(
-                    "bot is already bound to a different observed RuntimeGeneration"
-                )
+            previous_observed_generation_id = bot.observed_runtime_generation_id
             generation = self._repository.get_runtime_generation(
                 session, context.tenant_id, observation.generation_id
             )
@@ -229,7 +385,81 @@ class RuntimeAdoptionService:
                 raise ControlPlaneConflictError(
                     "external runtime adoption requires a canonical rollout"
                 )
+            replacing_observed_generation = (
+                previous_observed_generation_id is not None
+                and previous_observed_generation_id != generation.generation_id
+            )
+            if replacing_observed_generation:
+                if rollout.from_generation_id != previous_observed_generation_id:
+                    raise ControlPlaneConflictError(
+                        "external runtime replacement rollout does not start from "
+                        "the current observed generation"
+                    )
+                previous_generation = self._repository.get_runtime_generation(
+                    session,
+                    context.tenant_id,
+                    previous_observed_generation_id,
+                )
+                if previous_generation is None or previous_generation.bot_id != bot_id:
+                    raise ControlPlaneConflictError(
+                        "current observed RuntimeGeneration does not belong to bot"
+                    )
+                if rollout.status != BotRolloutStatus.PREVIOUS_STOPPED.value:
+                    raise ControlPlaneConflictError(
+                        "previous runtime stop evidence is required before replacement adoption"
+                    )
+                latest_previous = session.scalar(
+                    select(RuntimeGenerationObservationRow)
+                    .where(
+                        RuntimeGenerationObservationRow.generation_id
+                        == previous_observed_generation_id
+                    )
+                    .order_by(
+                        RuntimeGenerationObservationRow.reconciled_at.desc(),
+                        RuntimeGenerationObservationRow.observation_id.desc(),
+                    )
+                    .limit(1)
+                )
+                latest_previous_running = session.scalar(
+                    select(RuntimeGenerationObservationRow)
+                    .where(
+                        RuntimeGenerationObservationRow.generation_id
+                        == previous_observed_generation_id,
+                        RuntimeGenerationObservationRow.observed_state
+                        == BotObservedState.RUNNING.value,
+                    )
+                    .order_by(
+                        RuntimeGenerationObservationRow.reconciled_at.desc(),
+                        RuntimeGenerationObservationRow.observation_id.desc(),
+                    )
+                    .limit(1)
+                )
+                latest_previous_at = (
+                    _restore_utc(latest_previous.reconciled_at)
+                    if latest_previous is not None
+                    else None
+                )
+                latest_previous_running_at = (
+                    _restore_utc(latest_previous_running.reconciled_at)
+                    if latest_previous_running is not None
+                    else None
+                )
+                if (
+                    latest_previous is None
+                    or latest_previous.observed_state != BotObservedState.STOPPED.value
+                    or latest_previous_at is None
+                    or latest_previous_at >= observation.reconciled_at
+                    or latest_previous_running_at is None
+                    or latest_previous_running_at >= latest_previous_at
+                ):
+                    raise ControlPlaneConflictError(
+                        "previous runtime STOPPED observation is missing, stale, or superseded"
+                    )
             if rollout.status == "SUCCEEDED":
+                if replacing_observed_generation:
+                    raise ControlPlaneConflictError(
+                        "successful rollout cannot replace a different current observed generation"
+                    )
                 if rollout.reason_code != EXTERNAL_ADOPTION_REASON:
                     raise ControlPlaneConflictError(
                         "successful rollout was not established by external adoption"
@@ -275,6 +505,11 @@ class RuntimeAdoptionService:
                         "observation_id": observation.observation_id,
                         "evidence_hash": observation.evidence_hash,
                         "provenance": EXTERNAL_ADOPTION_REASON,
+                        **(
+                            {"previous_generation_id": previous_observed_generation_id}
+                            if replacing_observed_generation
+                            else {}
+                        ),
                     },
                 ),
             )
@@ -288,6 +523,19 @@ class RuntimeAdoptionService:
             generation=generation,
             observation=observation,
         )
+
+
+def record_external_runtime_stop_observation(
+    session_factory: SessionFactory,
+    context: RequestContext,
+    bot_id: str,
+    observation: RuntimeGenerationObservation,
+) -> RuntimeGenerationObservation:
+    return RuntimeAdoptionService(session_factory).record_previous_runtime_stopped(
+        context,
+        bot_id,
+        observation,
+    )
 
 
 def reconcile_external_runtime_observation(

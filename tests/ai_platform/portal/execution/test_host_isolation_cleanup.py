@@ -34,9 +34,7 @@ def _backend(runner: _Runner, tmp_path: Path) -> LinuxNftablesBtrfsIsolationAtte
     )
 
 
-def _owned_backend(
-    runner: _Runner, tmp_path: Path
-) -> LinuxNftablesBtrfsIsolationAttestor:
+def _owned_backend(runner: _Runner, tmp_path: Path) -> LinuxNftablesBtrfsIsolationAttestor:
     backend = _backend(runner, tmp_path)
     backend._network_ids["runtime-1"] = "network-id"
     return backend

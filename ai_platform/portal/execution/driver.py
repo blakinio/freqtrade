@@ -458,9 +458,7 @@ class DockerCliRuntimeDriver:
         self._plan_digests: dict[str, str] = {}
         self._container_ids: dict[str, str] = {}
 
-    def has_current_generation_evidence(
-        self, runtime_id: str, spec: RuntimeContainerSpec
-    ) -> bool:
+    def has_current_generation_evidence(self, runtime_id: str, spec: RuntimeContainerSpec) -> bool:
         if runtime_id not in self._attested:
             return False
         if self._specs.get(runtime_id) != spec:
@@ -681,7 +679,9 @@ class DockerCliRuntimeDriver:
             )
         state = result.stdout.strip().lower()
         if state == "running":
-            gate = self._runner.run(("docker", "exec", container_id, "test", "-f", self._RELEASE_FILE))
+            gate = self._runner.run(
+                ("docker", "exec", container_id, "test", "-f", self._RELEASE_FILE)
+            )
             if gate.returncode == 0:
                 if self._application_probe(runtime_id, container_id):
                     return DriverRuntimeState.RUNNING

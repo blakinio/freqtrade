@@ -548,7 +548,8 @@ class LinuxNftablesBtrfsIsolationAttestor:
             elif not self._cleanup_target_absent(immutable):
                 raise RuntimeDriverError(
                     "GENERATION_OWNERSHIP_CONFLICT",
-                    immutable.stderr.strip() or "immutable generation network evidence is unavailable",
+                    immutable.stderr.strip()
+                    or "immutable generation network evidence is unavailable",
                 )
         if present:
             removed = self._runner.run(("docker", "network", "rm", expected))

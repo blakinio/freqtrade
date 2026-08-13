@@ -46,7 +46,7 @@ jobs:
           exec(compile(script, str(source) + ":embedded-repair", "exec"), {})
           PY
 
-      - name: Normalize generated lint-only repair details
+      - name: Normalize generated repair details and hardened test fixtures
         run: |
           set -euo pipefail
           python -m ruff check --fix --exit-zero \
@@ -70,6 +70,23 @@ jobs:
           if text.count(old) != 1:
               raise SystemExit("expected exactly one immutable-cleanup lint line")
           path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          path = Path("tests/ai_platform/portal/runtime_supervisor/test_transport.py")
+          text = path.read_text(encoding="utf-8")
+          old = (
+              "        allowed_peer_uids=frozenset({42}),\n"
+              "        peer_uid=lambda _: 42,\n"
+              "        max_workers="
+          )
+          new = (
+              "        allowed_peer_uids=frozenset({42}),\n"
+              "        peer_uid=lambda _: 42,\n"
+              "        socket_access_gid=__import__(\"os\").getegid(),\n"
+              "        max_workers="
+          )
+          if text.count(old) != 2:
+              raise SystemExit("expected exactly two concurrent transport test fixtures")
+          path.write_text(text.replace(old, new), encoding="utf-8")
           PY
 
       - name: Validate focused repair

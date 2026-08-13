@@ -8,84 +8,75 @@ issue: 1355
 continuation_pr: 1496
 base_branch: develop
 delivery_branch: codex/portal-runtime-supervisor-1355
-status: waiting
+status: validating
 priority: critical
 execution_mode: github_only
 run_scope: single_task
 continuation_policy: stop_at_task_boundary
 live_capital_authorized: false
 protected_production_deployment_authorized: false
-invocation_started_at: 2026-08-13T08:58:00+02:00
-last_progress_at: 2026-08-13T09:13:00+02:00
-ci_checks_for_current_head: 0
-pre_checkpoint_head_ci_observations: 2
-unchanged_state_checks: 0
-identical_failure_retries: 0
-repair_cycles_for_current_gate: 2
-context_reconstruction_attempts: 0
-stall_warnings: 0
+repair_cycles_for_current_gate: 3
 ```
 
 ## Objective
 
-Close the three material trust-boundary findings from the fresh audit of PR #1496 on the existing delivery PR, remove all one-shot repair workflows, synchronize with current `develop`, and reach exact-head closeout validation without creating another implementation PR.
+Close the three material trust-boundary findings from the fresh audit of PR #1496, synchronize the Runtime Supervisor delivery with current `develop`, and reach exact-head closeout validation without weakening PAPER-only safety or creating a duplicate implementation PR.
 
 ## Findings and disposition
 
-- `RS-AUDIT-20260813-01 / P1` — **REPAIRED**: failed-runtime cleanup now captures and uses immutable container identity and refuses name-based destructive cleanup when immutable evidence is unavailable.
-- `RS-AUDIT-20260813-02 / P1` — **REPAIRED**: distinct authorized lifecycle UID now requires an explicit dedicated filesystem group; trusted root/socket group ownership and access are configured and validated fail-closed.
+- `RS-AUDIT-20260813-01 / P1` — **REPAIRED**: failed-runtime cleanup captures and uses immutable container identity and refuses name-based destructive cleanup when immutable evidence is unavailable.
+- `RS-AUDIT-20260813-02 / P1` — **REPAIRED**: distinct authorized lifecycle UID requires an explicit dedicated filesystem group; trusted root/socket group ownership and access are configured and validated fail-closed.
 - `RS-AUDIT-20260813-03 / P1` — **REPAIRED**: execution adapter validates Supervisor outcome tenant/bot/generation/spec-digest/operation/command/correlation identity before trusting returned state/version.
 
-## Owned paths
+## Current validation repair
 
-- `ai_platform/portal/execution/driver.py`
-- `ai_platform/portal/execution/adapter.py`
-- `ai_platform/portal/runtime_supervisor/transport.py`
-- `tests/ai_platform/portal/execution/test_driver.py`
-- `tests/ai_platform/portal/execution/test_adapter.py`
-- `tests/ai_platform/portal/runtime_supervisor/test_transport.py`
-- this task record
+After PR #1449 merged as `10330a7a158aaf8c175f96763e9e78dd46c5805a`, conflict-resolution commit `e6daaccbbd69431d5dc139c2d8e59d74685e2c1b` preserved the new G0 `status_authority` section but accidentally reverted Runtime Supervisor living-ledger facts to the pre-Supervisor fingerprints/version.
 
-The three one-shot repair workflows are no longer owned because they were deleted by product repair commit `4eef00b90e5a5550b15c176c089b1325a911363b` and direct exact-head content lookup returned 404 for each path.
+Exact merge-ref CI run `31686438485`, job `94403483803`, failed deterministically in `tests/ci/test_portal_surface_availability.py` because the web projection remained at `ledger_version: 2026-08-13.1` while the conflicted ledger had been reverted to `2026-08-10.1`.
+
+Repair commit `64ab5bc25c4896ae17d660dd11707b5478c8cef8` restores the Supervisor exact-head inventory while preserving the newly merged G0 section:
+
+- backend modules: `32` / `bd3c47b0e14fe4f4c77bfc9d4071e16f40d367ea5831e4f5d1c59f47cb55b33a`;
+- runtime composition digest: `68ab7c23e8c59ce98fc8138a3e82a9ffd354ee92b2ad6e15c81b7f9884f4171b`;
+- living ledger version: `2026-08-13.1`;
+- `sections.status_authority` from merged PR #1449 retained.
+
+No product logic, availability classification, safety threshold, LIVE boundary, credential authority, order authority or deployment authority was changed by this repair.
 
 ## Acceptance state
 
-- failure cleanup never removes a container by mutable runtime name: **PASS by direct code inspection**;
-- immutable container identity is retained and used for failure cleanup: **PASS by direct code inspection**;
-- distinct lifecycle UID requires configured group access and unrelated identities remain excluded: **PASS by direct code inspection**;
-- same-UID supervisor sockets remain owner-only: **PASS by direct code inspection**;
-- adapter validates bounded Supervisor outcome identity: **PASS by direct code inspection**;
-- focused Ruff/mypy/tests: **PASS**, run `31676285852`, 106/106 tests;
-- one-shot workflow cleanup: **PASS**, product commit `4eef00b90e5a5550b15c176c089b1325a911363b`;
-- synchronization with current `develop@0bc9fd995a63fac469fa4f014195f5cc83983dec`: **PASS**, merge-forward candidate `917bf19deb9608c8b91292ae2f951f78b8b8ada9` before this checkpoint-only commit;
-- required exact-head CI/E2E: **WAITING** — second/final observation on `917bf19...` had zizmor success, CodeQL/API-mode/Runtime-Isolation in progress and Freqtrade/Component/remaining E2E queued;
-- fresh independent post-repair security audit: **WAITING / REQUIRED**;
-- merge: **NOT AUTHORIZED until remaining gates pass**.
+- three fresh-audit P1 findings: **REPAIRED**;
+- focused Ruff/mypy/tests for product repair: **PASS**, run `31676285852`, 106/106 tests;
+- one-shot repair workflow cleanup: **PASS**, workflows absent after `4eef00b90e5a5550b15c176c089b1325a911363b`;
+- current `develop`: `10330a7a158aaf8c175f96763e9e78dd46c5805a`;
+- post-#1449 ledger conflict root cause: **PROVEN** by run `31686438485` / job `94403483803`;
+- conflict repair: **COMMITTED** as `64ab5bc25c4896ae17d660dd11707b5478c8cef8` before this checkpoint update;
+- required exact-head CI/E2E on the successor: **WAITING**;
+- genuinely fresh independent post-repair audit: **REQUIRED in a later fresh session** because this session modified #1496;
+- merge: **NOT AUTHORIZED until final CI, fresh audit, review/base hygiene and lifecycle closeout pass**.
 
 ## Safety
 
-PAPER-only. No deployment, protected-environment mutation, exchange credentials, real orders, withdrawals, LIVE transition, or owner-funded Codex/OpenAI/paid-AI use is authorized or used.
+PAPER-only. No deployment, protected-environment mutation, exchange credentials, real orders, withdrawals, LIVE transition, owner-funded Codex/OpenAI/paid-AI use or owner-owned AI credentials are authorized or used.
 
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 2
+checkpoint_version: 3
 checkpoint_head: LIVE_BRANCH_HEAD_REQUIRED
-pre_checkpoint_head: 917bf19deb9608c8b91292ae2f951f78b8b8ada9
-product_repair_commit: 4eef00b90e5a5550b15c176c089b1325a911363b
-integrated_develop: 0bc9fd995a63fac469fa4f014195f5cc83983dec
+pre_checkpoint_head: 64ab5bc25c4896ae17d660dd11707b5478c8cef8
+current_develop: 10330a7a158aaf8c175f96763e9e78dd46c5805a
 branch: codex/portal-runtime-supervisor-1355
 pr: 1496
-status: waiting
+status: validating
 proven:
   - all three fresh-audit P1 findings are repaired in repository code
   - run 31676285852 passed Ruff, mypy and 106 focused tests
-  - all three one-shot repair workflows are absent after product commit 4eef00b
-  - branch was merge-forwarded without force to develop@0bc9fd9
+  - exact merge-ref CI after #1449 exposed only living-ledger conflict drift as the first routing failure
+  - conflict repair preserves both Supervisor inventory facts and merged G0 status_authority section
 waiting_on:
-  - terminal required exact-head CI and Runtime Isolation E2E after GitHub Actions queue advances
-  - genuinely fresh independent post-repair security audit with independent context
-blockers:
-  - no permitted independent fresh validator is exposed in the current execution surface; owner-funded Codex/OpenAI/paid-AI is prohibited without separate explicit authorization
-next_action: In a fresh invocation, resolve the live branch head from GitHub, observe required exact-head CI/E2E once the queue has advanced, then obtain a permitted genuinely fresh independent security audit; merge only if both gates pass and review/base hygiene remains clean.
+  - terminal required exact-head CI and Runtime Isolation E2E on the checkpoint successor
+  - a genuinely fresh independent post-repair security audit in a later fresh session
+blockers: []
+next_action: In the next fresh invocation, resolve the live head, inspect terminal exact-head CI/E2E. If green and no implementation repair is performed in that session, run a fresh independent audit-only validation; merge only after PASS_ZERO_MATERIAL_FINDINGS plus zero unresolved threads and current-base freshness.
 ```

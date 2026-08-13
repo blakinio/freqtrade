@@ -102,6 +102,7 @@ class RuntimeRecord(BaseModel):
     generation_id: NonEmptyStr
     generation_ordinal: PositiveInt
     generation_spec_digest: Sha256Hex
+    state_version: PositiveInt = 1
     config_revision_id: NonEmptyStr
     config_revision: PositiveInt
     config_revision_digest: Sha256Hex
@@ -129,4 +130,10 @@ class RuntimeDriver(Protocol):
 
     def stop(self, runtime_id: str) -> DriverRuntimeState: ...
 
+    def retire(self, runtime_id: str) -> DriverRuntimeState: ...
+
     def inspect(self, runtime_id: str) -> DriverRuntimeState: ...
+
+    def has_current_generation_evidence(
+        self, runtime_id: str, spec: RuntimeContainerSpec
+    ) -> bool: ...

@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from ai_platform.portal.execution.driver import (
+    DEFAULT_ENGINE_COMMAND_TIMEOUT_SECONDS,
     CommandResult,
     DockerCliRuntimeDriver,
     DockerHostCapabilityProbe,
@@ -219,6 +220,17 @@ def _network() -> str:
     return f"portal-net-{digest}"
 
 
+def _ownership_result(
+    container_id: str = "container-id", runtime_id: str = "runtime-1"
+) -> CommandResult:
+    return CommandResult(
+        0,
+        stdout=json.dumps(
+            {"Id": container_id, "Config": {"Labels": {"ai.portal.runtime_id": runtime_id}}}
+        ),
+    )
+
+
 def _inspect(spec: RuntimeContainerSpec, plan: RuntimeIsolationPlan) -> dict[str, object]:
     return {
         "Config": {
@@ -386,8 +398,8 @@ def test_provision_builds_quarantined_hardened_container(tmp_path: Path) -> None
     assert not any("docker.sock" in value for value in create)
     assert "Seccomp:" in runner.calls[5][-1]
     assert "/proc/swaps" in runner.calls[6][-1]
-    assert runner.calls[8][:3] == ("docker", "exec", "runtime-1")
-    assert runner.calls[9] == ("docker", "logs", "runtime-1")
+    assert runner.calls[8][:3] == ("docker", "exec", "container-id")
+    assert runner.calls[9] == ("docker", "logs", "container-id")
     assert attestor.prepared_storage == [spec.state_path]
     assert attestor.prepared_networks == [_network()]
     assert attestor.attested_storage == [spec.state_path]
@@ -411,6 +423,7 @@ def test_release_repeats_attestation_then_activates_egress_before_gate(tmp_path:
     assert attestor.activated_networks == []
     runner.results.extend(
         [
+            _ownership_result(),
             CommandResult(0, stdout="running\n"),
             CommandResult(1),
             *_reattest_results(spec, plan),
@@ -424,7 +437,7 @@ def test_release_repeats_attestation_then_activates_egress_before_gate(tmp_path:
     assert runner.calls[-1][:5] == (
         "docker",
         "exec",
-        "runtime-1",
+        "container-id",
         "/bin/sh",
         "-ec",
     )
@@ -451,6 +464,7 @@ def test_release_fails_closed_if_structure_changes_after_initial_attestation(
     host["Privileged"] = True
     runner.results.extend(
         [
+            _ownership_result(),
             CommandResult(0, stdout="running\n"),
             CommandResult(1),
             CommandResult(0, stdout=json.dumps([tampered])),
@@ -481,6 +495,7 @@ def test_release_activation_failure_removes_runtime_before_application_gate(tmp_
     driver.provision(spec)
     runner.results.extend(
         [
+            _ownership_result(),
             CommandResult(0, stdout="running\n"),
             CommandResult(1),
             *_reattest_results(spec, plan),
@@ -494,7 +509,7 @@ def test_release_activation_failure_removes_runtime_before_application_gate(tmp_
     assert exc_info.value.reason_code == "HOST_NETWORK_ISOLATION_UNSUPPORTED"
     assert attestor.activated_networks == []
     assert attestor.cleaned == [_network()]
-    assert runner.calls[-1] == ("docker", "rm", "-f", "runtime-1")
+    assert runner.calls[-1] == ("docker", "rm", "-f", "container-id")
     assert all(DockerCliRuntimeDriver._RELEASE not in call for call in runner.calls)
 
 
@@ -527,7 +542,6 @@ def test_missing_image_cleans_prepared_generation_network(tmp_path: Path) -> Non
     runner = _Runner(
         CommandResult(1, stderr="Error: No such object: runtime-1"),
         CommandResult(1, stderr="No such image"),
-        CommandResult(1, stderr="Error: No such object: runtime-1"),
     )
     attestor = _Attestor()
     driver = DockerCliRuntimeDriver(
@@ -541,7 +555,7 @@ def test_missing_image_cleans_prepared_generation_network(tmp_path: Path) -> Non
         driver.provision(spec)
 
     assert exc_info.value.reason_code == "IMAGE_NOT_PRESENT"
-    assert runner.calls[-1] == ("docker", "rm", "-f", "runtime-1")
+    assert all(call[:3] != ("docker", "rm", "-f") for call in runner.calls)
     assert attestor.cleaned == [_network()]
 
 
@@ -568,7 +582,7 @@ def test_structural_failure_removes_quarantined_container(tmp_path: Path) -> Non
         driver.provision(spec)
 
     assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
-    assert runner.calls[-1] == ("docker", "rm", "-f", "runtime-1")
+    assert runner.calls[-1] == ("docker", "rm", "-f", "container-id")
     assert attestor.cleaned == [_network()]
 
 
@@ -608,7 +622,7 @@ def test_structural_attestation_rejects_tampered_bootstrap_identity_or_dns(
         driver.provision(spec)
 
     assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
-    assert runner.calls[-1] == ("docker", "rm", "-f", "runtime-1")
+    assert runner.calls[-1] == ("docker", "rm", "-f", "container-id")
     assert attestor.cleaned == [_network()]
 
 
@@ -651,15 +665,19 @@ def test_bounded_log_attestation_requires_rotation_and_retention_ceiling() -> No
 
 def test_released_runtime_is_starting_without_trusted_generation_probe() -> None:
     runner = _Runner(
+        _ownership_result(),
         CommandResult(0, stdout="running\n"),
         CommandResult(0),
     )
-    assert DockerCliRuntimeDriver(runner).inspect("runtime-1") is DriverRuntimeState.STARTING
+    driver = DockerCliRuntimeDriver(runner)
+    driver._container_ids["runtime-1"] = "container-id"
+    assert driver.inspect("runtime-1") is DriverRuntimeState.STARTING
 
 
 def test_strategy_stdout_cannot_spoof_application_readiness(tmp_path: Path) -> None:
     spec = _spec(tmp_path)
     runner = _Runner(
+        _ownership_result(),
         CommandResult(0, stdout="running\n"),
         CommandResult(0),
         CommandResult(
@@ -670,9 +688,10 @@ def test_strategy_stdout_cannot_spoof_application_readiness(tmp_path: Path) -> N
     )
     driver = DockerCliRuntimeDriver(runner)
     driver._specs[spec.runtime_id] = spec
+    driver._container_ids[spec.runtime_id] = "container-id"
 
     assert driver.inspect(spec.runtime_id) is DriverRuntimeState.STARTING
-    assert runner.calls[-1][:3] == ("docker", "exec", spec.runtime_id)
+    assert runner.calls[-1][:3] == ("docker", "exec", "container-id")
     assert "list-pairs" in runner.calls[-1][5]
     assert "Bot heartbeat" not in runner.calls[-1][5]
     assert runner.timeouts[-1] == DockerCliRuntimeDriver._APPLICATION_PROBE_TIMEOUT_SECONDS
@@ -701,6 +720,7 @@ def test_running_generation_repeats_current_isolation_attestation(tmp_path: Path
     plan = _plan()
     spec = _spec(tmp_path)
     runner = _Runner(
+        _ownership_result(),
         CommandResult(0, stdout="running\n"),
         CommandResult(0),
         CommandResult(0),
@@ -719,6 +739,7 @@ def test_running_generation_repeats_current_isolation_attestation(tmp_path: Path
     driver._networks[spec.runtime_id] = _network()
     driver._specs[spec.runtime_id] = spec
     driver._plan_digests[spec.runtime_id] = plan.digest()
+    driver._container_ids[spec.runtime_id] = "container-id"
 
     assert driver.start(spec.runtime_id) is DriverRuntimeState.RUNNING
     assert attestor.attested_networks == []
@@ -734,6 +755,7 @@ def test_running_generation_tamper_fails_closed_and_removes_runtime(tmp_path: Pa
     assert isinstance(host, dict)
     host["Privileged"] = True
     runner = _Runner(
+        _ownership_result(),
         CommandResult(0, stdout="running\n"),
         CommandResult(0),
         CommandResult(0),
@@ -753,13 +775,14 @@ def test_running_generation_tamper_fails_closed_and_removes_runtime(tmp_path: Pa
     driver._networks[spec.runtime_id] = _network()
     driver._specs[spec.runtime_id] = spec
     driver._plan_digests[spec.runtime_id] = plan.digest()
+    driver._container_ids[spec.runtime_id] = "container-id"
 
     with pytest.raises(RuntimeDriverError) as exc_info:
         driver.start(spec.runtime_id)
 
     assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
     assert attestor.cleaned == [_network()]
-    assert runner.calls[-1] == ("docker", "rm", "-f", spec.runtime_id)
+    assert runner.calls[-1] == ("docker", "rm", "-f", "container-id")
 
 
 def test_running_generation_rejects_unbounded_active_log_backend(tmp_path: Path) -> None:
@@ -776,6 +799,7 @@ def test_running_generation_rejects_unbounded_active_log_backend(tmp_path: Path)
         ),
     )
     runner = _Runner(
+        _ownership_result(),
         CommandResult(0, stdout="running\n"),
         CommandResult(0),
         CommandResult(0),
@@ -795,38 +819,44 @@ def test_running_generation_rejects_unbounded_active_log_backend(tmp_path: Path)
     driver._networks[spec.runtime_id] = _network()
     driver._specs[spec.runtime_id] = spec
     driver._plan_digests[spec.runtime_id] = plan.digest()
+    driver._container_ids[spec.runtime_id] = "container-id"
 
     with pytest.raises(RuntimeDriverError, match="log retention"):
         driver.start(spec.runtime_id)
 
-    assert runner.calls[-1] == ("docker", "rm", "-f", spec.runtime_id)
+    assert runner.calls[-1] == ("docker", "rm", "-f", "container-id")
 
 
 def test_stop_stops_released_runtime_while_application_is_starting() -> None:
     runner = _Runner(
+        _ownership_result("owned-container-id"),
         CommandResult(0, stdout="running\n"),
         CommandResult(0),
         CommandResult(0),
     )
     driver = DockerCliRuntimeDriver(runner)
+    driver._container_ids["runtime-1"] = "owned-container-id"
 
     assert driver.stop("runtime-1") is DriverRuntimeState.STOPPED
-    assert runner.calls[-1] == ("docker", "stop", "runtime-1")
+    assert runner.calls[-1] == ("docker", "stop", "owned-container-id")
 
 
 def test_paused_foreign_runtime_cannot_be_released() -> None:
-    runner = _Runner(CommandResult(0, stdout="paused\n"))
+    runner = _Runner(_ownership_result("foreign-container-id", "runtime-other"))
+    driver = DockerCliRuntimeDriver(runner)
+    driver._container_ids["runtime-1"] = "owned-container-id"
 
     with pytest.raises(RuntimeDriverError) as exc_info:
-        DockerCliRuntimeDriver(runner).start("runtime-1")
+        driver.start("runtime-1")
 
-    assert exc_info.value.reason_code == "APPLICATION_RELEASE_FORBIDDEN"
+    assert exc_info.value.reason_code == "GENERATION_OWNERSHIP_CONFLICT"
 
 
 def test_paused_released_runtime_requires_reprovision_before_resume() -> None:
-    runner = _Runner(CommandResult(0, stdout="paused\n"))
+    runner = _Runner(_ownership_result(), CommandResult(0, stdout="paused\n"))
     driver = DockerCliRuntimeDriver(runner)
     driver._released.add("runtime-1")
+    driver._container_ids["runtime-1"] = "container-id"
 
     with pytest.raises(RuntimeDriverError) as exc_info:
         driver.start("runtime-1")
@@ -839,6 +869,7 @@ def test_paused_trusted_generation_is_freshly_reprovisioned(tmp_path: Path) -> N
     plan = _plan()
     spec = _spec(tmp_path)
     runner = _Runner(
+        _ownership_result(),
         CommandResult(0, stdout="paused\n"),
         CommandResult(0),
         *_provision_results(spec, plan)[1:],
@@ -856,9 +887,10 @@ def test_paused_trusted_generation_is_freshly_reprovisioned(tmp_path: Path) -> N
     driver._networks[spec.runtime_id] = _network()
     driver._specs[spec.runtime_id] = spec
     driver._plan_digests[spec.runtime_id] = plan.digest()
+    driver._container_ids[spec.runtime_id] = "container-id"
 
     assert driver.provision(spec) is DriverRuntimeState.CREATED
-    assert ("docker", "rm", "-f", spec.runtime_id) in runner.calls
+    assert ("docker", "rm", "-f", "container-id") in runner.calls
     assert ("docker", "unpause", spec.runtime_id) not in runner.calls
     assert spec.runtime_id not in driver._released
     assert attestor.cleaned == [_network()]
@@ -882,15 +914,70 @@ def test_gateway_plan_fields_are_not_artifact_evidence(tmp_path: Path) -> None:
 
 
 def test_pause_stop_and_unknown_state_are_fail_closed_or_idempotent() -> None:
-    paused = _Runner(CommandResult(0, stdout="paused\n"))
-    stopped = _Runner(CommandResult(0, stdout="exited\n"))
-    unknown = _Runner(CommandResult(0, stdout="mystery\n"))
+    paused = _Runner(_ownership_result(), CommandResult(0, stdout="paused\n"))
+    stopped = _Runner(_ownership_result(), CommandResult(0, stdout="exited\n"))
+    unknown = _Runner(_ownership_result(), CommandResult(0, stdout="mystery\n"))
+    paused_driver = DockerCliRuntimeDriver(paused)
+    stopped_driver = DockerCliRuntimeDriver(stopped)
+    unknown_driver = DockerCliRuntimeDriver(unknown)
+    for driver in (paused_driver, stopped_driver, unknown_driver):
+        driver._container_ids["runtime-1"] = "container-id"
 
-    assert DockerCliRuntimeDriver(paused).pause("runtime-1") is DriverRuntimeState.PAUSED
-    assert DockerCliRuntimeDriver(stopped).stop("runtime-1") is DriverRuntimeState.STOPPED
+    assert paused_driver.pause("runtime-1") is DriverRuntimeState.PAUSED
+    assert stopped_driver.stop("runtime-1") is DriverRuntimeState.STOPPED
     with pytest.raises(RuntimeDriverError) as exc_info:
-        DockerCliRuntimeDriver(unknown).inspect("runtime-1")
+        unknown_driver.inspect("runtime-1")
     assert exc_info.value.reason_code == "DOCKER_STATE_UNKNOWN"
+
+
+def test_pause_preserves_foreign_container_reusing_runtime_name(tmp_path: Path) -> None:
+    del tmp_path
+    runner = _Runner(_ownership_result("foreign-container-id", "runtime-other"))
+    driver = DockerCliRuntimeDriver(runner)
+    driver._container_ids["runtime-1"] = "owned-container-id"
+
+    with pytest.raises(RuntimeDriverError) as exc_info:
+        driver.pause("runtime-1")
+
+    assert exc_info.value.reason_code == "GENERATION_OWNERSHIP_CONFLICT"
+    assert all(call[:2] != ("docker", "pause") for call in runner.calls)
+
+
+def test_stop_preserves_foreign_container_reusing_runtime_name() -> None:
+    runner = _Runner(_ownership_result("foreign-container-id", "runtime-other"))
+    driver = DockerCliRuntimeDriver(runner)
+    driver._container_ids["runtime-1"] = "owned-container-id"
+
+    with pytest.raises(RuntimeDriverError) as exc_info:
+        driver.stop("runtime-1")
+
+    assert exc_info.value.reason_code == "GENERATION_OWNERSHIP_CONFLICT"
+    assert all(call[:2] != ("docker", "stop") for call in runner.calls)
+
+
+def test_retire_preserves_foreign_container_reusing_runtime_name() -> None:
+    runner = _Runner(_ownership_result("foreign-container-id", "runtime-other"))
+    driver = DockerCliRuntimeDriver(runner)
+    driver._container_ids["runtime-1"] = "owned-container-id"
+
+    with pytest.raises(RuntimeDriverError) as exc_info:
+        driver.retire("runtime-1")
+
+    assert exc_info.value.reason_code == "GENERATION_OWNERSHIP_CONFLICT"
+    assert all(call[:3] != ("docker", "rm", "-f") for call in runner.calls)
+
+
+def test_failed_cleanup_uses_captured_immutable_container_id() -> None:
+    runner = _Runner(CommandResult(1, stderr="Error: No such object: owned-container-id"))
+    attestor = _Attestor()
+    driver = DockerCliRuntimeDriver(runner, external_attestor=attestor)
+    driver._container_ids["runtime-1"] = "owned-container-id"
+
+    driver._cleanup_failed_runtime("runtime-1", _network())
+
+    assert runner.calls == [("docker", "rm", "-f", "owned-container-id")]
+    assert all(call != ("docker", "rm", "-f", "runtime-1") for call in runner.calls)
+    assert attestor.cleaned == [_network()]
 
 
 def test_host_probe_reports_cgroup_v2_and_approved_external_backends(
@@ -1009,3 +1096,44 @@ def test_effective_rootfs_attestation_requires_readonly_mount() -> None:
         DockerCliRuntimeDriver._attest_readonly_root("overlay / overlay rw,relatime 0 0\n")
 
     assert exc_info.value.reason_code == "ISOLATION_ATTESTATION_FAILED"
+
+
+def test_current_generation_evidence_is_process_local_and_exact(tmp_path: Path) -> None:
+    plan = _plan()
+    spec = _spec(tmp_path)
+    runner = _Runner(*_provision_results(spec, plan))
+    driver = DockerCliRuntimeDriver(
+        runner,
+        isolation_plans=_provider(plan),
+        external_attestor=_Attestor(),
+        gateway_attestor=_Attestor(),
+    )
+    assert driver.provision(spec) is DriverRuntimeState.CREATED
+    assert driver.has_current_generation_evidence("runtime-1", spec)
+
+    fresh = DockerCliRuntimeDriver(
+        _Runner(),
+        isolation_plans=_provider(plan),
+        external_attestor=_Attestor(),
+        gateway_attestor=_Attestor(),
+    )
+    assert not fresh.has_current_generation_evidence("runtime-1", spec)
+
+
+def test_subprocess_runner_applies_finite_default_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    observed: dict[str, float | None] = {}
+
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        del args
+        timeout = kwargs.get("timeout")
+        if not isinstance(timeout, (int, float)):
+            raise TypeError("subprocess timeout must be numeric")
+        observed["timeout"] = float(timeout)
+        raise subprocess.TimeoutExpired(cmd=["docker", "info"], timeout=float(timeout))
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    result = SubprocessCommandRunner().run(("docker", "info"))
+
+    assert observed["timeout"] == DEFAULT_ENGINE_COMMAND_TIMEOUT_SECONDS
+    assert result.returncode == 124
+    assert "timed out" in result.stderr

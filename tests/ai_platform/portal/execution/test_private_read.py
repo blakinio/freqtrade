@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from email.message import Message
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 from urllib.error import HTTPError
 from uuid import uuid4
 
@@ -39,12 +39,14 @@ from ai_platform.portal.execution.private_read import (
     RuntimeReadReconciliationStatus,
     RuntimeReadRequest,
 )
-from ai_platform.portal.execution.runtime import (
-    DriverRuntimeState,
-    ResolvedRuntimeArtifacts,
-    RuntimeContainerSpec,
-)
+from ai_platform.portal.execution.runtime import DriverRuntimeState, ResolvedRuntimeArtifacts
 from ai_platform.portal.execution.workspace import RuntimeWorkspaceStore
+from ai_platform.portal.runtime_supervisor import (
+    SupervisorOperation,
+    SupervisorOutcome,
+    SupervisorOutcomeCode,
+    SupervisorRequest,
+)
 
 
 NOW = datetime(2026, 7, 24, 6, 0, tzinfo=UTC)
@@ -313,7 +315,7 @@ class _Response:
     def __init__(self, payload: object) -> None:
         self.payload = json.dumps(payload).encode()
 
-    def __enter__(self) -> _Response:
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
@@ -440,27 +442,45 @@ class _Resolver:
         )
 
 
-class _Driver:
+class _Supervisor:
     def __init__(self) -> None:
         self.states: dict[str, DriverRuntimeState] = {}
 
-    def provision(self, spec: RuntimeContainerSpec) -> DriverRuntimeState:
-        return self.states.setdefault(spec.runtime_id, DriverRuntimeState.CREATED)
-
-    def start(self, runtime_id: str) -> DriverRuntimeState:
-        self.states[runtime_id] = DriverRuntimeState.RUNNING
-        return self.states[runtime_id]
-
-    def pause(self, runtime_id: str) -> DriverRuntimeState:
-        self.states[runtime_id] = DriverRuntimeState.PAUSED
-        return self.states[runtime_id]
-
-    def stop(self, runtime_id: str) -> DriverRuntimeState:
-        self.states[runtime_id] = DriverRuntimeState.STOPPED
-        return self.states[runtime_id]
-
-    def inspect(self, runtime_id: str) -> DriverRuntimeState:
-        return self.states.get(runtime_id, DriverRuntimeState.MISSING)
+    def execute(self, request: SupervisorRequest) -> SupervisorOutcome:
+        current = self.states.get(request.generation_id, DriverRuntimeState.MISSING)
+        if request.operation is SupervisorOperation.ENSURE_PROVISIONED:
+            if current in {DriverRuntimeState.MISSING, DriverRuntimeState.STOPPED}:
+                current = DriverRuntimeState.CREATED
+        elif request.operation is SupervisorOperation.ENSURE_RUNNING:
+            current = DriverRuntimeState.RUNNING
+        elif request.operation is SupervisorOperation.ENSURE_PAUSED:
+            if current is DriverRuntimeState.RUNNING:
+                current = DriverRuntimeState.PAUSED
+        elif request.operation is SupervisorOperation.ENSURE_STOPPED:
+            if current is not DriverRuntimeState.MISSING:
+                current = DriverRuntimeState.STOPPED
+        elif request.operation is SupervisorOperation.ENSURE_RETIRED:
+            current = DriverRuntimeState.MISSING
+        self.states[request.generation_id] = current
+        code = (
+            SupervisorOutcomeCode.OBSERVED
+            if request.operation is SupervisorOperation.INSPECT_GENERATION
+            else SupervisorOutcomeCode.APPLIED
+        )
+        return SupervisorOutcome(
+            accepted=True,
+            code=code,
+            operation=request.operation,
+            tenant_id=request.tenant_id,
+            bot_id=request.bot_id,
+            generation_id=request.generation_id,
+            generation_spec_digest=request.generation_spec_digest,
+            command_id=request.command_id,
+            correlation_id=request.correlation_id,
+            state=current,
+            state_version=max(1, request.expected_state_version),
+            evidence_digest="e" * 64,
+        )
 
 
 def _bot(tenant_id: str = TENANT) -> BotInstance:
@@ -476,7 +496,7 @@ def _bot(tenant_id: str = TENANT) -> BotInstance:
             exchange_connection_ref="exchange-1",
             pair_universe=("BTC/USDT",),
             timeframe="5m",
-            capital_allocation=Decimal("1000"),
+            capital_allocation=Decimal(1000),
             capital_currency="USDT",
             runtime_version="runtime-v1",
             config_revision=1,
@@ -500,8 +520,8 @@ def _context() -> CorrelationContext:
 def _adapter(
     tmp_path: Path,
     collector: PrivateRuntimeCollector | None,
-) -> tuple[FreqtradeExecutionAdapter, _Driver, str]:
-    driver = _Driver()
+) -> tuple[FreqtradeExecutionAdapter, _Supervisor, str]:
+    driver = _Supervisor()
     store = RuntimeWorkspaceStore(tmp_path)
     adapter = FreqtradeExecutionAdapter(
         driver,
@@ -547,7 +567,7 @@ def test_adapter_read_success_and_submission_remains_fail_closed(tmp_path: Path)
         clock=lambda: NOW,
         private_read_collector=collector,
     )
-    driver.states[runtime_id] = DriverRuntimeState.RUNNING
+    driver.states["generation-private-read"] = DriverRuntimeState.RUNNING
 
     positions = adapter.get_open_positions(TENANT, BOT, _context())
     orders = adapter.get_orders(TENANT, BOT, _context())
@@ -582,7 +602,7 @@ def test_adapter_missing_collector_and_stopped_runtime_fail_closed(tmp_path: Pat
         clock=lambda: NOW,
         private_read_collector=collector,
     )
-    driver.states[runtime_id] = DriverRuntimeState.STOPPED
+    driver.states["generation-private-read"] = DriverRuntimeState.STOPPED
     with pytest.raises(RuntimeReadUnavailableError, match="RUNTIME_STOPPED"):
         adapter_with_collector.get_trades(TENANT, BOT, _context())
     assert transport.calls == []
@@ -599,7 +619,7 @@ def test_adapter_cross_tenant_read_is_denied_before_transport(tmp_path: Path) ->
         clock=lambda: NOW,
         private_read_collector=collector,
     )
-    driver.states[runtime_id] = DriverRuntimeState.RUNNING
+    driver.states["generation-private-read"] = DriverRuntimeState.RUNNING
 
     with pytest.raises(RuntimeNotProvisionedError):
         adapter.get_orders("tenant-b", BOT, _context())

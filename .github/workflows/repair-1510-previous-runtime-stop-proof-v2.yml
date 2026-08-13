@@ -40,9 +40,9 @@ jobs:
           product = path.read_text(encoding='utf-8')
           anchors = {
               'if latest.reconciled_at > observation.reconciled_at:':
-                  'if _restore_utc(latest.reconciled_at) > observation.reconciled_at:',
+                  'if (_restore_utc(latest.reconciled_at) or datetime.max.replace(tzinfo=UTC)) > observation.reconciled_at:',
               'or latest_previous.reconciled_at > observation.reconciled_at':
-                  'or _restore_utc(latest_previous.reconciled_at) > observation.reconciled_at',
+                  'or (_restore_utc(latest_previous.reconciled_at) or datetime.max.replace(tzinfo=UTC)) > observation.reconciled_at',
           }
           for old, new in anchors.items():
               if product.count(old) != 1:

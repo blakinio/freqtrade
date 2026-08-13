@@ -157,9 +157,9 @@ def test_accept_loop_remains_responsive_while_other_lifecycle_handler_is_blocked
                 assert self.release_blocked.wait(10)
             return Result()
 
-    root = tmp_path / "runtime-supervisor"
+    root = tmp_path / "r"
     root.mkdir(mode=0o750)
-    path = root / "supervisor.sock"
+    path = root / "s.sock"
     supervisor = BlockingSupervisor()
     authorized_uid = os.geteuid()
     server = UnixSocketSupervisorServer(
@@ -229,9 +229,9 @@ def test_shutdown_is_bounded_and_retains_socket_for_hung_worker(
     if not hasattr(socket, "AF_UNIX"):
         return
 
-    root = tmp_path / "runtime-supervisor-shutdown"
+    root = tmp_path / "r"
     root.mkdir(mode=0o750)
-    path = root / "supervisor.sock"
+    path = root / "s.sock"
     authorized_uid = os.geteuid()
     server = UnixSocketSupervisorServer(
         path,

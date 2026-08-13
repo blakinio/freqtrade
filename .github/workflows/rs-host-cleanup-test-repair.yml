@@ -1,0 +1,45 @@
+name: RS host cleanup test repair
+
+on:
+  push:
+    branches:
+      - codex/portal-runtime-supervisor-1355
+    paths:
+      - ".github/workflows/rs-host-cleanup-test-repair.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - name: Update cleanup fixtures
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path("tests/ai_platform/portal/execution/test_host_isolation_cleanup.py")
+          s = p.read_text()
+          marker = '''def _backend(runner: _Runner, tmp_path: Path) -> LinuxNftablesBtrfsIsolationAttestor:\n    return LinuxNftablesBtrfsIsolationAttestor(\n        runner,\n        policy_provider=MappingMarketDataEgressPolicyProvider({}),\n        state_root=tmp_path / "state",\n        btrfs_mount=tmp_path,\n    )\n\n\n'''
+          helper = marker + '''def _owned_backend(\n    runner: _Runner, tmp_path: Path\n) -> LinuxNftablesBtrfsIsolationAttestor:\n    backend = _backend(runner, tmp_path)\n    backend._network_ids["runtime-1"] = "network-id"\n    return backend\n\n\n'''
+          assert s.count(marker) == 1
+          s = s.replace(marker, helper, 1)
+          call = '_backend(runner, tmp_path).cleanup_network("portal-net-1", "runtime-1")'
+          assert s.count(call) == 5
+          s = s.replace(call, '_owned_backend(runner, tmp_path).cleanup_network("portal-net-1", "runtime-1")', 3)
+          assert s.count('assert len(runner.calls) == 2') == 1
+          s = s.replace('assert len(runner.calls) == 2', 'assert len(runner.calls) == 1', 1)
+          p.write_text(s)
+          PY
+      - name: Commit fixture repair
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/ai_platform/portal/execution/test_host_isolation_cleanup.py
+          git diff --cached --check
+          git commit -m "test(portal): require captured network identity in cleanup fixtures"
+          git push origin HEAD:"$GITHUB_REF_NAME"

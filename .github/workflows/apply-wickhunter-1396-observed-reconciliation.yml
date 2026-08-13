@@ -47,16 +47,13 @@ jobs:
             tests/ai_platform/portal/control_plane/test_managed_runtime_mode_semantics.py
           git diff --check
 
-      - name: Commit product repair and remove one-shot machinery
+      - name: Commit product repair
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm \
-            .github/workflows/apply-wickhunter-1396-observed-reconciliation.yml \
-            .github/scripts/apply_wickhunter_1396_observed_reconciliation.py
           git add \
             ai_platform/portal/control_plane/runtime_adoption.py \
             tests/ai_platform/portal/control_plane/test_runtime_adoption_replacement.py

@@ -21,10 +21,12 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Sync current develop and repair deterministic stop proof
+      - name: Sync current develop and harden deterministic stop proof
         shell: bash
         run: |
           set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch --no-tags origin develop
           git merge --no-edit origin/develop
           python - <<'PY'
@@ -32,19 +34,65 @@ jobs:
 
           path = Path('ai_platform/portal/control_plane/runtime_adoption.py')
           text = path.read_text(encoding='utf-8')
-          old = '''                latest_previous = session.scalar(\n                    select(RuntimeGenerationObservationRow)\n                    .where(\n                        RuntimeGenerationObservationRow.generation_id\n                        == previous_observed_generation_id\n                    )\n                    .order_by(\n                        RuntimeGenerationObservationRow.reconciled_at.desc(),\n                        RuntimeGenerationObservationRow.observation_id.desc(),\n                    )\n                    .limit(1)\n                )\n                if (\n                    latest_previous is None\n                    or latest_previous.observed_state != BotObservedState.STOPPED.value\n                    or (\n                        _restore_utc(latest_previous.reconciled_at)\n                        or datetime.max.replace(tzinfo=UTC)\n                    )\n                    > observation.reconciled_at\n                ):\n                    raise ControlPlaneConflictError(\n                        "previous runtime STOPPED observation is missing or newer than replacement"\n                    )\n'''
-          new = '''                stopped_previous = session.scalar(\n                    select(RuntimeGenerationObservationRow)\n                    .where(\n                        RuntimeGenerationObservationRow.generation_id\n                        == previous_observed_generation_id,\n                        RuntimeGenerationObservationRow.observed_state\n                        == BotObservedState.STOPPED.value,\n                    )\n                    .order_by(\n                        RuntimeGenerationObservationRow.reconciled_at.desc(),\n                        RuntimeGenerationObservationRow.observation_id.desc(),\n                    )\n                    .limit(1)\n                )\n                if (\n                    stopped_previous is None\n                    or (\n                        _restore_utc(stopped_previous.reconciled_at)\n                        or datetime.max.replace(tzinfo=UTC)\n                    )\n                    > observation.reconciled_at\n                ):\n                    raise ControlPlaneConflictError(\n                        "previous runtime STOPPED observation is missing or newer than replacement"\n                    )\n'''
+
+          old = '''            if (\n                _restore_utc(latest.reconciled_at) or datetime.max.replace(tzinfo=UTC)\n            ) > observation.reconciled_at:\n                raise ControlPlaneConflictError(\n                    "previous runtime stop proof predates the current RUNNING observation"\n                )\n'''
+          new = '''            latest_running_at = _restore_utc(latest.reconciled_at)\n            if latest_running_at is None or latest_running_at >= observation.reconciled_at:\n                raise ControlPlaneConflictError(\n                    "previous runtime stop proof must strictly follow the current RUNNING observation"\n                )\n'''
           if text.count(old) != 1:
-              raise SystemExit('deterministic STOPPED proof anchor mismatch')
-          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+              raise SystemExit('strict stop ordering anchor mismatch')
+          text = text.replace(old, new, 1)
+
+          old = '''                latest_previous = session.scalar(\n                    select(RuntimeGenerationObservationRow)\n                    .where(\n                        RuntimeGenerationObservationRow.generation_id\n                        == previous_observed_generation_id\n                    )\n                    .order_by(\n                        RuntimeGenerationObservationRow.reconciled_at.desc(),\n                        RuntimeGenerationObservationRow.observation_id.desc(),\n                    )\n                    .limit(1)\n                )\n                if (\n                    latest_previous is None\n                    or latest_previous.observed_state != BotObservedState.STOPPED.value\n                    or (\n                        _restore_utc(latest_previous.reconciled_at)\n                        or datetime.max.replace(tzinfo=UTC)\n                    )\n                    > observation.reconciled_at\n                ):\n                    raise ControlPlaneConflictError(\n                        "previous runtime STOPPED observation is missing or newer than replacement"\n                    )\n'''
+          new = '''                latest_previous = session.scalar(\n                    select(RuntimeGenerationObservationRow)\n                    .where(\n                        RuntimeGenerationObservationRow.generation_id\n                        == previous_observed_generation_id\n                    )\n                    .order_by(\n                        RuntimeGenerationObservationRow.reconciled_at.desc(),\n                        RuntimeGenerationObservationRow.observation_id.desc(),\n                    )\n                    .limit(1)\n                )\n                latest_previous_running = session.scalar(\n                    select(RuntimeGenerationObservationRow)\n                    .where(\n                        RuntimeGenerationObservationRow.generation_id\n                        == previous_observed_generation_id,\n                        RuntimeGenerationObservationRow.observed_state\n                        == BotObservedState.RUNNING.value,\n                    )\n                    .order_by(\n                        RuntimeGenerationObservationRow.reconciled_at.desc(),\n                        RuntimeGenerationObservationRow.observation_id.desc(),\n                    )\n                    .limit(1)\n                )\n                latest_previous_at = (\n                    _restore_utc(latest_previous.reconciled_at)\n                    if latest_previous is not None\n                    else None\n                )\n                latest_previous_running_at = (\n                    _restore_utc(latest_previous_running.reconciled_at)\n                    if latest_previous_running is not None\n                    else None\n                )\n                if (\n                    latest_previous is None\n                    or latest_previous.observed_state != BotObservedState.STOPPED.value\n                    or latest_previous_at is None\n                    or latest_previous_at >= observation.reconciled_at\n                    or latest_previous_running_at is None\n                    or latest_previous_running_at >= latest_previous_at\n                ):\n                    raise ControlPlaneConflictError(\n                        "previous runtime STOPPED observation is missing, stale, or superseded"\n                    )\n'''
+          if text.count(old) != 1:
+              raise SystemExit('replacement stop-proof anchor mismatch')
+          text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
 
           test = Path('tests/ai_platform/portal/control_plane/test_runtime_adoption_replacement.py')
           data = test.read_text(encoding='utf-8')
+          old = 'from datetime import UTC, datetime\n'
+          new = 'from datetime import UTC, datetime, timedelta\n'
+          if data.count(old) != 1:
+              raise SystemExit('datetime import anchor mismatch')
+          data = data.replace(old, new, 1)
+
+          old = '''def _observation(\n    generation,\n    *,\n    runtime_instance_id: str,\n    observed_state: str = "RUNNING",\n) -> RuntimeGenerationObservation:\n'''
+          new = '''def _observation(\n    generation,\n    *,\n    runtime_instance_id: str,\n    observed_state: str = "RUNNING",\n    reconciled_at: datetime = NOW,\n) -> RuntimeGenerationObservation:\n'''
+          if data.count(old) != 1:
+              raise SystemExit('observation helper anchor mismatch')
+          data = data.replace(old, new, 1)
+          if data.count('        source_observed_at=NOW,\n        reconciled_at=NOW,\n') != 1:
+              raise SystemExit('observation timestamps anchor mismatch')
+          data = data.replace(
+              '        source_observed_at=NOW,\n        reconciled_at=NOW,\n',
+              '        source_observed_at=reconciled_at,\n        reconciled_at=reconciled_at,\n',
+              1,
+          )
+
+          old = '''    paper_observation = _observation(\n        paper,\n        runtime_instance_id="sha256:" + "2" * 64,\n    )\n'''
+          new = '''    paper_observation = _observation(\n        paper,\n        runtime_instance_id="sha256:" + "2" * 64,\n        reconciled_at=NOW + timedelta(seconds=2),\n    )\n'''
+          if data.count(old) != 1:
+              raise SystemExit('paper observation timing anchor mismatch')
+          data = data.replace(old, new, 1)
+
+          old = '''    stopped = _observation(\n        shadow,\n        runtime_instance_id="sha256:" + "1" * 64,\n        observed_state="STOPPED",\n    )\n'''
+          new = '''    stopped = _observation(\n        shadow,\n        runtime_instance_id="sha256:" + "1" * 64,\n        observed_state="STOPPED",\n        reconciled_at=NOW + timedelta(seconds=1),\n    )\n'''
+          if data.count(old) != 1:
+              raise SystemExit('stop observation timing anchor mismatch')
+          data = data.replace(old, new, 1)
+
           anchor = '''def test_previous_runtime_stop_proof_rejects_different_runtime_instance(\n'''
-          extra = '''def test_replacement_uses_stopped_proof_when_timestamp_ties_running_observation(\n    session_factory: SessionFactory,\n) -> None:\n    _, _, shadow, paper, _, _ = _shadow_then_paper(session_factory)\n\n    stopped = _observation(\n        shadow,\n        runtime_instance_id="sha256:" + "1" * 64,\n        observed_state="STOPPED",\n    ).model_copy(update={"observation_id": "00000000-0000-0000-0000-000000000001"})\n    record_external_runtime_stop_observation(\n        session_factory,\n        _context(admin=True),\n        BOT_ID,\n        stopped,\n    )\n\n    result = reconcile_external_runtime_observation(\n        session_factory,\n        _context(admin=True),\n        BOT_ID,\n        _observation(paper, runtime_instance_id="sha256:" + "2" * 64),\n    )\n\n    assert result.bot.observed_runtime_generation_id == paper.generation_id\n    assert result.generation.managed_mode is BotMode.PAPER\n\n\n'''
+          extra = '''def test_previous_runtime_stop_proof_rejects_non_monotonic_timestamp(\n    session_factory: SessionFactory,\n) -> None:\n    _, _, shadow, _, _, _ = _shadow_then_paper(session_factory)\n\n    with pytest.raises(ControlPlaneConflictError, match="strictly follow"):\n        record_external_runtime_stop_observation(\n            session_factory,\n            _context(admin=True),\n            BOT_ID,\n            _observation(\n                shadow,\n                runtime_instance_id="sha256:" + "1" * 64,\n                observed_state="STOPPED",\n                reconciled_at=NOW,\n            ),\n        )\n\n    with session_factory() as session:\n        row = session.get(BotRow, ("tenant-a", BOT_ID))\n        assert row is not None\n        assert row.observed_runtime_generation_id == shadow.generation_id\n        assert row.observed_state == "RUNNING"\n\n\n'''
           if data.count(anchor) != 1:
-              raise SystemExit('deterministic regression test anchor mismatch')
-          test.write_text(data.replace(anchor, extra + anchor, 1), encoding='utf-8')
+              raise SystemExit('monotonic regression test anchor mismatch')
+          data = data.replace(anchor, extra + anchor, 1)
+
+          old = '''            _observation(\n                shadow,\n                runtime_instance_id="sha256:" + "9" * 64,\n                observed_state="STOPPED",\n            ),\n'''
+          new = '''            _observation(\n                shadow,\n                runtime_instance_id="sha256:" + "9" * 64,\n                observed_state="STOPPED",\n                reconciled_at=NOW + timedelta(seconds=1),\n            ),\n'''
+          if data.count(old) != 1:
+              raise SystemExit('different-instance timing anchor mismatch')
+          data = data.replace(old, new, 1)
+          test.write_text(data, encoding='utf-8')
           PY
 
           python -m pip install --disable-pip-version-check --quiet -e . \
@@ -72,10 +120,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
             ai_platform/portal/control_plane/runtime_adoption.py \
             tests/ai_platform/portal/control_plane/test_runtime_adoption_replacement.py
-          git commit -m "fix(portal): make stop proof ordering deterministic"
+          git commit -m "fix(portal): enforce monotonic previous runtime stop proof"
           git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${GITHUB_REF_NAME}"

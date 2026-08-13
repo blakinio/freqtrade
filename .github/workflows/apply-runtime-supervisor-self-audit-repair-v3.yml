@@ -7,6 +7,7 @@ on:
     paths:
       - .github/workflows/apply-runtime-supervisor-self-audit-repair-v3.yml
 
+# Re-run the already-proven bounded repair after the branch checkpoint advanced.
 permissions: {}
 
 jobs:

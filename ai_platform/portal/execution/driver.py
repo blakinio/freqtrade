@@ -593,7 +593,7 @@ class DockerCliRuntimeDriver:
         }:
             container_id = self._captured_container_id(runtime_id)
             self._require_success(("docker", "stop", container_id), "DOCKER_STOP_FAILED")
-            self._clear_generation_evidence(runtime_id)
+            self._clear_generation_evidence(runtime_id, keep_container_id=True)
             return DriverRuntimeState.STOPPED
         if current is DriverRuntimeState.MISSING:
             raise RuntimeDriverError("RUNTIME_MISSING", "runtime container does not exist")
@@ -1239,14 +1239,15 @@ class DockerCliRuntimeDriver:
                 "runtime cleanup was incomplete: " + "; ".join(errors),
             )
 
-    def _clear_generation_evidence(self, runtime_id: str) -> None:
+    def _clear_generation_evidence(self, runtime_id: str, *, keep_container_id: bool = False) -> None:
         self._attested.discard(runtime_id)
         self._released.discard(runtime_id)
         self._fingerprints.pop(runtime_id, None)
         self._networks.pop(runtime_id, None)
         self._specs.pop(runtime_id, None)
         self._plan_digests.pop(runtime_id, None)
-        self._container_ids.pop(runtime_id, None)
+        if not keep_container_id:
+            self._container_ids.pop(runtime_id, None)
 
     def _dns_resolvers(self, plan: RuntimeIsolationPlan) -> tuple[str, ...]:
         resolvers = self._external.dns_resolvers(plan)

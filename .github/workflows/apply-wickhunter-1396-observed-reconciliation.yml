@@ -60,3 +60,5 @@ jobs:
           git commit -m "fix(portal): reconcile observed runtime generation replacement"
           git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
             "HEAD:${GITHUB_REF_NAME}"
+
+# final retrigger after connector-owned workflow cleanup

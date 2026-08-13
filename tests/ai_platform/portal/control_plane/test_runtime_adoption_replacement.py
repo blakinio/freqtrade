@@ -27,6 +27,7 @@ from ai_platform.portal.control_plane.models import BotRolloutRow, BotRow
 from ai_platform.portal.control_plane.runtime_adoption import (
     latest_runtime_observation,
     reconcile_external_runtime_observation,
+    record_external_runtime_stop_observation,
 )
 from ai_platform.portal.control_plane.service import ControlPlaneService
 from ai_platform.wickhunter.contracts import BotMode
@@ -117,14 +118,19 @@ def _material(
     )
 
 
-def _observation(generation, *, runtime_instance_id: str) -> RuntimeGenerationObservation:
+def _observation(
+    generation,
+    *,
+    runtime_instance_id: str,
+    observed_state: str = "RUNNING",
+) -> RuntimeGenerationObservation:
     return RuntimeGenerationObservation(
         observation_id=str(uuid4()),
         generation_id=generation.generation_id,
         runtime_instance_id=runtime_instance_id,
         reconciliation_epoch=1,
         reconciliation_attempt=1,
-        observed_state="RUNNING",
+        observed_state=observed_state,
         observed_generation_spec_digest=generation.generation_spec_digest,
         observed_image_digest=generation.runtime_image_digest,
         observed_config_digest=generation.normalized_runtime_config_digest,
@@ -204,6 +210,35 @@ def test_external_runtime_replacement_converges_shadow_to_eligible_paper(
         paper,
         runtime_instance_id="sha256:" + "2" * 64,
     )
+    with pytest.raises(ControlPlaneConflictError, match="stop evidence is required"):
+        reconcile_external_runtime_observation(
+            session_factory,
+            _context(admin=True),
+            BOT_ID,
+            paper_observation,
+        )
+
+    stopped = _observation(
+        shadow,
+        runtime_instance_id="sha256:" + "1" * 64,
+        observed_state="STOPPED",
+    )
+    recorded = record_external_runtime_stop_observation(
+        session_factory,
+        _context(admin=True),
+        BOT_ID,
+        stopped,
+    )
+    assert recorded == stopped
+    with session_factory() as session:
+        stopped_bot = session.get(BotRow, ("tenant-a", BOT_ID))
+        stopped_rollout = session.get(BotRolloutRow, rollout.rollout_id)
+        assert stopped_bot is not None
+        assert stopped_rollout is not None
+        assert stopped_bot.observed_runtime_generation_id == shadow.generation_id
+        assert stopped_bot.observed_state == "STOPPED"
+        assert stopped_rollout.status == "PREVIOUS_STOPPED"
+
     result = reconcile_external_runtime_observation(
         session_factory,
         _context(admin=True),
@@ -231,6 +266,30 @@ def test_external_runtime_replacement_converges_shadow_to_eligible_paper(
         )
         == paper_observation
     )
+
+
+def test_previous_runtime_stop_proof_rejects_different_runtime_instance(
+    session_factory: SessionFactory,
+) -> None:
+    _, _, shadow, _, _, _ = _shadow_then_paper(session_factory)
+
+    with pytest.raises(ControlPlaneConflictError, match="does not match"):
+        record_external_runtime_stop_observation(
+            session_factory,
+            _context(admin=True),
+            BOT_ID,
+            _observation(
+                shadow,
+                runtime_instance_id="sha256:" + "9" * 64,
+                observed_state="STOPPED",
+            ),
+        )
+
+    with session_factory() as session:
+        row = session.get(BotRow, ("tenant-a", BOT_ID))
+        assert row is not None
+        assert row.observed_runtime_generation_id == shadow.generation_id
+        assert row.observed_state == "RUNNING"
 
 
 def test_external_runtime_replacement_fails_closed_on_wrong_rollout_lineage(

@@ -52,17 +52,17 @@ PAPER-only. No deployment, protected-environment mutation, exchange credentials,
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 4
-updated_at: 2026-08-13T18:39:00+02:00
-checkpoint_head: LIVE_BRANCH_HEAD_REQUIRED
-pre_checkpoint_head: 3525957d8c01dd09f697a33368f859cdd8f59523
+checkpoint_version: 5
+updated_at: 2026-08-13T20:49:00+02:00
+checkpoint_head: 9309d366d75b16b72eb8a31dd6645af95c4c79f5
+pre_checkpoint_head: 9309d366d75b16b72eb8a31dd6645af95c4c79f5
 current_develop: c0f229d5aec11765cef95996d2a256329b170d25
 branch: codex/portal-runtime-supervisor-1355
 pr: 1496
 status: validating
 phase: final_ci_then_fresh_audit
 invocation_started_at: 2026-08-13T18:25:00+02:00
-last_progress_at: 2026-08-13T18:39:00+02:00
+last_progress_at: 2026-08-13T20:49:00+02:00
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
@@ -70,12 +70,12 @@ repair_cycles_for_current_gate: 1
 context_reconstruction_attempts: 0
 stall_warnings: 0
 proven:
-  - all four material audit findings are repaired in repository code
+  - all four verified material audit findings are repaired in repository code
   - immutable container and network identity is required before privileged lifecycle actions
   - real Docker Runtime Isolation E2E passed after the functional repair
-  - temporary formatting/sync workflow files are absent from final changed-file inventory
+  - final Ruff formatting was applied on 9309d366d75b16b72eb8a31dd6645af95c4c79f5
+  - temporary formatting/sync workflow files are absent from the final branch
   - synchronization PR 1514 is terminal merged
-  - current develop is a true ancestor of the delivery branch; behind_by is 0
   - all previously known inline review threads were resolved before this checkpoint
 waiting_on:
   - terminal required exact-head CI and Runtime Isolation E2E on this checkpoint successor

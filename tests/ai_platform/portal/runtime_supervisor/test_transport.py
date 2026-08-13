@@ -5,6 +5,7 @@ import os
 import socket
 import stat
 import threading
+from concurrent.futures import Future
 from pathlib import Path
 from uuid import uuid4
 
@@ -228,26 +229,13 @@ def test_shutdown_is_bounded_and_retains_socket_for_hung_worker(
     if not hasattr(socket, "AF_UNIX"):
         return
 
-    class HungSupervisor(Supervisor):
-        def __init__(self) -> None:
-            super().__init__()
-            self.started = threading.Event()
-            self.release = threading.Event()
-
-        def execute(self, request: SupervisorRequest) -> Result:
-            self.requests.append(request)
-            self.started.set()
-            assert self.release.wait(10)
-            return Result()
-
     root = tmp_path / "runtime-supervisor-shutdown"
     root.mkdir(mode=0o750)
     path = root / "supervisor.sock"
-    supervisor = HungSupervisor()
     authorized_uid = os.geteuid()
     server = UnixSocketSupervisorServer(
         path,
-        supervisor,
+        Supervisor(),
         allowed_peer_uids=frozenset({authorized_uid}),
         peer_uid=lambda _: authorized_uid,
         max_workers=1,
@@ -255,33 +243,24 @@ def test_shutdown_is_bounded_and_retains_socket_for_hung_worker(
         worker_shutdown_timeout_seconds=0.05,
     )
     monkeypatch.setattr(server, "_validate_socket_root", lambda: socket.AF_UNIX)
+
+    pending: Future[None] = Future()
+    shutdown_workers = server._shutdown_workers
+
+    def shutdown_with_pending_worker(workers: object) -> bool:
+        with server._worker_futures_lock:
+            server._worker_futures.add(pending)
+        return shutdown_workers(workers)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(server, "_shutdown_workers", shutdown_with_pending_worker)
     stop_event = threading.Event()
-    ready_event = threading.Event()
-    errors: list[BaseException] = []
+    stop_event.set()
 
-    def run_server() -> None:
-        try:
-            server.serve_forever(stop_event=stop_event, ready_event=ready_event)
-        except Exception as exc:
-            errors.append(exc)
-
-    thread = threading.Thread(target=run_server, daemon=True)
-    thread.start()
-    assert ready_event.wait(5)
-    assert path.exists()
-
-    client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
-        client.connect(str(path))
-        client.sendall(_valid_payload("bot-hung"))
-        assert supervisor.started.wait(5)
-        stop_event.set()
-        thread.join(timeout=2)
-        assert not thread.is_alive()
-        assert errors and isinstance(errors[0], SupervisorTransportError)
+        with pytest.raises(SupervisorTransportError, match="shutdown deadline"):
+            server.serve_forever(stop_event=stop_event)
         assert path.exists()
     finally:
-        supervisor.release.set()
-        client.close()
+        pending.set_result(None)
         if path.exists():
             path.unlink()

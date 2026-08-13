@@ -160,12 +160,12 @@ def test_accept_loop_remains_responsive_while_other_lifecycle_handler_is_blocked
     root.mkdir(mode=0o750)
     path = root / "supervisor.sock"
     supervisor = BlockingSupervisor()
+    authorized_uid = os.geteuid()
     server = UnixSocketSupervisorServer(
         path,
         supervisor,
-        allowed_peer_uids=frozenset({42}),
-        peer_uid=lambda _: 42,
-        socket_access_gid=__import__("os").getegid(),
+        allowed_peer_uids=frozenset({authorized_uid}),
+        peer_uid=lambda _: authorized_uid,
         max_workers=2,
         max_inflight_connections=2,
     )
@@ -244,12 +244,12 @@ def test_shutdown_is_bounded_and_retains_socket_for_hung_worker(
     root.mkdir(mode=0o750)
     path = root / "supervisor.sock"
     supervisor = HungSupervisor()
+    authorized_uid = os.geteuid()
     server = UnixSocketSupervisorServer(
         path,
         supervisor,
-        allowed_peer_uids=frozenset({42}),
-        peer_uid=lambda _: 42,
-        socket_access_gid=__import__("os").getegid(),
+        allowed_peer_uids=frozenset({authorized_uid}),
+        peer_uid=lambda _: authorized_uid,
         max_workers=1,
         max_inflight_connections=1,
         worker_shutdown_timeout_seconds=0.05,

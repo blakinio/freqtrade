@@ -1,4 +1,4 @@
-name: Apply WickHunter #1396 observed-generation reconciliation repair
+name: Apply WickHunter 1396 observed reconciliation
 
 on:
   push:
@@ -21,326 +21,45 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Apply bounded canonical reconciliation repair
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
+      - name: Apply bounded product patch
+        run: python .github/scripts/apply_wickhunter_1396_observed_reconciliation.py
 
-          path = Path("ai_platform/portal/control_plane/runtime_adoption.py")
-          text = path.read_text(encoding="utf-8")
-
-          old = '''    """Trusted system reconciliation for a runtime that already exists outside Portal.
-
-    This service never creates, starts, stops, restarts or replaces a runtime. It only
-    converges a canonical desired RuntimeGeneration to observed after exact immutable
-    identity evidence is supplied by the host-side reconciler.
-    """'''
-          new = '''    """Trusted reconciliation for a runtime that already exists outside Portal.
-
-    This service never creates, starts, stops or restarts a runtime. The trusted host-side
-    reconciler owns those effects. Portal may move the observed pointer from the currently
-    observed generation to the canonical desired generation only when an exact canonical
-    rollout links those generations and fresh immutable runtime identity evidence matches
-    the desired generation. This preserves RuntimeGeneration as the sole authority while
-    allowing an externally managed generation replacement to reconcile truthfully.
-    """'''
-          if text.count(old) != 1:
-              raise SystemExit("runtime adoption docstring anchor mismatch")
-          text = text.replace(old, new, 1)
-
-          old = '''            if (
-                bot.observed_runtime_generation_id is not None
-                and bot.observed_runtime_generation_id != observation.generation_id
-            ):
-                raise ControlPlaneConflictError(
-                    "bot is already bound to a different observed RuntimeGeneration"
-                )
-            generation = self._repository.get_runtime_generation('''
-          new = '''            previous_observed_generation_id = bot.observed_runtime_generation_id
-            generation = self._repository.get_runtime_generation('''
-          if text.count(old) != 1:
-              raise SystemExit("observed-generation rejection anchor mismatch")
-          text = text.replace(old, new, 1)
-
-          old = '''            if rollout is None:
-                raise ControlPlaneConflictError(
-                    "external runtime adoption requires a canonical rollout"
-                )
-            if rollout.status == "SUCCEEDED":
-                if rollout.reason_code != EXTERNAL_ADOPTION_REASON:
-                    raise ControlPlaneConflictError(
-                        "successful rollout was not established by external adoption"
-                    )
-            elif rollout.status not in _PENDING_ADOPTION_ROLLOUT_STATES:
-                raise ControlPlaneConflictError(
-                    "rollout state does not permit external runtime adoption"
-                )
-'''
-          new = '''            if rollout is None:
-                raise ControlPlaneConflictError(
-                    "external runtime adoption requires a canonical rollout"
-                )
-            replacing_observed_generation = (
-                previous_observed_generation_id is not None
-                and previous_observed_generation_id != generation.generation_id
-            )
-            if replacing_observed_generation:
-                if rollout.from_generation_id != previous_observed_generation_id:
-                    raise ControlPlaneConflictError(
-                        "external runtime replacement rollout does not start from the current observed generation"
-                    )
-                previous_generation = self._repository.get_runtime_generation(
-                    session,
-                    context.tenant_id,
-                    previous_observed_generation_id,
-                )
-                if previous_generation is None or previous_generation.bot_id != bot_id:
-                    raise ControlPlaneConflictError(
-                        "current observed RuntimeGeneration does not belong to bot"
-                    )
-            if rollout.status == "SUCCEEDED":
-                if replacing_observed_generation:
-                    raise ControlPlaneConflictError(
-                        "successful rollout cannot replace a different current observed generation"
-                    )
-                if rollout.reason_code != EXTERNAL_ADOPTION_REASON:
-                    raise ControlPlaneConflictError(
-                        "successful rollout was not established by external adoption"
-                    )
-            elif rollout.status not in _PENDING_ADOPTION_ROLLOUT_STATES:
-                raise ControlPlaneConflictError(
-                    "rollout state does not permit external runtime adoption"
-                )
-'''
-          if text.count(old) != 1:
-              raise SystemExit("rollout validation anchor mismatch")
-          text = text.replace(old, new, 1)
-
-          old = '''                    details={
-                        "generation_id": generation.generation_id,
-                        "runtime_instance_id": observation.runtime_instance_id,
-                        "observation_id": observation.observation_id,
-                        "evidence_hash": observation.evidence_hash,
-                        "provenance": EXTERNAL_ADOPTION_REASON,
-                    },
-'''
-          new = '''                    details={
-                        "generation_id": generation.generation_id,
-                        "runtime_instance_id": observation.runtime_instance_id,
-                        "observation_id": observation.observation_id,
-                        "evidence_hash": observation.evidence_hash,
-                        "provenance": EXTERNAL_ADOPTION_REASON,
-                        **(
-                            {"previous_generation_id": previous_observed_generation_id}
-                            if replacing_observed_generation
-                            else {}
-                        ),
-                    },
-'''
-          if text.count(old) != 1:
-              raise SystemExit("audit detail anchor mismatch")
-          path.write_text(text.replace(old, new, 1), encoding="utf-8")
-
-          tests = Path("tests/ai_platform/portal/control_plane/test_runtime_adoption.py")
-          text = tests.read_text(encoding="utf-8")
-          marker = "def test_external_runtime_replacement_converges_shadow_to_eligible_paper("
-          if marker in text:
-              raise SystemExit("replacement test already present")
-          text += r'''
-
-
-def _paper_material(
-    context: RequestContext,
-    revision: BotConfigRevision,
-) -> RuntimeGenerationMaterial:
-    return _material(context, revision).model_copy(
-        update={
-            "normalized_runtime_config_digest": "d" * 64,
-            "runtime_image_digest": "e" * 64,
-            "risk_policy_digest": "f" * 64,
-            "paper_activation_authorized": True,
-            "paper_authorization_id": "issue-1396-paper-owner-authorized",
-            "paper_authorization_digest": "7" * 64,
-            "paper_candidate_package_id": (
-                "wickhunter-wh09-candidate-materialization-20260808-r1-h900s-7b23a958fd4d"
-            ),
-            "paper_candidate_manifest_sha256": (
-                "9f5ba852e33915678ca085c2eeafbf526457a079ba8f6f2fb7c1097f1d20ab79"
-            ),
-        }
-    )
-
-
-def _paper_spec() -> BotSpec:
-    return _spec().model_copy(
-        update={
-            "config_revision": 2,
-            "risk_policy_version": "wh09-paper-zero-authority-v1",
-            "managed_mode": BotMode.PAPER,
-        }
-    )
-
-
-def test_external_runtime_replacement_converges_shadow_to_eligible_paper(
-    session_factory: SessionFactory,
-) -> None:
-    _, shadow, _ = _desired_generation(session_factory)
-    reconcile_external_runtime_observation(
-        session_factory,
-        _context(admin=True),
-        "wickhunter-wh09",
-        _observation(shadow),
-    )
-
-    context = _context()
-    service = ControlPlaneService(
-        session_factory,
-        clock=lambda: NOW,
-        generation_material_resolver=_paper_material,
-    )
-    revised = service.revise_bot(context, "wickhunter-wh09", _paper_spec())
-    assert revised.latest_authored_revision_id is not None
-    promoted = service.promote_revision(
-        context,
-        "wickhunter-wh09",
-        revised.latest_authored_revision_id,
-        revised.state_version,
-    )
-    current = service.get_bot(context, "wickhunter-wh09")
-    pending, paper, rollout = service.apply_revision(
-        context,
-        "wickhunter-wh09",
-        promoted.revision_id,
-        current.state_version,
-        "issue-1396-shadow-to-paper",
-    )
-
-    assert paper.managed_mode is BotMode.PAPER
-    assert paper.paper_authorization_digest == "7" * 64
-    assert pending.desired_runtime_generation_id == paper.generation_id
-    assert pending.observed_runtime_generation_id == shadow.generation_id
-    assert rollout.from_generation_id == shadow.generation_id
-
-    paper_observation = _observation(
-        paper,
-        runtime_instance_id="sha256:" + "f" * 64,
-        source_sequence=5,
-        evidence_hash="0" * 64,
-    )
-    result = reconcile_external_runtime_observation(
-        session_factory,
-        _context(admin=True),
-        "wickhunter-wh09",
-        paper_observation,
-    )
-
-    assert result.bot.desired_runtime_generation_id == paper.generation_id
-    assert result.bot.observed_runtime_generation_id == paper.generation_id
-    assert result.bot.spec.managed_mode is BotMode.PAPER
-    assert result.generation.managed_mode is BotMode.PAPER
-    assert result.generation.paper_authorization_digest == "7" * 64
-    assert result.observation == paper_observation
-
-    with session_factory() as session:
-        rollout_row = session.get(BotRolloutRow, rollout.rollout_id)
-        assert rollout_row is not None
-        assert rollout_row.status == "SUCCEEDED"
-        assert rollout_row.reason_code == "EXTERNAL_RUNTIME_ADOPTED"
-
-    persisted = latest_runtime_observation(
-        session_factory,
-        _context(admin=True),
-        "wickhunter-wh09",
-    )
-    assert persisted == paper_observation
-
-
-def test_external_runtime_replacement_fails_closed_on_wrong_rollout_lineage(
-    session_factory: SessionFactory,
-) -> None:
-    _, shadow, _ = _desired_generation(session_factory)
-    reconcile_external_runtime_observation(
-        session_factory,
-        _context(admin=True),
-        "wickhunter-wh09",
-        _observation(shadow),
-    )
-
-    context = _context()
-    service = ControlPlaneService(
-        session_factory,
-        clock=lambda: NOW,
-        generation_material_resolver=_paper_material,
-    )
-    revised = service.revise_bot(context, "wickhunter-wh09", _paper_spec())
-    assert revised.latest_authored_revision_id is not None
-    promoted = service.promote_revision(
-        context,
-        "wickhunter-wh09",
-        revised.latest_authored_revision_id,
-        revised.state_version,
-    )
-    current = service.get_bot(context, "wickhunter-wh09")
-    _, paper, rollout = service.apply_revision(
-        context,
-        "wickhunter-wh09",
-        promoted.revision_id,
-        current.state_version,
-        "issue-1396-invalid-lineage",
-    )
-
-    with session_factory() as session, session.begin():
-        rollout_row = session.get(BotRolloutRow, rollout.rollout_id)
-        assert rollout_row is not None
-        rollout_row.from_generation_id = None
-
-    with pytest.raises(ControlPlaneConflictError, match="does not start from"):
-        reconcile_external_runtime_observation(
-            session_factory,
-            _context(admin=True),
-            "wickhunter-wh09",
-            _observation(paper, runtime_instance_id="sha256:" + "f" * 64),
-        )
-
-    with session_factory() as session:
-        row = session.get(BotRow, (context.tenant_id, "wickhunter-wh09"))
-        assert row is not None
-        assert row.observed_runtime_generation_id == shadow.generation_id
-'''
-          tests.write_text(text, encoding="utf-8")
-          PY
-
-      - name: Validate focused reconciliation repair
-        shell: bash
+      - name: Install focused validation toolchain
         run: |
           set -euo pipefail
           python -m pip install --disable-pip-version-check --quiet -e . \
             pytest==9.1.1 pytest-asyncio==1.4.0 ruff==0.15.20 mypy==2.1.0
+
+      - name: Validate focused reconciliation repair
+        run: |
+          set -euo pipefail
           python -m ruff check \
             ai_platform/portal/control_plane/runtime_adoption.py \
-            tests/ai_platform/portal/control_plane/test_runtime_adoption.py
+            tests/ai_platform/portal/control_plane/test_runtime_adoption.py \
+            tests/ai_platform/portal/control_plane/test_runtime_adoption_replacement.py
           python -m mypy \
             ai_platform/portal/control_plane/runtime_adoption.py \
-            tests/ai_platform/portal/control_plane/test_runtime_adoption.py
+            tests/ai_platform/portal/control_plane/test_runtime_adoption.py \
+            tests/ai_platform/portal/control_plane/test_runtime_adoption_replacement.py
           python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform \
             tests/ai_platform/portal/control_plane/test_runtime_adoption.py \
+            tests/ai_platform/portal/control_plane/test_runtime_adoption_replacement.py \
             tests/ai_platform/portal/control_plane/test_managed_runtime_mode_semantics.py
           git diff --check
 
-      - name: Commit product repair and remove one-shot workflow
+      - name: Commit product repair and remove one-shot machinery
         env:
           GH_TOKEN: ${{ github.token }}
-        shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm .github/workflows/apply-wickhunter-1396-observed-reconciliation.yml
+          git rm \
+            .github/workflows/apply-wickhunter-1396-observed-reconciliation.yml \
+            .github/scripts/apply_wickhunter_1396_observed_reconciliation.py
           git add \
             ai_platform/portal/control_plane/runtime_adoption.py \
-            tests/ai_platform/portal/control_plane/test_runtime_adoption.py
+            tests/ai_platform/portal/control_plane/test_runtime_adoption_replacement.py
           git commit -m "fix(portal): reconcile observed runtime generation replacement"
           git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
             "HEAD:${GITHUB_REF_NAME}"

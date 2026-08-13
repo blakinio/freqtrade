@@ -223,7 +223,9 @@ class RuntimeAdoptionService:
                     )
                 latest = session.scalar(
                     select(RuntimeGenerationObservationRow)
-                    .where(RuntimeGenerationObservationRow.generation_id == generation.generation_id)
+                    .where(
+                        RuntimeGenerationObservationRow.generation_id == generation.generation_id
+                    )
                     .order_by(
                         RuntimeGenerationObservationRow.reconciled_at.desc(),
                         RuntimeGenerationObservationRow.observation_id.desc(),

@@ -83,6 +83,10 @@ jobs:
               assert journal.bind_container_id("runtime-1", "expected-container-id")
               runner = _Runner(
                   CommandResult(
+                      1,
+                      stderr="Error response from daemon: No such object: expected-container-id",
+                  ),
+                  CommandResult(
                       0,
                       stdout=json.dumps(
                           {
@@ -90,7 +94,7 @@ jobs:
                               "Config": {"Labels": {"ai.portal.runtime_id": "runtime-1"}},
                           }
                       ),
-                  )
+                  ),
               )
               driver = DockerCliRuntimeDriver(runner)
               driver.bind_ownership_store(journal)
@@ -101,7 +105,8 @@ jobs:
               assert exc_info.value.reason_code == "GENERATION_OWNERSHIP_CONFLICT"
               assert journal.container_id("runtime-1") == "expected-container-id"
               assert runner.calls == [
-                  ("docker", "inspect", "--format", "{{json .}}", "runtime-1")
+                  ("docker", "inspect", "--format", "{{json .}}", "expected-container-id"),
+                  ("docker", "inspect", "--format", "{{json .}}", "runtime-1"),
               ]
 
 
@@ -155,10 +160,93 @@ jobs:
                   ),
               ]
           PY
+      - name: Update immutable identity regressions for exact-ID authority
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("tests/ai_platform/portal/execution/test_immutable_runtime_identity.py")
+          text = path.read_text(encoding="utf-8")
+
+          old = '    runner = _Runner(_container_identity("replacement-id"))\n'
+          new = '''    runner = _Runner(
+              CommandResult(1, stderr="Error response from daemon: No such object: expected-id"),
+              _container_identity("replacement-id"),
+          )
+          '''
+          if text.count(old) != 1:
+              raise SystemExit("container runner anchor mismatch")
+          text = text.replace(old, new, 1)
+
+          old = '''    assert runner.calls == [("docker", "inspect", "--format", "{{json .}}", "runtime-1")]
+          '''
+          new = '''    assert runner.calls == [
+              ("docker", "inspect", "--format", "{{json .}}", "expected-id"),
+              ("docker", "inspect", "--format", "{{json .}}", "runtime-1"),
+          ]
+          '''
+          if text.count(old) != 1:
+              raise SystemExit("container call anchor mismatch")
+          text = text.replace(old, new, 1)
+
+          old = '''    runner = _Runner(
+              CommandResult(
+                  0,
+                  stdout=json.dumps(
+                      {
+                          "Id": "replacement-network-id",
+                          "Labels": {"ai.portal.runtime_id": "runtime-1"},
+                      }
+                  ),
+              )
+          )
+          '''
+          new = '''    runner = _Runner(
+              CommandResult(
+                  1,
+                  stderr="Error response from daemon: network expected-network-id not found",
+              ),
+              CommandResult(
+                  0,
+                  stdout=json.dumps(
+                      {
+                          "Id": "replacement-network-id",
+                          "Labels": {"ai.portal.runtime_id": "runtime-1"},
+                      }
+                  ),
+              ),
+          )
+          '''
+          if text.count(old) != 1:
+              raise SystemExit("network runner anchor mismatch")
+          text = text.replace(old, new, 1)
+
+          old = '''    assert runner.calls == [
+              ("docker", "network", "inspect", "--format", "{{json .}}", "portal-net-1")
+          ]
+          '''
+          new = '''    assert runner.calls == [
+              (
+                  "docker",
+                  "network",
+                  "inspect",
+                  "--format",
+                  "{{json .}}",
+                  "expected-network-id",
+              ),
+              ("docker", "network", "inspect", "--format", "{{json .}}", "portal-net-1"),
+          ]
+          '''
+          if text.count(old) != 1:
+              raise SystemExit("network call anchor mismatch")
+          text = text.replace(old, new, 1)
+          path.write_text(text, encoding="utf-8")
+          PY
       - name: Format candidate
-        run: python -m ruff format ai_platform/portal/runtime_supervisor/service.py ai_platform/portal/execution/driver.py ai_platform/portal/execution/host_isolation.py tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py tests/ai_platform/portal/runtime_supervisor/test_durable_ownership_restart.py
+        run: python -m ruff format ai_platform/portal/runtime_supervisor/service.py ai_platform/portal/execution/driver.py ai_platform/portal/execution/host_isolation.py tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py tests/ai_platform/portal/execution/test_immutable_runtime_identity.py tests/ai_platform/portal/runtime_supervisor/test_durable_ownership_restart.py
       - name: Ruff candidate
-        run: python -m ruff check --ignore BLE001,TRY004 ai_platform/portal/runtime_supervisor/service.py ai_platform/portal/execution/driver.py ai_platform/portal/execution/host_isolation.py tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py tests/ai_platform/portal/runtime_supervisor/test_durable_ownership_restart.py
+        run: python -m ruff check --ignore BLE001,TRY004 ai_platform/portal/runtime_supervisor/service.py ai_platform/portal/execution/driver.py ai_platform/portal/execution/host_isolation.py tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py tests/ai_platform/portal/execution/test_immutable_runtime_identity.py tests/ai_platform/portal/runtime_supervisor/test_durable_ownership_restart.py
       - name: Mypy candidate
         run: python -m mypy ai_platform/portal/runtime_supervisor/service.py ai_platform/portal/execution/driver.py ai_platform/portal/execution/host_isolation.py
       - name: Focused tests
@@ -175,6 +263,7 @@ jobs:
               "ai_platform/portal/execution/driver.py",
               "ai_platform/portal/execution/host_isolation.py",
               "tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py",
+              "tests/ai_platform/portal/execution/test_immutable_runtime_identity.py",
               "tests/ai_platform/portal/runtime_supervisor/test_durable_ownership_restart.py",
           }
           changed = set(
@@ -201,6 +290,7 @@ jobs:
             ai_platform/portal/execution/driver.py \
             ai_platform/portal/execution/host_isolation.py \
             tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py \
+            tests/ai_platform/portal/execution/test_immutable_runtime_identity.py \
             tests/ai_platform/portal/runtime_supervisor/test_durable_ownership_restart.py
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com

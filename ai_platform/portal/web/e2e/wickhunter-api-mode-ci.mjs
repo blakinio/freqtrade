@@ -37,12 +37,12 @@ try {
     throw new Error(`WickHunter bots page failed: ${response?.status()}`);
   }
 
-  const common = ["WickHunter", "wickhunter", "Generation: desired = observed"];
+  const common = ["WickHunter", "wickhunter", "Canonical RuntimeGeneration", "Generation: desired = observed"];
   const expected =
     expectedMode === "shadow"
       ? [
           ...common,
-          "SHADOW · H900",
+          "SHADOW · wh09-h900-v1",
           "no_trade_confidence=0.60",
           "PAPER: inactive · LIVE: BLOCKED",
           "Credentials: absent",
@@ -53,7 +53,6 @@ try {
       : [
           ...common,
           "PAPER · wh09-h900-v1",
-          "Canonical RuntimeGeneration",
           "Legacy SHADOW evidence: not applicable in PAPER",
         ];
 
@@ -67,7 +66,7 @@ try {
   await page.reload({ waitUntil: "networkidle" });
   await page.getByText("WickHunter", { exact: true }).waitFor();
   await page.getByText(
-    expectedMode === "shadow" ? "SHADOW · H900" : "PAPER · wh09-h900-v1",
+    expectedMode === "shadow" ? "SHADOW · wh09-h900-v1" : "PAPER · wh09-h900-v1",
     { exact: true },
   ).waitFor();
   await page.getByText("Generation: desired = observed", { exact: true }).waitFor();

@@ -1,0 +1,334 @@
+name: WickHunter #1396 final healthy PAPER proof r13
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-1396-paper-proof-r12-20260814.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-1396-paper-proof-r13-20260814
+  cancel-in-progress: false
+
+env:
+  EXPECTED_BASE_SHA: 60f882b6c99d2409cde65a749098643c567049c4
+  IMPLEMENTATION_SHA: 60f882b6c99d2409cde65a749098643c567049c4
+  CANDIDATE_PACKAGE_NAME: wickhunter-wh09-candidate-materialization-20260808-r1-h900s-7b23a958fd4d
+  EXPECTED_CANDIDATE_MANIFEST_SHA256: 9f5ba852e33915678ca085c2eeafbf526457a079ba8f6f2fb7c1097f1d20ab79
+  RUNNER_STATE_ROOT: /var/lib/freqtrade-staging-state
+  HOST_STATE_ROOT: /volume1/docker/freqtrade/state
+  LIQUID20_LIVE_HOST: /volume1/docker/freqtrade-liquidations/data/live
+  PAPER_IMAGE: local/wickhunter-paper-runtime:sha-60f882b6c99d-issue1396-terminal-v2
+
+jobs:
+  proof:
+    name: Exact-head 3-source healthy 5/5 PAPER proof
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 40
+    steps:
+      - name: Check out exact request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Prove bounded request and zero trading credentials
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$EXPECTED_BASE_SHA" ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          [[ "$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")" == $'A\t.github/workflows/wickhunter-1396-paper-proof-r13-20260814.yml' ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          docker version >/dev/null
+          test -S /var/run/docker.sock
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            EXCHANGE_API_KEY EXCHANGE_API_SECRET FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]] || { echo "forbidden trading credential: $name" >&2; exit 1; }
+          done
+          [[ "$(docker inspect --format '{{.State.Running}}' liquid20-live)" == "true" ]]
+          [[ "$(docker inspect --format '{{.State.OOMKilled}}' liquid20-live)" == "false" ]]
+
+      - name: Verify or rebuild exact current PAPER image
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! docker image inspect "$PAPER_IMAGE" >/dev/null 2>&1; then
+            git worktree add --detach "$RUNNER_TEMP/issue1396-proof-r13-product" "$IMPLEMENTATION_SHA"
+            trap 'git worktree remove --force "$RUNNER_TEMP/issue1396-proof-r13-product" >/dev/null 2>&1 || true' EXIT
+            docker build --pull \
+              --file "$RUNNER_TEMP/issue1396-proof-r13-product/deploy/synology/wickhunter-paper-runtime/Dockerfile" \
+              --build-arg "OPERATOR_COMMIT=$IMPLEMENTATION_SHA" \
+              --label "org.opencontainers.image.revision=$IMPLEMENTATION_SHA" \
+              --tag "$PAPER_IMAGE" "$RUNNER_TEMP/issue1396-proof-r13-product"
+            git worktree remove --force "$RUNNER_TEMP/issue1396-proof-r13-product"
+            trap - EXIT
+          fi
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$PAPER_IMAGE")" == "$IMPLEMENTATION_SHA" ]]
+          [[ "$(docker image inspect --format '{{json .Config.Entrypoint}}' "$PAPER_IMAGE")" == '["python","-m","ai_platform.wickhunter.candidate_paper_runtime_parity_supervisor"]' ]]
+          image_id="$(docker image inspect --format '{{.Id}}' "$PAPER_IMAGE")"
+          [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "PAPER_IMAGE_DIGEST=${image_id#sha256:}" >> "$GITHUB_ENV"
+          reader_gid="$(docker run --rm --read-only --entrypoint stat \
+            --mount "type=bind,src=$LIQUID20_LIVE_HOST,dst=/runtime/liquid20,readonly" \
+            "$PAPER_IMAGE" -c %g /runtime/liquid20)"
+          [[ "$reader_gid" =~ ^[0-9]+$ ]]
+          echo "LIQUID20_READER_GID=$reader_gid" >> "$GITHUB_ENV"
+
+      - name: Require current Liquid20 3 of 3 genuinely healthy
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --interactive --user 65532:65532 --group-add "$LIQUID20_READER_GID" \
+            --read-only --network none --cap-drop ALL --security-opt no-new-privileges:true \
+            --mount "type=bind,src=$LIQUID20_LIVE_HOST,dst=/runtime/liquid20,readonly" \
+            --entrypoint python "$PAPER_IMAGE" - <<'PY' \
+            | tee "$RUNNER_TEMP/issue1396-liquid20-preflight.json"
+          import json,time
+          from pathlib import Path
+          from ai_platform.wickhunter.candidate_paper_runtime_operator import load_liquid20_snapshot
+          now=time.time_ns()//1_000_000
+          snapshot=load_liquid20_snapshot(Path('/runtime/liquid20'),now_ms=now,maximum_age_ms=300000)
+          rows=[]
+          for item in snapshot.source_states:
+              age=None if item.last_received_at_ms is None else now-item.last_received_at_ms
+              rows.append({'source':item.source,'health':item.health.value,'coverage_available':item.coverage_available,'age_ms':age})
+          expected=['binance-usdm','bybit-linear','okx-swap']
+          if sorted(row['source'] for row in rows)!=expected: raise SystemExit('Liquid20 source set mismatch')
+          if any(row['health']!='healthy' or row['coverage_available'] is not True or row['age_ms'] is None or row['age_ms']>300000 for row in rows): raise SystemExit('Liquid20 is not 3/3 genuinely healthy')
+          print(json.dumps({'result':'PASS','snapshot_id':snapshot.snapshot_id,'sources':rows},sort_keys=True))
+          PY
+
+      - name: Create fresh activation and initialized PAPER journal
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 027
+          state_name="issue1396-proof-r13-${GITHUB_RUN_ID}"
+          activation_name="wickhunter-proof-r13-${GITHUB_RUN_ID}"
+          candidate_runner="$RUNNER_STATE_ROOT/wickhunter-candidate-materialization/packages/$CANDIDATE_PACKAGE_NAME"
+          candidate_host="$HOST_STATE_ROOT/wickhunter-candidate-materialization/packages/$CANDIDATE_PACKAGE_NAME"
+          state_runner="$RUNNER_STATE_ROOT/wickhunter-paper-runtime/$state_name"
+          state_host="$HOST_STATE_ROOT/wickhunter-paper-runtime/$state_name"
+          [[ -d "$candidate_runner" && ! -L "$candidate_runner" ]]
+          [[ ! -e "$state_runner" && ! -L "$state_runner" ]]
+          install -d -m 0750 -o 65532 -g 65532 \
+            "$state_runner" "$state_runner/activations" "$state_runner/journals" \
+            "$state_runner/operator" "$state_runner/operator/$activation_name"
+          docker run --rm --interactive --user 65532:65532 --read-only --network none --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --mount "type=bind,src=$candidate_host,dst=/runtime/candidate,readonly" \
+            --mount "type=bind,src=$state_host,dst=/runtime/state" \
+            --env "ACTIVATION_NAME=$activation_name" --env EXPECTED_CANDIDATE_MANIFEST_SHA256 \
+            --entrypoint python "$PAPER_IMAGE" - <<'PY' \
+            | tee "$RUNNER_TEMP/issue1396-proof-activation.json"
+          import json,os,time
+          from pathlib import Path
+          from ai_platform.wickhunter.candidate_paper_runtime_operator import _runtime_policy
+          from ai_platform.wickhunter.candidate_paper_runtime_service import CandidatePaperRuntimeService
+          from ai_platform.wickhunter.candidate_runtime_activation import activate_verified_runtime_candidate
+          from ai_platform.wickhunter.candidate_runtime_binding import build_candidate_paper_runtime_binding
+          from ai_platform.wickhunter.canonical import canonical_sha256
+          from ai_platform.wickhunter.contracts import BotMode
+          from ai_platform.wickhunter.runtime_mode import ManagedRuntimeModeRequest,resolve_managed_runtime_mode
+          root=Path('/runtime/state'); activation=root/'activations'/os.environ['ACTIVATION_NAME']; journal=root/'journals'/os.environ['ACTIVATION_NAME']
+          result=activate_verified_runtime_candidate(candidate_root=Path('/runtime/candidate'),activation_root=activation,created_at_ms=time.time_ns()//1_000_000,bot_instance='wickhunter-issue1396-proof-r13',mode=BotMode.PAPER,wh08_consumer_version='wickhunter-portal-consumer-v1',window_duration_ms=90_000_000)
+          if result.identity.manifest_sha256!=os.environ['EXPECTED_CANDIDATE_MANIFEST_SHA256']: raise SystemExit('candidate manifest mismatch')
+          binding=build_candidate_paper_runtime_binding(candidate_root=Path('/runtime/candidate'),activation_root=activation)
+          service=CandidatePaperRuntimeService(binding=binding,runtime_policy=_runtime_policy(),journal_root=journal)
+          if service.journal.latest_state() is not None: raise SystemExit('fresh PAPER journal is not empty')
+          auth={'schema_version':'issue1396-proof-r13-v1','authorization_id':'issue1396-proof-r13','run_id':binding.request.run_id,'binding_id':binding.binding_id,'candidate_package_id':result.identity.package_id,'candidate_manifest_sha256':result.identity.manifest_sha256,'execution_enabled':False,'live_capital_authorized':False}
+          digest=canonical_sha256(auth)
+          resolution=resolve_managed_runtime_mode(ManagedRuntimeModeRequest(mode=BotMode.PAPER,paper_activation_authorized=True,paper_authorization_id=auth['authorization_id'],paper_authorization_digest=digest,paper_candidate_package_id=result.identity.package_id,paper_candidate_manifest_sha256=result.identity.manifest_sha256))
+          zero={'automatic_promotion_enabled':resolution.automatic_promotion_enabled,'trading_credentials_present':resolution.trading_credentials_present,'order_adapter_present':resolution.order_adapter_present,'execution_enabled':resolution.execution_enabled,'orders_submitted':resolution.orders_submitted,'live_capital_authorized':resolution.live_capital_authorized}
+          if zero!={'automatic_promotion_enabled':False,'trading_credentials_present':False,'order_adapter_present':False,'execution_enabled':False,'orders_submitted':0,'live_capital_authorized':False}: raise SystemExit('PAPER authority mismatch')
+          print(json.dumps({'run_id':binding.request.run_id,'binding_id':binding.binding_id,'candidate_package_id':result.identity.package_id,'candidate_manifest_sha256':result.identity.manifest_sha256,'authorization_digest':digest,**zero},sort_keys=True))
+          PY
+          activation_runner="$state_runner/activations/$activation_name"
+          journal_runner="$state_runner/journals/$activation_name"
+          operator_runner="$state_runner/operator/$activation_name"
+          [[ -d "$activation_runner" && -d "$journal_runner" && -d "$operator_runner" ]]
+          find "$activation_runner" -type d -exec chmod 0550 {} +
+          find "$activation_runner" -type f -exec chmod 0440 {} +
+          find "$journal_runner" -type d -exec chmod 0750 {} +
+          find "$journal_runner" -type f -exec chmod 0640 {} +
+          chown -R 65532:65532 "$journal_runner" "$operator_runner"
+          {
+            echo "PROOF_STATE_RUNNER=$state_runner"
+            echo "PROOF_ACTIVATION_HOST=$state_host/activations/$activation_name"
+            echo "PROOF_JOURNAL_HOST=$state_host/journals/$activation_name"
+            echo "PROOF_OPERATOR_HOST=$state_host/operator/$activation_name"
+          } >> "$GITHUB_ENV"
+
+      - name: Start constrained public gateway and prove no direct egress
+        shell: bash
+        run: |
+          set -euo pipefail
+          network="issue1396-proof-r13-net-${GITHUB_RUN_ID}"
+          gateway="issue1396-proof-r13-egress-${GITHUB_RUN_ID}"
+          operator="issue1396-proof-r13-runtime-${GITHUB_RUN_ID}"
+          echo "PROOF_NETWORK=$network" >> "$GITHUB_ENV"
+          echo "PROOF_GATEWAY=$gateway" >> "$GITHUB_ENV"
+          echo "PROOF_OPERATOR=$operator" >> "$GITHUB_ENV"
+          docker network create --internal "$network" >/dev/null
+          gateway_code="$(cat <<'PY'
+          import socket,socketserver,threading
+          TARGET=('fapi.binance.com',443)
+          class Server(socketserver.ThreadingMixIn,socketserver.TCPServer): daemon_threads=True; allow_reuse_address=True
+          class Handler(socketserver.BaseRequestHandler):
+              @staticmethod
+              def pump(source,destination):
+                  try:
+                      while True:
+                          chunk=source.recv(65536)
+                          if not chunk:return
+                          destination.sendall(chunk)
+                  except OSError:return
+              def handle(self):
+                  remote=socket.create_connection(TARGET,timeout=15)
+                  try:
+                      thread=threading.Thread(target=self.pump,args=(self.request,remote),daemon=True); thread.start(); self.pump(remote,self.request); thread.join(timeout=5)
+                  finally: remote.close()
+          Server(('0.0.0.0',443),Handler).serve_forever()
+          PY
+          )"
+          docker create --name "$gateway" --init --user 0:0 --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777 \
+            --cap-drop ALL --cap-add NET_BIND_SERVICE --security-opt no-new-privileges:true \
+            --memory 256m --network bridge --entrypoint python "$PAPER_IMAGE" -c "$gateway_code" >/dev/null
+          docker network connect "$network" "$gateway"
+          docker start "$gateway" >/dev/null
+          sleep 2
+          ip="$(docker inspect --format "{{with index .NetworkSettings.Networks \"$network\"}}{{.IPAddress}}{{end}}" "$gateway")"
+          [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          docker run --rm --interactive --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+            --network "$network" --add-host "fapi.binance.com:$ip" \
+            --entrypoint python "$PAPER_IMAGE" - <<'PY'
+          import json,socket,urllib.request
+          sock=socket.socket(); sock.settimeout(2); rc=sock.connect_ex(('1.1.1.1',443)); sock.close()
+          if rc == 0: raise SystemExit('direct external egress unexpectedly available')
+          opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
+          with opener.open('https://fapi.binance.com/fapi/v1/premiumIndex?symbol=BTCUSDT',timeout=20) as response:
+              json.loads(response.read().decode())
+          PY
+
+      - name: Run five natural PAPER cycles
+        shell: bash
+        run: |
+          set -euo pipefail
+          ip="$(docker inspect --format "{{with index .NetworkSettings.Networks \"$PROOF_NETWORK\"}}{{.IPAddress}}{{end}}" "$PROOF_GATEWAY")"
+          candidate_host="$HOST_STATE_ROOT/wickhunter-candidate-materialization/packages/$CANDIDATE_PACKAGE_NAME"
+          docker run --name "$PROOF_OPERATOR" \
+            --user 65532:65532 --group-add "$LIQUID20_READER_GID" --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777 \
+            --cap-drop ALL --security-opt no-new-privileges:true --memory 2g \
+            --network "$PROOF_NETWORK" --add-host "fapi.binance.com:$ip" \
+            --env "OPERATOR_COMMIT=$IMPLEMENTATION_SHA" --env HEALTH_PATH=/runtime/operator/health.json --env HEALTH_MAX_AGE_SECONDS=1200 \
+            --env HTTP_PROXY= --env HTTPS_PROXY= --env ALL_PROXY= --env http_proxy= --env https_proxy= --env all_proxy= \
+            --mount "type=bind,src=$candidate_host,dst=/runtime/candidate,readonly" \
+            --mount "type=bind,src=$PROOF_ACTIVATION_HOST,dst=/runtime/activation,readonly" \
+            --mount "type=bind,src=$LIQUID20_LIVE_HOST,dst=/runtime/liquid20,readonly" \
+            --mount "type=bind,src=$PROOF_JOURNAL_HOST,dst=/runtime/journal" \
+            --mount "type=bind,src=$PROOF_OPERATOR_HOST,dst=/runtime/operator" \
+            "$PAPER_IMAGE" --candidate-root /runtime/candidate --activation-root /runtime/activation \
+            --journal-root /runtime/journal --liquid20-root /runtime/liquid20 --health-root /runtime/operator \
+            --operator-commit "$IMPLEMENTATION_SHA" --public-market-base-url https://fapi.binance.com \
+            --poll-seconds 120 --maximum-source-age-ms 300000 --model-drift healthy --data-drift healthy \
+            --circuit-breaker-active false --cycles 5
+
+      - name: Verify every generation and final health are genuinely healthy
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate_host="$HOST_STATE_ROOT/wickhunter-candidate-materialization/packages/$CANDIDATE_PACKAGE_NAME"
+          docker run --rm --interactive --user 65532:65532 --read-only --network none --cap-drop ALL --security-opt no-new-privileges:true \
+            --mount "type=bind,src=$candidate_host,dst=/runtime/candidate,readonly" \
+            --mount "type=bind,src=$PROOF_ACTIVATION_HOST,dst=/runtime/activation,readonly" \
+            --mount "type=bind,src=$PROOF_JOURNAL_HOST,dst=/runtime/journal,readonly" \
+            --mount "type=bind,src=$PROOF_OPERATOR_HOST,dst=/runtime/operator,readonly" \
+            --env "OPERATOR_COMMIT=$IMPLEMENTATION_SHA" --env "PAPER_IMAGE_DIGEST=$PAPER_IMAGE_DIGEST" \
+            --entrypoint python "$PAPER_IMAGE" - <<'PY' \
+            | tee "$RUNNER_TEMP/issue1396-proof.json"
+          import json,os
+          from decimal import Decimal
+          from pathlib import Path
+          from ai_platform.wickhunter.candidate_paper_runtime_operator import _runtime_policy
+          from ai_platform.wickhunter.candidate_paper_runtime_service import CandidatePaperRuntimeJournal
+          from ai_platform.wickhunter.candidate_paper_runtime_supervisor import CycleTelemetryStore
+          from ai_platform.wickhunter.candidate_runtime_binding import build_candidate_paper_runtime_binding
+          binding=build_candidate_paper_runtime_binding(candidate_root=Path('/runtime/candidate'),activation_root=Path('/runtime/activation'))
+          journal=CandidatePaperRuntimeJournal(Path('/runtime/journal'),binding,_runtime_policy())
+          observations=journal.observations()
+          telemetry=CycleTelemetryStore(path=Path('/runtime/operator/cycle-telemetry.json'),binding_id=binding.binding_id,run_id=binding.request.run_id,operator_commit=os.environ['OPERATOR_COMMIT'])._load_verified()
+          records=telemetry.get('records')
+          if len(observations)!=5 or not isinstance(records,list) or len(records)!=5 or telemetry.get('last_sequence')!=5: raise SystemExit('proof is not exactly 5/5')
+          if any(record.get('outcome')!='success' for record in records): raise SystemExit('proof contains failed cycle')
+          expected_sources=['binance-usdm','bybit-linear','okx-swap']
+          generation_health=[]
+          for generation in range(1,6):
+              path=Path('/runtime/journal/generations')/f'{generation:020d}'/'runtime'/'portal-observability-snapshot.json'
+              snapshot=json.loads(path.read_text(encoding='utf-8'))
+              sources=snapshot.get('source_freshness')
+              if snapshot.get('health')!='healthy' or snapshot.get('circuit_breaker_active') is not False or snapshot.get('circuit_breaker_reasons')!=[]: raise SystemExit(f'generation {generation} is not breaker-free healthy')
+              if not isinstance(sources,list) or sorted(item.get('source') for item in sources)!=expected_sources: raise SystemExit(f'generation {generation} source set mismatch')
+              if any(item.get('health')!='healthy' or item.get('fresh') is not True or not isinstance(item.get('age_ms'),int) or item.get('age_ms')>300000 for item in sources): raise SystemExit(f'generation {generation} has unhealthy/stale source')
+              if snapshot.get('read_only') is not True or snapshot.get('trading_credentials_present') is not False or snapshot.get('order_adapter_present') is not False or snapshot.get('orders_submitted')!=0 or snapshot.get('live_capital_authorized') is not False: raise SystemExit(f'generation {generation} authority mismatch')
+              generation_health.append({'generation':generation,'health':'healthy','sources':[{'source':item['source'],'age_ms':item['age_ms']} for item in sources]})
+          gaps=[b.observed_at_ms-a.observed_at_ms for a,b in zip(observations,observations[1:])]; maximum_gap=max(gaps,default=0)
+          samples=sum(item.source_count for item in observations); fresh=sum(item.fresh_source_count for item in observations); ratio=Decimal(fresh)/Decimal(samples) if samples else Decimal(0)
+          if maximum_gap>1_800_000 or ratio<Decimal('0.99'): raise SystemExit('proof freshness failed')
+          health=json.loads(Path('/runtime/operator/health.json').read_text(encoding='utf-8'))
+          zero={'protected_holdout_accessed':False,'automatic_promotion_enabled':False,'trading_credentials_present':False,'order_adapter_present':False,'execution_enabled':False,'orders_submitted':0,'live_capital_authorized':False}
+          if health.get('status')!='healthy' or health.get('runtime_health')!='healthy' or health.get('circuit_breaker_active') is not False or health.get('circuit_breaker_reasons')!=[]: raise SystemExit(f"final runtime not genuinely healthy: {health.get('runtime_health')}")
+          for key,value in zero.items():
+              if health.get(key)!=value or any(record.get(key)!=value for record in records): raise SystemExit(f'authority mismatch: {key}')
+          print(json.dumps({'result':'PASS','implementation_sha':os.environ['OPERATOR_COMMIT'],'image_digest':os.environ['PAPER_IMAGE_DIGEST'],'observation_count':5,'telemetry_record_count':5,'successful_outcomes':5,'maximum_gap_ms':maximum_gap,'fresh_source_ratio':str(ratio),'runtime_health':'healthy','generation_health':generation_health,'run_id':binding.request.run_id,'binding_id':binding.binding_id,**zero},sort_keys=True))
+          PY
+          docker run --rm --read-only --network none --cap-drop ALL --security-opt no-new-privileges:true \
+            --mount "type=bind,src=$PROOF_OPERATOR_HOST,dst=/runtime/operator,readonly" \
+            --env HEALTH_PATH=/runtime/operator/health.json --env "OPERATOR_COMMIT=$IMPLEMENTATION_SHA" --env HEALTH_MAX_AGE_SECONDS=1200 \
+            --entrypoint python "$PAPER_IMAGE" /app/deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py
+          cp "$PROOF_OPERATOR_HOST/health.json" "$RUNNER_TEMP/issue1396-final-health.json"
+          cp "$PROOF_OPERATOR_HOST/cycle-telemetry.json" "$RUNNER_TEMP/issue1396-cycle-telemetry.json"
+
+      - name: Upload bounded acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: issue1396-paper-proof-r13-${{ github.run_id }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/issue1396-liquid20-preflight.json
+            ${{ runner.temp }}/issue1396-proof-activation.json
+            ${{ runner.temp }}/issue1396-proof.json
+            ${{ runner.temp }}/issue1396-final-health.json
+            ${{ runner.temp }}/issue1396-cycle-telemetry.json
+
+      - name: Cleanup disposable proof
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker rm -f "${PROOF_OPERATOR:-missing}" "${PROOF_GATEWAY:-missing}" >/dev/null 2>&1 || true
+          [[ -z "${PROOF_NETWORK:-}" ]] || docker network rm "$PROOF_NETWORK" >/dev/null 2>&1 || true
+          if [[ -n "${PROOF_STATE_RUNNER:-}" && -e "$PROOF_STATE_RUNNER" ]]; then
+            case "$PROOF_STATE_RUNNER" in "$RUNNER_STATE_ROOT"/wickhunter-paper-runtime/issue1396-proof-r13-*) ;; *) echo "unexpected cleanup path" >&2; exit 1 ;; esac
+            rm -rf --one-file-system "$PROOF_STATE_RUNNER"
+          fi

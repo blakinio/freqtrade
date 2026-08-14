@@ -145,5 +145,5 @@ def test_subject_is_sent_over_stdin_and_only_hash_is_validated(
     assert observed["sensitive"] is True
 
 
-def test_expired_request_only_workflow_is_retired() -> None:
+def test_expired_owner_bootstrap_workflow_is_absent() -> None:
     assert not WORKFLOW_PATH.exists()

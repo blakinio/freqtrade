@@ -1,0 +1,36 @@
+name: Temporary 1089 current-base sync
+
+on:
+  push:
+    branches:
+      - ops/1089-synology-cleanup-20260810
+    paths:
+      - ".github/workflows/zz-temp-1089-sync-current-base.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: fix/1089-bounded-schema-docker-lifecycle
+          fetch-depth: 0
+
+      - name: Merge exact current develop
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_base=a51106eb0003910b393dd876ab68f3877eef16dc
+          git fetch origin develop
+          actual_base="$(git rev-parse origin/develop)"
+          test "$actual_base" = "$expected_base"
+          git config user.name "blakinio"
+          git config user.email "75369544+blakinio@users.noreply.github.com"
+          git merge --no-ff --no-edit "$expected_base"
+          git diff --check HEAD^1..HEAD
+          git push origin HEAD:fix/1089-bounded-schema-docker-lifecycle

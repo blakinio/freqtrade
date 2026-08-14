@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import signal
+from functools import partial
 from pathlib import Path
 from types import FrameType
-from typing import Any, cast
+from typing import Any, Callable, cast
 
 
 _CANCELLATION_FAILURE_MESSAGE = "protected deployment cancellation requires rollback"
 _FALLBACK_FAILURE_MESSAGE = "protected deployment cancellation recovery did not complete cleanly"
+_TERMINATION_SIGNALS = (signal.SIGINT, signal.SIGTERM)
 
 
 def _pending_cancellation(deploy: Any) -> BaseException | None:
@@ -47,15 +49,113 @@ def _fallback_report(deploy: Any, args: Any, pending: BaseException) -> dict[str
     }
 
 
-def _sigint_handler(deploy: Any):
-    def handle_sigint(_signum: int, _frame: FrameType | None) -> None:
+def _termination_exception(signum: int) -> BaseException:
+    if signum == signal.SIGINT:
+        return KeyboardInterrupt()
+    return SystemExit(128 + signum)
+
+
+def _termination_handler(deploy: Any) -> Callable[[int, FrameType | None], None]:
+    def handle_termination(signum: int, _frame: FrameType | None) -> None:
         pending = _pending_cancellation(deploy)
         if pending is None:
-            pending = KeyboardInterrupt()
+            pending = _termination_exception(signum)
             deploy._portal_pending_cancellation = pending
         raise deploy.DeploymentError(_CANCELLATION_FAILURE_MESSAGE) from pending
 
-    return handle_sigint
+    return handle_termination
+
+
+def _guarded_run(
+    deploy: Any,
+    original_run: Callable[..., Any],
+    command: list[str],
+    *,
+    cwd: Path | None = None,
+    sensitive: bool = False,
+    check: bool = True,
+) -> Any:
+    try:
+        return original_run(
+            command,
+            cwd=cwd,
+            sensitive=sensitive,
+            check=check,
+        )
+    except BaseException as exc:
+        if isinstance(exc, Exception):
+            raise
+        if _pending_cancellation(deploy) is None:
+            deploy._portal_pending_cancellation = exc
+        raise deploy.DeploymentError(_CANCELLATION_FAILURE_MESSAGE) from exc
+
+
+def _guarded_write_report(
+    deploy: Any,
+    original_write_report: Callable[[Path, dict[str, Any]], str],
+    path: Path,
+    report: dict[str, Any],
+) -> str:
+    pending = _pending_cancellation(deploy)
+    if pending is not None:
+        report["status"] = "failed"
+        report["cancellation"] = _cancellation_metadata(pending)
+    return cast(str, original_write_report(path, report))
+
+
+def _install_termination_handlers(deploy: Any) -> dict[int, Any]:
+    previous_handlers = {signum: signal.getsignal(signum) for signum in _TERMINATION_SIGNALS}
+    handler = _termination_handler(deploy)
+    for signum in _TERMINATION_SIGNALS:
+        signal.signal(signum, handler)
+    return previous_handlers
+
+
+def _restore_termination_handlers(previous_handlers: dict[int, Any]) -> None:
+    for signum, previous_handler in previous_handlers.items():
+        signal.signal(signum, previous_handler)
+
+
+def _raise_pending_after_fallback(
+    deploy: Any,
+    args: Any,
+    pending: BaseException,
+    cause: BaseException,
+) -> None:
+    try:
+        deploy._write_report(
+            Path(args.report).resolve(),
+            _fallback_report(deploy, args, pending),
+        )
+    except Exception as report_exc:
+        deploy._portal_pending_cancellation = None
+        raise pending from report_exc
+    deploy._portal_pending_cancellation = None
+    raise pending from cause
+
+
+def _guarded_deploy(
+    deploy: Any,
+    original_deploy: Callable[[Any], int],
+    args: Any,
+) -> int:
+    previous_handlers = _install_termination_handlers(deploy)
+    try:
+        try:
+            return_code = int(original_deploy(args))
+        except BaseException as exc:
+            pending = _pending_cancellation(deploy)
+            if pending is None:
+                raise
+            _raise_pending_after_fallback(deploy, args, pending, exc)
+    finally:
+        _restore_termination_handlers(previous_handlers)
+
+    pending = _pending_cancellation(deploy)
+    if pending is not None:
+        deploy._portal_pending_cancellation = None
+        raise pending
+    return return_code
 
 
 def install(deploy: Any) -> None:
@@ -66,63 +166,6 @@ def install(deploy: Any) -> None:
     original_deploy = deploy.deploy
     deploy._portal_pending_cancellation = None
 
-    def guarded_run(
-        command: list[str],
-        *,
-        cwd: Path | None = None,
-        sensitive: bool = False,
-        check: bool = True,
-    ) -> Any:
-        try:
-            return original_run(
-                command,
-                cwd=cwd,
-                sensitive=sensitive,
-                check=check,
-            )
-        except BaseException as exc:
-            if isinstance(exc, Exception):
-                raise
-            if _pending_cancellation(deploy) is None:
-                deploy._portal_pending_cancellation = exc
-            raise deploy.DeploymentError(_CANCELLATION_FAILURE_MESSAGE) from exc
-
-    def write_report(path: Path, report: dict[str, Any]) -> str:
-        pending = _pending_cancellation(deploy)
-        if pending is not None:
-            report["status"] = "failed"
-            report["cancellation"] = _cancellation_metadata(pending)
-        return cast(str, original_write_report(path, report))
-
-    def guarded_deploy(args: Any) -> int:
-        previous_sigint = signal.getsignal(signal.SIGINT)
-        signal.signal(signal.SIGINT, _sigint_handler(deploy))
-        try:
-            try:
-                return_code = int(original_deploy(args))
-            except BaseException as exc:
-                pending = _pending_cancellation(deploy)
-                if pending is None:
-                    raise
-                try:
-                    deploy._write_report(
-                        Path(args.report).resolve(),
-                        _fallback_report(deploy, args, pending),
-                    )
-                except Exception as report_exc:
-                    deploy._portal_pending_cancellation = None
-                    raise pending from report_exc
-                deploy._portal_pending_cancellation = None
-                raise pending from exc
-        finally:
-            signal.signal(signal.SIGINT, previous_sigint)
-
-        pending = _pending_cancellation(deploy)
-        if pending is not None:
-            deploy._portal_pending_cancellation = None
-            raise pending
-        return return_code
-
-    deploy._run = guarded_run
-    deploy._write_report = write_report
-    deploy.deploy = guarded_deploy
+    deploy._run = partial(_guarded_run, deploy, original_run)
+    deploy._write_report = partial(_guarded_write_report, deploy, original_write_report)
+    deploy.deploy = partial(_guarded_deploy, deploy, original_deploy)

@@ -5,6 +5,13 @@ import { StatusPill } from "@/components/status-pill";
 import { listBotFleetOperations, type BotFleetRecord } from "@/lib/bot-operations";
 import { getWickHunterRuntime, type WickHunterPortalRuntimeView } from "@/lib/wickhunter-runtime";
 
+type CanonicalManagedMode = "research" | "shadow" | "paper" | "live_blocked";
+type CanonicalWickHunterBot = BotFleetRecord["bot"] & {
+  spec: BotFleetRecord["bot"]["spec"] & { managed_mode?: CanonicalManagedMode };
+  desired_runtime_generation_id?: string | null;
+  observed_runtime_generation_id?: string | null;
+};
+
 function value(
   searchParams: Record<string, string | string[] | undefined>,
   key: string,
@@ -37,9 +44,17 @@ function pnl(valueToRender: string | null, currency: string) {
   return valueToRender === null ? "—" : `${valueToRender} ${currency}`;
 }
 
-function shortId(identifier: string | null): string {
+function shortId(identifier: string | null | undefined): string {
   if (!identifier) return "—";
   return identifier.length <= 12 ? identifier : `${identifier.slice(0, 12)}…`;
+}
+
+function wickHunterBot(record: BotFleetRecord): CanonicalWickHunterBot {
+  return record.bot as CanonicalWickHunterBot;
+}
+
+function wickHunterManagedMode(record: BotFleetRecord): CanonicalManagedMode {
+  return wickHunterBot(record).spec.managed_mode ?? "shadow";
 }
 
 function WickHunterRuntimeCell({ view }: { view: WickHunterPortalRuntimeView }) {
@@ -83,6 +98,31 @@ function WickHunterRuntimeCell({ view }: { view: WickHunterPortalRuntimeView }) 
   );
 }
 
+function WickHunterCanonicalRuntimeCell({ record }: { record: BotFleetRecord }) {
+  const bot = wickHunterBot(record);
+  const managedMode = wickHunterManagedMode(record);
+  const generationsSynced =
+    Boolean(bot.desired_runtime_generation_id) &&
+    bot.desired_runtime_generation_id === bot.observed_runtime_generation_id;
+  return (
+    <td>
+      <StatusPill value={record.runtime_health} />
+      <strong>
+        {managedMode.toUpperCase()} · {bot.spec.model_version}
+      </strong>
+      <span>Canonical RuntimeGeneration</span>
+      <span>
+        Generation: {generationsSynced ? "desired = observed" : "pending reconciliation"}
+      </span>
+      <span>
+        D {shortId(bot.desired_runtime_generation_id)} · O{" "}
+        {shortId(bot.observed_runtime_generation_id)}
+      </span>
+      <span>Legacy SHADOW evidence: not applicable in {managedMode.toUpperCase()}</span>
+    </td>
+  );
+}
+
 export default async function BotsPage({
   searchParams,
 }: {
@@ -91,9 +131,11 @@ export default async function BotsPage({
   const cookieHeader = (await cookies()).toString();
   const fleet = await listBotFleetOperations(cookieHeader);
   const wickHunter = fleet.find((record) => record.bot.bot_id === "wickhunter");
-  const wickHunterRuntimeResult = wickHunter
-    ? await getWickHunterRuntime(wickHunter.bot.bot_id, cookieHeader)
-    : null;
+  const wickHunterMode = wickHunter ? wickHunterManagedMode(wickHunter) : null;
+  const wickHunterRuntimeResult =
+    wickHunter && wickHunterMode === "shadow"
+      ? await getWickHunterRuntime(wickHunter.bot.bot_id, cookieHeader)
+      : null;
   const query = await searchParams;
   const filters = {
     environment: value(query, "environment"),
@@ -209,12 +251,18 @@ export default async function BotsPage({
               <tbody>
                 {bots.map((record) => {
                   const isWickHunter = record.bot.bot_id === "wickhunter";
+                  const managedMode = isWickHunter ? wickHunterManagedMode(record) : null;
                   const runtimeView =
-                    isWickHunter && wickHunterRuntimeResult?.state === "AVAILABLE"
+                    isWickHunter &&
+                    managedMode === "shadow" &&
+                    wickHunterRuntimeResult?.state === "AVAILABLE"
                       ? wickHunterRuntimeResult.view
                       : null;
                   const runtimeUnavailable =
-                    isWickHunter && wickHunterRuntimeResult?.state === "UNAVAILABLE";
+                    isWickHunter &&
+                    managedMode === "shadow" &&
+                    wickHunterRuntimeResult?.state === "UNAVAILABLE";
+                  const useCanonicalRuntime = isWickHunter && managedMode !== "shadow";
                   return (
                     <tr key={record.bot.bot_id}>
                       <td>
@@ -248,6 +296,8 @@ export default async function BotsPage({
                       </td>
                       {runtimeView ? (
                         <WickHunterRuntimeCell view={runtimeView} />
+                      ) : useCanonicalRuntime ? (
+                        <WickHunterCanonicalRuntimeCell record={record} />
                       ) : runtimeUnavailable ? (
                         <td>
                           <StatusPill value="UNAVAILABLE" />

@@ -339,10 +339,10 @@ validate_generation_snapshot "$EVIDENCE/production-health.json" "$PROD_JOURNAL_H
 
 log "author desired PAPER, persist stopped SHADOW proof, reconcile observed PAPER"
 docker cp "$EVIDENCE/production-health.json" "$PORTAL_CONTROL_CONTAINER:/tmp/issue1396-production-health.json"
-docker exec "$PORTAL_CONTROL_CONTAINER" python /tmp/issue1396_terminal_transition_v2.py author-paper --implementation-sha "$IMPLEMENTATION_SHA" --image-digest "$PAPER_IMAGE_DIGEST" --config-digest "$PAPER_CONFIG_DIGEST" --authorization-id "$PAPER_AUTHORIZATION_ID" --authorization-digest "$PAPER_AUTHORIZATION_DIGEST" --run-id "$PAPER_RUN_ID" --binding-id "$PAPER_BINDING_ID" --candidate-package-id "$PAPER_CANDIDATE_PACKAGE_ID" --candidate-manifest "$PAPER_CANDIDATE_MANIFEST" > "$EVIDENCE/desired-paper.json"
+docker exec "$PORTAL_CONTROL_CONTAINER" python /tmp/issue1396_terminal_transition_v2.py author-paper --implementation-sha "$IMPLEMENTATION_SHA" --image-digest "$PAPER_IMAGE_DIGEST" --config-digest "$PAPER_CONFIG_DIGEST" --authorization-id "$PAPER_AUTHORIZATION_ID" --authorization-digest "$PAPER_AUTHORIZATION_DIGEST" --candidate-package-id "$PAPER_CANDIDATE_PACKAGE_ID" --candidate-manifest "$PAPER_CANDIDATE_MANIFEST" --internal-network "$PROD_INTERNAL_NETWORK" > "$EVIDENCE/desired-paper.json"
 OLD_GENERATION_ID="$(json_value "$EVIDENCE/desired-paper.json" old_generation.generation_id)"; PAPER_GENERATION_ID="$(json_value "$EVIDENCE/desired-paper.json" paper_generation.generation_id)"; export OLD_GENERATION_ID PAPER_GENERATION_ID
 docker exec "$PORTAL_CONTROL_CONTAINER" python /tmp/issue1396_terminal_transition_v2.py record-stop --generation-id "$OLD_GENERATION_ID" --runtime-instance-id "$OLD_SHADOW_CONTAINER_ID" --evidence-kind issue1396-physical-stopped-shadow-v3 > "$EVIDENCE/shadow-stopped.json"
-docker exec "$PORTAL_CONTROL_CONTAINER" python /tmp/issue1396_terminal_transition_v2.py reconcile-running --generation-id "$PAPER_GENERATION_ID" --runtime-instance-id "$PROD_PAPER_CONTAINER_ID" --health-json /tmp/issue1396-production-health.json --source-version "$IMPLEMENTATION_SHA" --evidence-kind issue1396-production-paper-running-v3 > "$EVIDENCE/paper-reconciled.json"
+docker exec "$PORTAL_CONTROL_CONTAINER" python /tmp/issue1396_terminal_transition_v2.py reconcile-running --generation-id "$PAPER_GENERATION_ID" --runtime-instance-id "$PROD_PAPER_CONTAINER_ID" --health-json /tmp/issue1396-production-health.json --source-version "$IMPLEMENTATION_SHA" --evidence-kind issue1396-production-paper-running-v3 --actor-id system-issue1396-paper-reconciler-v3 > "$EVIDENCE/paper-reconciled.json"
 
 log "prove exact-generation restart and second healthy reconciliation"
 before_generation="$(json_value "$EVIDENCE/production-health.json" generation)"; before_checked="$(json_value "$EVIDENCE/production-health.json" checked_at_ms)"; same_id="$PROD_PAPER_CONTAINER_ID"
@@ -362,7 +362,7 @@ p={'result':'PASS','same_runtime_instance':True,'runtime_instance_id':paper,'bef
 pathlib.Path(path).write_text(json.dumps(p,sort_keys=True)+'\n',encoding='utf-8')
 PY
 docker cp "$EVIDENCE/production-health-after-restart.json" "$PORTAL_CONTROL_CONTAINER:/tmp/issue1396-production-health-after-restart.json"
-docker exec "$PORTAL_CONTROL_CONTAINER" python /tmp/issue1396_terminal_transition_v2.py reconcile-running --generation-id "$PAPER_GENERATION_ID" --runtime-instance-id "$PROD_PAPER_CONTAINER_ID" --health-json /tmp/issue1396-production-health-after-restart.json --source-version "$IMPLEMENTATION_SHA" --evidence-kind issue1396-production-paper-restart-v3 > "$EVIDENCE/paper-restart-observation.json"
+docker exec "$PORTAL_CONTROL_CONTAINER" python /tmp/issue1396_terminal_transition_v2.py reconcile-running --generation-id "$PAPER_GENERATION_ID" --runtime-instance-id "$PROD_PAPER_CONTAINER_ID" --health-json /tmp/issue1396-production-health-after-restart.json --source-version "$IMPLEMENTATION_SHA" --evidence-kind issue1396-production-paper-restart-v3 --actor-id system-issue1396-paper-restart-reconciler-v3 > "$EVIDENCE/paper-restart-observation.json"
 
 log "final Portal API truth"
 docker exec "$PORTAL_CONTROL_CONTAINER" python /tmp/issue1396_terminal_transition_v2.py final-api --expected-mode paper > "$EVIDENCE/production-api.json"

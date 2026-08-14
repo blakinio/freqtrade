@@ -31,7 +31,7 @@ jobs:
         shell: bash
         run: python -m pip install --disable-pip-version-check ruff==0.15.21
 
-      - name: Apply cancellation signal fixes and exact formatter
+      - name: Apply final cancellation fixes and exact formatter
         shell: bash
         run: |
           set -euo pipefail
@@ -61,18 +61,6 @@ jobs:
                   "cancellation = _remember_cancellation(deploy, cancellation, exc)",
               ),
               encoding="utf-8",
-          )
-
-          bridge = Path("deploy/synology/portal-oidc/cancellation_report_bridge.py")
-          replace_once(
-              bridge,
-              '''def _sigint_handler(deploy: Any):\n    def handle_sigint(_signum: int, _frame: FrameType | None) -> None:\n        pending = _pending_cancellation(deploy)\n        if pending is None:\n            pending = KeyboardInterrupt()\n            deploy._portal_pending_cancellation = pending\n        raise deploy.DeploymentError(_CANCELLATION_FAILURE_MESSAGE) from pending\n\n    return handle_sigint\n''',
-              '''def _termination_exception(signum: int) -> BaseException:\n    if signum == signal.SIGINT:\n        return KeyboardInterrupt()\n    return SystemExit(128 + signum)\n\n\ndef _termination_handler(deploy: Any):\n    def handle_termination(signum: int, _frame: FrameType | None) -> None:\n        pending = _pending_cancellation(deploy)\n        if pending is None:\n            pending = _termination_exception(signum)\n            deploy._portal_pending_cancellation = pending\n        raise deploy.DeploymentError(_CANCELLATION_FAILURE_MESSAGE) from pending\n\n    return handle_termination\n''',
-          )
-          replace_once(
-              bridge,
-              '''    def guarded_deploy(args: Any) -> int:\n        previous_sigint = signal.getsignal(signal.SIGINT)\n        signal.signal(signal.SIGINT, _sigint_handler(deploy))\n        try:\n            try:\n                return_code = int(original_deploy(args))\n            except BaseException as exc:\n                pending = _pending_cancellation(deploy)\n                if pending is None:\n                    raise\n                try:\n                    deploy._write_report(\n                        Path(args.report).resolve(),\n                        _fallback_report(deploy, args, pending),\n                    )\n                except Exception as report_exc:\n                    deploy._portal_pending_cancellation = None\n                    raise pending from report_exc\n                deploy._portal_pending_cancellation = None\n                raise pending from exc\n        finally:\n            signal.signal(signal.SIGINT, previous_sigint)\n''',
-              '''    def guarded_deploy(args: Any) -> int:\n        termination_signals = (signal.SIGINT, signal.SIGTERM)\n        previous_handlers = {\n            signum: signal.getsignal(signum) for signum in termination_signals\n        }\n        for signum in termination_signals:\n            signal.signal(signum, _termination_handler(deploy))\n        try:\n            try:\n                return_code = int(original_deploy(args))\n            except BaseException as exc:\n                pending = _pending_cancellation(deploy)\n                if pending is None:\n                    raise\n                try:\n                    deploy._write_report(\n                        Path(args.report).resolve(),\n                        _fallback_report(deploy, args, pending),\n                    )\n                except Exception as report_exc:\n                    deploy._portal_pending_cancellation = None\n                    raise pending from report_exc\n                deploy._portal_pending_cancellation = None\n                raise pending from exc\n        finally:\n            for signum, previous_handler in previous_handlers.items():\n                signal.signal(signum, previous_handler)\n''',
           )
 
           cancellation_test = Path(
@@ -114,5 +102,5 @@ jobs:
           git config user.name "blakinio"
           git config user.email "75369544+blakinio@users.noreply.github.com"
           git add -- "${files[@]}"
-          git commit -m "fix(portal): preserve termination cancellation through cleanup"
+          git commit -m "fix(portal): preserve cancellation through cleanup"
           git push origin HEAD:fix/1089-bounded-schema-docker-lifecycle

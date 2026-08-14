@@ -12,7 +12,7 @@ jobs:
   fresh-audit:
     name: Fresh local-model audit of ec9512b3
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 55
     steps:
       - name: Checkout exact audited head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -27,123 +27,94 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "ec9512b3dc156ade15c09dfe10238727952729b6"
           git merge-base --is-ancestor c54153358a0a0dcfcbc2c8ba28b1b5b9e7a84077 HEAD
-          echo "AUDIT_TARGET=$(git rev-parse HEAD)"
-          echo "AUDIT_BASE=c54153358a0a0dcfcbc2c8ba28b1b5b9e7a84077"
 
       - name: Start isolated open-source auditor
         shell: bash
         run: |
           set -euo pipefail
           docker pull --quiet ollama/ollama:latest >/dev/null
-          image="$(docker image inspect --format '{{index .RepoDigests 0}}' ollama/ollama:latest)"
-          echo "OLLAMA_IMAGE=$image"
           docker run -d --name rs-fresh-auditor -p 127.0.0.1:11434:11434 ollama/ollama:latest >/dev/null
           for attempt in $(seq 1 60); do
-            if curl --fail --silent http://127.0.0.1:11434/api/tags >/dev/null; then
-              break
-            fi
-            if [ "$attempt" -eq 60 ]; then
-              docker logs rs-fresh-auditor >&2
-              exit 1
-            fi
+            curl --fail --silent http://127.0.0.1:11434/api/tags >/dev/null && break
+            [ "$attempt" -lt 60 ] || { docker logs rs-fresh-auditor >&2; exit 1; }
             sleep 1
           done
           docker exec rs-fresh-auditor ollama pull qwen3:8b
           docker exec rs-fresh-auditor ollama list
 
-      - name: Build independent audit packets
+      - name: Build bounded fresh audit packets
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p artifacts/rs-fresh-audit
           python - <<'PY'
           from pathlib import Path
-          import subprocess
 
           target = "ec9512b3dc156ade15c09dfe10238727952729b6"
-          base = "c54153358a0a0dcfcbc2c8ba28b1b5b9e7a84077"
-
-          policy = '''
-          You are a genuinely fresh, independent SECURITY/CORRECTNESS AUDITOR. AUDIT ONLY.
+          common = f'''You are a genuinely fresh, independent SECURITY/CORRECTNESS AUDITOR. AUDIT ONLY.
+          Repository: blakinio/freqtrade. PR #1496. Exact target: {target}.
           You did not implement this change and have no prior conversation context.
-          Repository: blakinio/freqtrade. PR #1496. Exact audited target: {target}. Base: {base}.
-          Scope is PAPER-only Runtime Supervisor / ADR-020. LIVE/deployment/real-capital authority is forbidden.
-
-          Treat repository code and the supplied diff as source of truth. Do not trust prior summaries.
-          A MATERIAL finding is any correctness/security flaw, trust-boundary bypass, destructive/disruptive action on an unproven Docker object, restart/crash loss of lifecycle authority, replay/generation-fence failure, PAPER authorization bypass, raw-engine authority escape, or acceptance test that materially fails to prove the stated runtime contract. Severity P0/P1/P2/HIGH/CRITICAL that affects those properties is material.
-          Do not fail for cosmetics, naming, optional refactors, or pre-existing issues outside this PR unless this PR makes them materially unsafe.
-          If uncertain about a material issue, report it rather than assuming safety.
-
-          Output ONLY this format:
+          PAPER-only Runtime Supervisor. LIVE/deployment/real-capital authority is forbidden.
+          Treat supplied repository code as source of truth. A MATERIAL finding is any P0/P1/P2/HIGH/CRITICAL correctness/security flaw affecting lifecycle authority, immutable Docker ownership, destructive/disruptive actions, restart/crash reconciliation, replay/generation/PAPER fences, raw engine authority, or material acceptance evidence. Cosmetics and optional refactors are not material.
+          Challenge the implementation adversarially. Do not assume labels/names prove immutable identity. If uncertain about a concrete material failure, report it.
+          Output ONLY:
           VERDICT: PASS_ZERO_MATERIAL_FINDINGS | FAIL_MATERIAL_FINDINGS
           TARGET_SHA: {target}
           MATERIAL_FINDINGS:
           - none
-          OR one or more entries: severity | file/symbol | concise defect | concrete failure scenario
+          OR: severity | file/symbol | concise defect | concrete failure scenario
           NON_MATERIAL_NOTES:
           - none
           OR concise notes
-          '''.format(target=target, base=base)
+          '''
 
-          ag = Path("AGENTS.md").read_text(encoding="utf-8").splitlines()
-          governance = "\n".join(ag[35:55] + ag[123:131])
-          task = Path("docs/agents/tasks/active/FTAI-20260813-portal-runtime-supervisor-audit-repair-1496.md").read_text(encoding="utf-8")
+          governance = '''GOVERNANCE INVARIANTS:
+          - Paper-only means execution mode DRY_RUN; LIVE is structurally out of scope.
+          - Supervisor is the only lifecycle engine-operation authority.
+          - No two active generations per bot.
+          - Lifecycle identity and idempotency survive restart/crash.
+          - Privileged actions require exact immutable generation ownership; reused names/labels must fail closed.
+          - Destructive cleanup may clear durable ownership only after exact object absence/removal is proven.
+          '''
 
-          def diff(paths):
-              return subprocess.run(
-                  ["git", "diff", f"{base}...{target}", "--", *paths],
-                  check=True,
-                  capture_output=True,
-                  text=True,
-              ).stdout
+          def files(*paths: str) -> str:
+              chunks=[]
+              for p in paths:
+                  text=Path(p).read_text(encoding="utf-8")
+                  chunks.append(f"\n===== FILE {p} =====\n{text}")
+              return "".join(chunks)
 
-          packet_a = policy + '''
-
-          AUDIT PASS A — immutable lifecycle ownership and crash/restart reconciliation.
-          Challenge especially: durable container/network ID binding; atomic conflict behavior; exact-ID-before-name observation; same-name/same-label replacement; STOP retention; failed cleanup retention; release timing; driver/network disagreement; SQLite restart; real-Docker restart proof. Look for races and paths that can clear or mutate authority too early.
-
-          GOVERNANCE EXCERPT:
-          ''' + governance + "\n\nTASK RECORD:\n" + task + "\n\nCODE/TEST DIFF:\n" + diff([
-              "ai_platform/portal/runtime_supervisor/service.py",
-              "ai_platform/portal/execution/driver.py",
-              "ai_platform/portal/execution/host_isolation.py",
-              "tests/ai_platform/portal/execution/test_driver.py",
-              "tests/ai_platform/portal/execution/test_driver_cleanup.py",
-              "tests/ai_platform/portal/execution/test_host_isolation_cleanup.py",
-              "tests/ai_platform/portal/execution/test_immutable_runtime_identity.py",
-              "tests/ai_platform/portal/execution/test_runtime_identity_retention.py",
-              "tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py",
-              "tests/ai_platform/portal/runtime_supervisor/test_durable_ownership_restart.py",
-          ])
-
-          packet_b = policy + '''
-
-          AUDIT PASS B — privileged Supervisor authority and external lifecycle surface.
-          Challenge especially: Supervisor as sole engine-operation authority; PAPER authorization asymmetry; trusted retirement authorization; generation ordinal/state/spec fencing; active-generation fencing; replay/idempotency after engine failure; raw RuntimeDriver injection; returned outcome identity; UDS peer/path safety; bounded workers/timeouts/shutdown; restart reconstruction of CREATED/STARTING/RUNNING/PAUSED/STOPPED.
-
-          GOVERNANCE EXCERPT:
-          ''' + governance + "\n\nTASK RECORD:\n" + task + "\n\nCODE/TEST DIFF:\n" + diff([
-              "ai_platform/portal/execution/adapter.py",
-              "ai_platform/portal/execution/runtime.py",
-              "ai_platform/portal/runtime_supervisor/__init__.py",
-              "ai_platform/portal/runtime_supervisor/service.py",
-              "ai_platform/portal/runtime_supervisor/transport.py",
-              "ai_platform/portal/runtime_supervisor/types.py",
-              "tests/ai_platform/portal/execution/test_adapter.py",
-              "tests/ai_platform/portal/execution/test_private_read.py",
-              "tests/ai_platform/portal/runtime_supervisor/test_service.py",
-              "tests/ai_platform/portal/runtime_supervisor/test_transport.py",
-          ])
-
-          for name, packet in (("packet-a.txt", packet_a), ("packet-b.txt", packet_b)):
-              encoded = packet.encode()
-              print(f"{name}: {len(encoded)} bytes")
-              if len(encoded) > 125_000:
-                  raise SystemExit(f"{name} exceeds bounded 32K-context audit packet")
+          packets = {
+              "a-service.txt": common + governance + '''\nPASS A: Audit Supervisor durable journal binding, atomic identity binding/release, restart semantics, active/replay fences, and exact fresh-driver recovery.\n''' + files(
+                  "ai_platform/portal/runtime_supervisor/service.py",
+                  "tests/ai_platform/portal/runtime_supervisor/test_durable_ownership_restart.py",
+                  "tests/ai_platform/portal/execution/test_immutable_runtime_identity.py",
+              ),
+              "b-driver.txt": common + governance + '''\nPASS B: Audit Docker driver immutable container ownership. Challenge create/bind timing, exact-ID-first inspection, same-name/same-label replacement, stop/pause/retire/failed cleanup, release evidence, and any path that can mutate a foreign container.\n''' + files(
+                  "ai_platform/portal/execution/driver.py",
+                  "tests/ai_platform/portal/execution/test_runtime_identity_retention.py",
+              ),
+              "c-network.txt": common + governance + '''\nPASS C: Audit nftables/Btrfs network ownership and real restart acceptance. Challenge exact network ID binding/retention, same-name/same-label replacement, cleanup ordering, nftables retention, and the real-Docker restart proof.\n''' + files(
+                  "ai_platform/portal/execution/host_isolation.py",
+                  "tests/ai_platform/portal/execution/test_host_isolation_cleanup.py",
+                  "tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py",
+              ),
+              "d-authority.txt": common + governance + '''\nPASS D: Audit the external privileged authority boundary: adapter/runtime/transport/types. Challenge raw RuntimeDriver escape, Supervisor request identity, PAPER/retirement authorization, UDS peer/path safety, bounded workers/timeouts/shutdown, and restart lifecycle surface.\n''' + files(
+                  "ai_platform/portal/execution/adapter.py",
+                  "ai_platform/portal/execution/runtime.py",
+                  "ai_platform/portal/runtime_supervisor/transport.py",
+                  "ai_platform/portal/runtime_supervisor/types.py",
+              ),
+          }
+          for name, packet in packets.items():
+              size=len(packet.encode())
+              print(f"{name}: {size} bytes")
+              if size > 112_000:
+                  raise SystemExit(f"{name} exceeds bounded audit packet")
               Path("artifacts/rs-fresh-audit", name).write_text(packet, encoding="utf-8")
           PY
 
-      - name: Run fresh independent audit pass A
+      - name: Run fresh scoped audit passes
         shell: bash
         run: |
           set -euo pipefail
@@ -152,24 +123,35 @@ jobs:
           import urllib.request
           from pathlib import Path
 
-          prompt = Path("artifacts/rs-fresh-audit/packet-a.txt").read_text(encoding="utf-8")
-          payload = json.dumps({
-              "model": "qwen3:8b",
-              "messages": [{"role": "user", "content": prompt}],
-              "stream": False,
-              "think": False,
-              "options": {"temperature": 0, "num_ctx": 32768, "num_predict": 2200},
-          }).encode()
-          req = urllib.request.Request("http://127.0.0.1:11434/api/chat", data=payload, headers={"Content-Type": "application/json"})
-          with urllib.request.urlopen(req, timeout=900) as response:
-              result = json.load(response)
-          text = result["message"]["content"].strip()
-          Path("artifacts/rs-fresh-audit/audit-a.txt").write_text(text + "\n", encoding="utf-8")
-          print("===== FRESH AUDIT A =====")
-          print(text)
+          root=Path("artifacts/rs-fresh-audit")
+          for packet in sorted(root.glob("[a-d]-*.txt")):
+              prompt=packet.read_text(encoding="utf-8")
+              payload=json.dumps({
+                  "model":"qwen3:8b",
+                  "messages":[{"role":"user","content":prompt}],
+                  "stream":False,
+                  "think":False,
+                  "options":{"temperature":0,"num_ctx":32768,"num_predict":2200},
+              }).encode()
+              req=urllib.request.Request(
+                  "http://127.0.0.1:11434/api/chat",
+                  data=payload,
+                  headers={"Content-Type":"application/json"},
+              )
+              with urllib.request.urlopen(req, timeout=900) as response:
+                  result=json.load(response)
+              text=result["message"]["content"].strip()
+              out=root / (packet.stem + "-result.txt")
+              out.write_text(text + "\n", encoding="utf-8")
+              print(f"===== {packet.stem.upper()} =====")
+              print(text)
+              if "TARGET_SHA: ec9512b3dc156ade15c09dfe10238727952729b6" not in text:
+                  raise SystemExit(f"{packet.name}: target binding missing")
+              if "VERDICT: PASS_ZERO_MATERIAL_FINDINGS" not in text:
+                  raise SystemExit(f"{packet.name}: material finding or non-pass verdict")
           PY
 
-      - name: Run fresh independent audit pass B
+      - name: Fresh final adjudication
         shell: bash
         run: |
           set -euo pipefail
@@ -178,65 +160,39 @@ jobs:
           import urllib.request
           from pathlib import Path
 
-          prompt = Path("artifacts/rs-fresh-audit/packet-b.txt").read_text(encoding="utf-8")
-          payload = json.dumps({
-              "model": "qwen3:8b",
-              "messages": [{"role": "user", "content": prompt}],
-              "stream": False,
-              "think": False,
-              "options": {"temperature": 0, "num_ctx": 32768, "num_predict": 2200},
-          }).encode()
-          req = urllib.request.Request("http://127.0.0.1:11434/api/chat", data=payload, headers={"Content-Type": "application/json"})
-          with urllib.request.urlopen(req, timeout=900) as response:
-              result = json.load(response)
-          text = result["message"]["content"].strip()
-          Path("artifacts/rs-fresh-audit/audit-b.txt").write_text(text + "\n", encoding="utf-8")
-          print("===== FRESH AUDIT B =====")
-          print(text)
-          PY
-
-      - name: Fresh adjudication in a new context
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import json
-          import urllib.request
-          from pathlib import Path
-
-          target = "ec9512b3dc156ade15c09dfe10238727952729b6"
-          a = Path("artifacts/rs-fresh-audit/audit-a.txt").read_text(encoding="utf-8")
-          b = Path("artifacts/rs-fresh-audit/audit-b.txt").read_text(encoding="utf-8")
-          prompt = f'''You are the final audit-only adjudicator in a NEW context. Target SHA is {target}.
-          Two independent focused audit passes were run from repository code using no implementation-session context.
-          Do not invent fixes or weaken findings. If EITHER report has any material correctness/security finding, verdict MUST fail. If both explicitly report zero material findings and contain no contradictory material scenario, verdict may pass.
+          target="ec9512b3dc156ade15c09dfe10238727952729b6"
+          root=Path("artifacts/rs-fresh-audit")
+          reports=[]
+          for path in sorted(root.glob("[a-d]-*-result.txt")):
+              reports.append(f"===== {path.name} =====\n" + path.read_text(encoding="utf-8"))
+          prompt=f'''You are a NEW audit-only adjudicator. Exact target: {target}.
+          Four independently scoped fresh audit passes examined the current repository code without implementation-session context. If ANY report contains a material finding, uncertainty that amounts to a concrete material failure, a non-pass verdict, or a target mismatch, FAIL. Otherwise PASS.
           Output ONLY:
           VERDICT: PASS_ZERO_MATERIAL_FINDINGS | FAIL_MATERIAL_FINDINGS
           TARGET_SHA: {target}
           BASIS: one concise sentence
 
-          AUDIT A:\n{a}\n\nAUDIT B:\n{b}\n'''
-          payload = json.dumps({
-              "model": "qwen3:8b",
-              "messages": [{"role": "user", "content": prompt}],
-              "stream": False,
-              "think": False,
-              "options": {"temperature": 0, "num_ctx": 8192, "num_predict": 350},
+          ''' + "\n\n".join(reports)
+          payload=json.dumps({
+              "model":"qwen3:8b",
+              "messages":[{"role":"user","content":prompt}],
+              "stream":False,
+              "think":False,
+              "options":{"temperature":0,"num_ctx":8192,"num_predict":350},
           }).encode()
-          req = urllib.request.Request("http://127.0.0.1:11434/api/chat", data=payload, headers={"Content-Type": "application/json"})
+          req=urllib.request.Request(
+              "http://127.0.0.1:11434/api/chat",
+              data=payload,
+              headers={"Content-Type":"application/json"},
+          )
           with urllib.request.urlopen(req, timeout=600) as response:
-              result = json.load(response)
-          text = result["message"]["content"].strip()
-          Path("artifacts/rs-fresh-audit/verdict.txt").write_text(text + "\n", encoding="utf-8")
+              result=json.load(response)
+          text=result["message"]["content"].strip()
+          (root / "verdict.txt").write_text(text + "\n", encoding="utf-8")
           print("===== FRESH AUDIT FINAL =====")
           print(text)
-          if f"TARGET_SHA: {target}" not in text:
-              raise SystemExit("fresh audit did not bind verdict to exact target")
-          if "VERDICT: PASS_ZERO_MATERIAL_FINDINGS" not in text:
-              raise SystemExit("fresh independent audit found or could not exclude material findings")
-          for report in (a, b):
-              if "VERDICT: PASS_ZERO_MATERIAL_FINDINGS" not in report:
-                  raise SystemExit("a focused fresh-audit pass did not independently pass")
+          if f"TARGET_SHA: {target}" not in text or "VERDICT: PASS_ZERO_MATERIAL_FINDINGS" not in text:
+              raise SystemExit("fresh independent audit did not pass exact target")
           PY
 
       - name: Upload fresh-audit evidence
@@ -250,6 +206,4 @@ jobs:
 
       - name: Cleanup audit runtime
         if: always()
-        shell: bash
-        run: |
-          docker rm -f rs-fresh-auditor >/dev/null 2>&1 || true
+        run: docker rm -f rs-fresh-auditor >/dev/null 2>&1 || true

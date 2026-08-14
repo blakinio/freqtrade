@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import Protocol, runtime_checkable
+from uuid import uuid5
 
 from ai_platform.portal.contracts.bots import BotInstance, BotObservedState
 from ai_platform.portal.contracts.common import CorrelationContext
@@ -18,7 +20,6 @@ from ai_platform.portal.contracts.execution import (
 from ai_platform.portal.contracts.risk import ApprovedExecutionIntent
 from ai_platform.portal.execution.config import build_safe_dry_run_config
 from ai_platform.portal.execution.errors import (
-    RuntimeDriverError,
     RuntimeNotProvisionedError,
     RuntimeReadIncompleteError,
     RuntimeReadIsolationError,
@@ -40,26 +41,38 @@ from ai_platform.portal.execution.runtime import (
     DriverRuntimeState,
     ResolvedRuntimeArtifacts,
     RuntimeArtifactResolver,
-    RuntimeContainerSpec,
-    RuntimeDriver,
     RuntimeRecord,
 )
 from ai_platform.portal.execution.workspace import RuntimeWorkspaceStore
+from ai_platform.portal.runtime_supervisor import (
+    SupervisorOperation,
+    SupervisorOutcome,
+    SupervisorRequest,
+)
 
 
 Clock = Callable[[], datetime]
 
 
+@runtime_checkable
+class RuntimeSupervisorClient(Protocol):
+    """Narrow lifecycle client; ordinary workers never receive RuntimeDriver authority."""
+
+    def execute(self, request: SupervisorRequest) -> SupervisorOutcome: ...
+
+
 class FreqtradeExecutionAdapter:
     def __init__(
         self,
-        driver: RuntimeDriver,
+        supervisor: RuntimeSupervisorClient,
         artifact_resolver: RuntimeArtifactResolver,
         workspace_store: RuntimeWorkspaceStore,
         clock: Clock | None = None,
         private_read_collector: PrivateRuntimeCollector | None = None,
     ) -> None:
-        self._driver = driver
+        if not isinstance(supervisor, RuntimeSupervisorClient):
+            raise TypeError("execution adapter requires the narrow Runtime Supervisor client")
+        self._supervisor = supervisor
         self._artifact_resolver = artifact_resolver
         self._workspace_store = workspace_store
         self._clock = clock or (lambda: datetime.now(UTC))
@@ -108,8 +121,16 @@ class FreqtradeExecutionAdapter:
                     raise RuntimeRevisionConflictError(
                         "new RuntimeGeneration ordinal must be greater than current generation"
                     )
-                previous_state = self._driver.inspect(current.runtime_id)
-                if previous_state not in {
+                previous = self._execute_supervisor(
+                    current,
+                    context,
+                    SupervisorOperation.INSPECT_GENERATION,
+                )
+                if not previous.accepted or previous.state is None:
+                    raise RuntimeRevisionConflictError(
+                        "previous runtime generation inspection was rejected by Runtime Supervisor"
+                    )
+                if previous.state not in {
                     DriverRuntimeState.MISSING,
                     DriverRuntimeState.CREATED,
                     DriverRuntimeState.STOPPED,
@@ -132,7 +153,7 @@ class FreqtradeExecutionAdapter:
             self._workspace_store.write_config(runtime_id, config)
         except ValueError as exc:
             raise RuntimeRevisionConflictError(str(exc)) from exc
-        state_path = self._workspace_store.ensure_state(runtime_id)
+        self._workspace_store.ensure_state(runtime_id)
 
         record = RuntimeRecord(
             tenant_id=bot.tenant_id,
@@ -140,10 +161,11 @@ class FreqtradeExecutionAdapter:
             generation_id=generation_id,
             generation_ordinal=artifacts.generation_ordinal,
             generation_spec_digest=artifacts.generation_spec_digest,
+            state_version=bot.state_version,
             config_revision_id=artifacts.config_revision_id,
             config_revision=artifacts.config_revision,
             config_revision_digest=artifacts.config_revision_digest,
-            normalized_runtime_config_digest=(artifacts.normalized_runtime_config_digest),
+            normalized_runtime_config_digest=artifacts.normalized_runtime_config_digest,
             runtime_image_digest=artifacts.runtime_image_digest,
             strategy_artifact_digest=artifacts.strategy_artifact_digest,
             model_artifact_digest=artifacts.model_artifact_digest,
@@ -159,24 +181,15 @@ class FreqtradeExecutionAdapter:
         )
         self._workspace_store.write_record(record)
 
-        spec = RuntimeContainerSpec(
-            runtime_id=runtime_id,
-            image=artifacts.image,
-            config_path=self._workspace_store.config_path_for(runtime_id),
-            state_path=state_path,
-            strategy_name=artifacts.strategy_name,
-            labels=self._runtime_labels(
-                bot,
-                generation_id,
-                artifacts.config_revision,
-                runtime_id,
-                context,
-            ),
+        outcome = self._execute_supervisor(
+            record,
+            context,
+            SupervisorOperation.ENSURE_PROVISIONED,
+            expected_state_version=bot.state_version,
         )
-        try:
-            state = self._driver.provision(spec)
-        except RuntimeDriverError as exc:
-            self._write_failure(record, context, exc.reason_code)
+        if not outcome.accepted or outcome.state is None or outcome.state_version < 1:
+            reason_code = self._outcome_reason(outcome)
+            self._write_failure(record, context, reason_code)
             return self._status(
                 bot.tenant_id,
                 bot.bot_id,
@@ -184,16 +197,17 @@ class FreqtradeExecutionAdapter:
                 BotObservedState.ERROR,
             )
 
+        record = record.model_copy(update={"state_version": outcome.state_version})
         try:
             self._workspace_store.set_current_record(record)
         except ValueError as exc:
             raise RuntimeRevisionConflictError(str(exc)) from exc
-        self._write_success(record, context)
+        self._write_success(record, context, state_version=outcome.state_version)
         return self._status(
             bot.tenant_id,
             bot.bot_id,
             runtime_id,
-            self._observed_state(state),
+            self._observed_state(outcome.state),
         )
 
     def start_bot(
@@ -203,7 +217,12 @@ class FreqtradeExecutionAdapter:
     ) -> RuntimeStatus:
         record = self._require_record(bot.tenant_id, bot.bot_id)
         self._require_generation(record, self._desired_generation_id(bot))
-        return self._lifecycle_status(record, context, self._driver.start)
+        return self._lifecycle_status(
+            record,
+            context,
+            SupervisorOperation.ENSURE_RUNNING,
+            expected_state_version=bot.state_version,
+        )
 
     def pause_bot(
         self,
@@ -212,7 +231,7 @@ class FreqtradeExecutionAdapter:
         context: CorrelationContext,
     ) -> RuntimeStatus:
         record = self._require_record(tenant_id, bot_id)
-        return self._lifecycle_status(record, context, self._driver.pause)
+        return self._lifecycle_status(record, context, SupervisorOperation.ENSURE_PAUSED)
 
     def stop_bot(
         self,
@@ -221,7 +240,7 @@ class FreqtradeExecutionAdapter:
         context: CorrelationContext,
     ) -> RuntimeStatus:
         record = self._require_record(tenant_id, bot_id)
-        return self._lifecycle_status(record, context, self._driver.stop)
+        return self._lifecycle_status(record, context, SupervisorOperation.ENSURE_STOPPED)
 
     def get_health(
         self,
@@ -239,28 +258,28 @@ class FreqtradeExecutionAdapter:
                 observed_at=self._clock(),
                 reason_code=record.last_error_code,
             )
-        try:
-            state = self._driver.inspect(record.runtime_id)
-        except RuntimeDriverError as exc:
-            self._write_failure(record, context, exc.reason_code)
+        outcome = self._execute_supervisor(record, context, SupervisorOperation.INSPECT_GENERATION)
+        if not outcome.accepted or outcome.state is None:
+            reason_code = self._outcome_reason(outcome)
+            self._write_failure(record, context, reason_code)
             return ExecutionHealth(
                 tenant_id=tenant_id,
                 bot_id=bot_id,
                 runtime_id=record.runtime_id,
                 health=RuntimeHealthState.UNHEALTHY,
                 observed_at=self._clock(),
-                reason_code=exc.reason_code,
+                reason_code=reason_code,
             )
 
-        self._write_success(record, context)
-        health, reason_code = self._health_state(state)
+        self._write_success(record, context, state_version=outcome.state_version)
+        health, health_reason_code = self._health_state(outcome.state)
         return ExecutionHealth(
             tenant_id=tenant_id,
             bot_id=bot_id,
             runtime_id=record.runtime_id,
             health=health,
             observed_at=self._clock(),
-            reason_code=reason_code,
+            reason_code=health_reason_code,
         )
 
     def get_runtime_status(
@@ -270,10 +289,9 @@ class FreqtradeExecutionAdapter:
         context: CorrelationContext,
     ) -> RuntimeStatus:
         record = self._require_record(tenant_id, bot_id)
-        try:
-            state = self._driver.inspect(record.runtime_id)
-        except RuntimeDriverError as exc:
-            self._write_failure(record, context, exc.reason_code)
+        outcome = self._execute_supervisor(record, context, SupervisorOperation.INSPECT_GENERATION)
+        if not outcome.accepted or outcome.state is None:
+            self._write_failure(record, context, self._outcome_reason(outcome))
             return self._status(
                 tenant_id,
                 bot_id,
@@ -281,12 +299,12 @@ class FreqtradeExecutionAdapter:
                 BotObservedState.ERROR,
             )
 
-        self._write_success(record, context)
+        self._write_success(record, context, state_version=outcome.state_version)
         return self._status(
             tenant_id,
             bot_id,
             record.runtime_id,
-            self._observed_state(state),
+            self._observed_state(outcome.state),
         )
 
     def submit_approved_intent(
@@ -443,25 +461,86 @@ class FreqtradeExecutionAdapter:
         self,
         record: RuntimeRecord,
         context: CorrelationContext,
-        operation: Callable[[str], DriverRuntimeState],
+        operation: SupervisorOperation,
+        *,
+        expected_state_version: int | None = None,
     ) -> RuntimeStatus:
-        try:
-            state = operation(record.runtime_id)
-        except RuntimeDriverError as exc:
-            self._write_failure(record, context, exc.reason_code)
+        outcome = self._execute_supervisor(
+            record,
+            context,
+            operation,
+            expected_state_version=expected_state_version,
+        )
+        if not outcome.accepted or outcome.state is None:
+            self._write_failure(record, context, self._outcome_reason(outcome))
             return self._status(
                 record.tenant_id,
                 record.bot_id,
                 record.runtime_id,
                 BotObservedState.ERROR,
             )
-        self._write_success(record, context)
+        self._write_success(record, context, state_version=outcome.state_version)
         return self._status(
             record.tenant_id,
             record.bot_id,
             record.runtime_id,
-            self._observed_state(state),
+            self._observed_state(outcome.state),
         )
+
+    def _execute_supervisor(
+        self,
+        record: RuntimeRecord,
+        context: CorrelationContext,
+        operation: SupervisorOperation,
+        *,
+        expected_state_version: int | None = None,
+    ) -> SupervisorOutcome:
+        state_version = (
+            record.state_version if expected_state_version is None else expected_state_version
+        )
+        command_id = uuid5(
+            context.request_id,
+            ":".join(
+                (
+                    record.tenant_id,
+                    record.bot_id,
+                    record.generation_id,
+                    operation.value,
+                    str(state_version),
+                )
+            ),
+        )
+        request = SupervisorRequest(
+            tenant_id=record.tenant_id,
+            bot_id=record.bot_id,
+            generation_id=record.generation_id,
+            generation_spec_digest=record.generation_spec_digest,
+            operation=operation,
+            command_id=command_id,
+            expected_generation_ordinal=record.generation_ordinal,
+            expected_state_version=state_version,
+            correlation_id=context.correlation_id,
+            causation_id=context.causation_id,
+        )
+        outcome = self._supervisor.execute(request)
+        if (
+            outcome.tenant_id != request.tenant_id
+            or outcome.bot_id != request.bot_id
+            or outcome.generation_id != request.generation_id
+            or outcome.generation_spec_digest != request.generation_spec_digest
+            or outcome.operation is not request.operation
+            or outcome.command_id != request.command_id
+            or outcome.expected_generation_ordinal != request.expected_generation_ordinal
+            or outcome.expected_state_version != request.expected_state_version
+            or outcome.correlation_id != request.correlation_id
+            or outcome.causation_id != request.causation_id
+        ):
+            raise RuntimeRevisionConflictError("Runtime Supervisor outcome identity mismatch")
+        return outcome
+
+    @staticmethod
+    def _outcome_reason(outcome: SupervisorOutcome) -> str:
+        return outcome.driver_reason_code or outcome.code.value
 
     def _require_record(
         self,
@@ -500,11 +579,13 @@ class FreqtradeExecutionAdapter:
         record: RuntimeRecord,
         context: CorrelationContext,
     ) -> str | None:
-        try:
-            state = self._driver.inspect(record.runtime_id)
-        except RuntimeDriverError as exc:
-            self._write_failure(record, context, exc.reason_code)
-            return exc.reason_code
+        outcome = self._execute_supervisor(record, context, SupervisorOperation.INSPECT_GENERATION)
+        if not outcome.accepted or outcome.state is None:
+            reason_code = self._outcome_reason(outcome)
+            self._write_failure(record, context, reason_code)
+            return reason_code
+        state = outcome.state
+        self._write_success(record, context, state_version=outcome.state_version)
         if state is DriverRuntimeState.RUNNING:
             return None
         reason_code = {
@@ -514,7 +595,7 @@ class FreqtradeExecutionAdapter:
             DriverRuntimeState.PAUSED: "RUNTIME_READ_RUNTIME_PAUSED",
             DriverRuntimeState.STOPPED: "RUNTIME_READ_RUNTIME_STOPPED",
         }[state]
-        self._write_failure(record, context, reason_code)
+        self._write_failure(record, context, reason_code, state_version=outcome.state_version)
         return reason_code
 
     def _unavailable_snapshot(
@@ -664,34 +745,39 @@ class FreqtradeExecutionAdapter:
         self,
         record: RuntimeRecord,
         context: CorrelationContext,
+        *,
+        state_version: int | None = None,
     ) -> None:
-        self._write_record_status(record, context, None)
+        self._write_record_status(record, context, None, state_version=state_version)
 
     def _write_failure(
         self,
         record: RuntimeRecord,
         context: CorrelationContext,
         reason_code: str,
+        *,
+        state_version: int | None = None,
     ) -> None:
-        self._write_record_status(record, context, reason_code)
+        self._write_record_status(record, context, reason_code, state_version=state_version)
 
     def _write_record_status(
         self,
         record: RuntimeRecord,
         context: CorrelationContext,
         reason_code: str | None,
+        *,
+        state_version: int | None = None,
     ) -> None:
-        self._workspace_store.write_record(
-            record.model_copy(
-                update={
-                    "request_id": context.request_id,
-                    "correlation_id": context.correlation_id,
-                    "causation_id": context.causation_id,
-                    "updated_at": self._clock(),
-                    "last_error_code": reason_code,
-                }
-            )
-        )
+        update: dict[str, object] = {
+            "request_id": context.request_id,
+            "correlation_id": context.correlation_id,
+            "causation_id": context.causation_id,
+            "updated_at": self._clock(),
+            "last_error_code": reason_code,
+        }
+        if state_version is not None and state_version >= 1:
+            update["state_version"] = state_version
+        self._workspace_store.write_record(record.model_copy(update=update))
 
     def _status(
         self,

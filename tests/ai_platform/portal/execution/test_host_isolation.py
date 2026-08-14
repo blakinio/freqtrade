@@ -344,6 +344,7 @@ def test_network_attestation_accepts_exact_staged_canonical_ruleset(tmp_path: Pa
         state_root=tmp_path / "state",
         btrfs_mount=tmp_path,
     )
+    backend._network_ids["runtime-1"] = NETWORK_ID
 
     backend.attest_network(plan, NETWORK_NAME, "runtime-1")
 
@@ -419,6 +420,7 @@ def test_network_attestation_rejects_noncanonical_staged_ruleset(
         state_root=tmp_path / "state",
         btrfs_mount=tmp_path,
     )
+    backend._network_ids["runtime-1"] = NETWORK_ID
 
     with pytest.raises(RuntimeDriverError) as exc_info:
         backend.attest_network(plan, NETWORK_NAME, "runtime-1")
@@ -444,6 +446,7 @@ def test_network_attestation_rejects_copied_runtime_labels_on_wrong_container(
         state_root=tmp_path / "state",
         btrfs_mount=tmp_path,
     )
+    backend._network_ids["runtime-1"] = NETWORK_ID
 
     with pytest.raises(RuntimeDriverError) as exc_info:
         backend.attest_network(plan, NETWORK_NAME, "runtime-1")
@@ -468,6 +471,7 @@ def test_network_attestation_rejects_unrelated_container(tmp_path: Path) -> None
         state_root=tmp_path / "state",
         btrfs_mount=tmp_path,
     )
+    backend._network_ids["runtime-1"] = NETWORK_ID
 
     with pytest.raises(RuntimeDriverError) as exc_info:
         backend.attest_network(plan, NETWORK_NAME, "runtime-1")

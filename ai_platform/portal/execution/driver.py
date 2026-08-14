@@ -25,6 +25,9 @@ from ai_platform.portal.execution.isolation import (
 from ai_platform.portal.execution.runtime import DriverRuntimeState, RuntimeContainerSpec
 
 
+DEFAULT_ENGINE_COMMAND_TIMEOUT_SECONDS = 30.0
+
+
 @dataclass(frozen=True)
 class CommandResult:
     returncode: int
@@ -41,6 +44,22 @@ class CommandRunner(Protocol):
     ) -> CommandResult: ...
 
 
+class RuntimeOwnershipStore(Protocol):
+    """Supervisor-owned durable authority for immutable Docker identity."""
+
+    def container_id(self, runtime_id: str) -> str | None: ...
+
+    def bind_container_id(self, runtime_id: str, container_id: str) -> bool: ...
+
+    def release_container_id(self, runtime_id: str, container_id: str) -> bool: ...
+
+    def network_id(self, runtime_id: str) -> str | None: ...
+
+    def bind_network_id(self, runtime_id: str, network_id: str) -> bool: ...
+
+    def release_network_id(self, runtime_id: str, network_id: str) -> bool: ...
+
+
 class SubprocessCommandRunner:
     def run(
         self,
@@ -48,18 +67,23 @@ class SubprocessCommandRunner:
         *,
         timeout_seconds: float | None = None,
     ) -> CommandResult:
+        effective_timeout = (
+            DEFAULT_ENGINE_COMMAND_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds
+        )
+        if effective_timeout <= 0:
+            raise ValueError("command timeout must be positive")
         try:
             completed = subprocess.run(
                 list(args),
                 check=False,
                 capture_output=True,
                 text=True,
-                timeout=timeout_seconds,
+                timeout=effective_timeout,
             )
         except subprocess.TimeoutExpired:
             return CommandResult(
                 returncode=124,
-                stderr=f"command timed out after {timeout_seconds:g}s",
+                stderr=f"command timed out after {effective_timeout:g}s",
             )
         return CommandResult(
             returncode=completed.returncode,
@@ -448,6 +472,83 @@ class DockerCliRuntimeDriver:
         self._networks: dict[str, str] = {}
         self._specs: dict[str, RuntimeContainerSpec] = {}
         self._plan_digests: dict[str, str] = {}
+        self._container_ids: dict[str, str] = {}
+        self._ownership_store: RuntimeOwnershipStore | None = None
+
+    def bind_ownership_store(self, store: RuntimeOwnershipStore) -> None:
+        if self._ownership_store is not None and self._ownership_store is not store:
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                "runtime driver ownership authority cannot be rebound",
+            )
+        for runtime_id, container_id in self._container_ids.items():
+            if not store.bind_container_id(runtime_id, container_id):
+                raise RuntimeDriverError(
+                    "GENERATION_OWNERSHIP_CONFLICT",
+                    "durable container identity conflicts with in-process evidence",
+                )
+        self._ownership_store = store
+        bind_external = getattr(self._external, "bind_ownership_store", None)
+        if callable(bind_external):
+            bind_external(store)
+
+    def _container_id(self, runtime_id: str) -> str | None:
+        durable = (
+            self._ownership_store.container_id(runtime_id)
+            if self._ownership_store is not None
+            else None
+        )
+        volatile = self._container_ids.get(runtime_id)
+        if durable is not None and volatile is not None and durable != volatile:
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                "durable and in-process container identities disagree",
+            )
+        return durable or volatile
+
+    def _bind_container_id(self, runtime_id: str, container_id: str) -> None:
+        existing = self._container_id(runtime_id)
+        if existing is not None and existing != container_id:
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                "immutable container identity conflicts with durable ownership",
+            )
+        if self._ownership_store is not None and not self._ownership_store.bind_container_id(
+            runtime_id, container_id
+        ):
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                "immutable container identity conflicts with durable ownership",
+            )
+        self._container_ids[runtime_id] = container_id
+
+    def _release_container_id(self, runtime_id: str, container_id: str) -> None:
+        if self._ownership_store is not None and not self._ownership_store.release_container_id(
+            runtime_id, container_id
+        ):
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                "refusing to release a different durable container identity",
+            )
+        if self._container_ids.get(runtime_id) == container_id:
+            self._container_ids.pop(runtime_id, None)
+
+    def has_current_generation_evidence(self, runtime_id: str, spec: RuntimeContainerSpec) -> bool:
+        if runtime_id not in self._attested:
+            return False
+        if self._specs.get(runtime_id) != spec:
+            return False
+        try:
+            binding = self._plans.resolve(runtime_id)
+        except RuntimeDriverError:
+            return False
+        plan_digest = binding.isolation_plan_digest
+        return (
+            self._plan_digests.get(runtime_id) == plan_digest
+            and self._networks.get(runtime_id) == self._network_name(runtime_id)
+            and self._fingerprints.get(runtime_id) == self._fingerprint(spec, plan_digest)
+            and bool(self._container_id(runtime_id))
+        )
 
     def provision(self, spec: RuntimeContainerSpec) -> DriverRuntimeState:
         binding = self._plans.resolve(spec.runtime_id)
@@ -478,16 +579,28 @@ class DockerCliRuntimeDriver:
             self._cleanup_failed_runtime(spec.runtime_id, self._network_name(spec.runtime_id))
 
         network = self._network_name(spec.runtime_id)
+        created_container_id: str | None = None
         self._external.prepare_storage(plan, spec.state_path)
         self._external.prepare_network(plan, network, spec.runtime_id)
         try:
             self._require_image_present(spec.image, plan.runtime_image_digest)
-            self._require_success(self._create_args(spec, plan, network), "DOCKER_CREATE_FAILED")
+            create_result = self._require_success(
+                self._create_args(spec, plan, network), "DOCKER_CREATE_FAILED"
+            )
+            created_container_id = create_result.stdout.strip()
+            if not created_container_id:
+                raise RuntimeDriverError(
+                    "DOCKER_CREATE_FAILED",
+                    "Docker create did not return an immutable container identity",
+                )
+            self._bind_container_id(spec.runtime_id, created_container_id)
             self._attest_structural(spec, plan, network)
-            self._require_success(("docker", "start", spec.runtime_id), "DOCKER_START_FAILED")
+            self._require_success(("docker", "start", created_container_id), "DOCKER_START_FAILED")
             self._attest_effective(spec, plan, network)
         except Exception:
-            self._cleanup_failed_runtime(spec.runtime_id, network)
+            self._cleanup_failed_runtime(
+                spec.runtime_id, network, container_id=created_container_id
+            )
             raise
 
         self._attested.add(spec.runtime_id)
@@ -495,6 +608,7 @@ class DockerCliRuntimeDriver:
         self._networks[spec.runtime_id] = network
         self._specs[spec.runtime_id] = spec
         self._plan_digests[spec.runtime_id] = binding.isolation_plan_digest
+        self._bind_container_id(spec.runtime_id, created_container_id)
         return DriverRuntimeState.CREATED
 
     def start(self, runtime_id: str) -> DriverRuntimeState:
@@ -535,7 +649,8 @@ class DockerCliRuntimeDriver:
         if current is DriverRuntimeState.PAUSED:
             return current
         if current is DriverRuntimeState.RUNNING:
-            self._require_success(("docker", "pause", runtime_id), "DOCKER_PAUSE_FAILED")
+            container_id = self._captured_container_id(runtime_id)
+            self._require_success(("docker", "pause", container_id), "DOCKER_PAUSE_FAILED")
             return DriverRuntimeState.PAUSED
         if current is DriverRuntimeState.MISSING:
             raise RuntimeDriverError("RUNTIME_MISSING", "runtime container does not exist")
@@ -551,16 +666,104 @@ class DockerCliRuntimeDriver:
             DriverRuntimeState.RUNNING,
             DriverRuntimeState.PAUSED,
         }:
-            self._require_success(("docker", "stop", runtime_id), "DOCKER_STOP_FAILED")
-            self._clear_generation_evidence(runtime_id)
+            container_id = self._captured_container_id(runtime_id)
+            self._require_success(("docker", "stop", container_id), "DOCKER_STOP_FAILED")
+            self._clear_generation_evidence(runtime_id, keep_container_id=True)
             return DriverRuntimeState.STOPPED
         if current is DriverRuntimeState.MISSING:
             raise RuntimeDriverError("RUNTIME_MISSING", "runtime container does not exist")
         return current
 
+    def retire(self, runtime_id: str) -> DriverRuntimeState:
+        """Remove only the exact generation runtime and its generation-scoped network."""
+
+        expected_container_id = self._container_id(runtime_id)
+        current = self.inspect(runtime_id)
+        network = self._networks.get(runtime_id, self._network_name(runtime_id))
+        if current is not DriverRuntimeState.MISSING:
+            container_id = self._captured_container_id(runtime_id)
+            self._require_success(("docker", "rm", "-f", container_id), "DOCKER_REMOVE_FAILED")
+            self._release_container_id(runtime_id, container_id)
+        elif expected_container_id is not None:
+            self._release_container_id(runtime_id, expected_container_id)
+        try:
+            self._external.cleanup_network(network, runtime_id)
+        finally:
+            self._clear_generation_evidence(runtime_id, keep_container_id=True)
+        return DriverRuntimeState.MISSING
+
+    def _captured_container_id(self, runtime_id: str) -> str:
+        container_id = self._container_id(runtime_id)
+        if not container_id:
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                "immutable container identity is unavailable for the requested generation",
+            )
+        return container_id
+
+    def _owned_container_id(self, runtime_id: str) -> str | None:
+        expected = self._container_id(runtime_id)
+        if expected is None:
+            by_name = self._runner.run(("docker", "inspect", "--format", "{{json .}}", runtime_id))
+            if by_name.returncode != 0:
+                if "no such object" in by_name.stderr.lower():
+                    return None
+                raise RuntimeDriverError(
+                    "GENERATION_OWNERSHIP_CONFLICT",
+                    by_name.stderr.strip() or "runtime ownership evidence is unavailable",
+                )
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                "immutable container identity is unavailable; refusing name-based ownership",
+            )
+
+        identity = self._runner.run(("docker", "inspect", "--format", "{{json .}}", expected))
+        if identity.returncode != 0:
+            if "no such object" not in identity.stderr.lower():
+                raise RuntimeDriverError(
+                    "GENERATION_OWNERSHIP_CONFLICT",
+                    identity.stderr.strip()
+                    or "immutable runtime ownership evidence is unavailable",
+                )
+            by_name = self._runner.run(("docker", "inspect", "--format", "{{json .}}", runtime_id))
+            if by_name.returncode == 0:
+                raise RuntimeDriverError(
+                    "GENERATION_OWNERSHIP_CONFLICT",
+                    "runtime name was replaced by a different Docker object",
+                )
+            if "no such object" in by_name.stderr.lower():
+                return None
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                by_name.stderr.strip() or "runtime replacement evidence is unavailable",
+            )
+        try:
+            payload = json.loads(identity.stdout)
+            container_id = payload["Id"]
+            labels = payload["Config"]["Labels"]
+        except (json.JSONDecodeError, KeyError, TypeError) as exc:
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                "runtime ownership evidence is invalid",
+            ) from exc
+        if (
+            not isinstance(container_id, str)
+            or container_id != expected
+            or not isinstance(labels, dict)
+            or labels.get("ai.portal.runtime_id") != runtime_id
+        ):
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                "immutable runtime identity does not match durable generation ownership",
+            )
+        return expected
+
     def inspect(self, runtime_id: str) -> DriverRuntimeState:
+        container_id = self._owned_container_id(runtime_id)
+        if container_id is None:
+            return DriverRuntimeState.MISSING
         result = self._runner.run(
-            ("docker", "inspect", "--format", "{{.State.Status}}", runtime_id)
+            ("docker", "inspect", "--format", "{{.State.Status}}", container_id)
         )
         if result.returncode != 0:
             if "no such object" in result.stderr.lower():
@@ -572,10 +775,10 @@ class DockerCliRuntimeDriver:
         state = result.stdout.strip().lower()
         if state == "running":
             gate = self._runner.run(
-                ("docker", "exec", runtime_id, "test", "-f", self._RELEASE_FILE)
+                ("docker", "exec", container_id, "test", "-f", self._RELEASE_FILE)
             )
             if gate.returncode == 0:
-                if self._application_probe(runtime_id):
+                if self._application_probe(runtime_id, container_id):
                     return DriverRuntimeState.RUNNING
                 return DriverRuntimeState.STARTING
             if gate.returncode == 1:
@@ -599,7 +802,7 @@ class DockerCliRuntimeDriver:
                 f"unsupported docker runtime state: {state or '<empty>'}",
             ) from exc
 
-    def _application_probe(self, runtime_id: str) -> bool:
+    def _application_probe(self, runtime_id: str, container_id: str) -> bool:
         spec = self._specs.get(runtime_id)
         if spec is None:
             return False
@@ -627,7 +830,7 @@ class DockerCliRuntimeDriver:
             (
                 "docker",
                 "exec",
-                runtime_id,
+                container_id,
                 "/bin/sh",
                 "-ec",
                 script,
@@ -754,7 +957,7 @@ class DockerCliRuntimeDriver:
         plan: RuntimeIsolationPlan,
         network: str,
     ) -> None:
-        info = self._inspect_json(spec.runtime_id)
+        info = self._inspect_json(self._captured_container_id(spec.runtime_id))
         config = info.get("Config") or {}
         host = info.get("HostConfig") or {}
         errors: list[str] = []
@@ -869,11 +1072,12 @@ class DockerCliRuntimeDriver:
         *,
         active_network: bool = False,
     ) -> None:
+        container_id = self._captured_container_id(spec.runtime_id)
         process = self._runner.run(
             (
                 "docker",
                 "exec",
-                spec.runtime_id,
+                container_id,
                 "/bin/sh",
                 "-ec",
                 (
@@ -890,7 +1094,7 @@ class DockerCliRuntimeDriver:
             (
                 "docker",
                 "exec",
-                spec.runtime_id,
+                container_id,
                 "/bin/sh",
                 "-ec",
                 (
@@ -910,15 +1114,15 @@ class DockerCliRuntimeDriver:
         self._require_probe(cgroup, "cgroup")
         self._attest_cgroup(cgroup.stdout, plan)
         mounts = self._runner.run(
-            ("docker", "exec", spec.runtime_id, "/bin/sh", "-ec", "cat /proc/mounts")
+            ("docker", "exec", container_id, "/bin/sh", "-ec", "cat /proc/mounts")
         )
         self._require_probe(mounts, "mounts")
         self._attest_readonly_root(mounts.stdout)
         self._attest_tmpfs(mounts.stdout, plan)
         if active_network:
-            self._attest_active_log_backend(spec.runtime_id, plan)
+            self._attest_active_log_backend(container_id, plan)
         else:
-            self._attest_bounded_logs(spec.runtime_id, plan)
+            self._attest_bounded_logs(container_id, plan)
         self._external.attest_storage(plan, spec.state_path)
         if active_network:
             self._external.attest_active_network(plan, network, spec.runtime_id)
@@ -1095,39 +1299,60 @@ class DockerCliRuntimeDriver:
         return payload[0]
 
     def _release(self, runtime_id: str) -> None:
+        container_id = self._captured_container_id(runtime_id)
         self._require_success(
-            ("docker", "exec", runtime_id, "/bin/sh", "-ec", self._RELEASE),
+            ("docker", "exec", container_id, "/bin/sh", "-ec", self._RELEASE),
             "APPLICATION_RELEASE_FORBIDDEN",
         )
         self._released.add(runtime_id)
 
-    def _cleanup_failed_runtime(self, runtime_id: str, network: str) -> None:
+    def _cleanup_failed_runtime(
+        self,
+        runtime_id: str,
+        network: str,
+        *,
+        container_id: str | None = None,
+    ) -> None:
         errors: list[str] = []
-        try:
-            remove = self._runner.run(("docker", "rm", "-f", runtime_id))
-            if remove.returncode != 0 and "no such" not in remove.stderr.lower():
-                errors.append(remove.stderr.strip() or "docker container cleanup failed")
-        except Exception as exc:  # pragma: no cover - defensive adapter boundary
-            errors.append(f"docker container cleanup raised {type(exc).__name__}: {exc}")
+        immutable_container_id = container_id or self._container_id(runtime_id)
+        if immutable_container_id is not None:
+            try:
+                remove = self._runner.run(("docker", "rm", "-f", immutable_container_id))
+                if remove.returncode != 0 and "no such" not in remove.stderr.lower():
+                    errors.append(remove.stderr.strip() or "docker container cleanup failed")
+                else:
+                    expected = self._container_id(runtime_id)
+                    if expected == immutable_container_id:
+                        self._release_container_id(runtime_id, immutable_container_id)
+            except Exception as exc:
+                errors.append(f"docker container cleanup raised {type(exc).__name__}: {exc}")
+        elif runtime_id in self._attested or runtime_id in self._specs:
+            errors.append(
+                "immutable container identity is unavailable; refusing name-based cleanup"
+            )
         try:
             self._external.cleanup_network(network, runtime_id)
-        except Exception as exc:  # pragma: no cover - concrete backends are unit-tested
+        except Exception as exc:
             errors.append(f"network cleanup raised {type(exc).__name__}: {exc}")
         finally:
-            self._clear_generation_evidence(runtime_id)
+            self._clear_generation_evidence(runtime_id, keep_container_id=True)
         if errors:
             raise RuntimeDriverError(
                 "RUNTIME_CLEANUP_FAILED",
                 "runtime cleanup was incomplete: " + "; ".join(errors),
             )
 
-    def _clear_generation_evidence(self, runtime_id: str) -> None:
+    def _clear_generation_evidence(
+        self, runtime_id: str, *, keep_container_id: bool = False
+    ) -> None:
         self._attested.discard(runtime_id)
         self._released.discard(runtime_id)
         self._fingerprints.pop(runtime_id, None)
         self._networks.pop(runtime_id, None)
         self._specs.pop(runtime_id, None)
         self._plan_digests.pop(runtime_id, None)
+        if not keep_container_id:
+            self._container_ids.pop(runtime_id, None)
 
     def _dns_resolvers(self, plan: RuntimeIsolationPlan) -> tuple[str, ...]:
         resolvers = self._external.dns_resolvers(plan)
@@ -1147,13 +1372,14 @@ class DockerCliRuntimeDriver:
             )
         return probe_bytes
 
-    def _require_success(self, args: Sequence[str], reason_code: str) -> None:
+    def _require_success(self, args: Sequence[str], reason_code: str) -> CommandResult:
         result = self._runner.run(args)
         if result.returncode != 0:
             raise RuntimeDriverError(
                 reason_code,
                 result.stderr.strip() or f"command failed: {args[1]}",
             )
+        return result
 
     @staticmethod
     def _require_probe(result: CommandResult, area: str) -> None:

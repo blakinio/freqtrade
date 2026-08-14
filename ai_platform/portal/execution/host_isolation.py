@@ -12,6 +12,7 @@ from ai_platform.portal.execution.driver import (
     CommandResult,
     CommandRunner,
     ExternalIsolationCapabilities,
+    RuntimeOwnershipStore,
 )
 from ai_platform.portal.execution.errors import RuntimeDriverError
 from ai_platform.portal.execution.isolation import (
@@ -148,6 +149,63 @@ class LinuxNftablesBtrfsIsolationAttestor:
         self._state_root = state_root.resolve()
         self._btrfs_mount = btrfs_mount.resolve()
         self._btrfs_sysfs_root = btrfs_sysfs_root.resolve()
+        self._network_ids: dict[str, str] = {}
+        self._ownership_store: RuntimeOwnershipStore | None = None
+
+    def bind_ownership_store(self, store: RuntimeOwnershipStore) -> None:
+        if self._ownership_store is not None and self._ownership_store is not store:
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                "network ownership authority cannot be rebound",
+            )
+        for runtime_id, network_id in self._network_ids.items():
+            if not store.bind_network_id(runtime_id, network_id):
+                raise RuntimeDriverError(
+                    "GENERATION_OWNERSHIP_CONFLICT",
+                    "durable network identity conflicts with in-process evidence",
+                )
+        self._ownership_store = store
+
+    def _network_id(self, runtime_id: str) -> str | None:
+        durable = (
+            self._ownership_store.network_id(runtime_id)
+            if self._ownership_store is not None
+            else None
+        )
+        volatile = self._network_ids.get(runtime_id)
+        if durable is not None and volatile is not None and durable != volatile:
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                "durable and in-process network identities disagree",
+            )
+        return durable or volatile
+
+    def _bind_network_id(self, runtime_id: str, network_id: str) -> None:
+        existing = self._network_id(runtime_id)
+        if existing is not None and existing != network_id:
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                "immutable network identity conflicts with durable ownership",
+            )
+        if self._ownership_store is not None and not self._ownership_store.bind_network_id(
+            runtime_id, network_id
+        ):
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                "immutable network identity conflicts with durable ownership",
+            )
+        self._network_ids[runtime_id] = network_id
+
+    def _release_network_id(self, runtime_id: str, network_id: str) -> None:
+        if self._ownership_store is not None and not self._ownership_store.release_network_id(
+            runtime_id, network_id
+        ):
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                "refusing to release a different durable network identity",
+            )
+        if self._network_ids.get(runtime_id) == network_id:
+            self._network_ids.pop(runtime_id, None)
 
     def capabilities(self) -> ExternalIsolationCapabilities:
         storage = self._storage_capability()
@@ -204,7 +262,7 @@ class LinuxNftablesBtrfsIsolationAttestor:
     ) -> None:
         self._require_network_backend(plan)
         policy = self._policy_for(plan)
-        self._require_success(
+        create_result = self._require_success(
             (
                 "docker",
                 "network",
@@ -218,8 +276,15 @@ class LinuxNftablesBtrfsIsolationAttestor:
             ),
             "HOST_NETWORK_ISOLATION_UNSUPPORTED",
         )
+        network_id = create_result.stdout.strip()
+        if not network_id:
+            raise RuntimeDriverError(
+                "HOST_NETWORK_ISOLATION_UNSUPPORTED",
+                "Docker network create did not return an immutable network identity",
+            )
+        self._bind_network_id(runtime_id, network_id)
         try:
-            network = self._network_info(network_name)
+            network = self._owned_network_info(network_name, runtime_id)
             bridge = self._bridge_name(network)
             table = self._table_name(network_name)
             self._delete_table_if_present(table)
@@ -366,8 +431,9 @@ class LinuxNftablesBtrfsIsolationAttestor:
         network_name: str,
         runtime_id: str,
     ) -> None:
+        self._captured_network_id(runtime_id)
         self.attest_network(plan, network_name, runtime_id)
-        network = self._network_info(network_name)
+        network = self._owned_network_info(network_name, runtime_id)
         bridge = self._bridge_name(network)
         table = self._table_name(network_name)
         self._nft(
@@ -470,7 +536,7 @@ class LinuxNftablesBtrfsIsolationAttestor:
         active: bool,
     ) -> None:
         policy = self._policy_for(plan)
-        network = self._network_info(network_name)
+        network = self._owned_network_info(network_name, runtime_id)
         if bool(network.get("EnableIPv6", False)):
             raise RuntimeDriverError(
                 "ISOLATION_ATTESTATION_FAILED",
@@ -503,16 +569,60 @@ class LinuxNftablesBtrfsIsolationAttestor:
         )
 
     def cleanup_network(self, network_name: str, runtime_id: str) -> None:
-        del runtime_id
         table = self._table_name(network_name)
-        network_result = self._runner.run(("docker", "network", "rm", network_name))
-        if network_result.returncode != 0 and not self._cleanup_target_absent(network_result):
+        expected = self._network_id(runtime_id)
+        if expected is None:
+            by_name = self._runner.run(
+                ("docker", "network", "inspect", "--format", "{{json .}}", network_name)
+            )
+            if by_name.returncode == 0:
+                raise RuntimeDriverError(
+                    "GENERATION_OWNERSHIP_CONFLICT",
+                    "immutable network identity is unavailable; refusing name-based cleanup",
+                )
+            if self._cleanup_target_absent(by_name):
+                return
             raise RuntimeDriverError(
-                "HOST_NETWORK_CLEANUP_FAILED",
-                "generation network cleanup was incomplete; retaining nftables policy: "
-                + (network_result.stderr.strip() or "Docker network cleanup failed"),
+                "GENERATION_OWNERSHIP_CONFLICT",
+                by_name.stderr.strip() or "generation network ownership evidence is unavailable",
             )
 
+        immutable = self._runner.run(
+            ("docker", "network", "inspect", "--format", "{{json .}}", expected)
+        )
+        present = False
+        if immutable.returncode == 0:
+            network = self._parse_network_ownership(immutable)
+            self._require_network_identity(network, runtime_id, expected)
+            present = True
+        elif not self._cleanup_target_absent(immutable):
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                immutable.stderr.strip() or "immutable generation network evidence is unavailable",
+            )
+        else:
+            by_name = self._runner.run(
+                ("docker", "network", "inspect", "--format", "{{json .}}", network_name)
+            )
+            if by_name.returncode == 0:
+                raise RuntimeDriverError(
+                    "GENERATION_OWNERSHIP_CONFLICT",
+                    "generation network name was replaced by a different Docker object",
+                )
+            if not self._cleanup_target_absent(by_name):
+                raise RuntimeDriverError(
+                    "GENERATION_OWNERSHIP_CONFLICT",
+                    by_name.stderr.strip()
+                    or "generation network replacement evidence is unavailable",
+                )
+        if present:
+            removed = self._runner.run(("docker", "network", "rm", expected))
+            if removed.returncode != 0 and not self._cleanup_target_absent(removed):
+                raise RuntimeDriverError(
+                    "HOST_NETWORK_CLEANUP_FAILED",
+                    "generation network cleanup was incomplete; retaining nftables policy: "
+                    + (removed.stderr.strip() or "Docker network cleanup failed"),
+                )
         nft_result = self._runner.run(("nft", "delete", "table", "inet", table))
         if nft_result.returncode != 0 and not self._cleanup_target_absent(nft_result):
             raise RuntimeDriverError(
@@ -520,6 +630,7 @@ class LinuxNftablesBtrfsIsolationAttestor:
                 "generation network was removed but nftables table cleanup failed: "
                 + (nft_result.stderr.strip() or "nftables table cleanup failed"),
             )
+        self._release_network_id(runtime_id, expected)
 
     def _storage_capability(self) -> StorageIsolationBackend | None:
         if not self._command_available("btrfs"):
@@ -654,6 +765,54 @@ class LinuxNftablesBtrfsIsolationAttestor:
                 f"Btrfs qgroup {field_name} status is invalid",
             )
         return value
+
+    def _captured_network_id(self, runtime_id: str) -> str:
+        network_id = self._network_id(runtime_id)
+        if not network_id:
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                "immutable network identity is unavailable for the requested generation",
+            )
+        return network_id
+
+    @staticmethod
+    def _parse_network_ownership(result: CommandResult) -> dict[str, Any]:
+        try:
+            payload = json.loads(result.stdout)
+        except json.JSONDecodeError as exc:
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                "generation network ownership evidence is invalid",
+            ) from exc
+        if not isinstance(payload, dict):
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                "generation network ownership evidence has an unexpected shape",
+            )
+        return payload
+
+    @staticmethod
+    def _require_network_identity(network: dict[str, Any], runtime_id: str, expected: str) -> None:
+        network_id = network.get("Id")
+        labels = network.get("Labels")
+        if (
+            not isinstance(network_id, str)
+            or not network_id
+            or not isinstance(labels, dict)
+            or labels.get("ai.portal.runtime_id") != runtime_id
+            or network_id != expected
+        ):
+            raise RuntimeDriverError(
+                "GENERATION_OWNERSHIP_CONFLICT",
+                "generation network immutable identity does not match runtime ownership",
+            )
+
+    def _owned_network_info(self, network_name: str, runtime_id: str) -> dict[str, Any]:
+        del network_name  # deterministic name is not ownership authority
+        expected = self._captured_network_id(runtime_id)
+        network = self._network_info(expected)
+        self._require_network_identity(network, runtime_id, expected)
+        return network
 
     def _network_info(self, network_name: str) -> dict[str, Any]:
         result = self._runner.run(
@@ -1087,12 +1246,12 @@ class LinuxNftablesBtrfsIsolationAttestor:
         reason_code: str,
         *,
         allow_already_enabled: bool = False,
-    ) -> None:
+    ) -> CommandResult:
         result = self._runner.run(args)
         if result.returncode == 0:
-            return
+            return result
         if allow_already_enabled and "already enabled" in result.stderr.lower():
-            return
+            return result
         self._raise_command(reason_code, result, f"command failed: {args[0]}")
 
     @staticmethod

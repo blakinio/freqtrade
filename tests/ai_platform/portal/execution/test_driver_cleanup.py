@@ -67,24 +67,29 @@ def test_cleanup_attempts_network_after_container_remove_failure() -> None:
     driver._released.add("runtime-1")
     driver._fingerprints["runtime-1"] = "fingerprint"
     driver._networks["runtime-1"] = "portal-net-1"
+    driver._container_ids["runtime-1"] = "container-id-1"
 
     with pytest.raises(RuntimeDriverError) as exc_info:
         driver._cleanup_failed_runtime("runtime-1", "portal-net-1")
 
     assert exc_info.value.reason_code == "RUNTIME_CLEANUP_FAILED"
-    assert runner.calls == [("docker", "rm", "-f", "runtime-1")]
+    assert runner.calls == [("docker", "rm", "-f", "container-id-1")]
     assert attestor.cleaned == [("portal-net-1", "runtime-1")]
     assert "runtime-1" not in driver._attested
     assert "runtime-1" not in driver._released
     assert "runtime-1" not in driver._fingerprints
     assert "runtime-1" not in driver._networks
+    assert driver._container_ids["runtime-1"] == "container-id-1"
 
 
 def test_cleanup_treats_missing_container_as_idempotent_success() -> None:
-    runner = _Runner(CommandResult(1, stderr="Error: No such container: runtime-1"))
+    runner = _Runner(CommandResult(1, stderr="Error: No such container: container-id-1"))
     attestor = _CleanupAttestor()
     driver = DockerCliRuntimeDriver(runner, external_attestor=attestor)
+    driver._container_ids["runtime-1"] = "container-id-1"
 
     driver._cleanup_failed_runtime("runtime-1", "portal-net-1")
 
+    assert runner.calls == [("docker", "rm", "-f", "container-id-1")]
     assert attestor.cleaned == [("portal-net-1", "runtime-1")]
+    assert "runtime-1" not in driver._container_ids

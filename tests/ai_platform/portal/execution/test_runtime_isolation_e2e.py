@@ -10,6 +10,7 @@ from uuid import uuid4
 
 import pytest
 
+from ai_platform.portal.contracts.environment import ExecutionMode
 from ai_platform.portal.execution.driver import (
     DockerCliRuntimeDriver,
     DockerHostCapabilityProbe,
@@ -25,9 +26,28 @@ from ai_platform.portal.execution.isolation import (
     StorageIsolationBackend,
 )
 from ai_platform.portal.execution.runtime import DriverRuntimeState, RuntimeContainerSpec
+from ai_platform.portal.runtime_supervisor import (
+    InMemoryCommandJournal,
+    RuntimeSupervisor,
+    SupervisorGeneration,
+    SupervisorOperation,
+    SupervisorRequest,
+)
 
 
 DNS_RESOLVERS = ("1.1.1.1",)
+
+
+class _GenerationView:
+    def __init__(self, generation: SupervisorGeneration) -> None:
+        self._generation = generation
+
+    def resolve(self, generation_id: str) -> SupervisorGeneration | None:
+        return self._generation if generation_id == self._generation.generation_id else None
+
+    def active_generation(self, tenant_id: str, bot_id: str) -> str | None:
+        del tenant_id, bot_id
+        return self._generation.generation_id
 
 
 def _run(*args: str, timeout: int = 60) -> subprocess.CompletedProcess[str]:
@@ -297,9 +317,35 @@ def test_real_docker_driver_provisions_attested_hardened_quarantine(tmp_path: Pa
         external_attestor=attestor,
         gateway_attestor=_BoundGatewayE2EAttestor(),
     )
+    generation = SupervisorGeneration(
+        tenant_id="tenant-e2e",
+        bot_id="bot-e2e",
+        generation_id="generation-e2e",
+        generation_ordinal=1,
+        generation_spec_digest="5" * 64,
+        state_version=1,
+        retired=False,
+        execution_mode=ExecutionMode.DRY_RUN,
+        paper_authorized=True,
+        retirement_authorized=True,
+        container_spec=spec,
+    )
+    supervisor = RuntimeSupervisor(_GenerationView(generation), driver, InMemoryCommandJournal())
+    provision = SupervisorRequest(
+        tenant_id=generation.tenant_id,
+        bot_id=generation.bot_id,
+        generation_id=generation.generation_id,
+        generation_spec_digest=generation.generation_spec_digest,
+        operation=SupervisorOperation.ENSURE_PROVISIONED,
+        command_id=uuid4(),
+        expected_generation_ordinal=1,
+        expected_state_version=1,
+        correlation_id=uuid4(),
+    )
 
     try:
-        assert driver.provision(spec) is DriverRuntimeState.CREATED
+        provisioned = supervisor.execute(provision)
+        assert provisioned.accepted and provisioned.state is DriverRuntimeState.CREATED
         assert driver.inspect(runtime_id) is DriverRuntimeState.CREATED
 
         release_gate = _run(
@@ -382,5 +428,18 @@ def test_real_docker_driver_provisions_attested_hardened_quarantine(tmp_path: Pa
             timeout=10,
         )
         assert public_egress.returncode != 0
+        stopped = supervisor.execute(
+            provision.model_copy(
+                update={"operation": SupervisorOperation.ENSURE_STOPPED, "command_id": uuid4()}
+            )
+        )
+        assert stopped.accepted and stopped.state is DriverRuntimeState.STOPPED
+        retired = supervisor.execute(
+            provision.model_copy(
+                update={"operation": SupervisorOperation.ENSURE_RETIRED, "command_id": uuid4()}
+            )
+        )
+        assert retired.accepted and retired.state is DriverRuntimeState.MISSING
+        assert driver.inspect(runtime_id) is DriverRuntimeState.MISSING
     finally:
         attestor.cleanup(runtime_id)

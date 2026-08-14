@@ -10,6 +10,7 @@ on:
       - "ai_platform/portal/execution/host_isolation.py"
       - "ai_platform/portal/execution/isolation.py"
       - "ai_platform/portal/execution/runtime_image/**"
+      - "ai_platform/portal/runtime_supervisor/**"
       - "tests/ai_platform/portal/execution/test_driver.py"
       - "tests/ai_platform/portal/execution/test_driver_swap_probe.py"
       - "tests/ai_platform/portal/execution/test_host_isolation.py"
@@ -19,6 +20,7 @@ on:
       - "tests/ai_platform/portal/execution/test_linux_isolation_state_owner_e2e.py"
       - "tests/ai_platform/portal/execution/test_runtime_image.py"
       - "tests/ai_platform/portal/execution/test_runtime_isolation_e2e.py"
+      - "tests/ai_platform/portal/runtime_supervisor/**"
   workflow_dispatch:
 
 permissions:
@@ -67,6 +69,12 @@ jobs:
           python -m pytest -q -o addopts=''
           --confcutdir=tests/ai_platform
           tests/ai_platform/portal/execution/test_host_isolation_policy_guardrails.py
+
+      - name: Exercise Linux UDS peer credentials and Supervisor contracts
+        run: >-
+          python -m pytest -q -o addopts=''
+          --confcutdir=tests/ai_platform
+          tests/ai_platform/portal/runtime_supervisor
 
       - name: Resolve validation base to an immutable digest
         id: base

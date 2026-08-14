@@ -21,7 +21,9 @@ NOW_MS = 2_000_000_000_000
 
 
 def _load_healthcheck_module():
-    spec = importlib.util.spec_from_file_location("wickhunter_paper_runtime_healthcheck", MODULE_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "wickhunter_paper_runtime_healthcheck", MODULE_PATH
+    )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

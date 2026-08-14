@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import signal
+from collections.abc import Callable
 from functools import partial
 from pathlib import Path
 from types import FrameType
-from typing import Any, Callable, cast
+from typing import Any, cast
 
 
 _CANCELLATION_FAILURE_MESSAGE = "protected deployment cancellation requires rollback"

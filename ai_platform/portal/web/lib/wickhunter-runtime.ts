@@ -60,6 +60,22 @@ export interface WickHunterPortalRuntimeView {
   runtime: WickHunterRuntimeEvidence;
 }
 
+export interface WickHunterRuntimeGenerationTruth {
+  generation_id: string;
+  managed_mode: WickHunterManagedMode;
+  model_version: string | null;
+  runtime_image_digest: string;
+  normalized_runtime_config_digest: string;
+  generation_spec_digest: string;
+  paper_authorization_digest: string | null;
+}
+
+export interface WickHunterRuntimeTruth {
+  desired_generation: WickHunterRuntimeGenerationTruth | null;
+  observed_generation: WickHunterRuntimeGenerationTruth | null;
+  pending_rollout: boolean;
+}
+
 export type WickHunterRuntimeResult =
   | { state: "AVAILABLE"; view: WickHunterPortalRuntimeView }
   | { state: "UNAVAILABLE" }
@@ -73,6 +89,24 @@ function controlPlaneUrl(): string {
     throw new Error("PORTAL_CONTROL_PLANE_URL must use http or https");
   }
   return url.toString().replace(/\/$/, "");
+}
+
+export async function getWickHunterRuntimeTruth(
+  botId: string,
+  cookieHeader?: string | null,
+): Promise<WickHunterRuntimeTruth> {
+  const response = await fetch(
+    `${controlPlaneUrl()}/v1/bots/${encodeURIComponent(botId)}/runtime-truth`,
+    {
+      cache: "no-store",
+      headers: {
+        accept: "application/json",
+        ...(cookieHeader ? { cookie: cookieHeader } : {}),
+      },
+    },
+  );
+  if (!response.ok) throw new Error(`WickHunter runtime truth failed with status ${response.status}`);
+  return (await response.json()) as WickHunterRuntimeTruth;
 }
 
 export async function getWickHunterRuntime(

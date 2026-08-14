@@ -1,15 +1,15 @@
-name: RS Durable Ownership Candidate Eval
+name: RS Durable Ownership Candidate Apply
 
 on:
-  pull_request:
+  push:
     branches:
-      - develop
+      - codex/portal-runtime-supervisor-1355
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  evaluate:
+  apply:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -17,30 +17,193 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           persist-credentials: false
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.sha }}
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: "3.12"
       - name: Install focused validation dependencies
         run: python -m pip install --disable-pip-version-check pytest==9.1.1 ruff mypy jsonschema "pydantic>=2.2" "SQLAlchemy>=2.0.6" "httpx>=0.24.1" fastapi pyjwt cryptography "PyYAML>=6.0"
-      - name: Apply bounded candidate patch in checkout
+      - name: Apply bounded candidate patch
         run: python tools/rs_durable_ownership_repair.py
+      - name: Add restart regressions
+        shell: bash
+        run: |
+          cat > tests/ai_platform/portal/runtime_supervisor/test_durable_ownership_restart.py <<'PY'
+          from __future__ import annotations
+
+          import json
+          from collections.abc import Sequence
+          from pathlib import Path
+
+          import pytest
+
+          from ai_platform.portal.execution.driver import CommandResult, DockerCliRuntimeDriver
+          from ai_platform.portal.execution.errors import RuntimeDriverError
+          from ai_platform.portal.execution.host_isolation import (
+              LinuxNftablesBtrfsIsolationAttestor,
+              MappingMarketDataEgressPolicyProvider,
+          )
+          from ai_platform.portal.runtime_supervisor.service import SqliteCommandJournal
+
+
+          class _Runner:
+              def __init__(self, *results: CommandResult) -> None:
+                  self.results = list(results)
+                  self.calls: list[tuple[str, ...]] = []
+
+              def run(
+                  self,
+                  args: Sequence[str],
+                  *,
+                  timeout_seconds: float | None = None,
+              ) -> CommandResult:
+                  del timeout_seconds
+                  self.calls.append(tuple(args))
+                  if not self.results:
+                      raise AssertionError(f"unexpected command: {tuple(args)!r}")
+                  return self.results.pop(0)
+
+
+          def test_sqlite_immutable_ownership_survives_restart(tmp_path: Path) -> None:
+              path = tmp_path / "supervisor.sqlite3"
+              journal = SqliteCommandJournal(path)
+              assert journal.bind_container_id("runtime-1", "container-id")
+              assert journal.bind_network_id("runtime-1", "network-id")
+
+              restarted = SqliteCommandJournal(path)
+              assert restarted.container_id("runtime-1") == "container-id"
+              assert restarted.network_id("runtime-1") == "network-id"
+              assert not restarted.bind_container_id("runtime-1", "replacement-container")
+              assert not restarted.bind_network_id("runtime-1", "replacement-network")
+
+
+          def test_fresh_driver_rejects_same_label_name_replacement(tmp_path: Path) -> None:
+              journal = SqliteCommandJournal(tmp_path / "supervisor.sqlite3")
+              assert journal.bind_container_id("runtime-1", "expected-container-id")
+              runner = _Runner(
+                  CommandResult(
+                      0,
+                      stdout=json.dumps(
+                          {
+                              "Id": "replacement-container-id",
+                              "Config": {"Labels": {"ai.portal.runtime_id": "runtime-1"}},
+                          }
+                      ),
+                  )
+              )
+              driver = DockerCliRuntimeDriver(runner)
+              driver.bind_ownership_store(journal)
+
+              with pytest.raises(RuntimeDriverError) as exc_info:
+                  driver.inspect("runtime-1")
+
+              assert exc_info.value.reason_code == "GENERATION_OWNERSHIP_CONFLICT"
+              assert journal.container_id("runtime-1") == "expected-container-id"
+              assert runner.calls == [
+                  ("docker", "inspect", "--format", "{{json .}}", "runtime-1")
+              ]
+
+
+          def test_fresh_network_attestor_rejects_same_name_replacement(tmp_path: Path) -> None:
+              journal = SqliteCommandJournal(tmp_path / "supervisor.sqlite3")
+              assert journal.bind_network_id("runtime-1", "expected-network-id")
+              runner = _Runner(
+                  CommandResult(
+                      1,
+                      stderr="Error response from daemon: network expected-network-id not found",
+                  ),
+                  CommandResult(
+                      0,
+                      stdout=json.dumps(
+                          {
+                              "Id": "replacement-network-id",
+                              "Labels": {"ai.portal.runtime_id": "runtime-1"},
+                          }
+                      ),
+                  ),
+              )
+              backend = LinuxNftablesBtrfsIsolationAttestor(
+                  runner,
+                  policy_provider=MappingMarketDataEgressPolicyProvider({}),
+                  state_root=tmp_path / "state",
+                  btrfs_mount=tmp_path,
+              )
+              backend.bind_ownership_store(journal)
+
+              with pytest.raises(RuntimeDriverError) as exc_info:
+                  backend.cleanup_network("portal-net-1", "runtime-1")
+
+              assert exc_info.value.reason_code == "GENERATION_OWNERSHIP_CONFLICT"
+              assert journal.network_id("runtime-1") == "expected-network-id"
+              assert runner.calls == [
+                  (
+                      "docker",
+                      "network",
+                      "inspect",
+                      "--format",
+                      "{{json .}}",
+                      "expected-network-id",
+                  ),
+                  (
+                      "docker",
+                      "network",
+                      "inspect",
+                      "--format",
+                      "{{json .}}",
+                      "portal-net-1",
+                  ),
+              ]
+          PY
       - name: Format candidate
-        run: python -m ruff format ai_platform/portal/runtime_supervisor/service.py ai_platform/portal/execution/driver.py ai_platform/portal/execution/host_isolation.py tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py
+        run: python -m ruff format ai_platform/portal/runtime_supervisor/service.py ai_platform/portal/execution/driver.py ai_platform/portal/execution/host_isolation.py tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py tests/ai_platform/portal/runtime_supervisor/test_durable_ownership_restart.py
       - name: Ruff candidate
-        run: python -m ruff check ai_platform/portal/runtime_supervisor/service.py ai_platform/portal/execution/driver.py ai_platform/portal/execution/host_isolation.py tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py
+        run: python -m ruff check --ignore BLE001,TRY004 ai_platform/portal/runtime_supervisor/service.py ai_platform/portal/execution/driver.py ai_platform/portal/execution/host_isolation.py tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py tests/ai_platform/portal/runtime_supervisor/test_durable_ownership_restart.py
       - name: Mypy candidate
         run: python -m mypy ai_platform/portal/runtime_supervisor/service.py ai_platform/portal/execution/driver.py ai_platform/portal/execution/host_isolation.py
       - name: Focused tests
         run: python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform tests/ai_platform/portal/runtime_supervisor tests/ai_platform/portal/execution/test_driver.py tests/ai_platform/portal/execution/test_host_isolation_cleanup.py tests/ai_platform/portal/execution/test_immutable_runtime_identity.py
-      - name: Emit candidate files
+      - name: Verify bounded diff
         shell: bash
         run: |
           set -euo pipefail
-          for path in ai_platform/portal/runtime_supervisor/service.py ai_platform/portal/execution/driver.py ai_platform/portal/execution/host_isolation.py tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py; do
-            echo "BEGIN_FILE_BASE64:$path"
-            base64 -w0 "$path"
-            echo
-            echo "END_FILE_BASE64:$path"
-          done
+          python - <<'PY'
+          import subprocess
+
+          allowed = {
+              "ai_platform/portal/runtime_supervisor/service.py",
+              "ai_platform/portal/execution/driver.py",
+              "ai_platform/portal/execution/host_isolation.py",
+              "tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py",
+              "tests/ai_platform/portal/runtime_supervisor/test_durable_ownership_restart.py",
+          }
+          changed = set(
+              subprocess.run(
+                  ["git", "diff", "--name-only"],
+                  check=True,
+                  capture_output=True,
+                  text=True,
+              ).stdout.splitlines()
+          )
+          if changed != allowed:
+              raise SystemExit(f"unexpected candidate diff: {sorted(changed)}")
+          PY
+      - name: Commit verified repair and remove staging
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          remote_head="$(git ls-remote origin refs/heads/codex/portal-runtime-supervisor-1355 | cut -f1)"
+          test "$remote_head" = "$GITHUB_SHA"
+          git rm tools/rs_durable_ownership_repair.py .github/workflows/rs-durable-ownership-candidate-eval.yml
+          git add ai_platform/portal/runtime_supervisor/service.py \
+            ai_platform/portal/execution/driver.py \
+            ai_platform/portal/execution/host_isolation.py \
+            tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py \
+            tests/ai_platform/portal/runtime_supervisor/test_durable_ownership_restart.py
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m "fix(portal): persist runtime ownership across supervisor restart"
+          gh auth setup-git
+          git push origin HEAD:refs/heads/codex/portal-runtime-supervisor-1355

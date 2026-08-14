@@ -79,7 +79,7 @@ def test_cleanup_attempts_network_after_container_remove_failure() -> None:
     assert "runtime-1" not in driver._released
     assert "runtime-1" not in driver._fingerprints
     assert "runtime-1" not in driver._networks
-    assert "runtime-1" not in driver._container_ids
+    assert driver._container_ids["runtime-1"] == "container-id-1"
 
 
 def test_cleanup_treats_missing_container_as_idempotent_success() -> None:

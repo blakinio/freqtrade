@@ -511,3 +511,58 @@ def test_overlapping_same_report_invocation_fails_before_deploy(tmp_path) -> Non
         assert not report_path.exists()
     finally:
         module._release_current_report_lock(second)
+
+
+def test_lock_contention_fails_before_installing_termination_handlers(tmp_path) -> None:
+    report_path = tmp_path / "report.json"
+    first = SimpleNamespace(
+        DeploymentError=RuntimeError,
+        _portal_report_lock_fd=None,
+        _portal_current_report_path=None,
+    )
+    args = SimpleNamespace(
+        report=str(report_path),
+        expected_repository_sha="4" * 40,
+    )
+    module._reserve_current_report_path(first, args)
+    report_path.write_text(
+        json.dumps({"status": "success", "portal": {"health": "first"}}),
+        encoding="utf-8",
+    )
+
+    deploy_calls: list[str] = []
+    reports: list[dict[str, Any]] = []
+    second = SimpleNamespace(
+        DeploymentError=RuntimeError,
+        REQUEST_ID="portal-authentik-public-oidc-20260801-v1",
+        _bounded_schema_cleanup_evidence=_cleanup_evidence(),
+    )
+
+    def original_run(command, *, cwd=None, sensitive=False, check=True):
+        raise AssertionError("lock contention must not enter _run")
+
+    def original_write_report(path: Path, report: dict[str, Any]) -> str:
+        reports.append(copy.deepcopy(report))
+        path.write_text(json.dumps(report), encoding="utf-8")
+        return "digest"
+
+    def original_deploy(_args: Any) -> int:
+        deploy_calls.append("entered")
+        return 0
+
+    second._run = original_run
+    second._write_report = original_write_report
+    second.deploy = original_deploy
+    previous_sigint = signal.getsignal(signal.SIGINT)
+    previous_sigterm = signal.getsignal(signal.SIGTERM)
+    module.install(second)
+    try:
+        with pytest.raises(RuntimeError, match="already owned by another invocation"):
+            second.deploy(args)
+        assert deploy_calls == []
+        assert reports == []
+        assert signal.getsignal(signal.SIGINT) == previous_sigint
+        assert signal.getsignal(signal.SIGTERM) == previous_sigterm
+        assert json.loads(report_path.read_text(encoding="utf-8"))["portal"] == {"health": "first"}
+    finally:
+        module._release_current_report_lock(first)

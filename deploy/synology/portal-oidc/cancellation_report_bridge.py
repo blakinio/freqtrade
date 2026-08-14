@@ -236,26 +236,29 @@ def _guarded_deploy(
     original_deploy: Callable[[Any], int],
     args: Any,
 ) -> int:
-    previous_handlers = _install_termination_handlers(deploy)
     deploy._portal_current_report_path = None
+    previous_handlers: dict[int, Any] | None = None
     try:
+        _reserve_current_report_path(deploy, args)
+        previous_handlers = _install_termination_handlers(deploy)
         try:
-            _reserve_current_report_path(deploy, args)
-            return_code = int(original_deploy(args))
-        except BaseException as exc:
-            pending = _pending_cancellation(deploy)
-            if pending is None:
-                raise
-            _raise_pending_after_fallback(deploy, args, pending, exc)
+            try:
+                return_code = int(original_deploy(args))
+            except BaseException as exc:
+                pending = _pending_cancellation(deploy)
+                if pending is None:
+                    raise
+                _raise_pending_after_fallback(deploy, args, pending, exc)
+        finally:
+            _restore_termination_handlers(previous_handlers)
+
+        pending = _pending_cancellation(deploy)
+        if pending is not None:
+            deploy._portal_pending_cancellation = None
+            raise pending
+        return return_code
     finally:
         _release_current_report_lock(deploy)
-        _restore_termination_handlers(previous_handlers)
-
-    pending = _pending_cancellation(deploy)
-    if pending is not None:
-        deploy._portal_pending_cancellation = None
-        raise pending
-    return return_code
 
 
 def install(deploy: Any) -> None:

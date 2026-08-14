@@ -45,10 +45,15 @@ jobs:
               "test_portal_oidc_cancellation_report_bridge.py"
           )
           source = path.read_text(encoding="utf-8")
+          if "import json\n" not in source:
+              target = "import importlib.util\n"
+              if source.count(target) != 1:
+                  raise SystemExit("expected one import insertion target")
+              source = source.replace(target, target + "import json\n")
           marker = "def test_late_sigint_preserves_existing_canonical_report"
           if marker not in source:
               source += '''\n\ndef test_late_sigint_preserves_existing_canonical_report(tmp_path) -> None:\n    reports: list[dict[str, Any]] = []\n    deploy = SimpleNamespace(\n        DeploymentError=RuntimeError,\n        REQUEST_ID="portal-authentik-public-oidc-20260801-v1",\n        _bounded_schema_cleanup_evidence=_cleanup_evidence(),\n    )\n\n    def original_run(command, *, cwd=None, sensitive=False, check=True):\n        raise AssertionError("late SIGINT test must not pass through _run")\n\n    def original_write_report(path: Path, report: dict[str, Any]) -> str:\n        report["bounded_schema_cleanup_evidence"] = list(\n            deploy._bounded_schema_cleanup_evidence\n        )\n        path.write_text(json.dumps(report), encoding="utf-8")\n        reports.append(copy.deepcopy(report))\n        return "digest"\n\n    def original_deploy(args: Any) -> int:\n        report = {\n            "schema_version": 2,\n            "request_id": deploy.REQUEST_ID,\n            "implementation_sha": args.expected_repository_sha,\n            "status": "success",\n            "secret_values_recorded": False,\n            "live_capital_authorized": False,\n            "portal": {"health": "healthy", "api_mode": True},\n            "authentik": {"issuer_verified": True},\n            "database": {"revision": "20260809_04_runtime_isolation_binding"},\n            "recovery": {"restart_verified": True},\n        }\n        deploy._write_report(Path(args.report), report)\n        handler = signal.getsignal(signal.SIGINT)\n        assert callable(handler)\n        handler(signal.SIGINT, None)\n        raise AssertionError("late SIGINT must not return")\n\n    deploy._run = original_run\n    deploy._write_report = original_write_report\n    deploy.deploy = original_deploy\n    module.install(deploy)\n    args = SimpleNamespace(\n        report=str(tmp_path / "report.json"),\n        expected_repository_sha="f" * 40,\n    )\n\n    with pytest.raises(KeyboardInterrupt):\n        deploy.deploy(args)\n\n    assert len(reports) == 2\n    final = reports[-1]\n    assert final["status"] == "failed"\n    assert final["portal"] == {"health": "healthy", "api_mode": True}\n    assert final["authentik"] == {"issuer_verified": True}\n    assert final["database"] == {\n        "revision": "20260809_04_runtime_isolation_binding"\n    }\n    assert final["recovery"] == {"restart_verified": True}\n    assert final["cancellation"]["type"] == "KeyboardInterrupt"\n    assert final["failure"]["type"] == "CancellationRecoveryError"\n    assert final["bounded_schema_cleanup_evidence"] == _cleanup_evidence()\n'''
-              path.write_text(source, encoding="utf-8")
+          path.write_text(source, encoding="utf-8")
           PY
 
           files=(

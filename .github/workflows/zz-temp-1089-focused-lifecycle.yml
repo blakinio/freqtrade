@@ -20,7 +20,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 1
-          ref: 43d30ce80e8e586b3e3ede3e1faf8f552147877c
+          ref: 5fb6312a2ab120546cc2230efdebc812334149de
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1

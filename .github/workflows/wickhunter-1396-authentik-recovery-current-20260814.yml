@@ -1,0 +1,137 @@
+name: WickHunter #1396 current-base Authentik recovery
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-1396-authentik-recovery-current-20260814.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-1396-authentik-recovery-current-20260814
+  cancel-in-progress: false
+
+env:
+  EXPECTED_BASE_SHA: a51106eb0003910b393dd876ab68f3877eef16dc
+  AUTHENTIK_PROJECT: portal-authentik-local-test
+  AUTHENTIK_ENV: /var/lib/freqtrade-staging-state/portal-authentik-local-test/runtime.env
+
+jobs:
+  recover:
+    name: Validate and recover canonical Authentik services
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Prove bounded request
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$EXPECTED_BASE_SHA" ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          [[ "$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")" == $'A\t.github/workflows/wickhunter-1396-authentik-recovery-current-20260814.yml' ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          docker version >/dev/null
+          test -S /var/run/docker.sock
+
+      - name: Check out exact protected implementation
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: a51106eb0003910b393dd876ab68f3877eef16dc
+
+      - name: Validate protected runtime configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -f "$AUTHENTIK_ENV" && ! -L "$AUTHENTIK_ENV" ]]
+          [[ "$(stat -c '%a' "$AUTHENTIK_ENV")" == "600" ]]
+          python3 deploy/synology/portal-authentik/validate.py --env-file "$AUTHENTIK_ENV"
+          docker compose --project-name "$AUTHENTIK_PROJECT" --env-file "$AUTHENTIK_ENV" \
+            -f deploy/synology/portal-authentik/compose.yml config --quiet
+
+      - name: Capture baseline and recover services
+        shell: bash
+        run: |
+          set -euo pipefail
+          compose=(docker compose --project-name "$AUTHENTIK_PROJECT" --env-file "$AUTHENTIK_ENV" -f deploy/synology/portal-authentik/compose.yml)
+          "${compose[@]}" ps -a --format json > "$RUNNER_TEMP/authentik-before.json"
+          "${compose[@]}" up -d postgresql server worker
+          deadline=$((SECONDS + 600))
+          while (( SECONDS < deadline )); do
+            ok=1
+            for service in postgresql server worker; do
+              id="$("${compose[@]}" ps -q "$service")"
+              [[ -n "$id" ]] || { ok=0; break; }
+              running="$(docker inspect --format '{{.State.Running}}' "$id")"
+              health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$id")"
+              [[ "$running" == "true" && "$health" == "healthy" ]] || { ok=0; break; }
+            done
+            (( ok == 1 )) && break
+            sleep 10
+          done
+          for service in postgresql server worker; do
+            id="$("${compose[@]}" ps -q "$service")"
+            [[ -n "$id" ]]
+            [[ "$(docker inspect --format '{{.State.Running}}' "$id")" == "true" ]]
+            [[ "$(docker inspect --format '{{.State.Health.Status}}' "$id")" == "healthy" ]]
+          done
+          "${compose[@]}" exec -T server ak healthcheck
+          "${compose[@]}" exec -T worker ak healthcheck
+          "${compose[@]}" exec -T worker ak dump_config >/dev/null
+          "${compose[@]}" ps --format json > "$RUNNER_TEMP/authentik-after.json"
+
+      - name: Prove ingress and database exposure boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          compose=(docker compose --project-name "$AUTHENTIK_PROJECT" --env-file "$AUTHENTIK_ENV" -f deploy/synology/portal-authentik/compose.yml)
+          server="$("${compose[@]}" ps -q server)"
+          postgresql="$("${compose[@]}" ps -q postgresql)"
+          postgres_bindings="$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$postgresql")"
+          [[ "$postgres_bindings" == "{}" || "$postgres_bindings" == "null" ]]
+          python3 - "$server" <<'PY'
+          import json,subprocess,sys
+          p=json.loads(subprocess.check_output(['docker','inspect',sys.argv[1]],text=True))[0]
+          bindings=(p.get('HostConfig') or {}).get('PortBindings') or {}
+          rows=bindings.get('9000/tcp') or []
+          if len(rows)!=1 or rows[0].get('HostIp') not in {'127.0.0.1','::1'}:
+              raise SystemExit('Authen­tik server is not loopback-only')
+          if '5432/tcp' in bindings:
+              raise SystemExit('database port unexpectedly published')
+          print('Authen­tik exposure boundaries PASS')
+          PY
+
+      - name: Verify Portal host-state precondition now passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 deploy/synology/portal-oidc/prepare_host_state.py --repository "$GITHUB_WORKSPACE"
+
+      - name: Upload bounded recovery evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: issue1396-authentik-recovery-current-${{ github.run_id }}
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/authentik-before.json
+            ${{ runner.temp }}/authentik-after.json

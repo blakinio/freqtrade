@@ -3,14 +3,12 @@ import Link from "next/link";
 
 import { StatusPill } from "@/components/status-pill";
 import { listBotFleetOperations, type BotFleetRecord } from "@/lib/bot-operations";
-import { getWickHunterRuntime, type WickHunterPortalRuntimeView } from "@/lib/wickhunter-runtime";
-
-type CanonicalManagedMode = "research" | "shadow" | "paper" | "live_blocked";
-type CanonicalWickHunterBot = BotFleetRecord["bot"] & {
-  spec: BotFleetRecord["bot"]["spec"] & { managed_mode?: CanonicalManagedMode };
-  desired_runtime_generation_id?: string | null;
-  observed_runtime_generation_id?: string | null;
-};
+import {
+  getWickHunterRuntime,
+  getWickHunterRuntimeTruth,
+  type WickHunterPortalRuntimeView,
+  type WickHunterRuntimeTruth,
+} from "@/lib/wickhunter-runtime";
 
 function value(
   searchParams: Record<string, string | string[] | undefined>,
@@ -49,76 +47,76 @@ function shortId(identifier: string | null | undefined): string {
   return identifier.length <= 12 ? identifier : `${identifier.slice(0, 12)}…`;
 }
 
-function wickHunterBot(record: BotFleetRecord): CanonicalWickHunterBot {
-  return record.bot as CanonicalWickHunterBot;
+function canonicalModeLabel(truth: WickHunterRuntimeTruth): string {
+  const desired = truth.desired_generation?.managed_mode.toUpperCase() ?? "—";
+  const observed = truth.observed_generation?.managed_mode.toUpperCase() ?? "—";
+  return truth.pending_rollout || desired !== observed
+    ? `Desired ${desired} · Observed ${observed}`
+    : observed;
 }
 
-function wickHunterManagedMode(record: BotFleetRecord): CanonicalManagedMode {
-  return wickHunterBot(record).spec.managed_mode ?? "shadow";
-}
-
-function WickHunterRuntimeCell({ view }: { view: WickHunterPortalRuntimeView }) {
-  const runtime = view.runtime;
+function canonicalModelLabel(truth: WickHunterRuntimeTruth): string {
   return (
-    <td>
-      <StatusPill value={runtime.health} />
-      <strong>
-        {view.managed_mode.toUpperCase()} · {runtime.candidate_identity}
-      </strong>
-      <span>
-        {view.adoption_provenance === "EXTERNAL_RUNTIME_ADOPTED"
-          ? "Adopted existing runtime"
-          : view.adoption_provenance}
-      </span>
-      <span>
-        Generation: {view.generations_synced ? "desired = observed" : "pending reconciliation"}
-      </span>
-      <span>
-        D {shortId(view.desired_runtime_generation_id)} · O{" "}
-        {shortId(view.observed_runtime_generation_id)}
-      </span>
-      <span>no_trade_confidence={runtime.no_trade_confidence}</span>
-      <span>
-        Decision: {runtime.latest_decision?.final_decision ?? "No decision evidence yet"}
-        {runtime.latest_decision?.calibrated_confidence
-          ? ` (${runtime.latest_decision.calibrated_confidence})`
-          : ""}
-      </span>
-      <span>
-        PAPER: {runtime.paper_active ? "active" : "inactive"} · LIVE: {runtime.live_status}
-      </span>
-      <span>Credentials: {runtime.trading_credentials_present ? "present" : "absent"}</span>
-      <span>Order adapter: {runtime.order_adapter_present ? "present" : "absent"}</span>
-      <span>
-        Execution: {runtime.execution_enabled ? "enabled" : "disabled"} · Orders:{" "}
-        {runtime.orders_submitted}
-      </span>
-      <span>Live capital: {runtime.live_capital_authorized ? "authorized" : "false"}</span>
-    </td>
+    truth.observed_generation?.model_version ?? truth.desired_generation?.model_version ?? "model unavailable"
   );
 }
 
-function WickHunterCanonicalRuntimeCell({ record }: { record: BotFleetRecord }) {
-  const bot = wickHunterBot(record);
-  const managedMode = wickHunterManagedMode(record);
+function WickHunterCanonicalRuntimeCell({
+  record,
+  truth,
+  legacyView,
+  legacyUnavailable,
+}: {
+  record: BotFleetRecord;
+  truth: WickHunterRuntimeTruth;
+  legacyView: WickHunterPortalRuntimeView | null;
+  legacyUnavailable: boolean;
+}) {
   const generationsSynced =
-    Boolean(bot.desired_runtime_generation_id) &&
-    bot.desired_runtime_generation_id === bot.observed_runtime_generation_id;
+    Boolean(truth.desired_generation?.generation_id) &&
+    truth.desired_generation?.generation_id === truth.observed_generation?.generation_id &&
+    !truth.pending_rollout;
+  const observedMode = truth.observed_generation?.managed_mode ?? null;
+  const runtime = legacyView?.runtime ?? null;
   return (
     <td>
-      <StatusPill value={record.runtime_health} />
+      <StatusPill value={runtime?.health ?? record.runtime_health} />
       <strong>
-        {managedMode.toUpperCase()} · {bot.spec.model_version}
+        {canonicalModeLabel(truth)} · {canonicalModelLabel(truth)}
       </strong>
       <span>Canonical RuntimeGeneration</span>
       <span>
         Generation: {generationsSynced ? "desired = observed" : "pending reconciliation"}
       </span>
       <span>
-        D {shortId(bot.desired_runtime_generation_id)} · O{" "}
-        {shortId(bot.observed_runtime_generation_id)}
+        D {shortId(truth.desired_generation?.generation_id)} · O{" "}
+        {shortId(truth.observed_generation?.generation_id)}
       </span>
-      <span>Legacy SHADOW evidence: not applicable in {managedMode.toUpperCase()}</span>
+      {runtime ? (
+        <>
+          <span>no_trade_confidence={runtime.no_trade_confidence}</span>
+          <span>
+            Decision: {runtime.latest_decision?.final_decision ?? "No decision evidence yet"}
+            {runtime.latest_decision?.calibrated_confidence
+              ? ` (${runtime.latest_decision.calibrated_confidence})`
+              : ""}
+          </span>
+          <span>
+            PAPER: {runtime.paper_active ? "active" : "inactive"} · LIVE: {runtime.live_status}
+          </span>
+          <span>Credentials: {runtime.trading_credentials_present ? "present" : "absent"}</span>
+          <span>Order adapter: {runtime.order_adapter_present ? "present" : "absent"}</span>
+          <span>
+            Execution: {runtime.execution_enabled ? "enabled" : "disabled"} · Orders:{" "}
+            {runtime.orders_submitted}
+          </span>
+          <span>Live capital: {runtime.live_capital_authorized ? "authorized" : "false"}</span>
+        </>
+      ) : observedMode === "paper" ? (
+        <span>Legacy SHADOW evidence: not applicable in PAPER</span>
+      ) : legacyUnavailable ? (
+        <span>Verified legacy SHADOW runtime evidence is currently unavailable.</span>
+      ) : null}
     </td>
   );
 }
@@ -131,9 +129,12 @@ export default async function BotsPage({
   const cookieHeader = (await cookies()).toString();
   const fleet = await listBotFleetOperations(cookieHeader);
   const wickHunter = fleet.find((record) => record.bot.bot_id === "wickhunter");
-  const wickHunterMode = wickHunter ? wickHunterManagedMode(wickHunter) : null;
+  const wickHunterTruth = wickHunter
+    ? await getWickHunterRuntimeTruth(wickHunter.bot.bot_id, cookieHeader)
+    : null;
+  const observedWickHunterMode = wickHunterTruth?.observed_generation?.managed_mode ?? null;
   const wickHunterRuntimeResult =
-    wickHunter && wickHunterMode === "shadow"
+    wickHunter && observedWickHunterMode === "shadow"
       ? await getWickHunterRuntime(wickHunter.bot.bot_id, cookieHeader)
       : null;
   const query = await searchParams;
@@ -251,18 +252,12 @@ export default async function BotsPage({
               <tbody>
                 {bots.map((record) => {
                   const isWickHunter = record.bot.bot_id === "wickhunter";
-                  const managedMode = isWickHunter ? wickHunterManagedMode(record) : null;
                   const runtimeView =
-                    isWickHunter &&
-                    managedMode === "shadow" &&
-                    wickHunterRuntimeResult?.state === "AVAILABLE"
+                    isWickHunter && wickHunterRuntimeResult?.state === "AVAILABLE"
                       ? wickHunterRuntimeResult.view
                       : null;
                   const runtimeUnavailable =
-                    isWickHunter &&
-                    managedMode === "shadow" &&
-                    wickHunterRuntimeResult?.state === "UNAVAILABLE";
-                  const useCanonicalRuntime = isWickHunter && managedMode !== "shadow";
+                    isWickHunter && wickHunterRuntimeResult?.state === "UNAVAILABLE";
                   return (
                     <tr key={record.bot.bot_id}>
                       <td>
@@ -294,15 +289,13 @@ export default async function BotsPage({
                       <td>
                         <StatusPill value={record.risk_state} />
                       </td>
-                      {runtimeView ? (
-                        <WickHunterRuntimeCell view={runtimeView} />
-                      ) : useCanonicalRuntime ? (
-                        <WickHunterCanonicalRuntimeCell record={record} />
-                      ) : runtimeUnavailable ? (
-                        <td>
-                          <StatusPill value="UNAVAILABLE" />
-                          <span>Verified WH09 runtime evidence is currently unavailable.</span>
-                        </td>
+                      {isWickHunter && wickHunterTruth ? (
+                        <WickHunterCanonicalRuntimeCell
+                          record={record}
+                          truth={wickHunterTruth}
+                          legacyView={runtimeView}
+                          legacyUnavailable={runtimeUnavailable}
+                        />
                       ) : (
                         <td>
                           <StatusPill value={record.runtime_health} />

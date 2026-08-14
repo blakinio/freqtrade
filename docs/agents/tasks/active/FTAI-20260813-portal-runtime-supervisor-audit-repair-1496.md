@@ -16,7 +16,7 @@ run_scope: autonomous_program
 continuation_policy: continue_until_real_stop
 live_capital_authorized: false
 protected_production_deployment_authorized: false
-repair_cycles_for_current_gate: 1
+repair_cycles_for_current_gate: 2
 ```
 
 ## Objective
@@ -40,16 +40,13 @@ Close all material trust-boundary findings on PR #1496, synchronize the delivery
 
 ## Current repair and validation evidence
 
-- The delivery branch was merge-forwarded without force to current `develop@15a4b3e02e7e431d04f0b5c6d861a669c4de4743`, incorporating merged PR #1517 which retired the expired `.github/workflows/portal-oidc-owner-bootstrap.yml` and its registry entry. The compare after merge-forward reported `behind_by=0` and merge-base exactly `15a4b3e...`.
-- Focused CI repair run `31793940741`, job `94746752927`, completed `success`.
-  - 31 focused immutable-ownership/restart/host-isolation tests passed.
-  - Ruff passed.
-  - `git diff --check` passed.
-- Repair commit `aa4e20610cf0f534015063d3d0c06b42eb2c6d1c` aligns stale unit-test fixtures with the stricter immutable ownership contract:
-  - failed `docker rm` retains the immutable container ID for safe retry/reconciliation;
-  - direct network-attestation unit tests that bypass `prepare_network()` explicitly seed the immutable network ID required by production semantics.
-- The lifecycle-bounded one-shot `.github/workflows/repair-1496-ci.yml` removed itself in commit `aa4e20610cf0f534015063d3d0c06b42eb2c6d1c` and is not part of the intended final tree.
-- Pull-request workflow attempts emitted automatically from the GitHub Actions bot-authored repair commit were `action_required`; this checkpoint is intentionally owner-authored through the repository connector so the required exact-head workflows can execute against a non-bot-authored final validation head.
+- The delivery branch was merge-forwarded without force to `develop@15a4b3e02e7e431d04f0b5c6d861a669c4de4743`, incorporating merged PR #1517 which retired the expired `.github/workflows/portal-oidc-owner-bootstrap.yml` and its registry entry. The compare after merge-forward reported `behind_by=0` and merge-base exactly `15a4b3e...`.
+- Focused immutable-ownership CI repair run `31793940741`, job `94746752927`, completed `success`: 31 focused tests passed, Ruff passed, and `git diff --check` passed.
+- Repair commit `aa4e20610cf0f534015063d3d0c06b42eb2c6d1c` aligns stale immutable-ownership unit-test fixtures with the stricter production contract and removes its lifecycle-bounded one-shot repair workflow.
+- Exact-head validation on `97e77c6a3bfad9adffdd2ec2df54fa0105e784b8` independently proved the ownership repair itself: Runtime Isolation E2E `31794125856`, Portal Exact-Image `31794126002`, Portal API Browser `31794125853`, WickHunter Browser `31794126111`, CodeQL `31794125952`, and zizmor `31794125989` reached success before that head was superseded by the integration-test repair.
+- Risk-aware run `31794126034`, AI Platform job `94747528939`, reduced the prior 7 ownership-related failures to exactly one base-synchronization failure: `tests/ai_platform/portal/deployment/test_portal_oidc_owner_bootstrap.py` still tried to read the intentionally retired workflow. The job result was `1 failed, 1536 passed, 83 skipped`.
+- Commit `e87cec8f23147dafcbe58b14bd7688953e35f0e0` replaces that stale assertion with a terminal-retirement contract: `test_expired_request_only_workflow_is_retired()` now requires the workflow to remain absent. No production Portal/runtime behavior is changed.
+- `.github/workflows/repair-1496-ci.yml` and `.github/workflows/portal-oidc-owner-bootstrap.yml` are absent from the intended final tree.
 
 ## Safety
 
@@ -58,9 +55,9 @@ PAPER-only. No deployment, protected-environment mutation, exchange credentials,
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 7
-updated_at: 2026-08-14T12:54:00+02:00
-pre_checkpoint_head: aa4e20610cf0f534015063d3d0c06b42eb2c6d1c
+checkpoint_version: 8
+updated_at: 2026-08-14T13:03:00+02:00
+pre_checkpoint_head: e87cec8f23147dafcbe58b14bd7688953e35f0e0
 current_develop: 15a4b3e02e7e431d04f0b5c6d861a669c4de4743
 branch: codex/portal-runtime-supervisor-1355
 pr: 1496
@@ -75,47 +72,50 @@ context_growth: stable
 decomposition_decision: phased
 validation_level: exact_head_final
 invocation_started_at: 2026-08-14T12:44:00+02:00
-last_progress_at: 2026-08-14T12:54:00+02:00
+last_progress_at: 2026-08-14T13:03:00+02:00
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 1
+repair_cycles_for_current_gate: 2
 context_reconstruction_attempts: 0
 stall_warnings: 0
 proven:
   - ownership restart repair is present in production code and dedicated restart regressions
   - current branch incorporated develop 15a4b3e without force and was not behind at merge-forward
   - expired Portal owner-bootstrap workflow is retired via merged develop PR 1517
-  - focused post-repair validation run 31793940741 / job 94746752927 passed 31 tests plus Ruff and diff-check
-  - task-owned one-shot CI repair workflow removed itself from the repair result
+  - focused ownership validation passed 31 tests plus Ruff and diff-check
+  - Runtime Isolation E2E and all bounded security/browser/image gates passed on the immediately preceding validation head before the stale OIDC test repair
+  - stale OIDC workflow test was isolated from a 1536-pass AI Platform run and repaired without changing production code
+  - task-owned one-shot CI repair workflow is absent
 waiting_on:
-  - terminal required exact-head CI and Runtime Isolation E2E on this checkpoint successor
+  - terminal required exact-head CI/E2E on this checkpoint successor
   - genuinely fresh independent post-repair audit with independent context; this implementing session cannot self-certify that gate
 blockers: []
-next_action: Verify every required exact-head CI/E2E workflow on this checkpoint successor. If terminal green, perform final base/thread/workflow hygiene verification and hand the exact SHA to a genuinely fresh AUDIT ONLY validator; do not merge without PASS_ZERO_MATERIAL_FINDINGS.
+next_action: Verify every required exact-head CI/E2E workflow on this checkpoint successor. If terminal green, verify base freshness, mergeability, zero unresolved threads and temporary-workflow absence, then hand the exact SHA to a genuinely fresh AUDIT ONLY validator; do not merge without PASS_ZERO_MATERIAL_FINDINGS.
 ```
 
 ## Recovery checkpoint
 
 ```yaml
 policy_version: 1
-generation: 2
+generation: 3
 session_id: chat-20260814-1244
 session_started_at: 2026-08-14T12:44:00+02:00
-checkpointed_at: 2026-08-14T12:54:00+02:00
-last_progress_at: 2026-08-14T12:54:00+02:00
+checkpointed_at: 2026-08-14T13:03:00+02:00
+last_progress_at: 2026-08-14T13:03:00+02:00
 phase: final_ci_then_fresh_audit
-exact_head_parent: aa4e20610cf0f534015063d3d0c06b42eb2c6d1c
+exact_head_parent: e87cec8f23147dafcbe58b14bd7688953e35f0e0
 pull_request: 1496
 active_operation: exact_head_ci
 external_run_ids:
   - 31793940741
-operation_started_at: 2026-08-14T12:54:00+02:00
+  - 31794126034
+operation_started_at: 2026-08-14T13:03:00+02:00
 wait_deadline_at: null
-check_generation: ownership-repair-final-ci-2
+check_generation: ownership-repair-final-ci-3
 checks_used: 0
 status: waiting
 safe_to_resume: true
-resume_condition: PR #1496 remains on the same delivery branch and the checkpoint successor exact SHA is unchanged; inspect terminal workflow outcomes or the first relevant failure.
+resume_condition: PR #1496 remains on the same delivery branch and this checkpoint successor exact SHA is unchanged; inspect terminal workflow outcomes or the first relevant failure.
 next_action: Verify the checkpoint successor exact-head workflow matrix and inspect the first relevant failure if any.
 ```

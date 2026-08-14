@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import signal
 from collections.abc import Callable
 from functools import partial
@@ -48,6 +49,42 @@ def _fallback_report(deploy: Any, args: Any, pending: BaseException) -> dict[str
         },
         "cancellation": _cancellation_metadata(pending),
     }
+
+
+def _existing_canonical_report(deploy: Any, args: Any, path: Path) -> dict[str, Any] | None:
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("request_id") != getattr(deploy, "REQUEST_ID", None):
+        return None
+    if payload.get("implementation_sha") != str(args.expected_repository_sha):
+        return None
+    return cast(dict[str, Any], payload)
+
+
+def _cancellation_report(
+    deploy: Any,
+    args: Any,
+    pending: BaseException,
+    path: Path,
+) -> dict[str, Any]:
+    report = _existing_canonical_report(deploy, args, path)
+    if report is None:
+        return _fallback_report(deploy, args, pending)
+    report["status"] = "failed"
+    report.setdefault(
+        "failure",
+        {
+            "type": "CancellationRecoveryError",
+            "message": _CANCELLATION_FAILURE_MESSAGE,
+        },
+    )
+    return report
 
 
 def _termination_exception(signum: int) -> BaseException:
@@ -125,10 +162,11 @@ def _raise_pending_after_fallback(
     pending: BaseException,
     cause: BaseException,
 ) -> None:
+    report_path = Path(args.report).resolve()
     try:
         deploy._write_report(
-            Path(args.report).resolve(),
-            _fallback_report(deploy, args, pending),
+            report_path,
+            _cancellation_report(deploy, args, pending, report_path),
         )
     except Exception as report_exc:
         deploy._portal_pending_cancellation = None

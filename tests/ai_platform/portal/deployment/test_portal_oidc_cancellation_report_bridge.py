@@ -395,3 +395,69 @@ def test_early_sigint_does_not_republish_stale_report(tmp_path) -> None:
     assert "portal" not in final
     assert "database" not in final
     assert "recovery" not in final
+
+
+def test_sigint_after_report_bytes_preserves_current_report(tmp_path) -> None:
+    reports: list[dict[str, Any]] = []
+    report_path = tmp_path / "report.json"
+    deploy = SimpleNamespace(
+        DeploymentError=RuntimeError,
+        REQUEST_ID="portal-authentik-public-oidc-20260801-v1",
+        _bounded_schema_cleanup_evidence=_cleanup_evidence(),
+    )
+
+    def original_run(command, *, cwd=None, sensitive=False, check=True):
+        raise AssertionError("post-write SIGINT test must not pass through _run")
+
+    def original_write_report(path: Path, report: dict[str, Any]) -> str:
+        path.write_text(json.dumps(report), encoding="utf-8")
+        reports.append(copy.deepcopy(report))
+        handler = signal.getsignal(signal.SIGINT)
+        assert callable(handler)
+        handler(signal.SIGINT, None)
+        raise AssertionError("SIGINT after report bytes must not return")
+
+    def original_deploy(args: Any) -> int:
+        report = {
+            "schema_version": 2,
+            "request_id": deploy.REQUEST_ID,
+            "implementation_sha": args.expected_repository_sha,
+            "status": "success",
+            "secret_values_recorded": False,
+            "live_capital_authorized": False,
+            "portal": {"health": "healthy", "api_mode": True},
+            "database": {"revision": "20260809_04_runtime_isolation_binding"},
+            "recovery": {"restart_verified": True},
+        }
+        deploy._write_report(report_path, report)
+        raise AssertionError("post-write SIGINT must interrupt deploy")
+
+    stale = {
+        "schema_version": 2,
+        "request_id": deploy.REQUEST_ID,
+        "implementation_sha": "2" * 40,
+        "status": "success",
+        "portal": {"health": "stale"},
+    }
+    report_path.write_text(json.dumps(stale), encoding="utf-8")
+
+    deploy._run = original_run
+    deploy._write_report = original_write_report
+    deploy.deploy = original_deploy
+    module.install(deploy)
+    args = SimpleNamespace(
+        report=str(report_path),
+        expected_repository_sha="2" * 40,
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        deploy.deploy(args)
+
+    assert len(reports) == 2
+    final = reports[-1]
+    assert final["status"] == "failed"
+    assert final["portal"] == {"health": "healthy", "api_mode": True}
+    assert final["database"] == {"revision": "20260809_04_runtime_isolation_binding"}
+    assert final["recovery"] == {"restart_verified": True}
+    assert final["cancellation"]["type"] == "KeyboardInterrupt"
+    assert final["failure"]["type"] == "CancellationRecoveryError"

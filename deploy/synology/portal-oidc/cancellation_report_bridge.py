@@ -140,9 +140,7 @@ def _guarded_write_report(
     if pending is not None:
         report["status"] = "failed"
         report["cancellation"] = _cancellation_metadata(pending)
-    digest = cast(str, original_write_report(path, report))
-    deploy._portal_current_report_path = path.resolve()
-    return digest
+    return cast(str, original_write_report(path, report))
 
 
 def _install_termination_handlers(deploy: Any) -> dict[int, Any]:
@@ -179,6 +177,22 @@ def _raise_pending_after_fallback(
     raise pending from cause
 
 
+def _reserve_current_report_path(deploy: Any, args: Any) -> None:
+    report_path = Path(args.report).resolve()
+    try:
+        if report_path.exists():
+            if not report_path.is_file():
+                raise deploy.DeploymentError(
+                    "protected deployment report path is not a regular file"
+                )
+            report_path.unlink()
+    except OSError as exc:
+        raise deploy.DeploymentError(
+            "protected deployment could not clear stale report evidence"
+        ) from exc
+    deploy._portal_current_report_path = report_path
+
+
 def _guarded_deploy(
     deploy: Any,
     original_deploy: Callable[[Any], int],
@@ -188,6 +202,7 @@ def _guarded_deploy(
     deploy._portal_current_report_path = None
     try:
         try:
+            _reserve_current_report_path(deploy, args)
             return_code = int(original_deploy(args))
         except BaseException as exc:
             pending = _pending_cancellation(deploy)

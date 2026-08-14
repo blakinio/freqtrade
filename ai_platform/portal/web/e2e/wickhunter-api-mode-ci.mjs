@@ -2,12 +2,18 @@ import { chromium } from "@playwright/test";
 
 const origin = process.env.WICKHUNTER_BROWSER_ORIGIN ?? "https://127.0.0.1:3443";
 const expectedMode = (process.env.WICKHUNTER_EXPECTED_MODE ?? "shadow").toLowerCase();
+const expectedDesiredGeneration = process.env.WICKHUNTER_EXPECTED_DESIRED_GENERATION ?? "";
+const expectedObservedGeneration = process.env.WICKHUNTER_EXPECTED_OBSERVED_GENERATION ?? "";
 const sessionToken = "wickhunter-browser-session-" + "s".repeat(40);
 const csrfToken = "wickhunter-browser-csrf-" + "c".repeat(40);
 
 if (!new Set(["shadow", "paper"]).has(expectedMode)) {
   throw new Error(`unsupported WICKHUNTER_EXPECTED_MODE=${expectedMode}`);
 }
+if (Boolean(expectedDesiredGeneration) !== Boolean(expectedObservedGeneration)) {
+  throw new Error("both expected generation ids must be provided together");
+}
+const shortId = (value) => (value.length <= 12 ? value : `${value.slice(0, 12)}…`);
 
 const browser = await chromium.launch({ headless: true });
 try {
@@ -55,6 +61,11 @@ try {
           "PAPER · wh09-h900-v1",
           "Legacy SHADOW evidence: not applicable in PAPER",
         ];
+  if (expectedDesiredGeneration) {
+    expected.push(
+      `D ${shortId(expectedDesiredGeneration)} · O ${shortId(expectedObservedGeneration)}`,
+    );
+  }
 
   for (const text of expected) {
     await page.getByText(text, { exact: true }).waitFor();
@@ -70,6 +81,14 @@ try {
     { exact: true },
   ).waitFor();
   await page.getByText("Generation: desired = observed", { exact: true }).waitFor();
+  if (expectedDesiredGeneration) {
+    await page
+      .getByText(
+        `D ${shortId(expectedDesiredGeneration)} · O ${shortId(expectedObservedGeneration)}`,
+        { exact: true },
+      )
+      .waitFor();
+  }
 } finally {
   await browser.close();
 }

@@ -674,6 +674,12 @@ class RuntimeSupervisor:
             "generation_id": request.generation_id,
             "generation_spec_digest": request.generation_spec_digest,
             "command_id": str(request.command_id),
+            "expected_generation_ordinal": request.expected_generation_ordinal,
+            "expected_state_version": request.expected_state_version,
+            "correlation_id": str(request.correlation_id),
+            "causation_id": (
+                str(request.causation_id) if request.causation_id is not None else None
+            ),
             "state": state.value if state else None,
             "state_version": state_version,
             "driver_reason_code": driver_reason_code,
@@ -681,6 +687,4 @@ class RuntimeSupervisor:
         digest = hashlib.sha256(
             json.dumps(evidence, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
-        return SupervisorOutcome(
-            **evidence, correlation_id=request.correlation_id, evidence_digest=digest
-        )
+        return SupervisorOutcome(**evidence, evidence_digest=digest)

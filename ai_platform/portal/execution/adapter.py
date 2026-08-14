@@ -530,7 +530,10 @@ class FreqtradeExecutionAdapter:
             or outcome.generation_spec_digest != request.generation_spec_digest
             or outcome.operation is not request.operation
             or outcome.command_id != request.command_id
+            or outcome.expected_generation_ordinal != request.expected_generation_ordinal
+            or outcome.expected_state_version != request.expected_state_version
             or outcome.correlation_id != request.correlation_id
+            or outcome.causation_id != request.causation_id
         ):
             raise RuntimeRevisionConflictError("Runtime Supervisor outcome identity mismatch")
         return outcome

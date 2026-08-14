@@ -137,6 +137,9 @@ class _FakeSupervisor:
                 generation_spec_digest=request.generation_spec_digest,
                 command_id=request.command_id,
                 correlation_id=request.correlation_id,
+                expected_generation_ordinal=request.expected_generation_ordinal,
+                expected_state_version=request.expected_state_version,
+                causation_id=request.causation_id,
                 state=None,
                 state_version=request.expected_state_version,
                 driver_reason_code=reason_code,
@@ -173,6 +176,9 @@ class _FakeSupervisor:
             generation_spec_digest=request.generation_spec_digest,
             command_id=request.command_id,
             correlation_id=request.correlation_id,
+            expected_generation_ordinal=request.expected_generation_ordinal,
+            expected_state_version=request.expected_state_version,
+            causation_id=request.causation_id,
             state=current,
             state_version=request.expected_state_version,
             evidence_digest="e" * 64,
@@ -189,9 +195,14 @@ class _RawDriver:
 
 
 class _MismatchedSupervisor(_FakeSupervisor):
+    def __init__(self, field: str, value: object) -> None:
+        super().__init__()
+        self.field = field
+        self.value = value
+
     def execute(self, request: SupervisorRequest) -> SupervisorOutcome:
         outcome = super().execute(request)
-        return outcome.model_copy(update={"generation_id": "generation-other"})
+        return outcome.model_copy(update={self.field: self.value})
 
 
 def _bot(
@@ -254,11 +265,28 @@ def test_raw_runtime_driver_cannot_be_injected(tmp_path: Path) -> None:
         FreqtradeExecutionAdapter(raw_driver, resolver, RuntimeWorkspaceStore(tmp_path))
 
 
-def test_mismatched_supervisor_outcome_identity_is_rejected(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("tenant_id", "tenant-other"),
+        ("bot_id", "bot-other"),
+        ("generation_id", "generation-other"),
+        ("generation_spec_digest", "f" * 64),
+        ("operation", SupervisorOperation.ENSURE_STOPPED),
+        ("command_id", uuid4()),
+        ("expected_generation_ordinal", 2),
+        ("expected_state_version", 2),
+        ("correlation_id", uuid4()),
+        ("causation_id", None),
+    ],
+)
+def test_mismatched_supervisor_outcome_identity_is_rejected(
+    tmp_path: Path, field: str, value: object
+) -> None:
     resolver = _Resolver()
     resolver.register(_material())
     adapter = FreqtradeExecutionAdapter(
-        _MismatchedSupervisor(),
+        _MismatchedSupervisor(field, value),
         resolver,
         RuntimeWorkspaceStore(tmp_path),
         clock=lambda: NOW,

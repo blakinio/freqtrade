@@ -74,6 +74,9 @@ class SupervisorOutcome(BaseModel):
     generation_spec_digest: Sha256Hex
     command_id: UUID
     correlation_id: UUID
+    expected_generation_ordinal: PositiveInt | None = None
+    expected_state_version: NonNegativeInt | None = None
+    causation_id: UUID | None = None
     state: DriverRuntimeState | None = None
     state_version: NonNegativeInt
     driver_reason_code: DriverReasonCode | None = None

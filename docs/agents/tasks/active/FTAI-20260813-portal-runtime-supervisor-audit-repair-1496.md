@@ -30,6 +30,7 @@ Close all material trust-boundary findings on PR #1496, synchronize the delivery
 - `RS-AUDIT-20260813-03 / P1` — **REPAIRED**: execution adapter validates Supervisor outcome tenant/bot/generation/spec-digest/operation/command/correlation identity before trusting returned state/version.
 - `RS-FRESH-20260813-01 / HIGH` — **REPAIRED**: lifecycle ownership is bound to immutable Docker container/network IDs, not deterministic names plus copyable labels. Same-name/same-label replacement with a different immutable ID fails closed before inspection probes or destructive/disruptive lifecycle actions.
 - `RS-FRESH-CLOSEOUT-20260813-01 / P1` — **REPAIRED IN CODE, FINAL VALIDATION PENDING**: immutable container/network ownership is persisted through the Supervisor ownership store so a fresh driver/Supervisor can reconcile a surviving generation after restart without trusting mutable names.
+- `RS-FINAL-AUDIT-20260814-01 / MEDIUM` — **REPAIRED IN CODE, FINAL VALIDATION PENDING**: Supervisor outcomes echo generation ordinal, state-version precondition, correlation and causation identity; the adapter rejects any one-field mismatch before trusting returned state/state_version.
 
 ## Immutable-identity repair evidence
 
@@ -48,6 +49,15 @@ Close all material trust-boundary findings on PR #1496, synchronize the delivery
 - Commit `e87cec8f23147dafcbe58b14bd7688953e35f0e0` replaces that stale assertion with a terminal-retirement contract: `test_expired_request_only_workflow_is_retired()` now requires the workflow to remain absent. No production Portal/runtime behavior is changed.
 - `.github/workflows/repair-1496-ci.yml` and `.github/workflows/portal-oidc-owner-bootstrap.yml` are absent from the intended final tree.
 
+## Final-audit response-binding repair evidence
+
+- `ai_platform/portal/runtime_supervisor/types.py` extends `SupervisorOutcome` with the authoritative request precondition/causation echo fields while retaining fail-closed compatibility for legacy serialized outcomes.
+- `ai_platform/portal/runtime_supervisor/service.py` emits those fields and includes them, correlation identity and causation identity in `evidence_digest`.
+- `ai_platform/portal/execution/adapter.py` rejects mismatched generation ordinal, expected state version or causation identity before any returned runtime state/version is trusted.
+- `tests/ai_platform/portal/execution/test_adapter.py` now mutates every authoritative identity field one at a time, including the newly repaired fields.
+- `tests/ai_platform/portal/runtime_supervisor/test_outcome_binding.py` proves serialization and digest binding for the new fields.
+- Lifecycle-bounded focused repair workflow run `31800186305` executes compile, focused tests, Ruff, Ruff format, mypy and `git diff --check` before creating the repair commit, then removes itself from the final tree.
+
 ## Safety
 
 PAPER-only. No deployment, protected-environment mutation, exchange credentials, real orders, withdrawals, LIVE transition, owner-funded Codex/OpenAI/paid-AI use or owner-owned AI credentials are authorized or used.
@@ -55,67 +65,65 @@ PAPER-only. No deployment, protected-environment mutation, exchange credentials,
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 8
-updated_at: 2026-08-14T13:03:00+02:00
-pre_checkpoint_head: e87cec8f23147dafcbe58b14bd7688953e35f0e0
+checkpoint_version: 9
+updated_at: 2026-08-14T14:26:25+02:00
+pre_checkpoint_head: b3d7a271ae00d7ab8873a9c0d6672ca3849cfd49
 current_develop: 15a4b3e02e7e431d04f0b5c6d861a669c4de4743
 branch: codex/portal-runtime-supervisor-1355
 pr: 1496
 status: validating
-phase: final_ci_then_fresh_audit
-session_id: chat-20260814-1244
+phase: exact_head_ci_then_fresh_audit
+session_id: chat-20260814-1418
 session_role: implementer
 execution_mode: github_only
 policy_version: 2
 context_pressure: medium
 context_growth: stable
 decomposition_decision: phased
-validation_level: exact_head_final
-invocation_started_at: 2026-08-14T12:44:00+02:00
-last_progress_at: 2026-08-14T13:03:00+02:00
+validation_level: focused_repair_complete_exact_head_pending
+invocation_started_at: 2026-08-14T14:18:00+02:00
+last_progress_at: 2026-08-14T14:26:25+02:00
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 2
+repair_cycles_for_current_gate: 0
 context_reconstruction_attempts: 0
 stall_warnings: 0
 proven:
-  - ownership restart repair is present in production code and dedicated restart regressions
-  - current branch incorporated develop 15a4b3e without force and was not behind at merge-forward
-  - expired Portal owner-bootstrap workflow is retired via merged develop PR 1517
-  - focused ownership validation passed 31 tests plus Ruff and diff-check
-  - Runtime Isolation E2E and all bounded security/browser/image gates passed on the immediately preceding validation head before the stale OIDC test repair
-  - stale OIDC workflow test was isolated from a 1536-pass AI Platform run and repaired without changing production code
-  - task-owned one-shot CI repair workflow is absent
+  - prior durable immutable container/network ownership restart repair remains present
+  - RS-FINAL-AUDIT-20260814-01 response-boundary repair is present in production code
+  - Supervisor outcome carries and evidence-digest binds expected generation ordinal, expected state version, correlation and causation identity
+  - execution adapter rejects one-field-at-a-time authoritative outcome mismatches before trusting state/state_version
+  - bounded workflow run 31800186305 performs focused tests, compile, Ruff, Ruff format, mypy and diff-check before commit
+  - task-owned one-shot repair workflow is removed from the intended final tree
 waiting_on:
-  - terminal required exact-head CI/E2E on this checkpoint successor
+  - terminal required exact-head CI/E2E on the response-binding repair successor
   - genuinely fresh independent post-repair audit with independent context; this implementing session cannot self-certify that gate
 blockers: []
-next_action: Verify every required exact-head CI/E2E workflow on this checkpoint successor. If terminal green, verify base freshness, mergeability, zero unresolved threads and temporary-workflow absence, then hand the exact SHA to a genuinely fresh AUDIT ONLY validator; do not merge without PASS_ZERO_MATERIAL_FINDINGS.
+next_action: Verify every required exact-head CI/E2E workflow on the repair successor. If terminal green, verify base freshness, mergeability, zero unresolved threads and temporary-workflow absence, then hand the exact SHA to a genuinely fresh AUDIT ONLY validator; do not merge without PASS_ZERO_MATERIAL_FINDINGS.
 ```
 
 ## Recovery checkpoint
 
 ```yaml
 policy_version: 1
-generation: 3
-session_id: chat-20260814-1244
-session_started_at: 2026-08-14T12:44:00+02:00
-checkpointed_at: 2026-08-14T13:03:00+02:00
-last_progress_at: 2026-08-14T13:03:00+02:00
-phase: final_ci_then_fresh_audit
-exact_head_parent: e87cec8f23147dafcbe58b14bd7688953e35f0e0
+generation: 4
+session_id: chat-20260814-1418
+session_started_at: 2026-08-14T14:18:00+02:00
+checkpointed_at: 2026-08-14T14:26:25+02:00
+last_progress_at: 2026-08-14T14:26:25+02:00
+phase: exact_head_ci_then_fresh_audit
+exact_head_parent: b3d7a271ae00d7ab8873a9c0d6672ca3849cfd49
 pull_request: 1496
 active_operation: exact_head_ci
 external_run_ids:
-  - 31793940741
-  - 31794126034
-operation_started_at: 2026-08-14T13:03:00+02:00
+  - 31800186305
+operation_started_at: 2026-08-14T14:26:25+02:00
 wait_deadline_at: null
-check_generation: ownership-repair-final-ci-3
+check_generation: outcome-binding-final-ci-1
 checks_used: 0
 status: waiting
 safe_to_resume: true
-resume_condition: PR #1496 remains on the same delivery branch and this checkpoint successor exact SHA is unchanged; inspect terminal workflow outcomes or the first relevant failure.
-next_action: Verify the checkpoint successor exact-head workflow matrix and inspect the first relevant failure if any.
+resume_condition: PR #1496 remains on the same delivery branch and the repair-successor exact SHA is unchanged; inspect terminal workflow outcomes or the first relevant failure.
+next_action: Verify the repair-successor exact-head workflow matrix and inspect the first relevant failure if any.
 ```

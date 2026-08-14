@@ -15,7 +15,7 @@ review:
   review_pr: 1255
   review_report: docs/ai_platform/reviews/2026-08-05-architecture-ci-review.md
   status: completed
-  lifecycle_reconciled_at: "2026-08-12"
+  lifecycle_reconciled_at: "2026-08-14"
   resolved_findings:
     - issue: 1251
       id: FTAI-ARCH-001
@@ -39,6 +39,11 @@ review:
       id: FTAI-ARCH-RUNTIME-ISOLATION
       status: completed
       evidence_pr: 1464
+    - issue: 1355
+      id: FTAI-ARCH-RUNTIME-SUPERVISOR
+      status: completed
+      evidence_pr: 1496
+      evidence_merge: a51106eb0003910b393dd876ab68f3877eef16dc
 
 latest_architecture_change:
   accepted_at: "2026-08-10"
@@ -242,10 +247,10 @@ documents:
     classification: domain_architecture
     scope: Portal-managed Freqtrade dry-run runtime isolation, host capability resolution, provisioning attestation and privileged lifecycle boundary
     authority: binding_refinement_of_ADR-020
-    implementation_status: partially_implemented
+    implementation_status: implemented
     owner_role: architecture-owner
-    last_reviewed_at: "2026-08-12"
-    evidence_rule: Runtime isolation finding #1354 is implemented and verified by PR #1464; Runtime Supervisor finding #1355 remains target-only and open. Exact code, tests and deployed-host evidence remain authoritative for current implementation state.
+    last_reviewed_at: "2026-08-14"
+    evidence_rule: Runtime isolation finding #1354 is implemented and verified by PR #1464; Runtime Supervisor finding #1355 is implemented and merged by PR #1496 at a51106eb0003910b393dd876ab68f3877eef16dc. Exact code, tests and deployed-host evidence remain authoritative for current implementation state.
     safety_note: No production deployment, private exchange trading credentials or live-capital authority.
 
   - path: docs/ai_platform/portal/SYSTEM_ARCHITECTURE.md
@@ -326,9 +331,4 @@ documents:
     owner_role: A3-architecture-ci-reviewer
     last_reviewed_at: "2026-08-06"
 
-open_architecture_findings:
-  - issue: 1355
-    id: FTAI-ARCH-RUNTIME-SUPERVISOR
-    severity: critical
-    status: open
-    summary: Isolate container-engine authority behind the Runtime Supervisor boundary required by ADR-020.
+open_architecture_findings: []

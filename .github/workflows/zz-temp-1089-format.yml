@@ -33,18 +33,16 @@ jobs:
           python -m pip install --disable-pip-version-check
           pytest ruff==0.15.21
 
-      - name: Sync exact current base and repair current-run report identity
+      - name: Make report-path ownership atomic and validate
         shell: bash
         run: |
           set -euo pipefail
-          expected_head=5fb6312a2ab120546cc2230efdebc812334149de
+          expected_head=921100bdfca379e993b5b2f692ee34c7f4e01dcf
           expected_base=bbe39128b8b94aab134a216542f94a3d65c6c949
           test "$(git rev-parse HEAD)" = "$expected_head"
           git fetch origin develop
           test "$(git rev-parse origin/develop)" = "$expected_base"
-          git config user.name "blakinio"
-          git config user.email "75369544+blakinio@users.noreply.github.com"
-          git merge --no-edit "$expected_base"
+          git merge-base --is-ancestor "$expected_base" HEAD
 
           python - <<'PY'
           from pathlib import Path
@@ -52,28 +50,22 @@ jobs:
           bridge = Path("deploy/synology/portal-oidc/cancellation_report_bridge.py")
           source = bridge.read_text(encoding="utf-8")
 
-          old = '''def _existing_canonical_report(deploy: Any, args: Any, path: Path) -> dict[str, Any] | None:\n    if not path.is_file():\n        return None\n'''
-          new = '''def _existing_canonical_report(deploy: Any, args: Any, path: Path) -> dict[str, Any] | None:\n    if getattr(deploy, "_portal_current_report_path", None) != path.resolve():\n        return None\n    if not path.is_file():\n        return None\n'''
+          old = '''    digest = cast(str, original_write_report(path, report))\n    deploy._portal_current_report_path = path.resolve()\n    return digest\n'''
+          new = '''    return cast(str, original_write_report(path, report))\n'''
           if source.count(old) != 1:
-              raise SystemExit("bridge: existing-report insertion target mismatch")
+              raise SystemExit("bridge: guarded-write marker target mismatch")
           source = source.replace(old, new)
 
-          old = '''    if pending is not None:\n        report["status"] = "failed"\n        report["cancellation"] = _cancellation_metadata(pending)\n    return cast(str, original_write_report(path, report))\n'''
-          new = '''    if pending is not None:\n        report["status"] = "failed"\n        report["cancellation"] = _cancellation_metadata(pending)\n    digest = cast(str, original_write_report(path, report))\n    deploy._portal_current_report_path = path.resolve()\n    return digest\n'''
-          if source.count(old) != 1:
-              raise SystemExit("bridge: guarded-write replacement target mismatch")
-          source = source.replace(old, new)
+          marker = '''def _guarded_deploy(\n    deploy: Any,\n    original_deploy: Callable[[Any], int],\n    args: Any,\n) -> int:\n'''
+          helper = '''def _reserve_current_report_path(deploy: Any, args: Any) -> None:\n    report_path = Path(args.report).resolve()\n    try:\n        if report_path.exists():\n            if not report_path.is_file():\n                raise deploy.DeploymentError(\n                    "protected deployment report path is not a regular file"\n                )\n            report_path.unlink()\n    except OSError as exc:\n        raise deploy.DeploymentError(\n            "protected deployment could not clear stale report evidence"\n        ) from exc\n    deploy._portal_current_report_path = report_path\n\n\n'''
+          if source.count(marker) != 1:
+              raise SystemExit("bridge: guarded-deploy helper insertion target mismatch")
+          source = source.replace(marker, helper + marker)
 
-          old = '''    previous_handlers = _install_termination_handlers(deploy)\n    try:\n'''
-          new = '''    previous_handlers = _install_termination_handlers(deploy)\n    deploy._portal_current_report_path = None\n    try:\n'''
+          old = '''    previous_handlers = _install_termination_handlers(deploy)\n    deploy._portal_current_report_path = None\n    try:\n        try:\n            return_code = int(original_deploy(args))\n'''
+          new = '''    previous_handlers = _install_termination_handlers(deploy)\n    deploy._portal_current_report_path = None\n    try:\n        try:\n            _reserve_current_report_path(deploy, args)\n            return_code = int(original_deploy(args))\n'''
           if source.count(old) != 1:
-              raise SystemExit("bridge: guarded-deploy reset target mismatch")
-          source = source.replace(old, new)
-
-          old = '''    original_deploy = deploy.deploy\n    deploy._portal_pending_cancellation = None\n\n    deploy._run = partial(_guarded_run, deploy, original_run)\n'''
-          new = '''    original_deploy = deploy.deploy\n    deploy._portal_pending_cancellation = None\n    deploy._portal_current_report_path = None\n\n    deploy._run = partial(_guarded_run, deploy, original_run)\n'''
-          if source.count(old) != 1:
-              raise SystemExit("bridge: install reset target mismatch")
+              raise SystemExit("bridge: report reservation call target mismatch")
           bridge.write_text(source.replace(old, new), encoding="utf-8")
 
           test_path = Path(
@@ -81,9 +73,9 @@ jobs:
               "test_portal_oidc_cancellation_report_bridge.py"
           )
           tests = test_path.read_text(encoding="utf-8")
-          marker = "def test_early_sigint_does_not_republish_stale_report"
+          marker = "def test_sigint_after_report_bytes_preserves_current_report"
           if marker not in tests:
-              tests += '''\n\ndef test_early_sigint_does_not_republish_stale_report(tmp_path) -> None:\n    reports: list[dict[str, Any]] = []\n    report_path = tmp_path / "report.json"\n    deploy = SimpleNamespace(\n        DeploymentError=RuntimeError,\n        REQUEST_ID="portal-authentik-public-oidc-20260801-v1",\n        _bounded_schema_cleanup_evidence=_cleanup_evidence(),\n    )\n\n    def original_run(command, *, cwd=None, sensitive=False, check=True):\n        raise AssertionError("early SIGINT test must not pass through _run")\n\n    def original_write_report(path: Path, report: dict[str, Any]) -> str:\n        path.write_text(json.dumps(report), encoding="utf-8")\n        reports.append(copy.deepcopy(report))\n        return "digest"\n\n    def original_deploy(args: Any) -> int:\n        handler = signal.getsignal(signal.SIGINT)\n        assert callable(handler)\n        handler(signal.SIGINT, None)\n        raise AssertionError("early SIGINT must not return")\n\n    stale = {\n        "schema_version": 2,\n        "request_id": deploy.REQUEST_ID,\n        "implementation_sha": "1" * 40,\n        "status": "success",\n        "portal": {"health": "stale"},\n        "database": {"revision": "stale"},\n        "recovery": {"restart_verified": True},\n    }\n    report_path.write_text(json.dumps(stale), encoding="utf-8")\n\n    deploy._run = original_run\n    deploy._write_report = original_write_report\n    deploy.deploy = original_deploy\n    module.install(deploy)\n    args = SimpleNamespace(\n        report=str(report_path),\n        expected_repository_sha="1" * 40,\n    )\n\n    with pytest.raises(KeyboardInterrupt):\n        deploy.deploy(args)\n\n    assert len(reports) == 1\n    final = reports[0]\n    assert final["status"] == "failed"\n    assert final["implementation_sha"] == "1" * 40\n    assert final["cancellation"]["type"] == "KeyboardInterrupt"\n    assert final["failure"]["type"] == "CancellationRecoveryError"\n    assert "portal" not in final\n    assert "database" not in final\n    assert "recovery" not in final\n'''
+              tests += '''\n\ndef test_sigint_after_report_bytes_preserves_current_report(tmp_path) -> None:\n    reports: list[dict[str, Any]] = []\n    report_path = tmp_path / "report.json"\n    deploy = SimpleNamespace(\n        DeploymentError=RuntimeError,\n        REQUEST_ID="portal-authentik-public-oidc-20260801-v1",\n        _bounded_schema_cleanup_evidence=_cleanup_evidence(),\n    )\n\n    def original_run(command, *, cwd=None, sensitive=False, check=True):\n        raise AssertionError("post-write SIGINT test must not pass through _run")\n\n    def original_write_report(path: Path, report: dict[str, Any]) -> str:\n        path.write_text(json.dumps(report), encoding="utf-8")\n        reports.append(copy.deepcopy(report))\n        handler = signal.getsignal(signal.SIGINT)\n        assert callable(handler)\n        handler(signal.SIGINT, None)\n        raise AssertionError("SIGINT after report bytes must not return")\n\n    def original_deploy(args: Any) -> int:\n        report = {\n            "schema_version": 2,\n            "request_id": deploy.REQUEST_ID,\n            "implementation_sha": args.expected_repository_sha,\n            "status": "success",\n            "secret_values_recorded": False,\n            "live_capital_authorized": False,\n            "portal": {"health": "healthy", "api_mode": True},\n            "database": {"revision": "20260809_04_runtime_isolation_binding"},\n            "recovery": {"restart_verified": True},\n        }\n        deploy._write_report(report_path, report)\n        raise AssertionError("post-write SIGINT must interrupt deploy")\n\n    stale = {\n        "schema_version": 2,\n        "request_id": deploy.REQUEST_ID,\n        "implementation_sha": "2" * 40,\n        "status": "success",\n        "portal": {"health": "stale"},\n    }\n    report_path.write_text(json.dumps(stale), encoding="utf-8")\n\n    deploy._run = original_run\n    deploy._write_report = original_write_report\n    deploy.deploy = original_deploy\n    module.install(deploy)\n    args = SimpleNamespace(\n        report=str(report_path),\n        expected_repository_sha="2" * 40,\n    )\n\n    with pytest.raises(KeyboardInterrupt):\n        deploy.deploy(args)\n\n    assert len(reports) == 2\n    final = reports[-1]\n    assert final["status"] == "failed"\n    assert final["portal"] == {"health": "healthy", "api_mode": True}\n    assert final["database"] == {\n        "revision": "20260809_04_runtime_isolation_binding"\n    }\n    assert final["recovery"] == {"restart_verified": True}\n    assert final["cancellation"]["type"] == "KeyboardInterrupt"\n    assert final["failure"]["type"] == "CancellationRecoveryError"\n'''
               test_path.write_text(tests, encoding="utf-8")
           PY
 
@@ -97,6 +89,8 @@ jobs:
             tests/ai_platform/portal/deployment/test_portal_oidc_cancellation_report_bridge.py
           git diff --check
 
+          git config user.name "blakinio"
+          git config user.email "75369544+blakinio@users.noreply.github.com"
           git add -- "${files[@]}"
-          git commit -m "fix(portal): bind cancellation report to current run"
+          git commit -m "fix(portal): reserve cancellation report path per run"
           git push origin HEAD:fix/1089-bounded-schema-docker-lifecycle

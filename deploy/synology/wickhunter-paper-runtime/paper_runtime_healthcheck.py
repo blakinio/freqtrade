@@ -74,8 +74,11 @@ def main() -> int:  # noqa: C901
             return _fail("operator commit mismatch")
         if any(payload.get(name) != expected for name, expected in ZERO_AUTHORITY.items()):
             return _fail("health claims forbidden authority")
-        if payload.get("runtime_health") not in RUNTIME_HEALTH_STATES:
+        runtime_health = payload.get("runtime_health")
+        if runtime_health not in RUNTIME_HEALTH_STATES:
             return _fail("runtime health is invalid")
+        if runtime_health != "healthy":
+            return _fail("runtime health is not healthy")
         if payload.get("model_drift") not in DRIFT_STATES:
             return _fail("model drift state is invalid")
         if payload.get("data_drift") not in DRIFT_STATES:

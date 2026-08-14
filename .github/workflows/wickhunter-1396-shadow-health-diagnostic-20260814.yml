@@ -1,0 +1,114 @@
+name: WickHunter #1396 SHADOW health diagnostic
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-1396-shadow-health-diagnostic-20260814.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-1396-shadow-health-diagnostic-20260814
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    name: Read-only current SHADOW health diagnostic
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Prove one-file read-only request
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "60f882b6c99d2409cde65a749098643c567049c4" ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          [[ "$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")" == $'A\t.github/workflows/wickhunter-1396-shadow-health-diagnostic-20260814.yml' ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          docker version >/dev/null
+          test -S /var/run/docker.sock
+
+      - name: Collect current SHADOW state without mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/issue1396-shadow-diagnostic"
+          mapfile -t ids < <(
+            docker ps -aq --no-trunc \
+              --filter "label=com.docker.compose.project=wickhunter-production-research-runtime" \
+              --filter "label=com.docker.compose.service=wickhunter-production-research-runtime" |
+              sed '/^$/d'
+          )
+          [[ ${#ids[@]} -eq 1 ]]
+          id="${ids[0]}"
+          docker inspect "$id" > "$RUNNER_TEMP/issue1396-shadow-diagnostic/container-inspect.json"
+          docker logs --tail 200 "$id" > "$RUNNER_TEMP/issue1396-shadow-diagnostic/container.log" 2>&1 || true
+          python3 - "$RUNNER_TEMP/issue1396-shadow-diagnostic/container-inspect.json" \
+            > "$RUNNER_TEMP/issue1396-shadow-diagnostic/summary.json" <<'PY'
+          import json,sys
+          p=json.load(open(sys.argv[1],encoding='utf-8'))[0]
+          state=p.get('State') or {}; health=state.get('Health') or {}; labels=(p.get('Config') or {}).get('Labels') or {}
+          mounts={m.get('Destination'):m for m in p.get('Mounts') or []}
+          out={
+              'container_id':p.get('Id'),
+              'image':p.get('Image'),
+              'image_revision':labels.get('org.opencontainers.image.revision'),
+              'running':state.get('Running'),
+              'status':state.get('Status'),
+              'exit_code':state.get('ExitCode'),
+              'oom_killed':state.get('OOMKilled'),
+              'restart_count':p.get('RestartCount'),
+              'health_status':health.get('Status'),
+              'health_failing_streak':health.get('FailingStreak'),
+              'health_log':[
+                  {'start':x.get('Start'),'end':x.get('End'),'exit_code':x.get('ExitCode'),'output':x.get('Output')}
+                  for x in (health.get('Log') or [])[-5:]
+              ],
+              'journal_host':(mounts.get('/runtime/journal') or {}).get('Source'),
+              'operator_host':(mounts.get('/runtime/operator') or {}).get('Source'),
+          }
+          print(json.dumps(out,indent=2,sort_keys=True))
+          PY
+          operator_host="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("operator_host") or "")' "$RUNNER_TEMP/issue1396-shadow-diagnostic/summary.json")"
+          journal_host="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("journal_host") or "")' "$RUNNER_TEMP/issue1396-shadow-diagnostic/summary.json")"
+          if [[ -n "$operator_host" && -d "$operator_host" ]]; then
+            find "$operator_host" -maxdepth 2 -type f -printf '%P\n' | sort > "$RUNNER_TEMP/issue1396-shadow-diagnostic/operator-files.txt"
+            for name in health.json cycle-telemetry.json early-fail.json identity.json; do
+              if [[ -f "$operator_host/$name" && ! -L "$operator_host/$name" ]]; then
+                cp "$operator_host/$name" "$RUNNER_TEMP/issue1396-shadow-diagnostic/operator-$name"
+              fi
+            done
+          fi
+          if [[ -n "$journal_host" && -d "$journal_host" ]]; then
+            find "$journal_host" -maxdepth 2 -type f -printf '%P\n' | sort | tail -100 > "$RUNNER_TEMP/issue1396-shadow-diagnostic/journal-files.txt"
+          fi
+          [[ "$(docker inspect --format '{{.State.Running}}' liquid20-live)" == "true" ]]
+          docker inspect liquid20-live > "$RUNNER_TEMP/issue1396-shadow-diagnostic/liquid20-inspect.json"
+          docker logs --tail 100 liquid20-live > "$RUNNER_TEMP/issue1396-shadow-diagnostic/liquid20.log" 2>&1 || true
+          cat "$RUNNER_TEMP/issue1396-shadow-diagnostic/summary.json"
+
+      - name: Upload bounded diagnostic
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: issue1396-shadow-health-diagnostic-${{ github.run_id }}
+          retention-days: 1
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/issue1396-shadow-diagnostic/

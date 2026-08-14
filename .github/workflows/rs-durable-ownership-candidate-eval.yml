@@ -1,4 +1,4 @@
-name: RS Durable Ownership Candidate Apply
+name: RS Durable Ownership Finalize
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  apply:
+  finalize:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -24,252 +24,36 @@ jobs:
           python-version: "3.12"
       - name: Install focused validation dependencies
         run: python -m pip install --disable-pip-version-check pytest==9.1.1 ruff mypy jsonschema "pydantic>=2.2" "SQLAlchemy>=2.0.6" "httpx>=0.24.1" fastapi pyjwt cryptography "PyYAML>=6.0"
-      - name: Apply bounded candidate patch
+      - name: Apply durable ownership repair
         run: python tools/rs_durable_ownership_repair.py
-      - name: Add restart regressions
-        shell: bash
-        run: |
-          cat > tests/ai_platform/portal/runtime_supervisor/test_durable_ownership_restart.py <<'PY'
-          from __future__ import annotations
-
-          import json
-          from collections.abc import Sequence
-          from pathlib import Path
-
-          import pytest
-
-          from ai_platform.portal.execution.driver import CommandResult, DockerCliRuntimeDriver
-          from ai_platform.portal.execution.errors import RuntimeDriverError
-          from ai_platform.portal.execution.host_isolation import (
-              LinuxNftablesBtrfsIsolationAttestor,
-              MappingMarketDataEgressPolicyProvider,
-          )
-          from ai_platform.portal.runtime_supervisor.service import SqliteCommandJournal
-
-
-          class _Runner:
-              def __init__(self, *results: CommandResult) -> None:
-                  self.results = list(results)
-                  self.calls: list[tuple[str, ...]] = []
-
-              def run(
-                  self,
-                  args: Sequence[str],
-                  *,
-                  timeout_seconds: float | None = None,
-              ) -> CommandResult:
-                  del timeout_seconds
-                  self.calls.append(tuple(args))
-                  if not self.results:
-                      raise AssertionError(f"unexpected command: {tuple(args)!r}")
-                  return self.results.pop(0)
-
-
-          def test_sqlite_immutable_ownership_survives_restart(tmp_path: Path) -> None:
-              path = tmp_path / "supervisor.sqlite3"
-              journal = SqliteCommandJournal(path)
-              assert journal.bind_container_id("runtime-1", "container-id")
-              assert journal.bind_network_id("runtime-1", "network-id")
-
-              restarted = SqliteCommandJournal(path)
-              assert restarted.container_id("runtime-1") == "container-id"
-              assert restarted.network_id("runtime-1") == "network-id"
-              assert not restarted.bind_container_id("runtime-1", "replacement-container")
-              assert not restarted.bind_network_id("runtime-1", "replacement-network")
-
-
-          def test_fresh_driver_rejects_same_label_name_replacement(tmp_path: Path) -> None:
-              journal = SqliteCommandJournal(tmp_path / "supervisor.sqlite3")
-              assert journal.bind_container_id("runtime-1", "expected-container-id")
-              runner = _Runner(
-                  CommandResult(
-                      1,
-                      stderr="Error response from daemon: No such object: expected-container-id",
-                  ),
-                  CommandResult(
-                      0,
-                      stdout=json.dumps(
-                          {
-                              "Id": "replacement-container-id",
-                              "Config": {"Labels": {"ai.portal.runtime_id": "runtime-1"}},
-                          }
-                      ),
-                  ),
-              )
-              driver = DockerCliRuntimeDriver(runner)
-              driver.bind_ownership_store(journal)
-
-              with pytest.raises(RuntimeDriverError) as exc_info:
-                  driver.inspect("runtime-1")
-
-              assert exc_info.value.reason_code == "GENERATION_OWNERSHIP_CONFLICT"
-              assert journal.container_id("runtime-1") == "expected-container-id"
-              assert runner.calls == [
-                  ("docker", "inspect", "--format", "{{json .}}", "expected-container-id"),
-                  ("docker", "inspect", "--format", "{{json .}}", "runtime-1"),
-              ]
-
-
-          def test_fresh_network_attestor_rejects_same_name_replacement(tmp_path: Path) -> None:
-              journal = SqliteCommandJournal(tmp_path / "supervisor.sqlite3")
-              assert journal.bind_network_id("runtime-1", "expected-network-id")
-              runner = _Runner(
-                  CommandResult(
-                      1,
-                      stderr="Error response from daemon: network expected-network-id not found",
-                  ),
-                  CommandResult(
-                      0,
-                      stdout=json.dumps(
-                          {
-                              "Id": "replacement-network-id",
-                              "Labels": {"ai.portal.runtime_id": "runtime-1"},
-                          }
-                      ),
-                  ),
-              )
-              backend = LinuxNftablesBtrfsIsolationAttestor(
-                  runner,
-                  policy_provider=MappingMarketDataEgressPolicyProvider({}),
-                  state_root=tmp_path / "state",
-                  btrfs_mount=tmp_path,
-              )
-              backend.bind_ownership_store(journal)
-
-              with pytest.raises(RuntimeDriverError) as exc_info:
-                  backend.cleanup_network("portal-net-1", "runtime-1")
-
-              assert exc_info.value.reason_code == "GENERATION_OWNERSHIP_CONFLICT"
-              assert journal.network_id("runtime-1") == "expected-network-id"
-              assert runner.calls == [
-                  (
-                      "docker",
-                      "network",
-                      "inspect",
-                      "--format",
-                      "{{json .}}",
-                      "expected-network-id",
-                  ),
-                  (
-                      "docker",
-                      "network",
-                      "inspect",
-                      "--format",
-                      "{{json .}}",
-                      "portal-net-1",
-                  ),
-              ]
-          PY
-      - name: Update immutable identity regressions for exact-ID authority
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path("tests/ai_platform/portal/execution/test_immutable_runtime_identity.py")
-          text = path.read_text(encoding="utf-8")
-
-          container_start = text.index('@pytest.mark.parametrize("operation"')
-          network_start = text.index("def test_network_replacement_with_matching_label_is_rejected", container_start)
-          container = text[container_start:network_start]
-          old_runner = '    runner = _Runner(_container_identity("replacement-id"))\n'
-          if old_runner not in container:
-              raise SystemExit("container runner marker mismatch")
-          container = container.replace(
-              old_runner,
-              '''    runner = _Runner(
-              CommandResult(1, stderr="Error response from daemon: No such object: expected-id"),
-              _container_identity("replacement-id"),
-          )
-          ''',
-              1,
-          )
-          old_calls = '    assert runner.calls == [("docker", "inspect", "--format", "{{json .}}", "runtime-1")]\n\n\n'
-          if old_calls not in container:
-              raise SystemExit("container calls marker mismatch")
-          container = container.replace(
-              old_calls,
-              '''    assert runner.calls == [
-              ("docker", "inspect", "--format", "{{json .}}", "expected-id"),
-              ("docker", "inspect", "--format", "{{json .}}", "runtime-1"),
-          ]
-
-
-          ''',
-              1,
-          )
-          text = text[:container_start] + container + text[network_start:]
-
-          network_start = text.index("def test_network_replacement_with_matching_label_is_rejected")
-          runner_start = text.index("    runner = _Runner(", network_start)
-          backend_start = text.index("    backend = LinuxNftablesBtrfsIsolationAttestor(", runner_start)
-          network_runner = '''    runner = _Runner(
-              CommandResult(
-                  1,
-                  stderr="Error response from daemon: network expected-network-id not found",
-              ),
-              CommandResult(
-                  0,
-                  stdout=json.dumps(
-                      {
-                          "Id": "replacement-network-id",
-                          "Labels": {"ai.portal.runtime_id": "runtime-1"},
-                      }
-                  ),
-              ),
-          )
-          '''
-          text = text[:runner_start] + network_runner + text[backend_start:]
-
-          calls_start = text.index("    assert runner.calls == [", network_start)
-          network_calls = '''    assert runner.calls == [
-              (
-                  "docker",
-                  "network",
-                  "inspect",
-                  "--format",
-                  "{{json .}}",
-                  "expected-network-id",
-              ),
-              ("docker", "network", "inspect", "--format", "{{json .}}", "portal-net-1"),
-          ]
-          '''
-          text = text[:calls_start] + network_calls
-          path.write_text(text, encoding="utf-8")
-          PY
-      - name: Format candidate
-        run: python -m ruff format ai_platform/portal/runtime_supervisor/service.py ai_platform/portal/execution/driver.py ai_platform/portal/execution/host_isolation.py tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py tests/ai_platform/portal/execution/test_immutable_runtime_identity.py tests/ai_platform/portal/runtime_supervisor/test_durable_ownership_restart.py
-      - name: Ruff candidate
+      - name: Format generated files
+        run: python -m ruff format ai_platform/portal/runtime_supervisor/service.py ai_platform/portal/execution/driver.py ai_platform/portal/execution/host_isolation.py tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py
+      - name: Ruff focused scope
         run: python -m ruff check --ignore BLE001,TRY004 ai_platform/portal/runtime_supervisor/service.py ai_platform/portal/execution/driver.py ai_platform/portal/execution/host_isolation.py tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py tests/ai_platform/portal/execution/test_immutable_runtime_identity.py tests/ai_platform/portal/runtime_supervisor/test_durable_ownership_restart.py
-      - name: Mypy candidate
+      - name: Mypy production scope
         run: python -m mypy ai_platform/portal/runtime_supervisor/service.py ai_platform/portal/execution/driver.py ai_platform/portal/execution/host_isolation.py
-      - name: Focused tests
+      - name: Focused regression suite
         run: python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform tests/ai_platform/portal/runtime_supervisor tests/ai_platform/portal/execution/test_driver.py tests/ai_platform/portal/execution/test_host_isolation_cleanup.py tests/ai_platform/portal/execution/test_immutable_runtime_identity.py
-      - name: Verify bounded diff
+      - name: Verify generated diff is bounded
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           import subprocess
-
-          allowed = {
+          expected = {
               "ai_platform/portal/runtime_supervisor/service.py",
               "ai_platform/portal/execution/driver.py",
               "ai_platform/portal/execution/host_isolation.py",
               "tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py",
-              "tests/ai_platform/portal/execution/test_immutable_runtime_identity.py",
-              "tests/ai_platform/portal/runtime_supervisor/test_durable_ownership_restart.py",
           }
-          changed = set(
-              subprocess.run(
-                  ["git", "diff", "--name-only"],
-                  check=True,
-                  capture_output=True,
-                  text=True,
-              ).stdout.splitlines()
-          )
-          if changed != allowed:
-              raise SystemExit(f"unexpected candidate diff: {sorted(changed)}")
+          changed = set(subprocess.run(
+              ["git", "diff", "--name-only"],
+              check=True,
+              capture_output=True,
+              text=True,
+          ).stdout.splitlines())
+          if changed != expected:
+              raise SystemExit(f"unexpected generated diff: {sorted(changed)}")
           PY
       - name: Commit verified repair and remove staging
         shell: bash
@@ -283,9 +67,7 @@ jobs:
           git add ai_platform/portal/runtime_supervisor/service.py \
             ai_platform/portal/execution/driver.py \
             ai_platform/portal/execution/host_isolation.py \
-            tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py \
-            tests/ai_platform/portal/execution/test_immutable_runtime_identity.py \
-            tests/ai_platform/portal/runtime_supervisor/test_durable_ownership_restart.py
+            tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git commit -m "fix(portal): persist runtime ownership across supervisor restart"

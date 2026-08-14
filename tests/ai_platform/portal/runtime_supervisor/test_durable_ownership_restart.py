@@ -12,6 +12,7 @@ from ai_platform.portal.execution.host_isolation import (
     LinuxNftablesBtrfsIsolationAttestor,
     MappingMarketDataEgressPolicyProvider,
 )
+from ai_platform.portal.runtime_supervisor.service import SqliteCommandJournal
 
 
 class _Runner:
@@ -32,38 +33,54 @@ class _Runner:
         return self.results.pop(0)
 
 
-def _container_identity(container_id: str) -> CommandResult:
-    return CommandResult(
-        0,
-        stdout=json.dumps(
-            {
-                "Id": container_id,
-                "Config": {"Labels": {"ai.portal.runtime_id": "runtime-1"}},
-            }
+def test_sqlite_immutable_ownership_survives_restart(tmp_path: Path) -> None:
+    path = tmp_path / "supervisor.sqlite3"
+    journal = SqliteCommandJournal(path)
+    assert journal.bind_container_id("runtime-1", "container-id")
+    assert journal.bind_network_id("runtime-1", "network-id")
+
+    restarted = SqliteCommandJournal(path)
+    assert restarted.container_id("runtime-1") == "container-id"
+    assert restarted.network_id("runtime-1") == "network-id"
+    assert not restarted.bind_container_id("runtime-1", "replacement-container")
+    assert not restarted.bind_network_id("runtime-1", "replacement-network")
+
+
+def test_fresh_driver_rejects_same_label_name_replacement(tmp_path: Path) -> None:
+    journal = SqliteCommandJournal(tmp_path / "supervisor.sqlite3")
+    assert journal.bind_container_id("runtime-1", "expected-container-id")
+    runner = _Runner(
+        CommandResult(
+            1,
+            stderr="Error response from daemon: No such object: expected-container-id",
+        ),
+        CommandResult(
+            0,
+            stdout=json.dumps(
+                {
+                    "Id": "replacement-container-id",
+                    "Config": {"Labels": {"ai.portal.runtime_id": "runtime-1"}},
+                }
+            ),
         ),
     )
-
-
-@pytest.mark.parametrize("operation", ["inspect", "pause", "stop", "retire"])
-def test_container_replacement_with_matching_label_is_rejected(operation: str) -> None:
-    runner = _Runner(
-        CommandResult(1, stderr="Error response from daemon: No such object: expected-id"),
-        _container_identity("replacement-id"),
-    )
     driver = DockerCliRuntimeDriver(runner)
-    driver._container_ids["runtime-1"] = "expected-id"
+    driver.bind_ownership_store(journal)
 
     with pytest.raises(RuntimeDriverError) as exc_info:
-        getattr(driver, operation)("runtime-1")
+        driver.inspect("runtime-1")
 
     assert exc_info.value.reason_code == "GENERATION_OWNERSHIP_CONFLICT"
+    assert journal.container_id("runtime-1") == "expected-container-id"
     assert runner.calls == [
-        ("docker", "inspect", "--format", "{{json .}}", "expected-id"),
+        ("docker", "inspect", "--format", "{{json .}}", "expected-container-id"),
         ("docker", "inspect", "--format", "{{json .}}", "runtime-1"),
     ]
 
 
-def test_network_replacement_with_matching_label_is_rejected(tmp_path: Path) -> None:
+def test_fresh_network_attestor_rejects_same_name_replacement(tmp_path: Path) -> None:
+    journal = SqliteCommandJournal(tmp_path / "supervisor.sqlite3")
+    assert journal.bind_network_id("runtime-1", "expected-network-id")
     runner = _Runner(
         CommandResult(
             1,
@@ -85,12 +102,13 @@ def test_network_replacement_with_matching_label_is_rejected(tmp_path: Path) -> 
         state_root=tmp_path / "state",
         btrfs_mount=tmp_path,
     )
-    backend._network_ids["runtime-1"] = "expected-network-id"
+    backend.bind_ownership_store(journal)
 
     with pytest.raises(RuntimeDriverError) as exc_info:
         backend.cleanup_network("portal-net-1", "runtime-1")
 
     assert exc_info.value.reason_code == "GENERATION_OWNERSHIP_CONFLICT"
+    assert journal.network_id("runtime-1") == "expected-network-id"
     assert runner.calls == [
         (
             "docker",
@@ -100,5 +118,12 @@ def test_network_replacement_with_matching_label_is_rejected(tmp_path: Path) -> 
             "{{json .}}",
             "expected-network-id",
         ),
-        ("docker", "network", "inspect", "--format", "{{json .}}", "portal-net-1"),
+        (
+            "docker",
+            "network",
+            "inspect",
+            "--format",
+            "{{json .}}",
+            "portal-net-1",
+        ),
     ]

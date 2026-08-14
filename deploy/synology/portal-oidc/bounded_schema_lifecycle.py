@@ -79,12 +79,23 @@ def _parse_container_id(deploy: Any, value: str) -> str:
     return container_id
 
 
+def _pending_deploy_cancellation(deploy: Any) -> BaseException | None:
+    pending = getattr(deploy, "_portal_pending_cancellation", None)
+    if isinstance(pending, BaseException) and not isinstance(pending, Exception):
+        return pending
+    return None
+
+
 def _remember_cancellation(
+    deploy: Any,
     current: BaseException | None,
     candidate: BaseException,
 ) -> BaseException | None:
     if current is not None:
         return current
+    pending = _pending_deploy_cancellation(deploy)
+    if pending is not None:
+        return pending
     if not isinstance(candidate, Exception):
         return candidate
     return None
@@ -297,7 +308,7 @@ def _cleanup_owned(
                 _raise_preserved_cancellation(cancellation, last_cleanup_error)
             return expected_id
         except BaseException as exc:
-            cancellation = _remember_cancellation(cancellation, exc)
+            cancellation = _remember_cancellation(deploy, cancellation, exc)
             last_cleanup_error = exc
 
     if cancellation is not None:
@@ -349,7 +360,7 @@ def _cleanup_ambiguous_create(
                 _raise_preserved_cancellation(cancellation, last_verification_error)
             return None
         except BaseException as exc:
-            cancellation = _remember_cancellation(cancellation, exc)
+            cancellation = _remember_cancellation(deploy, cancellation, exc)
             last_verification_error = exc
             if isinstance(exc, Exception) and not isinstance(exc, deploy.DeploymentError):
                 raise

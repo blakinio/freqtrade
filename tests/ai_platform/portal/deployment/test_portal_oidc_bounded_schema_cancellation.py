@@ -366,3 +366,47 @@ def test_name_reuse_after_remove_timeout_never_removes_replacement(monkeypatch) 
     assert not original_exists
     assert replacement_exists
     assert ["docker", "rm", "-f", REPLACEMENT_ID] not in calls
+
+
+def test_bridged_pending_sigint_survives_cleanup_retry(monkeypatch) -> None:
+    deploy = _deploy_stub()
+    pending = KeyboardInterrupt()
+    deploy._portal_pending_cancellation = pending
+    exists = True
+    identity_calls = 0
+    owner = "task-owner"
+
+    def fake_run(command, **_kwargs):
+        nonlocal exists, identity_calls
+        if command[:3] == ["docker", "inspect", "--format"]:
+            identity_calls += 1
+            if identity_calls == 1:
+                raise deploy.DeploymentError("protected deployment cancellation requires rollback")
+            return _completed(
+                command,
+                returncode=0 if exists else 1,
+                stdout=f"{CONTAINER_ID}|{owner}\n" if exists else "",
+            )
+        if command[:3] == ["docker", "rm", "-f"]:
+            exists = False
+            return _completed(command)
+        if command[:2] == ["docker", "inspect"]:
+            return _completed(command, returncode=0 if exists else 1)
+        if command[:2] == ["docker", "version"]:
+            return _completed(command)
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    with pytest.raises(KeyboardInterrupt) as exc_info:
+        module._cleanup_owned(
+            deploy,
+            "task-container",
+            owner,
+            container_id=CONTAINER_ID,
+            cwd=None,
+        )
+
+    assert exc_info.value is pending
+    assert identity_calls >= 2
+    assert not exists

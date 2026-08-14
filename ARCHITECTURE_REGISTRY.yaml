@@ -247,10 +247,10 @@ documents:
     classification: domain_architecture
     scope: Portal-managed Freqtrade dry-run runtime isolation, host capability resolution, provisioning attestation and privileged lifecycle boundary
     authority: binding_refinement_of_ADR-020
-    implementation_status: implemented
+    implementation_status: partially_implemented
     owner_role: architecture-owner
     last_reviewed_at: "2026-08-14"
-    evidence_rule: Runtime isolation finding #1354 is implemented and verified by PR #1464; Runtime Supervisor finding #1355 is implemented and merged by PR #1496 at a51106eb0003910b393dd876ab68f3877eef16dc. Exact code, tests and deployed-host evidence remain authoritative for current implementation state.
+    evidence_rule: Runtime isolation finding #1354 is implemented and verified by PR #1464; the narrow Runtime Supervisor boundary finding #1355 is implemented and merged by PR #1496 at a51106eb0003910b393dd876ab68f3877eef16dc. Product lifecycle composition remains disconnected and is tracked separately by open Issue #1099, so the overall contract remains partially implemented. Exact code, ledger, tests, CI and deployed-host evidence remain authoritative for current implementation state.
     safety_note: No production deployment, private exchange trading credentials or live-capital authority.
 
   - path: docs/ai_platform/portal/SYSTEM_ARCHITECTURE.md

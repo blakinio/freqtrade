@@ -1,0 +1,341 @@
+name: WickHunter #1396 terminal PAPER transition v3
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-1396-terminal-paper-transition-v3-20260814.yml"
+      - "deploy/synology/wickhunter-paper-runtime/issue1396_terminal_transition_v2.py"
+      - "deploy/synology/wickhunter-paper-runtime/issue1396_terminal_transition_v3.sh"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: wickhunter-1396-terminal-paper-transition-v3-20260814
+  cancel-in-progress: false
+
+env:
+  EXPECTED_BASE_SHA: 60f882b6c99d2409cde65a749098643c567049c4
+  IMPLEMENTATION_SHA: 60f882b6c99d2409cde65a749098643c567049c4
+  CANDIDATE_PACKAGE_NAME: wickhunter-wh09-candidate-materialization-20260808-r1-h900s-7b23a958fd4d
+  EXPECTED_CANDIDATE_MANIFEST_SHA256: 9f5ba852e33915678ca085c2eeafbf526457a079ba8f6f2fb7c1097f1d20ab79
+  RUNNER_STATE_ROOT: /var/lib/freqtrade-staging-state
+  HOST_STATE_ROOT: /volume1/docker/freqtrade/state
+  LIQUID20_LIVE_HOST: /volume1/docker/freqtrade-liquidations/data/live
+  OLD_SHADOW_PROJECT: wickhunter-production-research-runtime
+  OLD_SHADOW_SERVICE: wickhunter-production-research-runtime
+  OLD_SHADOW_NETWORK: wickhunter-production-research-runtime_wickhunter-public-market-egress
+  PORTAL_CONTROL_CONTAINER: freqtrade-portal-control-plane
+  PORTAL_WEB_CONTAINER: freqtrade-portal-staging
+  PORTAL_NETWORK: portal_oidc_public
+  LEGACY_OBSERVER_CONTAINER: portal-wh09-runtime-observer
+  PAPER_IMAGE: local/wickhunter-paper-runtime:sha-60f882b6c99d-issue1396-terminal-v2
+  PROD_PAPER_CONTAINER: wickhunter-production-paper-runtime
+  PROD_GATEWAY_CONTAINER: wickhunter-production-paper-egress
+  PROD_INTERNAL_NETWORK: wickhunter-production-paper-internal
+  PROOF_ARTIFACT_ID: "9226400833"
+  PROOF_ARTIFACT_DIGEST: 76bcee00b35c40fa7a37f63bc2af4ef84c090ab766291953fce812269143a284
+  PROOF_RUN_ID: "31817839211"
+  PROOF_RUN_HEAD_SHA: 582e3fb620be31046d8d8f7ecf6ebb390e0c7497
+  PROOF_PAPER_IMAGE_DIGEST: 1263bcf78c085cb35aaaa5b7d2ffb6cece76424c68b17d7afaeb7bc8d4dd3b07
+  SYFT_VERSION: "1.50.0"
+  SYFT_LINUX_AMD64_SHA256: bf7b29ff57f06da30918266a0e1c2885a8f99784798d1bdb1628886aa015d788
+  GRYPE_VERSION: "0.116.1"
+  GRYPE_LINUX_AMD64_SHA256: 0122df7b655981abe547ad3d2190d65551dac6a2bfc80b4dc2a989b5d0587458
+
+jobs:
+  transition:
+    name: Proven PAPER persistent transition and reconciliation
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 100
+    outputs:
+      production_payload_b64: ${{ steps.run.outputs.production_payload_b64 }}
+      desired_generation_id: ${{ steps.run.outputs.desired_generation_id }}
+      observed_generation_id: ${{ steps.run.outputs.observed_generation_id }}
+      paper_container_id: ${{ steps.run.outputs.paper_container_id }}
+      old_shadow_container_id: ${{ steps.run.outputs.old_shadow_container_id }}
+      paper_image_digest: ${{ steps.run.outputs.paper_image_digest }}
+      paper_config_digest: ${{ steps.run.outputs.paper_config_digest }}
+    steps:
+      - name: Check out exact request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Prove bounded request and capture orchestrator
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$EXPECTED_BASE_SHA" ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-1396-terminal-paper-transition-v3-20260814.yml\nA\tdeploy/synology/wickhunter-paper-runtime/issue1396_terminal_transition_v2.py\nA\tdeploy/synology/wickhunter-paper-runtime/issue1396_terminal_transition_v3.sh'
+          [[ "$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")" == "$expected" ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" && "$RUNNER_OS_VALUE" == "Linux" ]]
+          docker version >/dev/null
+          test -S /var/run/docker.sock
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET BINANCE_SECRET_KEY \
+            EXCHANGE_API_KEY EXCHANGE_API_SECRET FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]] || { echo "forbidden trading credential environment: $name" >&2; exit 1; }
+          done
+          cp deploy/synology/wickhunter-paper-runtime/issue1396_terminal_transition_v2.py "$RUNNER_TEMP/issue1396_terminal_transition_v2.py"
+          cp deploy/synology/wickhunter-paper-runtime/issue1396_terminal_transition_v3.sh "$RUNNER_TEMP/issue1396_terminal_transition_v3.sh"
+          python3 -m py_compile "$RUNNER_TEMP/issue1396_terminal_transition_v2.py"
+          bash -n "$RUNNER_TEMP/issue1396_terminal_transition_v3.sh"
+
+      - name: Check out exact protected implementation
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: 60f882b6c99d2409cde65a749098643c567049c4
+
+      - name: Execute bounded terminal PAPER transition
+        id: run
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REQUEST_HELPER: ${{ runner.temp }}/issue1396_terminal_transition_v2.py
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$IMPLEMENTATION_SHA" ]]
+          [[ -z "$(git status --porcelain)" ]]
+          bash "$RUNNER_TEMP/issue1396_terminal_transition_v3.sh"
+
+      - name: Upload bounded transition evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: issue1396-terminal-paper-transition-v3-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/issue1396-transition-v3/
+
+  browser:
+    name: Chromium exact PAPER projection from captured production truth
+    needs: transition
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      PRODUCTION_PAYLOAD_B64: ${{ needs.transition.outputs.production_payload_b64 }}
+      EXPECTED_DESIRED_GENERATION: ${{ needs.transition.outputs.desired_generation_id }}
+      EXPECTED_OBSERVED_GENERATION: ${{ needs.transition.outputs.observed_generation_id }}
+    steps:
+      - name: Check out exact protected implementation
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: 60f882b6c99d2409cde65a749098643c567049c4
+
+      - name: Serve captured actual API truth
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          printf '%s' "$PRODUCTION_PAYLOAD_B64" | base64 --decode > artifacts/issue1396-production-closeout.json
+          python3 - artifacts/issue1396-production-closeout.json "$EXPECTED_DESIRED_GENERATION" "$EXPECTED_OBSERVED_GENERATION" <<'PY'
+          import json,sys
+          p=json.load(open(sys.argv[1],encoding='utf-8'));t=p['truth']
+          if p.get('result')!='PASS' or sys.argv[2]!=sys.argv[3] or t['desired_generation']['generation_id']!=sys.argv[2] or t['observed_generation']['generation_id']!=sys.argv[3] or t['desired_generation']['managed_mode']!='paper' or t['observed_generation']['managed_mode']!='paper' or t['pending_rollout'] is not False: raise SystemExit('captured production truth mismatch')
+          PY
+          cat > "$RUNNER_TEMP/issue1396-api.py" <<'PY'
+          import json,sys
+          from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
+          p=json.load(open(sys.argv[1],encoding='utf-8'))
+          def payload(path):
+              if path=='/v1/bots':return 200,[p['bot']]
+              if path=='/v1/bots/wickhunter/runtime-truth':return 200,p['truth']
+              if path in {'/v1/runtime-evidence','/v1/performance','/v1/valuations','/v1/risk/events','/v1/audit/events'}:return 200,[]
+              return 404,{'detail':'not found'}
+          class H(BaseHTTPRequestHandler):
+              def do_GET(self):
+                  code,obj=payload(self.path.split('?',1)[0]);body=json.dumps(obj,separators=(',',':')).encode();self.send_response(code);self.send_header('content-type','application/json');self.send_header('content-length',str(len(body)));self.end_headers();self.wfile.write(body)
+              def log_message(self,*_args):return
+          ThreadingHTTPServer(('127.0.0.1',8000),H).serve_forever()
+          PY
+          python3 "$RUNNER_TEMP/issue1396-api.py" artifacts/issue1396-production-closeout.json &
+          echo "ISSUE1396_API_PID=$!" >> "$GITHUB_ENV"
+          for _ in $(seq 1 30); do curl --fail --silent http://127.0.0.1:8000/v1/bots >/dev/null && break; sleep 1; done
+
+      - name: Build and run exact API-mode Portal web
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --pull=false --label "org.opencontainers.image.revision=$EXPECTED_BASE_SHA" --file deploy/synology/portal/Dockerfile --tag "issue1396-portal-web:$EXPECTED_BASE_SHA" ai_platform/portal/web
+          web="issue1396-paper-browser-web-${GITHUB_RUN_ID}"; echo "ISSUE1396_WEB_CONTAINER=$web" >> "$GITHUB_ENV"
+          docker run --detach --name "$web" --network host --read-only --tmpfs /tmp:rw,noexec,nosuid,nodev,size=32m --tmpfs /app/.next/cache:rw,noexec,nosuid,nodev,size=64m,uid=1000,gid=1000 --cap-drop ALL --security-opt no-new-privileges:true --env PORTAL_WEB_DATA_MODE=api --env PORTAL_ENVIRONMENT=production --env PORTAL_IDENTITY_FIXTURE_MODE=disabled --env PORTAL_IDENTITY_TRANSPORT_MODE=https --env PORTAL_IDENTITY_ISSUER=https://issuer.example/application/o/portal/ --env PORTAL_CONTROL_PLANE_URL=http://127.0.0.1:8000 --env PORTAL_LIQUIDATIONS_DATA_ROOT=/tmp/no-liquidations "issue1396-portal-web:$EXPECTED_BASE_SHA"
+          for _ in $(seq 1 60); do h="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$web")"; [[ "$h" == "healthy" ]] && break; [[ "$h" =~ ^(unhealthy|exited|dead)$ ]] && { docker logs "$web"; exit 1; }; sleep 2; done
+          [[ "$(docker inspect --format '{{.State.Health.Status}}' "$web")" == "healthy" ]]
+
+      - name: Run real Chromium PAPER journey
+        working-directory: ai_platform/portal/web
+        shell: bash
+        env:
+          WICKHUNTER_EXPECTED_MODE: paper
+          WICKHUNTER_EXPECTED_DESIRED_GENERATION: ${{ needs.transition.outputs.desired_generation_id }}
+          WICKHUNTER_EXPECTED_OBSERVED_GENERATION: ${{ needs.transition.outputs.observed_generation_id }}
+        run: |
+          set -euo pipefail
+          npm ci
+          npx playwright install --with-deps chromium
+          openssl req -x509 -newkey rsa:2048 -nodes -keyout "$RUNNER_TEMP/browser.key" -out "$RUNNER_TEMP/browser.crt" -days 1 -subj "/CN=127.0.0.1" -addext "subjectAltName=IP:127.0.0.1" >/dev/null 2>&1
+          cat > "$RUNNER_TEMP/proxy.mjs" <<'JS'
+          import fs from 'node:fs';import http from 'node:http';import https from 'node:https';const [k,c]=process.argv.slice(2);https.createServer({key:fs.readFileSync(k),cert:fs.readFileSync(c)},(req,res)=>{const up=http.request({hostname:'127.0.0.1',port:3000,path:req.url,method:req.method,headers:{...req.headers,host:'127.0.0.1:3000'}},u=>{res.writeHead(u.statusCode??502,u.headers);u.pipe(res)});up.on('error',()=>{res.writeHead(502);res.end()});req.pipe(up)}).listen(3443,'127.0.0.1');
+          JS
+          node "$RUNNER_TEMP/proxy.mjs" "$RUNNER_TEMP/browser.key" "$RUNNER_TEMP/browser.crt" & proxy=$!; trap 'kill "$proxy" >/dev/null 2>&1 || true' EXIT
+          for _ in $(seq 1 30); do curl --insecure --fail --silent https://127.0.0.1:3443/bots >/dev/null && break; sleep 1; done
+          node e2e/wickhunter-api-mode-ci.mjs
+          mkdir -p artifacts
+          printf '%s\n' '{"result":"PASS","mode":"paper","desired_observed_equal":true}' > artifacts/issue1396-production-paper-browser.json
+
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: issue1396-production-paper-browser-v3-${{ github.run_id }}
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            artifacts/issue1396-production-closeout.json
+            ai_platform/portal/web/artifacts/issue1396-production-paper-browser.json
+
+      - name: Cleanup browser resources
+        if: always()
+        shell: bash
+        run: |
+          docker rm -f "${ISSUE1396_WEB_CONTAINER:-missing}" >/dev/null 2>&1 || true
+          [[ -z "${ISSUE1396_API_PID:-}" ]] || kill "$ISSUE1396_API_PID" >/dev/null 2>&1 || true
+
+  audit:
+    name: Deterministic adversarial terminal PAPER audit
+    needs: [transition, browser]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      PRODUCTION_PAYLOAD_B64: ${{ needs.transition.outputs.production_payload_b64 }}
+      D: ${{ needs.transition.outputs.desired_generation_id }}
+      O: ${{ needs.transition.outputs.observed_generation_id }}
+      PAPER_ID: ${{ needs.transition.outputs.paper_container_id }}
+      OLD_ID: ${{ needs.transition.outputs.old_shadow_container_id }}
+      IMAGE: ${{ needs.transition.outputs.paper_image_digest }}
+      CONFIG: ${{ needs.transition.outputs.paper_config_digest }}
+    steps:
+      - name: Falsify terminal acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          printf '%s' "$PRODUCTION_PAYLOAD_B64" | base64 --decode > artifacts/issue1396-production-closeout.json
+          python3 - artifacts/issue1396-production-closeout.json "$D" "$O" "$PAPER_ID" "$OLD_ID" "$IMAGE" "$CONFIG" > artifacts/issue1396-adversarial-audit.json <<'PY'
+          import json,sys
+          p=json.load(open(sys.argv[1],encoding='utf-8'));d,o,paper,old,image,config=sys.argv[2:8];t=p['truth'];dg=t['desired_generation'];og=t['observed_generation'];r=t.get('latest_rollout') or {};proof=p['five_cycle_proof'];health=p['paper_health'];restart=p['restart']
+          if p.get('result')!='PASS' or p.get('implementation_sha')!='60f882b6c99d2409cde65a749098643c567049c4':raise SystemExit('exact implementation mismatch')
+          if d!=o or dg['generation_id']!=d or og['generation_id']!=o or dg['managed_mode']!='paper' or og['managed_mode']!='paper' or t['pending_rollout'] is not False:raise SystemExit('canonical PAPER convergence failed')
+          if not dg.get('paper_authorization_digest') or r.get('status')!='SUCCEEDED' or r.get('reason_code')!='EXTERNAL_RUNTIME_ADOPTED':raise SystemExit('PAPER rollout authority/provenance failed')
+          if p['physical']['paper_container_id']!=paper or p['physical']['old_shadow_container_id']!=old or p['physical']['paper_image_digest']!=image or p['physical']['paper_config_digest']!=config:raise SystemExit('physical identity mismatch')
+          if dg['runtime_image_digest']!=image or dg['normalized_runtime_config_digest']!=config:raise SystemExit('canonical/physical identity divergence')
+          if proof['observation_count']!=5 or proof['telemetry_record_count']!=5 or proof['successful_outcomes']!=5 or float(proof['fresh_source_ratio'])<0.99 or proof['runtime_health']!='healthy':raise SystemExit('5/5 proof failed')
+          gh=proof.get('generation_health')
+          if not isinstance(gh,list) or len(gh)!=5 or any(x.get('health')!='healthy' or sorted(y.get('source') for y in x.get('sources',[]))!=['binance-usdm','bybit-linear','okx-swap'] for x in gh):raise SystemExit('per-generation 3/3 health proof failed')
+          if health['status']!='healthy' or health['runtime_health']!='healthy' or health['circuit_breaker_active'] is not False or health['circuit_breaker_reasons']!=[]:raise SystemExit('production PAPER unhealthy')
+          if not restart['same_runtime_instance'] or restart['runtime_instance_id']!=paper or restart['after_generation']<=restart['before_generation']:raise SystemExit('restart proof failed')
+          zero={'protected_holdout_accessed':False,'automatic_promotion_enabled':False,'trading_credentials_present':False,'order_adapter_present':False,'execution_enabled':False,'orders_submitted':0,'live_capital_authorized':False}
+          if p['zero_authority']!=zero:raise SystemExit('zero-authority boundary changed')
+          pa=p.get('proof_artifact') or {}
+          if pa.get('id')!=9226400833 or pa.get('sha256')!='76bcee00b35c40fa7a37f63bc2af4ef84c090ab766291953fce812269143a284':raise SystemExit('proof artifact provenance mismatch')
+          print(json.dumps({'result':'PASS','material_findings':0,'mode':'paper','desired_generation_id':d,'observed_generation_id':o,'paper_container_id':paper,'old_shadow_container_id':old,'five_cycle_proof':'PASS','browser':'PASS','restart':'PASS','zero_authority':zero},sort_keys=True))
+          PY
+
+      - name: Upload audit evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: issue1396-adversarial-terminal-audit-v3-${{ github.run_id }}
+          retention-days: 14
+          if-no-files-found: error
+          path: artifacts/issue1396-adversarial-audit.json
+
+  finalize:
+    name: Final exact-state verification and superseded SHADOW cleanup
+    if: always()
+    needs: [transition, browser, audit]
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 20
+    env:
+      TRANSITION_RESULT: ${{ needs.transition.result }}
+      BROWSER_RESULT: ${{ needs.browser.result }}
+      AUDIT_RESULT: ${{ needs.audit.result }}
+      PAPER_CONTAINER_ID: ${{ needs.transition.outputs.paper_container_id }}
+      OLD_SHADOW_CONTAINER_ID: ${{ needs.transition.outputs.old_shadow_container_id }}
+      PAPER_IMAGE_DIGEST: ${{ needs.transition.outputs.paper_image_digest }}
+      D: ${{ needs.transition.outputs.desired_generation_id }}
+      O: ${{ needs.transition.outputs.observed_generation_id }}
+    steps:
+      - name: Check out request helper
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify terminal PAPER and remove only superseded stopped SHADOW
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/finalize"
+          if [[ "$TRANSITION_RESULT" != "success" || "$BROWSER_RESULT" != "success" || "$AUDIT_RESULT" != "success" ]]; then
+            printf '%s\n' "{\"result\":\"NOT_TERMINAL\",\"transition\":\"$TRANSITION_RESULT\",\"browser\":\"$BROWSER_RESULT\",\"audit\":\"$AUDIT_RESULT\"}" > "$RUNNER_TEMP/finalize/result.json"
+            exit 1
+          fi
+          [[ -n "$PAPER_CONTAINER_ID" && -n "$OLD_SHADOW_CONTAINER_ID" && -n "$D" && "$D" == "$O" ]]
+          [[ "$(docker inspect --format '{{.Id}}' "$PROD_PAPER_CONTAINER")" == "$PAPER_CONTAINER_ID" ]]
+          [[ "$(docker inspect --format '{{.Image}}' "$PROD_PAPER_CONTAINER")" == "sha256:$PAPER_IMAGE_DIGEST" ]]
+          [[ "$(docker inspect --format '{{.State.Health.Status}}' "$PROD_PAPER_CONTAINER")" == "healthy" ]]
+          docker exec "$PROD_PAPER_CONTAINER" python /app/deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py
+          [[ "$(docker inspect --format '{{.Id}}' "$OLD_SHADOW_CONTAINER_ID")" == "$OLD_SHADOW_CONTAINER_ID" ]]
+          [[ "$(docker inspect --format '{{.State.Running}}' "$OLD_SHADOW_CONTAINER_ID")" == "false" ]]
+          [[ "$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$OLD_SHADOW_CONTAINER_ID")" == "$OLD_SHADOW_PROJECT" ]]
+          [[ "$(docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "$OLD_SHADOW_CONTAINER_ID")" == "$OLD_SHADOW_SERVICE" ]]
+          docker cp deploy/synology/wickhunter-paper-runtime/issue1396_terminal_transition_v2.py "$PORTAL_CONTROL_CONTAINER:/tmp/issue1396_terminal_transition_v2.py"
+          docker exec "$PORTAL_CONTROL_CONTAINER" python /tmp/issue1396_terminal_transition_v2.py final-api --expected-mode paper > "$RUNNER_TEMP/finalize/final-api-before-cleanup.json"
+          docker rm "$OLD_SHADOW_CONTAINER_ID" >/dev/null
+          docker rm -f "$LEGACY_OBSERVER_CONTAINER" >/dev/null 2>&1 || true
+          if docker network inspect "$OLD_SHADOW_NETWORK" >/dev/null 2>&1; then docker network rm "$OLD_SHADOW_NETWORK" >/dev/null; fi
+          mapfile -t stale < <(docker ps -aq --no-trunc --filter "label=com.docker.compose.project=$OLD_SHADOW_PROJECT" | sed '/^$/d')
+          [[ ${#stale[@]} -eq 0 ]]
+          [[ "$(docker inspect --format '{{.State.Running}}' "$PROD_PAPER_CONTAINER")" == "true" ]]
+          [[ "$(docker inspect --format '{{.State.Running}}' "$PROD_GATEWAY_CONTAINER")" == "true" ]]
+          docker network inspect "$PROD_INTERNAL_NETWORK" >/dev/null
+          docker exec "$PORTAL_CONTROL_CONTAINER" python /tmp/issue1396_terminal_transition_v2.py final-api --expected-mode paper > "$RUNNER_TEMP/finalize/final-api-after-cleanup.json"
+          python3 - "$RUNNER_TEMP/finalize/final-api-after-cleanup.json" "$PAPER_CONTAINER_ID" "$PAPER_IMAGE_DIGEST" "$D" > "$RUNNER_TEMP/finalize/result.json" <<'PY'
+          import json,sys
+          api=json.load(open(sys.argv[1],encoding='utf-8'));paper,image,generation=sys.argv[2:5];t=api['truth']
+          if t['desired_generation']['generation_id']!=generation or t['observed_generation']['generation_id']!=generation or t['observed_generation']['managed_mode']!='paper' or t['observed_generation']['runtime_image_digest']!=image or t['pending_rollout'] is not False:raise SystemExit('final canonical PAPER truth diverged')
+          print(json.dumps({'result':'PASS','mode':'paper','desired_observed_equal':True,'generation_id':generation,'paper_container_id':paper,'paper_image_digest':image,'old_shadow_removed':True,'legacy_shadow_observer_removed':True},sort_keys=True))
+          PY
+          cat "$RUNNER_TEMP/finalize/result.json"
+
+      - name: Upload finalizer evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: issue1396-terminal-finalizer-v3-${{ github.run_id }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/finalize/

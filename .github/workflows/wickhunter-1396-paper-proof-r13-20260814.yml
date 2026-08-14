@@ -6,6 +6,7 @@ name: WickHunter #1396 final healthy PAPER proof r13
     branches: [develop]
     paths:
       - ".github/workflows/wickhunter-1396-paper-proof-r12-20260814.yml"
+      - ".github/workflows/wickhunter-1396-paper-proof-r13-20260814.yml"
 
 permissions:
   contents: read

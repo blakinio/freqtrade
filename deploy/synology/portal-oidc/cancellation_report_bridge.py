@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import fcntl
 import json
+import os
 import signal
 from collections.abc import Callable
 from functools import partial
@@ -177,18 +179,54 @@ def _raise_pending_after_fallback(
     raise pending from cause
 
 
+def _release_current_report_lock(deploy: Any) -> None:
+    lock_fd = getattr(deploy, "_portal_report_lock_fd", None)
+    deploy._portal_report_lock_fd = None
+    if isinstance(lock_fd, int):
+        try:
+            os.close(lock_fd)
+        except OSError:
+            pass
+
+
 def _reserve_current_report_path(deploy: Any, args: Any) -> None:
     report_path = Path(args.report).resolve()
+    lock_path = report_path.with_name(f".{report_path.name}.lock")
+    lock_fd: int | None = None
+    flags = os.O_RDWR | os.O_CREAT | os.O_CLOEXEC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
     try:
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_fd = os.open(lock_path, flags, 0o600)
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise deploy.DeploymentError(
+                "protected deployment report path is already owned by another invocation"
+            ) from exc
+        deploy._portal_report_lock_fd = lock_fd
+        lock_fd = None
         if report_path.exists():
             if not report_path.is_file():
                 raise deploy.DeploymentError(
                     "protected deployment report path is not a regular file"
                 )
             report_path.unlink()
+    except deploy.DeploymentError:
+        if lock_fd is not None:
+            os.close(lock_fd)
+        _release_current_report_lock(deploy)
+        raise
     except OSError as exc:
+        if lock_fd is not None:
+            try:
+                os.close(lock_fd)
+            except OSError:
+                pass
+        _release_current_report_lock(deploy)
         raise deploy.DeploymentError(
-            "protected deployment could not clear stale report evidence"
+            "protected deployment could not reserve current report evidence"
         ) from exc
     deploy._portal_current_report_path = report_path
 
@@ -210,6 +248,7 @@ def _guarded_deploy(
                 raise
             _raise_pending_after_fallback(deploy, args, pending, exc)
     finally:
+        _release_current_report_lock(deploy)
         _restore_termination_handlers(previous_handlers)
 
     pending = _pending_cancellation(deploy)
@@ -227,6 +266,7 @@ def install(deploy: Any) -> None:
     original_deploy = deploy.deploy
     deploy._portal_pending_cancellation = None
     deploy._portal_current_report_path = None
+    deploy._portal_report_lock_fd = None
 
     deploy._run = partial(_guarded_run, deploy, original_run)
     deploy._write_report = partial(_guarded_write_report, deploy, original_write_report)

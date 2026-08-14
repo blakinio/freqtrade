@@ -461,3 +461,53 @@ def test_sigint_after_report_bytes_preserves_current_report(tmp_path) -> None:
     assert final["recovery"] == {"restart_verified": True}
     assert final["cancellation"]["type"] == "KeyboardInterrupt"
     assert final["failure"]["type"] == "CancellationRecoveryError"
+
+
+def test_overlapping_same_report_invocation_fails_before_deploy(tmp_path) -> None:
+    report_path = tmp_path / "report.json"
+    report_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "request_id": "portal-authentik-public-oidc-20260801-v1",
+                "implementation_sha": "3" * 40,
+                "status": "success",
+                "portal": {"health": "first-invocation"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    first = SimpleNamespace(
+        DeploymentError=RuntimeError,
+        _portal_report_lock_fd=None,
+        _portal_current_report_path=None,
+    )
+    second = SimpleNamespace(
+        DeploymentError=RuntimeError,
+        _portal_report_lock_fd=None,
+        _portal_current_report_path=None,
+    )
+    args = SimpleNamespace(report=str(report_path))
+
+    module._reserve_current_report_path(first, args)
+    report_path.write_text(
+        json.dumps({"status": "success", "portal": {"health": "first-invocation"}}),
+        encoding="utf-8",
+    )
+    try:
+        with pytest.raises(RuntimeError, match="already owned by another invocation"):
+            module._reserve_current_report_path(second, args)
+        assert json.loads(report_path.read_text(encoding="utf-8"))["portal"] == {
+            "health": "first-invocation"
+        }
+        assert second._portal_current_report_path is None
+        assert second._portal_report_lock_fd is None
+    finally:
+        module._release_current_report_lock(first)
+
+    module._reserve_current_report_path(second, args)
+    try:
+        assert second._portal_current_report_path == report_path.resolve()
+        assert not report_path.exists()
+    finally:
+        module._release_current_report_lock(second)

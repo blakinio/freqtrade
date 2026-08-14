@@ -145,15 +145,5 @@ def test_subject_is_sent_over_stdin_and_only_hash_is_validated(
     assert observed["sensitive"] is True
 
 
-def test_workflow_is_request_only_and_keeps_owner_interaction_explicit() -> None:
-    workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-
-    assert "owner-membership-bootstrap-20260801-v1.json" in workflow
-    assert "must add exactly one frozen request file" in workflow
-    assert '"target_username": "akadmin"' in workflow
-    assert '"bootstrap_membership_authorized": True' in workflow
-    assert '"browser_acceptance_authorized": False' in workflow
-    assert '"live_capital_authorized": False' in workflow
-    assert "workflow_dispatch" not in workflow
-    assert "runs-on: [freqtrade-staging]" in workflow
-    assert "environment: synology-staging" in workflow
+def test_expired_request_only_workflow_is_retired() -> None:
+    assert not WORKFLOW_PATH.exists()

@@ -33,11 +33,11 @@ jobs:
           python -m pip install --disable-pip-version-check
           pytest ruff==0.15.21
 
-      - name: Make report-path ownership atomic and validate
+      - name: Serialize same-report deploy invocations and validate
         shell: bash
         run: |
           set -euo pipefail
-          expected_head=921100bdfca379e993b5b2f692ee34c7f4e01dcf
+          expected_head=4838c91c5c4e9d3f940656d89014ec1bc86b6732
           expected_base=bbe39128b8b94aab134a216542f94a3d65c6c949
           test "$(git rev-parse HEAD)" = "$expected_head"
           git fetch origin develop
@@ -49,23 +49,28 @@ jobs:
 
           bridge = Path("deploy/synology/portal-oidc/cancellation_report_bridge.py")
           source = bridge.read_text(encoding="utf-8")
+          source = source.replace(
+              "import json\nimport signal\n",
+              "import fcntl\nimport json\nimport os\nimport signal\n",
+              1,
+          )
 
-          old = '''    digest = cast(str, original_write_report(path, report))\n    deploy._portal_current_report_path = path.resolve()\n    return digest\n'''
-          new = '''    return cast(str, original_write_report(path, report))\n'''
+          old = '''def _reserve_current_report_path(deploy: Any, args: Any) -> None:\n    report_path = Path(args.report).resolve()\n    try:\n        if report_path.exists():\n            if not report_path.is_file():\n                raise deploy.DeploymentError(\n                    "protected deployment report path is not a regular file"\n                )\n            report_path.unlink()\n    except OSError as exc:\n        raise deploy.DeploymentError(\n            "protected deployment could not clear stale report evidence"\n        ) from exc\n    deploy._portal_current_report_path = report_path\n\n\n'''
+          new = '''def _release_current_report_lock(deploy: Any) -> None:\n    lock_fd = getattr(deploy, "_portal_report_lock_fd", None)\n    deploy._portal_report_lock_fd = None\n    if isinstance(lock_fd, int):\n        try:\n            os.close(lock_fd)\n        except OSError:\n            pass\n\n\ndef _reserve_current_report_path(deploy: Any, args: Any) -> None:\n    report_path = Path(args.report).resolve()\n    lock_path = report_path.with_name(f".{report_path.name}.lock")\n    lock_fd: int | None = None\n    flags = os.O_RDWR | os.O_CREAT | os.O_CLOEXEC\n    if hasattr(os, "O_NOFOLLOW"):\n        flags |= os.O_NOFOLLOW\n    try:\n        report_path.parent.mkdir(parents=True, exist_ok=True)\n        lock_fd = os.open(lock_path, flags, 0o600)\n        try:\n            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)\n        except BlockingIOError as exc:\n            raise deploy.DeploymentError(\n                "protected deployment report path is already owned by another invocation"\n            ) from exc\n        deploy._portal_report_lock_fd = lock_fd\n        lock_fd = None\n        if report_path.exists():\n            if not report_path.is_file():\n                raise deploy.DeploymentError(\n                    "protected deployment report path is not a regular file"\n                )\n            report_path.unlink()\n    except deploy.DeploymentError:\n        if lock_fd is not None:\n            os.close(lock_fd)\n        _release_current_report_lock(deploy)\n        raise\n    except OSError as exc:\n        if lock_fd is not None:\n            try:\n                os.close(lock_fd)\n            except OSError:\n                pass\n        _release_current_report_lock(deploy)\n        raise deploy.DeploymentError(\n            "protected deployment could not reserve current report evidence"\n        ) from exc\n    deploy._portal_current_report_path = report_path\n\n\n'''
           if source.count(old) != 1:
-              raise SystemExit("bridge: guarded-write marker target mismatch")
+              raise SystemExit("bridge: reservation replacement target mismatch")
           source = source.replace(old, new)
 
-          marker = '''def _guarded_deploy(\n    deploy: Any,\n    original_deploy: Callable[[Any], int],\n    args: Any,\n) -> int:\n'''
-          helper = '''def _reserve_current_report_path(deploy: Any, args: Any) -> None:\n    report_path = Path(args.report).resolve()\n    try:\n        if report_path.exists():\n            if not report_path.is_file():\n                raise deploy.DeploymentError(\n                    "protected deployment report path is not a regular file"\n                )\n            report_path.unlink()\n    except OSError as exc:\n        raise deploy.DeploymentError(\n            "protected deployment could not clear stale report evidence"\n        ) from exc\n    deploy._portal_current_report_path = report_path\n\n\n'''
-          if source.count(marker) != 1:
-              raise SystemExit("bridge: guarded-deploy helper insertion target mismatch")
-          source = source.replace(marker, helper + marker)
-
-          old = '''    previous_handlers = _install_termination_handlers(deploy)\n    deploy._portal_current_report_path = None\n    try:\n        try:\n            return_code = int(original_deploy(args))\n'''
-          new = '''    previous_handlers = _install_termination_handlers(deploy)\n    deploy._portal_current_report_path = None\n    try:\n        try:\n            _reserve_current_report_path(deploy, args)\n            return_code = int(original_deploy(args))\n'''
+          old = '''    finally:\n        _restore_termination_handlers(previous_handlers)\n\n    pending = _pending_cancellation(deploy)\n'''
+          new = '''    finally:\n        _release_current_report_lock(deploy)\n        _restore_termination_handlers(previous_handlers)\n\n    pending = _pending_cancellation(deploy)\n'''
           if source.count(old) != 1:
-              raise SystemExit("bridge: report reservation call target mismatch")
+              raise SystemExit("bridge: lock release target mismatch")
+          source = source.replace(old, new)
+
+          old = '''    deploy._portal_pending_cancellation = None\n    deploy._portal_current_report_path = None\n\n    deploy._run = partial(_guarded_run, deploy, original_run)\n'''
+          new = '''    deploy._portal_pending_cancellation = None\n    deploy._portal_current_report_path = None\n    deploy._portal_report_lock_fd = None\n\n    deploy._run = partial(_guarded_run, deploy, original_run)\n'''
+          if source.count(old) != 1:
+              raise SystemExit("bridge: install lock state target mismatch")
           bridge.write_text(source.replace(old, new), encoding="utf-8")
 
           test_path = Path(
@@ -73,9 +78,9 @@ jobs:
               "test_portal_oidc_cancellation_report_bridge.py"
           )
           tests = test_path.read_text(encoding="utf-8")
-          marker = "def test_sigint_after_report_bytes_preserves_current_report"
+          marker = "def test_overlapping_same_report_invocation_fails_before_deploy"
           if marker not in tests:
-              tests += '''\n\ndef test_sigint_after_report_bytes_preserves_current_report(tmp_path) -> None:\n    reports: list[dict[str, Any]] = []\n    report_path = tmp_path / "report.json"\n    deploy = SimpleNamespace(\n        DeploymentError=RuntimeError,\n        REQUEST_ID="portal-authentik-public-oidc-20260801-v1",\n        _bounded_schema_cleanup_evidence=_cleanup_evidence(),\n    )\n\n    def original_run(command, *, cwd=None, sensitive=False, check=True):\n        raise AssertionError("post-write SIGINT test must not pass through _run")\n\n    def original_write_report(path: Path, report: dict[str, Any]) -> str:\n        path.write_text(json.dumps(report), encoding="utf-8")\n        reports.append(copy.deepcopy(report))\n        handler = signal.getsignal(signal.SIGINT)\n        assert callable(handler)\n        handler(signal.SIGINT, None)\n        raise AssertionError("SIGINT after report bytes must not return")\n\n    def original_deploy(args: Any) -> int:\n        report = {\n            "schema_version": 2,\n            "request_id": deploy.REQUEST_ID,\n            "implementation_sha": args.expected_repository_sha,\n            "status": "success",\n            "secret_values_recorded": False,\n            "live_capital_authorized": False,\n            "portal": {"health": "healthy", "api_mode": True},\n            "database": {"revision": "20260809_04_runtime_isolation_binding"},\n            "recovery": {"restart_verified": True},\n        }\n        deploy._write_report(report_path, report)\n        raise AssertionError("post-write SIGINT must interrupt deploy")\n\n    stale = {\n        "schema_version": 2,\n        "request_id": deploy.REQUEST_ID,\n        "implementation_sha": "2" * 40,\n        "status": "success",\n        "portal": {"health": "stale"},\n    }\n    report_path.write_text(json.dumps(stale), encoding="utf-8")\n\n    deploy._run = original_run\n    deploy._write_report = original_write_report\n    deploy.deploy = original_deploy\n    module.install(deploy)\n    args = SimpleNamespace(\n        report=str(report_path),\n        expected_repository_sha="2" * 40,\n    )\n\n    with pytest.raises(KeyboardInterrupt):\n        deploy.deploy(args)\n\n    assert len(reports) == 2\n    final = reports[-1]\n    assert final["status"] == "failed"\n    assert final["portal"] == {"health": "healthy", "api_mode": True}\n    assert final["database"] == {\n        "revision": "20260809_04_runtime_isolation_binding"\n    }\n    assert final["recovery"] == {"restart_verified": True}\n    assert final["cancellation"]["type"] == "KeyboardInterrupt"\n    assert final["failure"]["type"] == "CancellationRecoveryError"\n'''
+              tests += '''\n\ndef test_overlapping_same_report_invocation_fails_before_deploy(tmp_path) -> None:\n    report_path = tmp_path / "report.json"\n    report_path.write_text(\n        json.dumps(\n            {\n                "schema_version": 2,\n                "request_id": "portal-authentik-public-oidc-20260801-v1",\n                "implementation_sha": "3" * 40,\n                "status": "success",\n                "portal": {"health": "first-invocation"},\n            }\n        ),\n        encoding="utf-8",\n    )\n    first = SimpleNamespace(\n        DeploymentError=RuntimeError,\n        _portal_report_lock_fd=None,\n        _portal_current_report_path=None,\n    )\n    second = SimpleNamespace(\n        DeploymentError=RuntimeError,\n        _portal_report_lock_fd=None,\n        _portal_current_report_path=None,\n    )\n    args = SimpleNamespace(report=str(report_path))\n\n    module._reserve_current_report_path(first, args)\n    report_path.write_text(\n        json.dumps({"status": "success", "portal": {"health": "first-invocation"}}),\n        encoding="utf-8",\n    )\n    try:\n        with pytest.raises(RuntimeError, match="already owned by another invocation"):\n            module._reserve_current_report_path(second, args)\n        assert json.loads(report_path.read_text(encoding="utf-8"))["portal"] == {\n            "health": "first-invocation"\n        }\n        assert second._portal_current_report_path is None\n        assert second._portal_report_lock_fd is None\n    finally:\n        module._release_current_report_lock(first)\n\n    module._reserve_current_report_path(second, args)\n    try:\n        assert second._portal_current_report_path == report_path.resolve()\n        assert not report_path.exists()\n    finally:\n        module._release_current_report_lock(second)\n'''
               test_path.write_text(tests, encoding="utf-8")
           PY
 
@@ -92,5 +97,5 @@ jobs:
           git config user.name "blakinio"
           git config user.email "75369544+blakinio@users.noreply.github.com"
           git add -- "${files[@]}"
-          git commit -m "fix(portal): reserve cancellation report path per run"
+          git commit -m "fix(portal): serialize cancellation report ownership"
           git push origin HEAD:fix/1089-bounded-schema-docker-lifecycle

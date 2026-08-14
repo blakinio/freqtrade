@@ -12,7 +12,9 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
+  # New commits should supersede older scans of the same PR. Non-PR runs keep
+  # their existing independent execution semantics.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions: {}
 

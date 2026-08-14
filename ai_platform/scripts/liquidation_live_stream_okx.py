@@ -21,7 +21,6 @@ from ai_platform.research.liquidations.okx import (
 )
 from ai_platform.research.liquidations.staging import (
     trading_credentials_present_in_environment,
-    write_json_atomic,
 )
 from ai_platform.scripts.liquidation_binance_collector import trading_credentials_present
 from ai_platform.scripts.liquidation_live_stream import (
@@ -33,8 +32,10 @@ from ai_platform.scripts.liquidation_live_stream import (
     LiveRunManager,
     _bounded_backoff_sleep,
     _fetch_json,
+    _write_json_atomic_at,
     discover_binance_symbols,
     discover_bybit_symbols,
+    redact_error,
     run_binance_source,
     run_bybit_source,
     validate_symbols,
@@ -145,10 +146,17 @@ class OkxLiveRunManager(LiveRunManager):
         payload["orders_submitted"] = 0
         return payload
 
-    def _write_okx_snapshot(self) -> None:
+    def _write_okx_snapshot(self, *, directory_fd: int | None = None) -> None:
         if self._okx_instrument_snapshot is not None:
-            write_json_atomic(
-                self.run_root / OKX_INSTRUMENT_SNAPSHOT_FILE,
+            run_fd = directory_fd
+            if run_fd is None:
+                run_fd = self._require_fd(
+                    self._run_root_fd,
+                    label="Liquid20 active run root",
+                )
+            _write_json_atomic_at(
+                run_fd,
+                OKX_INSTRUMENT_SNAPSHOT_FILE,
                 self._okx_instrument_snapshot,
             )
 
@@ -157,48 +165,72 @@ class OkxLiveRunManager(LiveRunManager):
         self._writers[OKX_SOURCE] = AppendOnlyNdjsonWriter(
             self.run_root / "okx-swap.ndjson",
             flush_interval_seconds=self._flush_interval_seconds,
+            directory_fd=self._require_fd(self._run_root_fd, label="Liquid20 active run root"),
         )
         self._write_okx_snapshot()
 
-    def _write_state(self) -> None:
-        super()._write_state()
+    def _write_source_summaries(self, run_fd: int, payload: dict[str, object]) -> None:
+        super()._write_source_summaries(run_fd, payload)
+        sources = payload.get("sources")
+        run_id = payload.get("run_id")
+        run_state = payload.get("run_state")
+        if not isinstance(sources, dict) or not isinstance(run_id, str):
+            raise RuntimeError("Liquid20 OKX source summary payload is invalid")
+        stats = sources.get(OKX_SOURCE)
+        if not isinstance(stats, dict) or not isinstance(run_state, str):
+            raise RuntimeError("Liquid20 OKX source summary state is invalid")
         source_payload = {
             "schema_version": 1,
             "source": {"id": OKX_SOURCE},
-            "run_id": self.run_id,
-            "run_state": self._run_state,
-            "stats": self.sources[OKX_SOURCE].as_json_dict(),
+            "run_id": run_id,
+            "run_state": run_state,
+            "stats": stats,
             "trading_credentials_present": False,
             "execution_enabled": False,
             "orders_submitted": 0,
         }
-        write_json_atomic(self.run_root / "okx-swap-summary.json", source_payload)
-        self._write_okx_snapshot()
+        _write_json_atomic_at(run_fd, "okx-swap-summary.json", source_payload)
+        self._write_okx_snapshot(directory_fd=run_fd)
 
     async def connected(self, source: str) -> None:
-        if self._startup_activation_complete:
-            await super().connected(source)
-            return
         async with self._lock:
             if source not in REQUIRED_LIVE_SOURCES:
                 raise ValueError("unsupported live liquidation source")
-            self._startup_connected_sources.add(source)
             state = self.sources[source]
             state.last_heartbeat_at_ms = self._now_ms()
             state.latest_error = None
-            if self._startup_connected_sources == REQUIRED_LIVE_SOURCES:
-                activated_at_ms = self._now_ms()
-                for item in self.sources.values():
-                    item.connected = True
-                    item.last_heartbeat_at_ms = activated_at_ms
-                    item.latest_error = None
-                self._startup_activation_complete = True
+            if self._startup_activation_complete:
+                state.connected = True
+                await asyncio.to_thread(self._write_state)
+                return
+
+            self._startup_connected_sources.add(source)
+            if self._startup_connected_sources != REQUIRED_LIVE_SOURCES:
+                return
+
+            activated_at_ms = self._now_ms()
+            for item in self.sources.values():
+                item.connected = True
+                item.last_heartbeat_at_ms = activated_at_ms
+                item.latest_error = None
+            self._startup_activation_complete = True
             await asyncio.to_thread(self._write_state)
 
     async def disconnected(self, source: str, error: BaseException | str | None) -> None:
-        if not self._startup_activation_complete:
-            self._startup_connected_sources.discard(source)
-        await super().disconnected(source, error)
+        async with self._lock:
+            if source not in REQUIRED_LIVE_SOURCES:
+                raise ValueError("unsupported live liquidation source")
+            if not self._startup_activation_complete:
+                self._startup_connected_sources.discard(source)
+            state = self.sources[source]
+            state.connected = False
+            state.reconnect_count += 1
+            state.last_heartbeat_at_ms = self._now_ms()
+            planned = error == "subscription universe refresh"
+            if not planned:
+                state.error_count += 1
+            state.latest_error = None if planned else redact_error(error)
+            await asyncio.to_thread(self._write_state)
 
     async def set_okx_instruments(
         self,

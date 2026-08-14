@@ -20,8 +20,28 @@
 /requirements*.txt @blakinio
 /docker/ @blakinio
 /docker-compose*.yml @blakinio
+/deploy/synology/ @blakinio
 
-# Security-, identity-, risk- and execution-sensitive platform code.
-/ai_platform/portal/backend/ @blakinio
-/ai_platform/portal/infra/ @blakinio
-/ai_platform/risk/ @blakinio
+# Portal ownership block. This block MUST remain the final CODEOWNERS block;
+# add unrelated rules above it. GitHub applies the last matching CODEOWNERS
+# rule, so keeping the umbrella and its explicit overrides terminal makes the
+# effective Portal owner independent of unsupported glob/slashless patterns.
+/ai_platform/portal/ @blakinio
+
+# Security-, identity-, risk-, deployment- and execution-sensitive Portal code.
+/ai_platform/portal/control_plane/ @blakinio
+/ai_platform/portal/execution/ @blakinio
+/ai_platform/portal/execution_submission/ @blakinio
+/ai_platform/portal/bot_operations/ @blakinio
+/ai_platform/portal/exchange_connections/ @blakinio
+/ai_platform/portal/signal_control/ @blakinio
+/ai_platform/portal/identity/ @blakinio
+/ai_platform/portal/security/ @blakinio
+/ai_platform/portal/credentials/ @blakinio
+/ai_platform/portal/database/ @blakinio
+/ai_platform/portal/risk/ @blakinio
+/ai_platform/portal/deploy/ @blakinio
+
+# Portal user-facing and contract surfaces.
+/ai_platform/portal/contracts/ @blakinio
+/ai_platform/portal/web/ @blakinio

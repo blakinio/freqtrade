@@ -60,7 +60,7 @@ The immutable activation authorizes candidate validation only. It never authoriz
 
 The default cadence is 600 seconds, yielding up to 144 snapshots per 24 hours. Every successful tick has a strictly increasing observation time. `/runtime/operator/health.json` is atomically replaced and self-hashed. It reports exact operator, binding, run, window, generation, runtime health, canonical circuit-breaker reasons, drift, and zero-authority state.
 
-The container healthcheck is `/app/deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py`. It rejects stale, tampered, failed, or identity-mismatched state while accepting truthful fail-closed runtime breaker evidence produced by a successful journal step.
+The container healthcheck is `/app/deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py`. It accepts only fresh, untampered, identity-matching state whose `runtime_health` is exactly `healthy`. Truthful `degraded` or `fail_closed` circuit-breaker evidence remains valid operator evidence, but intentionally makes the container healthcheck fail closed during the exercise and must not be interpreted as a healthy runtime proof.
 
 ## Hardened container boundary
 

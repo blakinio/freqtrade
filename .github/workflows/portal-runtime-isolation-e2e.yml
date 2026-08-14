@@ -1,0 +1,416 @@
+name: Portal Runtime Isolation E2E
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/portal-runtime-isolation-e2e.yml"
+      - "ai_platform/portal/execution/driver.py"
+      - "ai_platform/portal/execution/host_isolation.py"
+      - "ai_platform/portal/execution/isolation.py"
+      - "ai_platform/portal/execution/runtime_image/**"
+      - "ai_platform/portal/runtime_supervisor/**"
+      - "tests/ai_platform/portal/execution/test_driver.py"
+      - "tests/ai_platform/portal/execution/test_driver_swap_probe.py"
+      - "tests/ai_platform/portal/execution/test_host_isolation.py"
+      - "tests/ai_platform/portal/execution/test_host_isolation_policy_guardrails.py"
+      - "tests/ai_platform/portal/execution/test_isolation.py"
+      - "tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py"
+      - "tests/ai_platform/portal/execution/test_linux_isolation_state_owner_e2e.py"
+      - "tests/ai_platform/portal/execution/test_runtime_image.py"
+      - "tests/ai_platform/portal/execution/test_runtime_isolation_e2e.py"
+      - "tests/ai_platform/portal/runtime_supervisor/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portal-runtime-isolation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  runtime-isolation-e2e:
+    name: Real Docker driver and hardened runtime image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install focused validation dependencies
+        run: >-
+          python -m pip install --disable-pip-version-check
+          pytest==9.1.1 jsonschema "pydantic>=2.2" "SQLAlchemy>=2.0.6"
+          "httpx>=0.24.1" fastapi pyjwt cryptography "PyYAML>=6.0"
+
+      - name: Prepare no-swap hard-bound fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo swapoff -a
+          if [ "$(wc -l < /proc/swaps)" -gt 1 ]; then
+            echo "active swap remains after swapoff" >&2
+            cat /proc/swaps >&2
+            exit 1
+          fi
+
+      - name: Run host isolation policy guardrails
+        run: >-
+          python -m pytest -q -o addopts=''
+          --confcutdir=tests/ai_platform
+          tests/ai_platform/portal/execution/test_host_isolation_policy_guardrails.py
+
+      - name: Exercise Linux UDS peer credentials and Supervisor contracts
+        run: >-
+          python -m pytest -q -o addopts=''
+          --confcutdir=tests/ai_platform
+          tests/ai_platform/portal/runtime_supervisor
+
+      - name: Resolve validation base to an immutable digest
+        id: base
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull --quiet freqtradeorg/freqtrade:stable >/dev/null
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import subprocess
+
+          result = subprocess.run(
+              [
+                  "docker",
+                  "image",
+                  "inspect",
+                  "--format",
+                  "{{json .RepoDigests}}",
+                  "freqtradeorg/freqtrade:stable",
+              ],
+              check=True,
+              capture_output=True,
+              text=True,
+          )
+          digests = json.loads(result.stdout)
+          exact = next(
+              value
+              for value in digests
+              if isinstance(value, str)
+              and value.startswith("freqtradeorg/freqtrade@sha256:")
+          )
+          print(f"image={exact}")
+          print(f"digest={exact.rsplit('@sha256:', 1)[1]}")
+          PY
+
+      - name: Build hardened runtime image from exact base
+        shell: bash
+        env:
+          BASE_IMAGE: ${{ steps.base.outputs.image }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          import subprocess
+          from pathlib import Path
+
+          from ai_platform.portal.execution.runtime_image.build import build_command
+
+          command = build_command(
+              base_image=os.environ["BASE_IMAGE"],
+              target_tag="portal/freqtrade-runtime:e2e",
+              repository_root=Path.cwd(),
+          )
+          subprocess.run(command, check=True)
+          PY
+
+      - name: Publish hardened image to loopback registry for exact identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull --quiet registry:2.8.3 >/dev/null
+          docker run -d --name portal-runtime-registry \
+            -p 127.0.0.1:5000:5000 registry:2.8.3 >/dev/null
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:5000/v2/ >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              docker logs portal-runtime-registry >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          local_tag="127.0.0.1:5000/portal/freqtrade-runtime:e2e"
+          docker tag portal/freqtrade-runtime:e2e "$local_tag"
+          docker push "$local_tag" >/dev/null
+          exact="$(docker image inspect --format '{{index .RepoDigests 0}}' "$local_tag")"
+          case "$exact" in
+            *@sha256:*) ;;
+            *) echo "loopback registry did not return an immutable digest" >&2; exit 1 ;;
+          esac
+          docker pull --quiet "$exact" >/dev/null
+          echo "PORTAL_RUNTIME_IMAGE=$exact" >> "$GITHUB_ENV"
+
+      - name: Attest hardened runtime image behavior
+        shell: bash
+        env:
+          BASE_IMAGE: ${{ steps.base.outputs.image }}
+        run: |
+          set -euo pipefail
+          image="$PORTAL_RUNTIME_IMAGE"
+          test "$(docker image inspect --format '{{.Config.User}}' "$image")" = "ftuser"
+          test "$(docker image inspect --format '{{json .Config.Entrypoint}}' "$image")" = '["/usr/local/bin/portal-runtime-quarantine"]'
+          test "$(docker image inspect --format '{{json .Config.Cmd}}' "$image")" = '["freqtrade","trade"]'
+          docker run --rm \
+            --network none \
+            --read-only \
+            --cap-drop ALL \
+            --security-opt no-new-privileges=true \
+            --entrypoint /bin/sh \
+            "$image" \
+            -ec 'test "$(id -u)" != 0; test "$(id -g)" != 0; ! command -v sudo; test ! -e /usr/bin/sudo; test ! -e /bin/sudo; ! id -Gn | tr " " "\n" | grep -Fx sudo; test -x /usr/local/bin/portal-runtime-quarantine'
+
+          mkdir -p artifacts/portal-runtime-isolation
+          python - "$image" "$BASE_IMAGE" <<'PY'
+          import json
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          image, base = sys.argv[1:]
+          payload = json.loads(
+              subprocess.run(
+                  ["docker", "image", "inspect", image],
+                  check=True,
+                  capture_output=True,
+                  text=True,
+              ).stdout
+          )[0]
+          evidence = {
+              "base_image": base,
+              "runtime_image": image,
+              "image_id": payload["Id"],
+              "user": payload["Config"]["User"],
+              "entrypoint": payload["Config"]["Entrypoint"],
+              "cmd": payload["Config"]["Cmd"],
+          }
+          Path("artifacts/portal-runtime-isolation/runtime-image.json").write_text(
+              json.dumps(evidence, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          sha256sum ai_platform/portal/execution/runtime_image/Dockerfile \
+            ai_platform/portal/execution/runtime_image/portal-runtime-quarantine \
+            > artifacts/portal-runtime-isolation/runtime-image-inputs.sha256
+
+      - name: Exercise real Docker driver quarantine and hard bounds
+        env:
+          PORTAL_RUNTIME_ISOLATION_E2E: "true"
+        run: >-
+          python -m pytest -q -o addopts=''
+          --confcutdir=tests/ai_platform
+          tests/ai_platform/portal/execution/test_runtime_isolation_e2e.py
+
+      - name: Prepare ephemeral Btrfs and nftables fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y btrfs-progs nftables
+          image=/tmp/portal-runtime-isolation-btrfs.img
+          mount=/mnt/portal-runtime-isolation-btrfs
+          truncate -s 256M "$image"
+          sudo mkfs.btrfs -q -f "$image"
+          sudo mkdir -p "$mount"
+          sudo mount -o loop "$image" "$mount"
+          sudo chmod 0755 "$mount"
+          sudo btrfs quota enable "$mount"
+          sudo btrfs quota rescan -w "$mount"
+          filesystem_uuid="$(sudo btrfs filesystem show "$mount" | sed -n 's/.*uuid: //p' | head -n1)"
+          test -n "$filesystem_uuid"
+          test "$(cat "/sys/fs/btrfs/$filesystem_uuid/qgroups/enabled")" = "1"
+          test "$(cat "/sys/fs/btrfs/$filesystem_uuid/qgroups/inconsistent")" = "0"
+          echo "PORTAL_BTRFS_E2E_ROOT=$mount" >> "$GITHUB_ENV"
+          inventory="$RUNNER_TEMP/portal-runtime-isolation-nftables-tables"
+          : > "$inventory"
+          echo "PORTAL_NFTABLES_TABLE_INVENTORY=$inventory" >> "$GITHUB_ENV"
+
+      - name: Exercise production Linux nftables and Btrfs backend
+        shell: bash
+        env:
+          PORTAL_LINUX_ISOLATION_E2E: "true"
+        run: |
+          set -euo pipefail
+          python_path="$(command -v python)"
+          sudo -E env \
+            CI=true \
+            PYTHONPATH="$GITHUB_WORKSPACE" \
+            PORTAL_LINUX_ISOLATION_E2E=true \
+            PORTAL_BTRFS_E2E_ROOT="$PORTAL_BTRFS_E2E_ROOT" \
+            PORTAL_NFTABLES_TABLE_INVENTORY="$PORTAL_NFTABLES_TABLE_INVENTORY" \
+            "$python_path" -m pytest -q -o addopts='' \
+            --confcutdir=tests/ai_platform \
+            tests/ai_platform/portal/execution/test_linux_isolation_backend_e2e.py \
+            tests/ai_platform/portal/execution/test_linux_isolation_state_owner_e2e.py
+
+      - name: Upload runtime isolation evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: portal-runtime-isolation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/portal-runtime-isolation
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Cleanup task-owned host and Docker resources
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          cleanup_failed=0
+          task_tables=()
+          declare -A retained_tables=()
+          retain_all_tables=0
+
+          mapfile -t containers < <(
+            {
+              docker ps -aq --filter 'label=ai.portal.test=runtime-isolation-e2e'
+              for candidate in $(docker ps -aq --filter 'label=ai.portal.runtime_id'); do
+                runtime_id="$(docker inspect --format '{{index .Config.Labels "ai.portal.runtime_id"}}' "$candidate" 2>/dev/null)"
+                case "$runtime_id" in
+                  portal-linux-e2e-*) echo "$candidate" ;;
+                esac
+              done
+            } | sort -u
+          )
+          for container in "${containers[@]}"; do
+            name="$(docker inspect --format '{{.Name}}' "$container" | sed 's#^/##')"
+            case "$name" in
+              portal-isolation-e2e-*|portal-linux-e2e-*)
+                docker rm -f "$container" || cleanup_failed=1
+                ;;
+              *)
+                echo "refusing cleanup of unexpected container: $name" >&2
+                cleanup_failed=1
+                ;;
+            esac
+          done
+
+          if [ -n "${PORTAL_NFTABLES_TABLE_INVENTORY:-}" ] && [ -f "$PORTAL_NFTABLES_TABLE_INVENTORY" ]; then
+            while IFS= read -r table; do
+              [ -z "$table" ] && continue
+              if [[ "$table" =~ ^portal_[0-9a-f]{20}$ ]]; then
+                task_tables+=("$table")
+              else
+                echo "refusing unexpected nftables inventory entry: $table" >&2
+                cleanup_failed=1
+              fi
+            done < "$PORTAL_NFTABLES_TABLE_INVENTORY"
+          fi
+
+          mapfile -t networks < <(
+            docker network ls -q --filter 'label=ai.portal.runtime_id'
+          )
+          for network in "${networks[@]}"; do
+            if ! runtime_id="$(docker network inspect --format '{{index .Labels "ai.portal.runtime_id"}}' "$network")"; then
+              cleanup_failed=1
+              retain_all_tables=1
+              continue
+            fi
+            case "$runtime_id" in
+              portal-isolation-e2e-*|portal-linux-e2e-*)
+                if ! network_name="$(docker network inspect --format '{{.Name}}' "$network")"; then
+                  cleanup_failed=1
+                  retain_all_tables=1
+                  continue
+                fi
+                table="portal_$(printf '%s' "$network_name" | sha256sum | cut -c1-20)"
+                task_tables+=("$table")
+                if ! docker network rm "$network"; then
+                  cleanup_failed=1
+                  retained_tables["$table"]=1
+                fi
+                ;;
+              *) continue ;;
+            esac
+          done
+
+          if [ "${#task_tables[@]}" -gt 0 ]; then
+            mapfile -t task_tables < <(printf '%s\n' "${task_tables[@]}" | sort -u)
+          fi
+          for table in "${task_tables[@]}"; do
+            if [ "$retain_all_tables" -eq 1 ] || [ -n "${retained_tables[$table]:-}" ]; then
+              echo "retaining task-owned nftables table because Docker network teardown is unproven: $table" >&2
+              continue
+            fi
+            if sudo nft list table inet "$table" >/dev/null 2>&1; then
+              sudo nft delete table inet "$table" || cleanup_failed=1
+            fi
+          done
+
+          if mountpoint -q /mnt/portal-runtime-isolation-btrfs; then
+            sudo umount /mnt/portal-runtime-isolation-btrfs || cleanup_failed=1
+          fi
+          sudo rm -rf /mnt/portal-runtime-isolation-btrfs || cleanup_failed=1
+          rm -f /tmp/portal-runtime-isolation-btrfs.img || cleanup_failed=1
+
+          if docker container inspect portal-runtime-registry >/dev/null 2>&1; then
+            docker rm -f portal-runtime-registry >/dev/null 2>&1 || cleanup_failed=1
+          fi
+
+          if [ -n "${PORTAL_RUNTIME_IMAGE:-}" ]; then
+            docker image rm -f "$PORTAL_RUNTIME_IMAGE" >/dev/null 2>&1 || cleanup_failed=1
+          fi
+          if docker image inspect portal/freqtrade-runtime:e2e >/dev/null 2>&1; then
+            docker image rm -f portal/freqtrade-runtime:e2e >/dev/null 2>&1 || cleanup_failed=1
+          fi
+
+          for container in $(docker ps -aq --filter 'label=ai.portal.runtime_id'); do
+            runtime_id="$(docker inspect --format '{{index .Config.Labels "ai.portal.runtime_id"}}' "$container" 2>/dev/null)"
+            case "$runtime_id" in
+              portal-isolation-e2e-*|portal-linux-e2e-*)
+                echo "task-owned runtime isolation container remains after cleanup: $container" >&2
+                cleanup_failed=1
+                ;;
+            esac
+          done
+          for network in $(docker network ls -q --filter 'label=ai.portal.runtime_id'); do
+            runtime_id="$(docker network inspect --format '{{index .Labels "ai.portal.runtime_id"}}' "$network" 2>/dev/null)"
+            case "$runtime_id" in
+              portal-isolation-e2e-*|portal-linux-e2e-*)
+                echo "task-owned runtime isolation network remains after cleanup: $network" >&2
+                cleanup_failed=1
+                ;;
+            esac
+          done
+          for table in "${task_tables[@]}"; do
+            if sudo nft list table inet "$table" >/dev/null 2>&1; then
+              echo "task-owned nftables table remains after cleanup: $table" >&2
+              cleanup_failed=1
+            fi
+          done
+          if mountpoint -q /mnt/portal-runtime-isolation-btrfs; then
+            echo "ephemeral Btrfs fixture remains mounted after cleanup" >&2
+            cleanup_failed=1
+          fi
+          if [ -e /tmp/portal-runtime-isolation-btrfs.img ]; then
+            echo "ephemeral Btrfs image remains after cleanup" >&2
+            cleanup_failed=1
+          fi
+          if docker container inspect portal-runtime-registry >/dev/null 2>&1; then
+            echo "task-owned loopback registry remains after cleanup" >&2
+            cleanup_failed=1
+          fi
+          if docker image inspect portal/freqtrade-runtime:e2e >/dev/null 2>&1; then
+            echo "task-owned hardened runtime image remains after cleanup" >&2
+            cleanup_failed=1
+          fi
+
+          exit "$cleanup_failed"

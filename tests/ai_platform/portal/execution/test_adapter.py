@@ -20,20 +20,24 @@ from ai_platform.portal.contracts.common import CorrelationContext
 from ai_platform.portal.contracts.environment import Environment, ExecutionMode
 from ai_platform.portal.contracts.execution import ExecutionAdapter, RuntimeHealthState
 from ai_platform.portal.contracts.risk import ApprovedExecutionIntent
-from ai_platform.portal.execution.adapter import FreqtradeExecutionAdapter
+from ai_platform.portal.execution.adapter import (
+    FreqtradeExecutionAdapter,
+    RuntimeSupervisorClient,
+)
 from ai_platform.portal.execution.errors import (
-    RuntimeDriverError,
     RuntimeNotProvisionedError,
     RuntimeRevisionConflictError,
     UnsupportedExecutionModeError,
     UnsupportedExecutionOperationError,
 )
-from ai_platform.portal.execution.runtime import (
-    DriverRuntimeState,
-    ResolvedRuntimeArtifacts,
-    RuntimeContainerSpec,
-)
+from ai_platform.portal.execution.runtime import DriverRuntimeState, ResolvedRuntimeArtifacts
 from ai_platform.portal.execution.workspace import RuntimeWorkspaceStore
+from ai_platform.portal.runtime_supervisor import (
+    SupervisorOperation,
+    SupervisorOutcome,
+    SupervisorOutcomeCode,
+    SupervisorRequest,
+)
 
 
 NOW = datetime(2026, 7, 22, 12, 0, tzinfo=UTC)
@@ -110,54 +114,95 @@ class _Resolver:
         return self.materials[(tenant_id, bot_id, generation_id)]
 
 
-class _FakeDriver:
+class _FakeSupervisor:
     def __init__(self) -> None:
         self.states: dict[str, DriverRuntimeState] = {}
-        self.provision_specs: list[RuntimeContainerSpec] = []
-        self.failures: dict[str, str] = {}
+        self.requests: list[SupervisorRequest] = []
+        self.failures: dict[SupervisorOperation, str] = {}
 
-    def fail_next(self, operation: str, reason_code: str) -> None:
+    def fail_next(self, operation: SupervisorOperation, reason_code: str) -> None:
         self.failures[operation] = reason_code
 
-    def provision(self, spec: RuntimeContainerSpec) -> DriverRuntimeState:
-        self._maybe_fail("provision")
-        self.provision_specs.append(spec)
-        return self.states.setdefault(spec.runtime_id, DriverRuntimeState.CREATED)
-
-    def start(self, runtime_id: str) -> DriverRuntimeState:
-        self._maybe_fail("start")
-        if runtime_id not in self.states:
-            raise RuntimeDriverError("RUNTIME_MISSING", "runtime is missing")
-        self.states[runtime_id] = DriverRuntimeState.RUNNING
-        return self.states[runtime_id]
-
-    def pause(self, runtime_id: str) -> DriverRuntimeState:
-        self._maybe_fail("pause")
-        if runtime_id not in self.states:
-            raise RuntimeDriverError("RUNTIME_MISSING", "runtime is missing")
-        if self.states[runtime_id] is DriverRuntimeState.RUNNING:
-            self.states[runtime_id] = DriverRuntimeState.PAUSED
-        return self.states[runtime_id]
-
-    def stop(self, runtime_id: str) -> DriverRuntimeState:
-        self._maybe_fail("stop")
-        if runtime_id not in self.states:
-            raise RuntimeDriverError("RUNTIME_MISSING", "runtime is missing")
-        if self.states[runtime_id] in {
-            DriverRuntimeState.RUNNING,
-            DriverRuntimeState.PAUSED,
-        }:
-            self.states[runtime_id] = DriverRuntimeState.STOPPED
-        return self.states[runtime_id]
-
-    def inspect(self, runtime_id: str) -> DriverRuntimeState:
-        self._maybe_fail("inspect")
-        return self.states.get(runtime_id, DriverRuntimeState.MISSING)
-
-    def _maybe_fail(self, operation: str) -> None:
-        reason_code = self.failures.pop(operation, None)
+    def execute(self, request: SupervisorRequest) -> SupervisorOutcome:
+        self.requests.append(request)
+        reason_code = self.failures.pop(request.operation, None)
         if reason_code is not None:
-            raise RuntimeDriverError(reason_code, reason_code)
+            return SupervisorOutcome(
+                accepted=False,
+                code=SupervisorOutcomeCode.ENGINE_OPERATION_FAILED,
+                operation=request.operation,
+                tenant_id=request.tenant_id,
+                bot_id=request.bot_id,
+                generation_id=request.generation_id,
+                generation_spec_digest=request.generation_spec_digest,
+                command_id=request.command_id,
+                correlation_id=request.correlation_id,
+                expected_generation_ordinal=request.expected_generation_ordinal,
+                expected_state_version=request.expected_state_version,
+                causation_id=request.causation_id,
+                state=None,
+                state_version=request.expected_state_version,
+                driver_reason_code=reason_code,
+                evidence_digest="e" * 64,
+            )
+
+        current = self.states.get(request.generation_id, DriverRuntimeState.MISSING)
+        if request.operation is SupervisorOperation.ENSURE_PROVISIONED:
+            if current in {DriverRuntimeState.MISSING, DriverRuntimeState.STOPPED}:
+                current = DriverRuntimeState.CREATED
+        elif request.operation is SupervisorOperation.ENSURE_RUNNING:
+            current = DriverRuntimeState.RUNNING
+        elif request.operation is SupervisorOperation.ENSURE_PAUSED:
+            if current is DriverRuntimeState.RUNNING:
+                current = DriverRuntimeState.PAUSED
+        elif request.operation is SupervisorOperation.ENSURE_STOPPED:
+            if current is not DriverRuntimeState.MISSING:
+                current = DriverRuntimeState.STOPPED
+        elif request.operation is SupervisorOperation.ENSURE_RETIRED:
+            current = DriverRuntimeState.MISSING
+        self.states[request.generation_id] = current
+        code = (
+            SupervisorOutcomeCode.OBSERVED
+            if request.operation is SupervisorOperation.INSPECT_GENERATION
+            else SupervisorOutcomeCode.APPLIED
+        )
+        return SupervisorOutcome(
+            accepted=True,
+            code=code,
+            operation=request.operation,
+            tenant_id=request.tenant_id,
+            bot_id=request.bot_id,
+            generation_id=request.generation_id,
+            generation_spec_digest=request.generation_spec_digest,
+            command_id=request.command_id,
+            correlation_id=request.correlation_id,
+            expected_generation_ordinal=request.expected_generation_ordinal,
+            expected_state_version=request.expected_state_version,
+            causation_id=request.causation_id,
+            state=current,
+            state_version=request.expected_state_version,
+            evidence_digest="e" * 64,
+        )
+
+    def provision_count(self) -> int:
+        return sum(
+            request.operation is SupervisorOperation.ENSURE_PROVISIONED for request in self.requests
+        )
+
+
+class _RawDriver:
+    pass
+
+
+class _MismatchedSupervisor(_FakeSupervisor):
+    def __init__(self, field: str, value: object) -> None:
+        super().__init__()
+        self.field = field
+        self.value = value
+
+    def execute(self, request: SupervisorRequest) -> SupervisorOutcome:
+        outcome = super().execute(request)
+        return outcome.model_copy(update={self.field: self.value})
 
 
 def _bot(
@@ -179,7 +224,7 @@ def _bot(
             exchange_connection_ref="exchange-1",
             pair_universe=("BTC/USDT",),
             timeframe="5m",
-            capital_allocation=Decimal("1000"),
+            capital_allocation=Decimal(1000),
             capital_currency="USDT",
             runtime_version="runtime-v1",
             config_revision=revision,
@@ -202,14 +247,53 @@ def _context() -> CorrelationContext:
 
 def _adapter(
     tmp_path: Path,
-) -> tuple[ExecutionAdapter, _FakeDriver, _Resolver, RuntimeWorkspaceStore]:
-    driver = _FakeDriver()
+) -> tuple[ExecutionAdapter, _FakeSupervisor, _Resolver, RuntimeWorkspaceStore]:
+    supervisor = _FakeSupervisor()
     resolver = _Resolver()
     resolver.register(_material())
     store = RuntimeWorkspaceStore(tmp_path)
-    adapter = FreqtradeExecutionAdapter(driver, resolver, store, clock=lambda: NOW)
+    adapter = FreqtradeExecutionAdapter(supervisor, resolver, store, clock=lambda: NOW)
     protocol_adapter: ExecutionAdapter = adapter
-    return protocol_adapter, driver, resolver, store
+    return protocol_adapter, supervisor, resolver, store
+
+
+def test_raw_runtime_driver_cannot_be_injected(tmp_path: Path) -> None:
+    resolver = _Resolver()
+    resolver.register(_material())
+    raw_driver = cast(RuntimeSupervisorClient, _RawDriver())
+    with pytest.raises(TypeError, match="Runtime Supervisor"):
+        FreqtradeExecutionAdapter(raw_driver, resolver, RuntimeWorkspaceStore(tmp_path))
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("tenant_id", "tenant-other"),
+        ("bot_id", "bot-other"),
+        ("generation_id", "generation-other"),
+        ("generation_spec_digest", "f" * 64),
+        ("operation", SupervisorOperation.ENSURE_STOPPED),
+        ("command_id", uuid4()),
+        ("expected_generation_ordinal", 2),
+        ("expected_state_version", 2),
+        ("correlation_id", uuid4()),
+        ("causation_id", None),
+    ],
+)
+def test_mismatched_supervisor_outcome_identity_is_rejected(
+    tmp_path: Path, field: str, value: object
+) -> None:
+    resolver = _Resolver()
+    resolver.register(_material())
+    adapter = FreqtradeExecutionAdapter(
+        _MismatchedSupervisor(field, value),
+        resolver,
+        RuntimeWorkspaceStore(tmp_path),
+        clock=lambda: NOW,
+    )
+
+    with pytest.raises(RuntimeRevisionConflictError, match="outcome identity mismatch"):
+        adapter.provision_bot(_bot(), _context())
 
 
 def test_provisioning_is_generation_scoped_isolated_and_correlation_labeled(
@@ -226,16 +310,19 @@ def test_provisioning_is_generation_scoped_isolated_and_correlation_labeled(
     assert first.runtime_id == second.runtime_id
     assert first.runtime_id != other_tenant.runtime_id
     assert first.observed_state is BotObservedState.CREATED
-    spec = driver.provision_specs[0]
-    assert spec.config_path == store.config_path_for(first.runtime_id)
-    assert spec.state_path == store.state_path_for(first.runtime_id)
-    assert spec.config_path.parent != spec.state_path
-    assert store.record_path_for(first.runtime_id).parent != spec.config_path.parent
-    assert store.record_path_for(first.runtime_id).parent != spec.state_path
-    assert spec.labels["ai.portal.correlation_id"] == str(context.correlation_id)
-    assert "tenant-a" not in spec.labels.values()
-    assert "bot-1" not in spec.labels.values()
-    assert "generation-1" not in spec.labels.values()
+    request = driver.requests[0]
+    assert request.operation is SupervisorOperation.ENSURE_PROVISIONED
+    assert request.generation_id == "generation-1"
+    assert request.generation_spec_digest == _material().generation_spec_digest
+    assert request.expected_generation_ordinal == 1
+    assert request.expected_state_version == 1
+    assert request.correlation_id == context.correlation_id
+    assert store.config_path_for(first.runtime_id).parent != store.state_path_for(first.runtime_id)
+    assert (
+        store.record_path_for(first.runtime_id).parent
+        != store.config_path_for(first.runtime_id).parent
+    )
+    assert store.record_path_for(first.runtime_id).parent != store.state_path_for(first.runtime_id)
 
     config_path = store.config_path_for(first.runtime_id)
     assert json.loads(config_path.read_text(encoding="utf-8")) == _safe_config()
@@ -424,7 +511,7 @@ def test_lower_generation_ordinal_is_rejected_before_provision_side_effect(
     second_bot = _bot(generation_id="generation-2", revision=2)
     second = adapter.provision_bot(second_bot, _context())
     adapter.stop_bot(second_bot.tenant_id, second_bot.bot_id, _context())
-    provision_count = len(driver.provision_specs)
+    provision_count = driver.provision_count()
 
     resolver.register(
         _material(
@@ -436,7 +523,7 @@ def test_lower_generation_ordinal_is_rejected_before_provision_side_effect(
     with pytest.raises(RuntimeRevisionConflictError, match="ordinal"):
         adapter.provision_bot(_bot(generation_id="generation-3", revision=3), _context())
 
-    assert len(driver.provision_specs) == provision_count
+    assert driver.provision_count() == provision_count
     rejected_runtime = store.runtime_id_for("tenant-a", "bot-1", "generation-3")
     assert store.read_record(rejected_runtime) is None
     assert not store.state_path_for(rejected_runtime).exists()
@@ -460,6 +547,15 @@ def test_lifecycle_operations_are_idempotent_and_truthful(tmp_path: Path) -> Non
     assert second_pause.observed_state is BotObservedState.PAUSED
     assert first_stop.observed_state is BotObservedState.STOPPED
     assert second_stop.observed_state is BotObservedState.STOPPED
+    assert [request.operation for request in _driver.requests] == [
+        SupervisorOperation.ENSURE_PROVISIONED,
+        SupervisorOperation.ENSURE_RUNNING,
+        SupervisorOperation.ENSURE_RUNNING,
+        SupervisorOperation.ENSURE_PAUSED,
+        SupervisorOperation.ENSURE_PAUSED,
+        SupervisorOperation.ENSURE_STOPPED,
+        SupervisorOperation.ENSURE_STOPPED,
+    ]
 
 
 def test_driver_failure_returns_error_and_persists_unhealthy_reason(
@@ -468,7 +564,7 @@ def test_driver_failure_returns_error_and_persists_unhealthy_reason(
     adapter, driver, _resolver, store = _adapter(tmp_path)
     bot = _bot()
     provisioned = adapter.provision_bot(bot, _context())
-    driver.fail_next("start", "DOCKER_START_FAILED")
+    driver.fail_next(SupervisorOperation.ENSURE_RUNNING, "DOCKER_START_FAILED")
 
     failed = adapter.start_bot(bot, _context())
     health = adapter.get_health(bot.tenant_id, bot.bot_id, _context())

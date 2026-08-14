@@ -1,5 +1,14 @@
 # AGENTS.md
 
+## Owner-funded AI and credential budget — highest priority
+
+- Agents MUST NOT invoke Codex, OpenAI API, paid/limited AI review services, or any other mechanism that consumes the repository owner's personal AI quota, credits, tokens, subscription limits, or metered allowance unless the owner gives explicit permission for that specific use.
+- Agents MUST NOT use, export, copy, inspect, forward, or authenticate with owner-supplied API keys, access tokens, session tokens, personal credentials, or secrets for AI/model services unless the owner explicitly authorizes that exact credential/service use.
+- Availability of a credential, environment variable, CLI login, browser session, connector, MCP/plugin, or previously granted access does NOT constitute permission to consume owner-funded AI resources.
+- Prior permission is not standing permission. Authorization must be explicit for the current task/use; if scope, provider, model, or expected consumption materially changes, ask again.
+- If a workflow, policy, review gate, script, or tool would normally invoke Codex or another owner-funded AI service, skip that invocation and use a non-owner-funded alternative when one is genuinely available. If the requirement cannot be satisfied without such use, stop and report the exact blocker instead of consuming quota.
+- Never weaken, bypass, or falsely mark a review/validation gate as satisfied merely because owner-funded AI use is forbidden.
+
 ## Purpose
 
 This fork extends upstream Freqtrade with an AI-assisted strategy research and validation platform.
@@ -53,6 +62,19 @@ The repository, current Git state, active pull requests, CI results, and files i
 - If ownership or continued use is uncertain, leave the resource in place and record it as unresolved instead of deleting it.
 - Docker-resource cleanup must not implicitly remove persistent data. Do not use volume-removing flags or delete volumes containing persistent/evidence state unless persistent-data deletion is explicitly authorized and separately verified.
 - Before cleanup, capture the applicable health signals for protected/current services. After cleanup, verify that every intended authorized resource is gone and that protected/current services did not degrade relative to that baseline; record pre-existing stopped or unhealthy states rather than requiring unrelated cleanup to repair them. Use declared Docker health checks and/or service-level probes where available, because process `running` state alone is not sufficient when a stronger health signal exists. Record exact resource names/IDs and the pre/post health evidence in the task closeout.
+
+### GitHub Actions CI hygiene
+
+- A task owns the temporary GitHub Actions resources it creates: diagnostic/request workflows, request files, short-lived CI branches, request-only PRs, task-specific caches, and non-durable artifacts. Close or remove them at terminal task closeout unless an explicit evidence requirement requires retention.
+- Temporary or diagnostic workflow files must be single-purpose and lifecycle-bounded. Remove them from the final delivery as soon as their terminal evidence is captured; never leave a one-shot diagnostic or destructive workflow active on a general push, pull-request, schedule, or recurring trigger.
+- Request-only CI/deployment PRs must be closed without merge after their workflow reaches a terminal result when their contract says they are non-mergeable. Delete their short-lived branch after closeout unless a documented evidence dependency requires the ref to remain. Ordinary merged task branches should rely on repository auto-delete and verify the branch is actually gone.
+- Do not upload an Actions artifact when the same bounded evidence is already sufficient in the job summary or logs. Every new or materially modified `actions/upload-artifact` use must set an explicit `retention-days` appropriate to the evidence class; prefer 1 day for disposable diagnostics, 7 days for routine CI evidence, and at most 14 days for acceptance/audit evidence unless a documented requirement justifies longer retention.
+- GitHub Actions artifacts are not the long-term system of record. Evidence that must outlive its Actions retention must be promoted before expiry to a durable repository record or approved durable evidence store with exact run/artifact identity and digest. Do not extend artifact retention merely to avoid durable publication.
+- Treat Actions caches as disposable performance data, never as acceptance evidence. Cache keys must be bounded in cardinality and based on reusable dependency/toolchain inputs; do not add run IDs, timestamps, or commit SHAs to cache keys unless a specific isolation requirement is documented. A temporary workflow that creates a dedicated cache family owns deletion of that cache family at closeout when the GitHub capability is available.
+- When performing CI hygiene, delete caches only when they are safely reconstructible and their scope is proven obsolete, such as caches bound to closed PR refs, deleted branches, or an explicitly retired temporary cache family. Do not broadly delete active default-branch caches merely to reduce storage without measuring the CI-performance impact.
+- Do not delete workflow runs, logs, artifacts, branches, PRs, or refs that are cited as the only surviving acceptance, audit, deployment, security, rollback, or incident evidence. Preserve the evidence or first promote the required facts and digests to durable storage.
+- Before adding a new artifact or cache family, inspect existing CI storage/cardinality when the task materially affects Actions storage. Prefer reusing a stable cache family and bounded artifact set over creating per-run or per-SHA families that grow without bound.
+- At closeout, verify GitHub CI hygiene: temporary workflows/request files removed, request-only PRs terminal, disposable branches deleted, task-specific caches/artifacts either deleted or covered by explicit bounded retention, and durable evidence promoted when required. Record any cleanup blocked by GitHub permissions/API capability instead of silently leaking resources.
 
 ## Strategy lifecycle
 

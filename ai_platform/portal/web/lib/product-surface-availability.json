@@ -1,0 +1,123 @@
+{
+  "schema_version": "portal-product-surface-availability-v1",
+  "source": "tools/portal_audit/ledger/navigation.json",
+  "ledger_version": "2026-08-13.1",
+  "unavailable_overall_statuses": [
+    "DISCONNECTED",
+    "MISSING"
+  ],
+  "surfaces": [
+    {
+      "route": "/performance",
+      "label": "PNL & Performance",
+      "status": "DISCONNECTED",
+      "issues": "#1092, #1093, #1098",
+      "reason": "Rendered portfolio/bot performance cannot be authoritative without runtime collection and valuation composition."
+    },
+    {
+      "route": "/positions",
+      "label": "Open Positions",
+      "status": "DISCONNECTED",
+      "issues": "#1091, #1092, #1098",
+      "reason": "Position read model exists, but no authoritative collector is composed and documented manual exit actions are not complete."
+    },
+    {
+      "route": "/terminal",
+      "label": "Trading Terminal",
+      "status": "DISCONNECTED",
+      "issues": "#1086, #1091, #1095, #1098",
+      "reason": "Manual risk intent UI exists, but trusted approved submission is not composed and other documented terminal modes remain incomplete."
+    },
+    {
+      "route": "/orders",
+      "label": "Orders",
+      "status": "DISCONNECTED",
+      "issues": "#1091, #1092, #1098",
+      "reason": "Order read API exists, but no authoritative collection loop is composed and full order actions are not available."
+    },
+    {
+      "route": "/trades",
+      "label": "Trade History",
+      "status": "DISCONNECTED",
+      "issues": "#1092, #1098",
+      "reason": "Trade history reader exists, but production evidence is not refreshed by an authoritative private-runtime collector."
+    },
+    {
+      "route": "/bots/new",
+      "label": "Create Bot",
+      "status": "DISCONNECTED",
+      "issues": "#1090, #1098",
+      "reason": "Wizard and catalog validation exist, but finalization remains in memory and does not create the durable canonical bot."
+    },
+    {
+      "route": "/bots/signals",
+      "label": "Signal Wizard",
+      "status": "DISCONNECTED",
+      "issues": "#1095, #1100, #1098",
+      "reason": "Readiness view exists, but signed endpoint persistence, verifier/provider and operable UI are not composed."
+    },
+    {
+      "route": "/bots/strategies",
+      "label": "Strategy Catalog",
+      "status": "MISSING",
+      "issues": "#1085, #1098",
+      "reason": "Rich frontend and BFF expect /v1/strategy-catalog producers that do not exist."
+    },
+    {
+      "route": "/bots/grid",
+      "label": "Grid Bots",
+      "status": "DISCONNECTED",
+      "issues": "#1096, #1098",
+      "reason": "Readiness view exists, but capability provider, durable policy and canonical configuration actions are unavailable."
+    },
+    {
+      "route": "/ai",
+      "label": "AI Overview",
+      "status": "DISCONNECTED",
+      "issues": "#1098, #1102",
+      "reason": "Read APIs exist, but trusted intelligence/learning producers and model lifecycle workflows are not composed."
+    },
+    {
+      "route": "/ai/trade-analysis",
+      "label": "Trade Analysis",
+      "status": "DISCONNECTED",
+      "issues": "#1098, #1102",
+      "reason": "List view exists, while production analyses are created only through simulator/test call paths."
+    },
+    {
+      "route": "/ai/insights",
+      "label": "Insights",
+      "status": "DISCONNECTED",
+      "issues": "#1098, #1102",
+      "reason": "Insight list exists, but canonical producer plus acknowledge/dismiss/create-experiment actions are incomplete."
+    },
+    {
+      "route": "/ai/learning",
+      "label": "Learning History",
+      "status": "DISCONNECTED",
+      "issues": "#1098, #1102",
+      "reason": "History reader exists, while learning evidence is produced only by simulator/test workflows."
+    },
+    {
+      "route": "/operations/execution-logs",
+      "label": "Execution Logs",
+      "status": "DISCONNECTED",
+      "issues": "#1094, #1098",
+      "reason": "UI and query API exist, but the canonical app injects an unavailable runtime observability source."
+    },
+    {
+      "route": "/operations/runtime-health",
+      "label": "Runtime Health",
+      "status": "DISCONNECTED",
+      "issues": "#1092, #1099, #1098",
+      "reason": "Desired/observed view exists, but no product collector and desired-state worker reconcile authoritative runtime state."
+    },
+    {
+      "route": "/platform/exchanges",
+      "label": "Exchange Connections",
+      "status": "DISCONNECTED",
+      "issues": "#1097, #1100, #1098",
+      "reason": "Public metadata is read-only; durable create/verify/rotate/revoke and Vault-backed credential composition are absent."
+    }
+  ]
+}

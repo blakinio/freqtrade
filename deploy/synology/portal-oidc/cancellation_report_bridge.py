@@ -52,6 +52,8 @@ def _fallback_report(deploy: Any, args: Any, pending: BaseException) -> dict[str
 
 
 def _existing_canonical_report(deploy: Any, args: Any, path: Path) -> dict[str, Any] | None:
+    if getattr(deploy, "_portal_current_report_path", None) != path.resolve():
+        return None
     if not path.is_file():
         return None
     try:
@@ -138,7 +140,9 @@ def _guarded_write_report(
     if pending is not None:
         report["status"] = "failed"
         report["cancellation"] = _cancellation_metadata(pending)
-    return cast(str, original_write_report(path, report))
+    digest = cast(str, original_write_report(path, report))
+    deploy._portal_current_report_path = path.resolve()
+    return digest
 
 
 def _install_termination_handlers(deploy: Any) -> dict[int, Any]:
@@ -181,6 +185,7 @@ def _guarded_deploy(
     args: Any,
 ) -> int:
     previous_handlers = _install_termination_handlers(deploy)
+    deploy._portal_current_report_path = None
     try:
         try:
             return_code = int(original_deploy(args))
@@ -206,6 +211,7 @@ def install(deploy: Any) -> None:
     original_write_report = deploy._write_report
     original_deploy = deploy.deploy
     deploy._portal_pending_cancellation = None
+    deploy._portal_current_report_path = None
 
     deploy._run = partial(_guarded_run, deploy, original_run)
     deploy._write_report = partial(_guarded_write_report, deploy, original_write_report)

@@ -71,6 +71,18 @@ class CommandJournal(Protocol):
 
     def release_active(self, tenant_id: str, bot_id: str, generation_id: str) -> None: ...
 
+    def container_id(self, runtime_id: str) -> str | None: ...
+
+    def bind_container_id(self, runtime_id: str, container_id: str) -> bool: ...
+
+    def release_container_id(self, runtime_id: str, container_id: str) -> bool: ...
+
+    def network_id(self, runtime_id: str) -> str | None: ...
+
+    def bind_network_id(self, runtime_id: str, network_id: str) -> bool: ...
+
+    def release_network_id(self, runtime_id: str, network_id: str) -> bool: ...
+
 
 class InMemoryCommandJournal:
     """Test/development journal; deployments must inject a durable implementation."""
@@ -79,6 +91,7 @@ class InMemoryCommandJournal:
         self._entries: dict[str, JournalEntry] = {}
         self._fingerprints: dict[str, str] = {}
         self._active: dict[tuple[str, str], str] = {}
+        self._ownership: dict[tuple[str, str], str] = {}
 
     def fingerprint(self, command_id: str) -> str | None:
         return self._fingerprints.get(command_id)
@@ -112,6 +125,45 @@ class InMemoryCommandJournal:
         if self._active.get(key) == generation_id:
             self._active.pop(key)
 
+    def _ownership_id(self, runtime_id: str, object_kind: str) -> str | None:
+        return self._ownership.get((runtime_id, object_kind))
+
+    def _bind_ownership_id(self, runtime_id: str, object_kind: str, object_id: str) -> bool:
+        key = (runtime_id, object_kind)
+        existing = self._ownership.get(key)
+        if existing is not None and existing != object_id:
+            return False
+        self._ownership[key] = object_id
+        return True
+
+    def _release_ownership_id(self, runtime_id: str, object_kind: str, object_id: str) -> bool:
+        key = (runtime_id, object_kind)
+        existing = self._ownership.get(key)
+        if existing is None:
+            return True
+        if existing != object_id:
+            return False
+        self._ownership.pop(key)
+        return True
+
+    def container_id(self, runtime_id: str) -> str | None:
+        return self._ownership_id(runtime_id, "container")
+
+    def bind_container_id(self, runtime_id: str, container_id: str) -> bool:
+        return self._bind_ownership_id(runtime_id, "container", container_id)
+
+    def release_container_id(self, runtime_id: str, container_id: str) -> bool:
+        return self._release_ownership_id(runtime_id, "container", container_id)
+
+    def network_id(self, runtime_id: str) -> str | None:
+        return self._ownership_id(runtime_id, "network")
+
+    def bind_network_id(self, runtime_id: str, network_id: str) -> bool:
+        return self._bind_ownership_id(runtime_id, "network", network_id)
+
+    def release_network_id(self, runtime_id: str, network_id: str) -> bool:
+        return self._release_ownership_id(runtime_id, "network", network_id)
+
 
 class SqliteCommandJournal:
     """Restart-safe, supervisor-local idempotency journal with no trading data."""
@@ -142,6 +194,11 @@ class SqliteCommandJournal:
                 "CREATE TABLE IF NOT EXISTS supervisor_active_generations ("
                 "tenant_id TEXT NOT NULL, bot_id TEXT NOT NULL, generation_id TEXT NOT NULL, "
                 "PRIMARY KEY (tenant_id, bot_id))"
+            )
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS supervisor_runtime_ownership ("
+                "runtime_id TEXT NOT NULL, object_kind TEXT NOT NULL, object_id TEXT NOT NULL, "
+                "PRIMARY KEY (runtime_id, object_kind))"
             )
 
     def fingerprint(self, command_id: str) -> str | None:
@@ -221,6 +278,69 @@ class SqliteCommandJournal:
                 (tenant_id, bot_id, generation_id),
             )
 
+    def _ownership_id(self, runtime_id: str, object_kind: str) -> str | None:
+        with self._lock, self._connect() as connection:
+            row = connection.execute(
+                "SELECT object_id FROM supervisor_runtime_ownership "
+                "WHERE runtime_id = ? AND object_kind = ?",
+                (runtime_id, object_kind),
+            ).fetchone()
+        return None if row is None else str(row[0])
+
+    def _bind_ownership_id(self, runtime_id: str, object_kind: str, object_id: str) -> bool:
+        with self._lock, self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT object_id FROM supervisor_runtime_ownership "
+                "WHERE runtime_id = ? AND object_kind = ?",
+                (runtime_id, object_kind),
+            ).fetchone()
+            if row is not None and row[0] != object_id:
+                return False
+            connection.execute(
+                "INSERT OR IGNORE INTO supervisor_runtime_ownership"
+                "(runtime_id, object_kind, object_id) VALUES (?, ?, ?)",
+                (runtime_id, object_kind, object_id),
+            )
+        return True
+
+    def _release_ownership_id(self, runtime_id: str, object_kind: str, object_id: str) -> bool:
+        with self._lock, self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT object_id FROM supervisor_runtime_ownership "
+                "WHERE runtime_id = ? AND object_kind = ?",
+                (runtime_id, object_kind),
+            ).fetchone()
+            if row is None:
+                return True
+            if row[0] != object_id:
+                return False
+            connection.execute(
+                "DELETE FROM supervisor_runtime_ownership "
+                "WHERE runtime_id = ? AND object_kind = ? AND object_id = ?",
+                (runtime_id, object_kind, object_id),
+            )
+        return True
+
+    def container_id(self, runtime_id: str) -> str | None:
+        return self._ownership_id(runtime_id, "container")
+
+    def bind_container_id(self, runtime_id: str, container_id: str) -> bool:
+        return self._bind_ownership_id(runtime_id, "container", container_id)
+
+    def release_container_id(self, runtime_id: str, container_id: str) -> bool:
+        return self._release_ownership_id(runtime_id, "container", container_id)
+
+    def network_id(self, runtime_id: str) -> str | None:
+        return self._ownership_id(runtime_id, "network")
+
+    def bind_network_id(self, runtime_id: str, network_id: str) -> bool:
+        return self._bind_ownership_id(runtime_id, "network", network_id)
+
+    def release_network_id(self, runtime_id: str, network_id: str) -> bool:
+        return self._release_ownership_id(runtime_id, "network", network_id)
+
 
 _ACTIVE_STATES = {
     DriverRuntimeState.CREATED,
@@ -283,6 +403,9 @@ class RuntimeSupervisor:
         self._generations = generations
         self._driver = driver
         self._journal = journal
+        bind_ownership_store = getattr(driver, "bind_ownership_store", None)
+        if callable(bind_ownership_store):
+            bind_ownership_store(journal)
         self._bot_locks = _KeyedLockRegistry()
         self._command_locks = _KeyedLockRegistry()
 

@@ -33,6 +33,21 @@ from ai_platform.portal.execution.isolation import (
     StorageIsolationBackend,
 )
 from ai_platform.portal.execution.runtime import DriverRuntimeState, RuntimeContainerSpec
+from ai_platform.portal.runtime_supervisor.service import (
+    RuntimeSupervisor,
+    SqliteCommandJournal,
+    SupervisorGeneration,
+)
+
+
+class _NullSupervisorGenerationProvider:
+    def resolve(self, generation_id: str) -> SupervisorGeneration | None:
+        del generation_id
+        return None
+
+    def active_generation(self, tenant_id: str, bot_id: str) -> str | None:
+        del tenant_id, bot_id
+        return None
 
 
 ALPINE_IMAGE = "alpine:3.20"
@@ -616,6 +631,10 @@ def test_driver_release_runs_through_concrete_linux_isolation_backend() -> None:
         external_attestor=backend,
         gateway_attestor=FilesystemGatewayArtifactAttestor(gateway_artifact, gateway_contract),
     )
+    journal_path = inputs / "runtime-supervisor.sqlite3"
+    journal = SqliteCommandJournal(journal_path)
+    supervisor = RuntimeSupervisor(_NullSupervisorGenerationProvider(), driver, journal)
+    assert supervisor is not None
     table = backend._table_name(network)
     _persist_task_table(table)
 
@@ -702,6 +721,42 @@ def test_driver_release_runs_through_concrete_linux_isolation_backend() -> None:
         while time.monotonic() < sustained_until:
             assert driver.inspect(runtime_id) is DriverRuntimeState.RUNNING, logs[-4000:]
             time.sleep(0.5)
+
+        container_identity = _run("docker", "inspect", "--format", "{{.Id}}", runtime_id)
+        assert container_identity.returncode == 0, container_identity.stderr
+        network_identity = _run("docker", "network", "inspect", "--format", "{{.Id}}", network)
+        assert network_identity.returncode == 0, network_identity.stderr
+        exact_container_id = container_identity.stdout.strip()
+        exact_network_id = network_identity.stdout.strip()
+        assert journal.container_id(runtime_id) == exact_container_id
+        assert journal.network_id(runtime_id) == exact_network_id
+
+        del supervisor
+        del driver
+        del backend
+        del journal
+
+        journal = SqliteCommandJournal(journal_path)
+        backend = LinuxNftablesBtrfsIsolationAttestor(
+            SubprocessCommandRunner(),
+            policy_provider=MappingMarketDataEgressPolicyProvider({policy.digest(): policy}),
+            state_root=state_root,
+            btrfs_mount=mount,
+        )
+        driver = DockerCliRuntimeDriver(
+            isolation_plans=provider,
+            external_attestor=backend,
+            gateway_attestor=FilesystemGatewayArtifactAttestor(gateway_artifact, gateway_contract),
+        )
+        supervisor = RuntimeSupervisor(_NullSupervisorGenerationProvider(), driver, journal)
+        assert supervisor is not None
+        assert driver.inspect(runtime_id) is DriverRuntimeState.STARTING
+        assert driver.stop(runtime_id) is DriverRuntimeState.STOPPED
+        assert journal.container_id(runtime_id) == exact_container_id
+        assert journal.network_id(runtime_id) == exact_network_id
+        assert driver.retire(runtime_id) is DriverRuntimeState.MISSING
+        assert journal.container_id(runtime_id) is None
+        assert journal.network_id(runtime_id) is None
     finally:
         _run("docker", "rm", "-f", runtime_id)
         backend.cleanup_network(network, runtime_id)

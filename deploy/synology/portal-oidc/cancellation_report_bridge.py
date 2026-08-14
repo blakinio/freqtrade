@@ -105,7 +105,9 @@ def _guarded_write_report(
 
 
 def _install_termination_handlers(deploy: Any) -> dict[int, Any]:
-    previous_handlers = {signum: signal.getsignal(signum) for signum in _TERMINATION_SIGNALS}
+    previous_handlers: dict[int, Any] = {
+        signum: signal.getsignal(signum) for signum in _TERMINATION_SIGNALS
+    }
     handler = _termination_handler(deploy)
     for signum in _TERMINATION_SIGNALS:
         signal.signal(signum, handler)

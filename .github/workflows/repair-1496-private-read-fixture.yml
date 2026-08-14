@@ -30,7 +30,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "e1314db237768f8c7c4c1169b200988eca957d5a"
+          test "$(git rev-parse HEAD^)" = "073e1534cd80ddc49455ac3ffd6290da6f4ffd41"
           test "$(git diff --name-only HEAD^ HEAD)" = ".github/workflows/repair-1496-private-read-fixture.yml"
 
       - name: Set up Python
@@ -53,21 +53,23 @@ jobs:
 
           path = Path("tests/ai_platform/portal/execution/test_private_read.py")
           text = path.read_text(encoding="utf-8")
-          old = '''            generation_spec_digest=request.generation_spec_digest,
-            command_id=request.command_id,
-            correlation_id=request.correlation_id,
-            state=current,
-            state_version=max(1, request.expected_state_version),
-'''
-          new = '''            generation_spec_digest=request.generation_spec_digest,
-            command_id=request.command_id,
-            correlation_id=request.correlation_id,
-            expected_generation_ordinal=request.expected_generation_ordinal,
-            expected_state_version=request.expected_state_version,
-            causation_id=request.causation_id,
-            state=current,
-            state_version=max(1, request.expected_state_version),
-'''
+          old = (
+              "            generation_spec_digest=request.generation_spec_digest,\n"
+              "            command_id=request.command_id,\n"
+              "            correlation_id=request.correlation_id,\n"
+              "            state=current,\n"
+              "            state_version=max(1, request.expected_state_version),\n"
+          )
+          new = (
+              "            generation_spec_digest=request.generation_spec_digest,\n"
+              "            command_id=request.command_id,\n"
+              "            correlation_id=request.correlation_id,\n"
+              "            expected_generation_ordinal=request.expected_generation_ordinal,\n"
+              "            expected_state_version=request.expected_state_version,\n"
+              "            causation_id=request.causation_id,\n"
+              "            state=current,\n"
+              "            state_version=max(1, request.expected_state_version),\n"
+          )
           if text.count(old) != 1:
               raise SystemExit(f"expected one stale fixture anchor, found {text.count(old)}")
           path.write_text(text.replace(old, new), encoding="utf-8")

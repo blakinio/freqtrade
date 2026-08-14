@@ -169,40 +169,41 @@ jobs:
           path = Path("tests/ai_platform/portal/execution/test_immutable_runtime_identity.py")
           text = path.read_text(encoding="utf-8")
 
-          old = '    runner = _Runner(_container_identity("replacement-id"))\n'
-          new = '''    runner = _Runner(
+          container_start = text.index('@pytest.mark.parametrize("operation"')
+          network_start = text.index("def test_network_replacement_with_matching_label_is_rejected", container_start)
+          container = text[container_start:network_start]
+          old_runner = '    runner = _Runner(_container_identity("replacement-id"))\n'
+          if old_runner not in container:
+              raise SystemExit("container runner marker mismatch")
+          container = container.replace(
+              old_runner,
+              '''    runner = _Runner(
               CommandResult(1, stderr="Error response from daemon: No such object: expected-id"),
               _container_identity("replacement-id"),
           )
-          '''
-          if text.count(old) != 1:
-              raise SystemExit("container runner anchor mismatch")
-          text = text.replace(old, new, 1)
-
-          old = '''    assert runner.calls == [("docker", "inspect", "--format", "{{json .}}", "runtime-1")]
-          '''
-          new = '''    assert runner.calls == [
+          ''',
+              1,
+          )
+          old_calls = '    assert runner.calls == [("docker", "inspect", "--format", "{{json .}}", "runtime-1")]\n\n\n'
+          if old_calls not in container:
+              raise SystemExit("container calls marker mismatch")
+          container = container.replace(
+              old_calls,
+              '''    assert runner.calls == [
               ("docker", "inspect", "--format", "{{json .}}", "expected-id"),
               ("docker", "inspect", "--format", "{{json .}}", "runtime-1"),
           ]
-          '''
-          if text.count(old) != 1:
-              raise SystemExit("container call anchor mismatch")
-          text = text.replace(old, new, 1)
 
-          old = '''    runner = _Runner(
-              CommandResult(
-                  0,
-                  stdout=json.dumps(
-                      {
-                          "Id": "replacement-network-id",
-                          "Labels": {"ai.portal.runtime_id": "runtime-1"},
-                      }
-                  ),
-              )
+
+          ''',
+              1,
           )
-          '''
-          new = '''    runner = _Runner(
+          text = text[:container_start] + container + text[network_start:]
+
+          network_start = text.index("def test_network_replacement_with_matching_label_is_rejected")
+          runner_start = text.index("    runner = _Runner(", network_start)
+          backend_start = text.index("    backend = LinuxNftablesBtrfsIsolationAttestor(", runner_start)
+          network_runner = '''    runner = _Runner(
               CommandResult(
                   1,
                   stderr="Error response from daemon: network expected-network-id not found",
@@ -218,15 +219,10 @@ jobs:
               ),
           )
           '''
-          if text.count(old) != 1:
-              raise SystemExit("network runner anchor mismatch")
-          text = text.replace(old, new, 1)
+          text = text[:runner_start] + network_runner + text[backend_start:]
 
-          old = '''    assert runner.calls == [
-              ("docker", "network", "inspect", "--format", "{{json .}}", "portal-net-1")
-          ]
-          '''
-          new = '''    assert runner.calls == [
+          calls_start = text.index("    assert runner.calls == [", network_start)
+          network_calls = '''    assert runner.calls == [
               (
                   "docker",
                   "network",
@@ -238,9 +234,7 @@ jobs:
               ("docker", "network", "inspect", "--format", "{{json .}}", "portal-net-1"),
           ]
           '''
-          if text.count(old) != 1:
-              raise SystemExit("network call anchor mismatch")
-          text = text.replace(old, new, 1)
+          text = text[:calls_start] + network_calls
           path.write_text(text, encoding="utf-8")
           PY
       - name: Format candidate

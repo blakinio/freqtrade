@@ -1,0 +1,336 @@
+name: Repository Lifecycle Hygiene
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/repository-lifecycle-hygiene.yml"
+      - "docs/agents/REPOSITORY_LIFECYCLE_POLICY.json"
+      - "docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json"
+      - "docs/agents/BRANCH_POLICY.md"
+      - "docs/agents/tasks/active/FTAI-20260815-repository-lifecycle-hygiene.md"
+      - "tools/agents/repository_lifecycle.py"
+      - "tools/agents/test_repository_lifecycle.py"
+  pull_request_target:
+    types:
+      - closed
+  push:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/repository-lifecycle-hygiene.yml"
+      - "docs/agents/REPOSITORY_LIFECYCLE_POLICY.json"
+      - "docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json"
+      - "docs/agents/BRANCH_POLICY.md"
+      - "tools/agents/repository_lifecycle.py"
+      - "tools/agents/test_repository_lifecycle.py"
+  schedule:
+    - cron: "25 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: repository-lifecycle-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  validate:
+    if: github.event_name != 'pull_request_target'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Run focused lifecycle tests
+        run: python tools/agents/test_repository_lifecycle.py
+
+      - name: Validate lifecycle policy
+        run: python tools/agents/repository_lifecycle.py --mode validate-policy
+
+  inventory:
+    if: github.event_name != 'pull_request_target'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Build live fail-closed branch inventory
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python tools/agents/repository_lifecycle.py \
+            --mode inventory \
+            --output repository-lifecycle-inventory.json
+
+      - name: Validate reviewed approval when present
+        if: hashFiles('docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json') != ''
+        run: |
+          python - <<'PY'
+          import importlib.util
+          import json
+          from pathlib import Path
+
+          module_path = Path("tools/agents/repository_lifecycle.py")
+          spec = importlib.util.spec_from_file_location("repository_lifecycle", module_path)
+          assert spec and spec.loader
+          rl = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(rl)
+
+          policy = rl.load_json(Path("docs/agents/REPOSITORY_LIFECYCLE_POLICY.json"))
+          approval = rl.load_json(Path("docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json"))
+          inventory = json.loads(Path("repository-lifecycle-inventory.json").read_text())
+          rl.validate_approval(approval, inventory, policy)
+          print(f"reviewed candidate set validated: {inventory['candidate_count']}")
+          PY
+
+      - name: Publish branch inventory
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: repository-lifecycle-inventory-${{ github.run_id }}
+          path: repository-lifecycle-inventory.json
+          if-no-files-found: error
+          retention-days: 14
+
+  pr-health:
+    if: github.event_name != 'pull_request_target'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Audit open PR lifecycle health
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python tools/agents/repository_lifecycle.py \
+            --mode pr-audit \
+            --output repository-pr-health.json
+
+      - name: Publish PR health report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: repository-pr-health-${{ github.run_id }}
+          path: repository-pr-health.json
+          if-no-files-found: error
+          retention-days: 14
+
+  safety-audit:
+    if: github.event_name != 'pull_request_target'
+    needs:
+      - inventory
+      - pr-health
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Independently rebuild and falsify lifecycle safety invariants
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python tools/agents/repository_lifecycle.py --mode inventory --output audit-inventory.json
+          python tools/agents/repository_lifecycle.py --mode pr-audit --output audit-pr-health.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          inventory = json.loads(Path("audit-inventory.json").read_text())
+          pr_health = json.loads(Path("audit-pr-health.json").read_text())
+
+          entries = {item["branch"]: item for item in inventory["entries"]}
+          develop = entries.get("develop")
+          if not develop:
+              raise SystemExit("develop missing from branch inventory")
+          if develop["classification"] != "PROTECTED" or develop["deletion_candidate"]:
+              raise SystemExit(f"develop is not fail-closed: {develop!r}")
+
+          forbidden_candidates = [
+              item for item in inventory["entries"]
+              if item["deletion_candidate"]
+              and item["classification"] not in {"TERMINAL_MERGED", "TERMINAL_CLOSED_UNMERGED"}
+          ]
+          if forbidden_candidates:
+              raise SystemExit(f"forbidden deletion candidates: {forbidden_candidates[:5]!r}")
+
+          unsafe = [
+              item for item in inventory["entries"]
+              if item["deletion_candidate"]
+              and (
+                  item["protected"]
+                  or item["classification"] in {"OPEN_PR", "ACTIVE_CLAIM", "RESERVED", "UNKNOWN", "UNMERGED_ORPHAN"}
+              )
+          ]
+          if unsafe:
+              raise SystemExit(f"unsafe deletion candidates: {unsafe[:5]!r}")
+
+          if pr_health.get("auto_close_by_age") is not False:
+              raise SystemExit("PR age-based automatic closure must remain disabled")
+          if any(item.get("auto_close") for item in pr_health.get("entries", [])):
+              raise SystemExit("PR audit attempted automatic closure")
+
+          print(
+              "safety audit PASS:",
+              inventory["branch_count"],
+              "branches,",
+              inventory["candidate_count"],
+              "exact terminal candidates,",
+              pr_health["open_pr_count"],
+              "open PRs",
+          )
+          PY
+
+      - name: Publish independent safety audit evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: repository-lifecycle-safety-audit-${{ github.run_id }}
+          path: |
+            audit-inventory.json
+            audit-pr-health.json
+          if-no-files-found: error
+          retention-days: 14
+
+  apply-reviewed-historical-cleanup:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    needs:
+      - validate
+      - inventory
+      - safety-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      issues: read
+      pull-requests: read
+    steps:
+      - name: Check out protected integration branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: develop
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Detect one-time reviewed approval
+        id: approval
+        shell: bash
+        run: |
+          if [[ -f docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json ]]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "No reviewed approval present; historical apply is NOT_APPLICABLE."
+          fi
+
+      - name: Rebuild live state and apply exact reviewed manifest
+        if: steps.approval.outputs.exists == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python tools/agents/repository_lifecycle.py \
+            --mode apply \
+            --output repository-lifecycle-apply.json
+
+      - name: Verify post-apply inventory is terminal
+        if: steps.approval.outputs.exists == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python tools/agents/repository_lifecycle.py \
+            --mode inventory \
+            --output repository-lifecycle-post-apply.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path("repository-lifecycle-post-apply.json").read_text())
+          if report["candidate_count"] != 0:
+              raise SystemExit(
+                  f"post-apply inventory still has {report['candidate_count']} authorized deletion candidates"
+              )
+          print(f"post-apply inventory PASS: {report['branch_count']} branches, zero candidates")
+          PY
+
+      - name: Publish deletion and recovery evidence
+        if: always() && steps.approval.outputs.exists == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: repository-lifecycle-apply-${{ github.run_id }}
+          path: |
+            repository-lifecycle-apply.json
+            repository-lifecycle-post-apply.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  close-unmerged-branch:
+    if: >-
+      github.event_name == 'pull_request_target' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == false &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      issues: read
+      pull-requests: read
+    steps:
+      - name: Check out trusted develop
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: develop
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Process exact closed-unmerged branch disposition
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python tools/agents/repository_lifecycle.py \
+            --mode event \
+            --event "$GITHUB_EVENT_PATH" \
+            --output repository-lifecycle-close-event.json
+
+      - name: Publish close-event evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: repository-lifecycle-close-event-${{ github.run_id }}
+          path: repository-lifecycle-close-event.json
+          if-no-files-found: warn
+          retention-days: 7

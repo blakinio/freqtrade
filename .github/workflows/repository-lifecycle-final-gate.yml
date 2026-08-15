@@ -1,0 +1,96 @@
+name: Repository Lifecycle Final Gate
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: repository-lifecycle-final-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  final-gate:
+    if: github.event.pull_request.number == 1563
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Run complete lifecycle regression suite
+        run: |
+          python tools/agents/test_repository_lifecycle.py
+          python tools/agents/test_repository_lifecycle_destructive.py
+          python -m py_compile \
+            tools/agents/repository_lifecycle_preflight.py \
+            tools/agents/repository_lifecycle_apply.py \
+            tools/agents/repository_lifecycle_approval.py
+
+      - name: Rebuild live safety evidence on exact head
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python tools/agents/repository_lifecycle.py --mode inventory --output final-inventory.json
+          python tools/agents/repository_lifecycle.py --mode pr-audit --output final-pr-health.json
+          python tools/agents/repository_lifecycle_preflight.py --output final-preflight.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          inventory = json.loads(Path("final-inventory.json").read_text())
+          health = json.loads(Path("final-pr-health.json").read_text())
+          preflight = json.loads(Path("final-preflight.json").read_text())
+
+          develop = next((item for item in inventory["entries"] if item["branch"] == "develop"), None)
+          if not develop or develop["classification"] != "PROTECTED" or develop["deletion_candidate"]:
+              raise SystemExit(f"develop is not fail-closed: {develop!r}")
+          if any(
+              item["deletion_candidate"] and item["classification"] not in {"TERMINAL_MERGED", "TERMINAL_CLOSED_UNMERGED"}
+              for item in inventory["entries"]
+          ):
+              raise SystemExit("raw inventory widened deletion classes")
+          if any(
+              item["deletion_candidate"] and (
+                  item["protected"] or item["classification"] in {"OPEN_PR", "ACTIVE_CLAIM", "RESERVED", "UNKNOWN", "UNMERGED_ORPHAN"}
+              )
+              for item in inventory["entries"]
+          ):
+              raise SystemExit("raw inventory contains an unsafe deletion candidate")
+          if health.get("auto_close_by_age") is not False or any(item.get("auto_close") for item in health["entries"]):
+              raise SystemExit("PR health audit attempted automatic closure")
+          accounted = preflight["candidate_count"] + preflight["retained_count"] + preflight["already_absent_count"]
+          if accounted != preflight["source_inventory_candidate_count"]:
+              raise SystemExit("source-head preflight accounting mismatch")
+          if any(
+              item["classification"] not in {"TERMINAL_MERGED", "TERMINAL_CLOSED_UNMERGED"}
+              for item in preflight["candidates"]
+          ):
+              raise SystemExit("source-head preflight widened deletion classes")
+          print(
+              f"FINAL PASS branches={inventory['branch_count']} raw={inventory['candidate_count']} "
+              f"safe={preflight['candidate_count']} retained={preflight['retained_count']} "
+              f"open_prs={health['open_pr_count']} digest={preflight['entries_sha256']}"
+          )
+          PY
+
+      - name: Publish exact-head final evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: repository-lifecycle-final-gate-${{ github.run_id }}
+          path: |
+            final-inventory.json
+            final-pr-health.json
+            final-preflight.json
+          if-no-files-found: error
+          retention-days: 14

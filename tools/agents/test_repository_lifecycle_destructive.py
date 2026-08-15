@@ -140,22 +140,25 @@ class RecoveryClient:
     def get_ref_sha(self, branch):
         return self.refs.get(branch)
 
-    def create_ref(self, branch, sha):
-        self.refs[branch] = sha
-        if self.fail_create:
-            self.fail_create = False
-            raise rl.LifecycleError("synthetic post-create failure")
-
 
 class RecoveryTests(unittest.TestCase):
     def test_failure_after_create_still_removes_owned_recovery_ref(self):
         client = RecoveryClient()
 
+        def fake_create(_client, branch, sha):
+            client.refs[branch] = sha
+            if client.fail_create:
+                client.fail_create = False
+                raise rl.LifecycleError("synthetic post-create failure")
+
         def fake_delete(_client, branch, expected_sha):
             self.assertEqual(client.refs.get(branch), expected_sha)
             client.refs.pop(branch, None)
 
-        with patch.object(destructive, "delete_branch_exact", side_effect=fake_delete):
+        with (
+            patch.object(destructive, "create_ref", side_effect=fake_create),
+            patch.object(destructive, "delete_branch_exact", side_effect=fake_delete),
+        ):
             with self.assertRaises(rl.LifecycleError):
                 destructive.safe_recovery_test(client, "develop", 1559)
         leftovers = [name for name in client.refs if name.startswith("recovery-test/")]
@@ -199,6 +202,46 @@ class ApplyPreflightTests(unittest.TestCase):
                     destructive.apply_reviewed_cleanup(client, POLICY, root, None)
             recovery.assert_not_called()
             delete.assert_not_called()
+
+    def test_candidate_is_revalidated_again_immediately_before_delete(self):
+        candidate = {
+            "branch": "feature/x",
+            "sha": SHA,
+            "classification": "TERMINAL_MERGED",
+            "pr_numbers": [7],
+        }
+        inventory = {
+            "candidates": [candidate],
+            "candidate_count": 1,
+            "entries_sha256": "e" * 64,
+            "policy_sha256": "p" * 64,
+        }
+        client = type("Client", (), {"repo": "blakinio/freqtrade", "get_ref_sha": lambda self, ref: "d" * 40})()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            approval = root / "docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json"
+            approval.parent.mkdir(parents=True)
+            approval.write_text("{}\n", encoding="utf-8")
+            with (
+                patch.object(rl, "build_inventory", return_value=inventory),
+                patch.object(rl, "load_json", return_value={"apply_on_develop": True}),
+                patch.object(rl, "validate_approval"),
+                patch.object(destructive, "claim_snapshot", return_value=({}, set())),
+                patch.object(
+                    destructive,
+                    "revalidate_candidate",
+                    side_effect=[
+                        {"status": "DELETE_SAFE"},
+                        destructive.RetainBranch("feature/x: new open PR"),
+                    ],
+                ) as revalidate,
+                patch.object(destructive, "safe_recovery_test", return_value={"result": "PASS"}),
+                patch.object(destructive, "delete_branch_exact") as delete,
+            ):
+                result = destructive.apply_reviewed_cleanup(client, POLICY, root, None)
+            self.assertEqual(revalidate.call_count, 2)
+            delete.assert_not_called()
+            self.assertEqual(len(result["retained_after_revalidation"]), 1)
 
 
 class EventTests(unittest.TestCase):

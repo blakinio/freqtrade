@@ -1,5 +1,6 @@
 """Narrow, generation-bound runtime lifecycle supervisor."""
 
+from .client import SupervisorClientError, UnixSocketSupervisorClient
 from .service import (
     InMemoryCommandJournal,
     RuntimeSupervisor,
@@ -19,10 +20,12 @@ __all__ = [
     "InMemoryCommandJournal",
     "RuntimeSupervisor",
     "SqliteCommandJournal",
+    "SupervisorClientError",
     "SupervisorGeneration",
     "SupervisorGenerationProvider",
     "SupervisorOperation",
     "SupervisorOutcome",
     "SupervisorOutcomeCode",
     "SupervisorRequest",
+    "UnixSocketSupervisorClient",
 ]

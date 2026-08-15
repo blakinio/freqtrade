@@ -21,8 +21,20 @@ CONTAINER_ID = "a" * 64
 SECOND_CONTAINER_ID = "b" * 64
 
 
-def _completed(command: list[str], *, returncode: int = 0, stdout: str = "") -> Any:
-    return subprocess.CompletedProcess(command, returncode, stdout=stdout, stderr="")
+def _completed(
+    command: list[str],
+    *,
+    returncode: int = 0,
+    stdout: str = "",
+    stderr: str | None = None,
+) -> Any:
+    if stderr is None:
+        stderr = (
+            "Error: No such object\n"
+            if returncode != 0 and command[:2] == ["docker", "inspect"]
+            else ""
+        )
+    return subprocess.CompletedProcess(command, returncode, stdout=stdout, stderr=stderr)
 
 
 def _schema_command(operation: str = "migrate") -> list[str]:
@@ -212,6 +224,31 @@ def test_non_target_and_check_false_commands_delegate(monkeypatch) -> None:
     assert len(delegated) == 2
     assert delegated[0][2:] == (True, True)
     assert delegated[1][2:] == (True, False)
+
+
+def test_unknown_inspect_failure_does_not_verify_identity_absent(monkeypatch) -> None:
+    deploy, _delegated = _deploy_stub()
+    calls: list[list[str]] = []
+
+    def fake_run(command, **_kwargs):
+        calls.append(list(command))
+        if command[:2] == ["docker", "inspect"]:
+            return _completed(
+                command,
+                returncode=1,
+                stderr="Error response from daemon: context deadline exceeded\n",
+            )
+        if command[:2] == ["docker", "version"]:
+            return _completed(command)
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError, match="identity cleanup failed"):
+        module._verify_container_id_absent(deploy, CONTAINER_ID, cwd=None)
+
+    assert ["docker", "inspect", CONTAINER_ID] in calls
+    assert ["docker", "version"] in calls
 
 
 def test_preexisting_generated_name_collision_is_never_removed(monkeypatch) -> None:

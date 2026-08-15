@@ -146,6 +146,10 @@ def _stage(
     return result
 
 
+def _inspect_reports_missing(result: subprocess.CompletedProcess[str]) -> bool:
+    return result.returncode != 0 and "no such object" in result.stderr.lower()
+
+
 def _verify_absent(deploy: Any, name: str, *, cwd: Path | None) -> None:
     exact_name_filter = f"name=^/{name}$"
     try:
@@ -172,7 +176,7 @@ def _verify_absent(deploy: Any, name: str, *, cwd: Path | None) -> None:
         version.returncode != 0
         or listed.returncode != 0
         or bool(listed.stdout.strip())
-        or inspect.returncode == 0
+        or not _inspect_reports_missing(inspect)
     ):
         raise deploy.DeploymentError("task-owned Docker workload cleanup failed")
 
@@ -192,7 +196,9 @@ def _inspect_owned_identity(
     except subprocess.TimeoutExpired as exc:
         raise deploy.DeploymentError("task-owned Docker identity query timed out") from exc
     if inspected.returncode != 0:
-        return None
+        if _inspect_reports_missing(inspected):
+            return None
+        raise deploy.DeploymentError("task-owned Docker identity query failed")
     container_id, separator, owner = inspected.stdout.strip().partition("|")
     if separator != "|" or not _CONTAINER_ID_RE.fullmatch(container_id):
         raise deploy.DeploymentError("task-owned Docker identity query returned invalid metadata")
@@ -220,7 +226,7 @@ def _verify_container_id_absent(
         raise deploy.DeploymentError(
             "task-owned Docker identity cleanup could not be verified"
         ) from exc
-    if version.returncode != 0 or inspected.returncode == 0:
+    if version.returncode != 0 or not _inspect_reports_missing(inspected):
         raise deploy.DeploymentError("task-owned Docker identity cleanup failed")
 
 

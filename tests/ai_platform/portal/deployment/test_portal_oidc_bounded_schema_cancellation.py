@@ -24,8 +24,20 @@ CONTAINER_ID = "c" * 64
 REPLACEMENT_ID = "d" * 64
 
 
-def _completed(command: list[str], *, returncode: int = 0, stdout: str = "") -> Any:
-    return subprocess.CompletedProcess(command, returncode, stdout=stdout, stderr="")
+def _completed(
+    command: list[str],
+    *,
+    returncode: int = 0,
+    stdout: str = "",
+    stderr: str | None = None,
+) -> Any:
+    if stderr is None:
+        stderr = (
+            "Error: No such object\n"
+            if returncode != 0 and command[:2] == ["docker", "inspect"]
+            else ""
+        )
+    return subprocess.CompletedProcess(command, returncode, stdout=stdout, stderr=stderr)
 
 
 def _schema_command() -> list[str]:

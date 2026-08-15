@@ -15,10 +15,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
-      - name: Checkout implementation branch
+      - name: Checkout repair branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
-          ref: fix/1089-bounded-schema-docker-lifecycle
+          ref: fix/1089-market-evidence-host-mount
           fetch-depth: 0
 
       - name: Set up Python
@@ -29,16 +29,14 @@ jobs:
 
       - name: Install exact validation dependencies
         shell: bash
-        run: >-
-          python -m pip install --disable-pip-version-check
-          pytest ruff==0.15.21
+        run: python -m pip install --disable-pip-version-check ruff==0.15.21
 
-      - name: Harden Docker absence checks and validate
+      - name: Repair dynamic module assignment and push
         shell: bash
         run: |
           set -euo pipefail
-          expected_head=67c20078bb075bd6124502bccd0523bae06f4703
-          expected_base=8c27e33e438394151e98e5d51c3990a15d16c57a
+          expected_head=0d30d0865cb5f68bba79c756cd259c40a66d0c49
+          expected_base=9dd5887e301ddfeec6df6a3b3e2da24a9ced850f
           test "$(git rev-parse HEAD)" = "$expected_head"
           git fetch origin develop
           test "$(git rev-parse origin/develop)" = "$expected_base"
@@ -47,74 +45,22 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          lifecycle = Path("deploy/synology/portal-oidc/bounded_schema_lifecycle.py")
-          source = lifecycle.read_text(encoding="utf-8")
-          helper = '''def _inspect_reports_missing(result: subprocess.CompletedProcess[str]) -> bool:\n    return result.returncode != 0 and "no such object" in result.stderr.lower()\n\n\n'''
-          marker = '''def _verify_absent(deploy: Any, name: str, *, cwd: Path | None) -> None:\n'''
-          if helper not in source:
-              if source.count(marker) != 1:
-                  raise SystemExit("lifecycle helper insertion mismatch")
-              source = source.replace(marker, helper + marker)
-
-          replacements = [
-              (
-                  '''    if (\n        version.returncode != 0\n        or listed.returncode != 0\n        or bool(listed.stdout.strip())\n        or inspect.returncode == 0\n    ):\n        raise deploy.DeploymentError("task-owned Docker workload cleanup failed")\n''',
-                  '''    if (\n        version.returncode != 0\n        or listed.returncode != 0\n        or bool(listed.stdout.strip())\n        or not _inspect_reports_missing(inspect)\n    ):\n        raise deploy.DeploymentError("task-owned Docker workload cleanup failed")\n''',
-              ),
-              (
-                  '''    if inspected.returncode != 0:\n        return None\n''',
-                  '''    if inspected.returncode != 0:\n        if _inspect_reports_missing(inspected):\n            return None\n        raise deploy.DeploymentError("task-owned Docker identity query failed")\n''',
-              ),
-              (
-                  '''    if version.returncode != 0 or inspected.returncode == 0:\n        raise deploy.DeploymentError("task-owned Docker identity cleanup failed")\n''',
-                  '''    if version.returncode != 0 or not _inspect_reports_missing(inspected):\n        raise deploy.DeploymentError("task-owned Docker identity cleanup failed")\n''',
-              ),
-          ]
-          for old, new in replacements:
-              if source.count(old) != 1:
-                  raise SystemExit("lifecycle replacement mismatch")
-              source = source.replace(old, new)
-          lifecycle.write_text(source, encoding="utf-8")
-
-          helper_old = '''def _completed(command: list[str], *, returncode: int = 0, stdout: str = "") -> Any:\n    return subprocess.CompletedProcess(command, returncode, stdout=stdout, stderr="")\n'''
-          helper_new = '''def _completed(\n    command: list[str],\n    *,\n    returncode: int = 0,\n    stdout: str = "",\n    stderr: str | None = None,\n) -> Any:\n    if stderr is None:\n        stderr = (\n            "Error: No such object\\n"\n            if returncode != 0 and command[:2] == ["docker", "inspect"]\n            else ""\n        )\n    return subprocess.CompletedProcess(command, returncode, stdout=stdout, stderr=stderr)\n'''
-          test_files = [
-              Path("tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py"),
-              Path("tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_cancellation.py"),
-              Path("tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py"),
-          ]
-          for path in test_files:
-              tests = path.read_text(encoding="utf-8")
-              if tests.count(helper_old) != 1:
-                  raise SystemExit(f"test helper mismatch: {path}")
-              path.write_text(tests.replace(helper_old, helper_new), encoding="utf-8")
-
-          path = test_files[0]
-          tests = path.read_text(encoding="utf-8")
-          marker = "def test_preexisting_generated_name_collision_is_never_removed"
-          regression = '''def test_unknown_inspect_failure_does_not_verify_identity_absent(monkeypatch) -> None:\n    deploy, _delegated = _deploy_stub()\n    calls: list[list[str]] = []\n\n    def fake_run(command, **_kwargs):\n        calls.append(list(command))\n        if command[:2] == ["docker", "inspect"]:\n            return _completed(\n                command,\n                returncode=1,\n                stderr="Error response from daemon: context deadline exceeded\\n",\n            )\n        if command[:2] == ["docker", "version"]:\n            return _completed(command)\n        raise AssertionError(f"unexpected command: {command}")\n\n    monkeypatch.setattr(module.subprocess, "run", fake_run)\n\n    with pytest.raises(RuntimeError, match="identity cleanup failed"):\n        module._verify_container_id_absent(deploy, CONTAINER_ID, cwd=None)\n\n    assert ["docker", "inspect", CONTAINER_ID] in calls\n    assert ["docker", "version"] in calls\n\n\n'''
-          if regression not in tests:
-              if tests.count(marker) != 1:
-                  raise SystemExit("regression insertion mismatch")
-              path.write_text(tests.replace(marker, regression + marker), encoding="utf-8")
+          path = Path("deploy/synology/portal-oidc/deploy_entrypoint.py")
+          source = path.read_text(encoding="utf-8")
+          old = "    market_evidence.MARKET_EVIDENCE_HOST_ROOT = _resolve_market_evidence_host_root(deploy)\n"
+          new = "    market_evidence.__dict__[\"MARKET_EVIDENCE_HOST_ROOT\"] = (\n        _resolve_market_evidence_host_root(deploy)\n    )\n"
+          if source.count(old) != 1:
+              raise SystemExit("Market Evidence assignment replacement mismatch")
+          path.write_text(source.replace(old, new), encoding="utf-8")
           PY
 
-          files=(
-            deploy/synology/portal-oidc/bounded_schema_lifecycle.py
-            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py
-            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_cancellation.py
-            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py
-          )
-          ruff format "${files[@]}"
-          ruff check "${files[@]}"
-          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform \
-            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py \
-            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_cancellation.py \
-            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py
+          ruff format deploy/synology/portal-oidc/deploy_entrypoint.py
+          ruff check deploy/synology/portal-oidc/deploy_entrypoint.py
+          python -m py_compile deploy/synology/portal-oidc/deploy_entrypoint.py
           git diff --check
 
           git config user.name "blakinio"
           git config user.email "75369544+blakinio@users.noreply.github.com"
-          git add -- "${files[@]}"
-          git commit -m "fix(portal): reject unknown Docker inspect failures"
-          git push origin HEAD:fix/1089-bounded-schema-docker-lifecycle
+          git add -- deploy/synology/portal-oidc/deploy_entrypoint.py
+          git commit -m "fix(portal): type dynamic Market Evidence injection"
+          git push origin HEAD:fix/1089-market-evidence-host-mount

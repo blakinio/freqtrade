@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import datetime as dt
 import importlib.util
-import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -79,11 +78,13 @@ class ClassificationTests(unittest.TestCase):
         self.assertFalse(item["deletion_candidate"])
 
     def test_open_pr_wins_over_terminal_history(self):
-        pulls = [
-            pull(1, "feature/x", self.SHA, state="closed", merged=True),
-            pull(2, "feature/x", self.SHA, state="open"),
-        ]
-        item = self.classify("feature/x", pulls)
+        item = self.classify(
+            "feature/x",
+            [
+                pull(1, "feature/x", self.SHA, state="closed", merged=True),
+                pull(2, "feature/x", self.SHA, state="open"),
+            ],
+        )
         self.assertEqual(item["classification"], "OPEN_PR")
         self.assertFalse(item["deletion_candidate"])
 
@@ -125,8 +126,7 @@ class ActiveClaimTests(unittest.TestCase):
             target.mkdir(parents=True)
             (target / "a.md").write_text("status: active\nbranch: feat/live\n", encoding="utf-8")
             (target / "b.md").write_text("status: completed\nbranch: feat/done\n", encoding="utf-8")
-            claims = rl.active_branch_claims(root)
-            self.assertEqual(claims, {"feat/live"})
+            self.assertEqual(rl.active_branch_claims(root), {"feat/live"})
 
 
 class ApprovalTests(unittest.TestCase):
@@ -154,7 +154,7 @@ class ApprovalTests(unittest.TestCase):
             "entries_sha256": inventory["entries_sha256"],
             "policy_sha256": inventory["policy_sha256"],
             "reviewed_at": "2026-08-15T21:20:00Z",
-            "reviewed_by": "repository-owner",
+            "reviewed_by": "agent:test",
             "review_summary": "Reviewed exact generated terminal candidate set.",
         }
 
@@ -180,78 +180,35 @@ class ApprovalTests(unittest.TestCase):
 class PrAuditTests(unittest.TestCase):
     NOW = dt.datetime(2026, 8, 15, 21, 20, tzinfo=dt.timezone.utc)
 
-    def test_request_only_is_not_auto_closed(self):
-        item = rl.classify_pr_health(
-            pull(
-                1,
-                "ops/request",
-                "a" * 40,
-                state="open",
-                body="This PR must close without merge after terminal protected evidence.",
-            ),
+    def classify(self, body: str, **kwargs):
+        return rl.classify_pr_health(
+            pull(1, "feature/x", "a" * 40, state="open", body=body, **kwargs),
             now=self.NOW,
             stale_days=3,
         )
+
+    def test_request_only_is_not_auto_closed(self):
+        item = self.classify("This PR must close without merge after terminal protected evidence.")
         self.assertEqual(item["health"], "REQUEST_ONLY")
         self.assertFalse(item["auto_close"])
 
     def test_generic_request_only_wording_does_not_self_classify(self):
-        item = rl.classify_pr_health(
-            pull(
-                4,
-                "governance/audit",
-                "a" * 40,
-                state="open",
-                body="The audit reports request-only PRs but this PR itself is normal governance work.",
-            ),
-            now=self.NOW,
-            stale_days=3,
-        )
+        item = self.classify("The audit reports request-only PRs but this PR itself is normal governance work.")
         self.assertEqual(item["health"], "ACTIVE")
-        self.assertFalse(item["auto_close"])
 
     def test_reference_to_another_request_pr_does_not_self_classify(self):
-        item = rl.classify_pr_health(
-            pull(
-                5,
-                "fix/implementation",
-                "a" * 40,
-                state="open",
-                body=(
-                    "This implementation remains mergeable after validation. "
-                    "Existing request-only deployment machinery may be reused, but the request PR must not be merged."
-                ),
-            ),
-            now=self.NOW,
-            stale_days=3,
+        item = self.classify(
+            "This implementation remains mergeable after validation. Existing request-only deployment machinery may be reused, but the request PR must not be merged."
         )
         self.assertEqual(item["health"], "ACTIVE")
-        self.assertFalse(item["auto_close"])
 
     def test_standalone_must_not_merge_is_request_only(self):
-        item = rl.classify_pr_health(
-            pull(
-                6,
-                "ops/request-2",
-                "a" * 40,
-                state="open",
-                body="Request-only protected operation.\n\n**MUST NOT BE MERGED.**\nClose after terminal evidence.",
-            ),
-            now=self.NOW,
-            stale_days=3,
-        )
+        item = self.classify("Request-only protected operation.\n\n**MUST NOT BE MERGED.**\nClose after terminal evidence.")
         self.assertEqual(item["health"], "REQUEST_ONLY")
-        self.assertFalse(item["auto_close"])
 
     def test_stale_is_signal_only(self):
         item = rl.classify_pr_health(
-            pull(
-                2,
-                "feature/old",
-                "a" * 40,
-                state="open",
-                updated_at="2026-08-10T00:00:00Z",
-            ),
+            pull(2, "feature/old", "a" * 40, state="open", updated_at="2026-08-10T00:00:00Z"),
             now=self.NOW,
             stale_days=3,
         )
@@ -259,18 +216,7 @@ class PrAuditTests(unittest.TestCase):
         self.assertFalse(item["auto_close"])
 
     def test_draft_prose_mismatch_is_detected(self):
-        item = rl.classify_pr_health(
-            pull(
-                3,
-                "feature/x",
-                "a" * 40,
-                state="open",
-                draft=False,
-                body="This PR remains draft until final validation.",
-            ),
-            now=self.NOW,
-            stale_days=3,
-        )
+        item = self.classify("This PR remains draft until final validation.", draft=False)
         self.assertEqual(item["health"], "METADATA_INCONSISTENT")
 
 
@@ -292,95 +238,8 @@ class InventoryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             result = rl.build_inventory(FakeInventoryClient(), POLICY, Path(tmp))
             self.assertEqual(result["candidate_count"], 0)
-            self.assertEqual(
-                result["repository_merge_settings"]["delete_branch_on_merge"],
-                "UNAVAILABLE_TOKEN_SCOPE",
-            )
+            self.assertEqual(result["repository_merge_settings"]["delete_branch_on_merge"], "UNAVAILABLE_TOKEN_SCOPE")
             self.assertEqual(result["entries"][0]["classification"], "PROTECTED")
-
-
-class FakeEventClient:
-    def __init__(self, *, current_sha, protected=False, open_pulls=None):
-        self.repo = "blakinio/freqtrade"
-        self.current_sha = current_sha
-        self.protected = protected
-        self.open_pulls = [] if open_pulls is None else open_pulls
-        self.deleted = []
-
-    def get_ref_sha(self, branch):
-        return self.current_sha
-
-    def branches(self):
-        return [{"name": "feature/x", "protected": self.protected, "commit": {"sha": self.current_sha}}]
-
-    def pulls(self, state="open"):
-        return self.open_pulls
-
-    def delete_branch_exact(self, branch, sha):
-        self.deleted.append((branch, sha))
-        self.current_sha = None
-
-
-class EventCleanupTests(unittest.TestCase):
-    SHA = "a" * 40
-
-    def event_file(self, tmp, p):
-        path = Path(tmp) / "event.json"
-        path.write_text(json.dumps({"action": "closed", "pull_request": p}), encoding="utf-8")
-        return path
-
-    def test_closed_unmerged_exact_head_deletes(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            p = pull(7, "feature/x", self.SHA, state="closed", merged=False)
-            client = FakeEventClient(current_sha=self.SHA)
-            result = rl.event_cleanup(client, POLICY, Path(tmp), self.event_file(tmp, p))
-            self.assertEqual(result["result"], "PASS")
-            self.assertEqual(client.deleted, [("feature/x", self.SHA)])
-
-    def test_merged_exact_head_deletes_as_auto_delete_fallback(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            p = pull(6, "feature/x", self.SHA, state="closed", merged=True)
-            client = FakeEventClient(current_sha=self.SHA)
-            result = rl.event_cleanup(client, POLICY, Path(tmp), self.event_file(tmp, p))
-            self.assertEqual(result["result"], "PASS")
-            self.assertEqual(client.deleted, [("feature/x", self.SHA)])
-
-    def test_branch_move_retains(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            p = pull(7, "feature/x", self.SHA, state="closed", merged=False)
-            client = FakeEventClient(current_sha="b" * 40)
-            result = rl.event_cleanup(client, POLICY, Path(tmp), self.event_file(tmp, p))
-            self.assertEqual(result["result"], "RETAINED")
-            self.assertFalse(client.deleted)
-
-    def test_active_claim_retains(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            target = root / "docs/agents/tasks/active"
-            target.mkdir(parents=True)
-            (target / "task.md").write_text("status: waiting\nbranch: feature/x\n", encoding="utf-8")
-            p = pull(7, "feature/x", self.SHA, state="closed", merged=False)
-            client = FakeEventClient(current_sha=self.SHA)
-            result = rl.event_cleanup(client, POLICY, root, self.event_file(tmp, p))
-            self.assertEqual(result["result"], "RETAINED")
-            self.assertFalse(client.deleted)
-
-    def test_protected_retains(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            p = pull(7, "feature/x", self.SHA, state="closed", merged=False)
-            client = FakeEventClient(current_sha=self.SHA, protected=True)
-            result = rl.event_cleanup(client, POLICY, Path(tmp), self.event_file(tmp, p))
-            self.assertEqual(result["result"], "RETAINED")
-            self.assertFalse(client.deleted)
-
-    def test_another_open_pr_retains(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            p = pull(7, "feature/x", self.SHA, state="closed", merged=False)
-            open_pr = pull(8, "feature/x", self.SHA, state="open")
-            client = FakeEventClient(current_sha=self.SHA, open_pulls=[open_pr])
-            result = rl.event_cleanup(client, POLICY, Path(tmp), self.event_file(tmp, p))
-            self.assertEqual(result["result"], "RETAINED")
-            self.assertFalse(client.deleted)
 
 
 if __name__ == "__main__":

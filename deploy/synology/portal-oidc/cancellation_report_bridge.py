@@ -8,7 +8,7 @@ from collections.abc import Callable
 from functools import partial
 from pathlib import Path
 from types import FrameType
-from typing import Any, cast
+from typing import Any, NoReturn, cast
 
 
 _CANCELLATION_FAILURE_MESSAGE = "protected deployment cancellation requires rollback"
@@ -185,7 +185,7 @@ def _raise_pending_after_fallback(
     args: Any,
     pending: BaseException,
     cause: BaseException,
-) -> None:
+) -> NoReturn:
     report_path = Path(args.report).resolve()
     try:
         deploy._write_report(

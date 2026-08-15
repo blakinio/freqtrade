@@ -6,6 +6,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 MODULE_PATH = Path(__file__).with_name("repository_lifecycle.py")
 SPEC = importlib.util.spec_from_file_location("repository_lifecycle", MODULE_PATH)
@@ -226,6 +227,31 @@ class PrAuditTests(unittest.TestCase):
         self.assertEqual(item["health"], "METADATA_INCONSISTENT")
 
 
+class FakeInventoryClient:
+    repo = "blakinio/freqtrade"
+
+    def repo_metadata(self):
+        return {"full_name": self.repo, "default_branch": "develop"}
+
+    def pulls(self, state="all"):
+        return []
+
+    def branches(self):
+        return [{"name": "develop", "protected": True, "commit": {"sha": "a" * 40}}]
+
+
+class InventoryTests(unittest.TestCase):
+    def test_admin_merge_settings_may_be_unavailable_to_actions_token(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = rl.build_inventory(FakeInventoryClient(), POLICY, Path(tmp))
+            self.assertEqual(result["candidate_count"], 0)
+            self.assertEqual(
+                result["repository_merge_settings"]["delete_branch_on_merge"],
+                "UNAVAILABLE_TOKEN_SCOPE",
+            )
+            self.assertEqual(result["entries"][0]["classification"], "PROTECTED")
+
+
 class FakeEventClient:
     def __init__(self, *, current_sha, protected=False, open_pulls=None):
         self.repo = "blakinio/freqtrade"
@@ -259,6 +285,14 @@ class EventCleanupTests(unittest.TestCase):
     def test_closed_unmerged_exact_head_deletes(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = pull(7, "feature/x", self.SHA, state="closed", merged=False)
+            client = FakeEventClient(current_sha=self.SHA)
+            result = rl.event_cleanup(client, POLICY, Path(tmp), self.event_file(tmp, p))
+            self.assertEqual(result["result"], "PASS")
+            self.assertEqual(client.deleted, [("feature/x", self.SHA)])
+
+    def test_merged_exact_head_deletes_as_auto_delete_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = pull(6, "feature/x", self.SHA, state="closed", merged=True)
             client = FakeEventClient(current_sha=self.SHA)
             result = rl.event_cleanup(client, POLICY, Path(tmp), self.event_file(tmp, p))
             self.assertEqual(result["result"], "PASS")

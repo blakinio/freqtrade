@@ -6,8 +6,8 @@ issue: 1559
 repository: blakinio/freqtrade
 project_lane: freqtrade-assurance
 task_kind: implementation
-phase: implement
-status: implementing
+phase: validate
+status: validating
 priority: high
 execution_mode: github_only
 run_scope: single_task
@@ -15,9 +15,10 @@ continuation_policy: stop_at_task_boundary
 task_completion_policy: finalize_archive_and_continue
 user_communication: low_noise
 base_branch: develop
-base_head: 9dd5887e301ddfeec6df6a3b3e2da24a9ced850f
+task_start_base_head: 9dd5887e301ddfeec6df6a3b3e2da24a9ced850f
+current_live_base_head: 1f62ff29f4a2a25c929218bd3b69bf19257f3055
 branch: governance/repository-lifecycle-hygiene-1559
-pull_request: null
+pull_request: 1563
 live_capital_authorized: false
 protected_production_deployment_authorized: false
 owned_paths:
@@ -38,13 +39,14 @@ Make branch and pull-request lifecycle hygiene deterministic, fail-closed and co
 ## Verified starting state
 
 - repository default/integration branch: `develop`;
-- `develop@9dd5887e301ddfeec6df6a3b3e2da24a9ced850f` at task start;
+- task started from `develop@9dd5887e301ddfeec6df6a3b3e2da24a9ced850f`;
 - repository `delete_branch_on_merge=true`;
 - squash merge enabled; merge-commit and rebase merge disabled;
 - physical `main` is not present yet; ADR-021 migration remains incomplete;
-- live branch inventory: 1,193 refs;
-- open PR inventory: 14 PRs;
-- repository already requires short-lived branches to be deleted after terminal closeout, but no deterministic historical/closed-unmerged lifecycle engine existed.
+- live branch inventory at task start: 1,193 refs;
+- open PR inventory at task start: 14 PRs;
+- repository already requires short-lived branches to be deleted after terminal closeout, but no deterministic historical/closed-unmerged lifecycle engine existed;
+- after task branch creation, `develop` advanced independently to `1f62ff29f4a2a25c929218bd3b69bf19257f3055` through PR #1558; this task must rebase/merge-forward or otherwise become current-base before final merge.
 
 ## Feature scope
 
@@ -88,22 +90,26 @@ The real integration boundary is GitHub repository state plus GitHub Actions. Br
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 1
-updated_at: 2026-08-15T21:24:00Z
-status: implementing
-phase: implement
-base_head: 9dd5887e301ddfeec6df6a3b3e2da24a9ced850f
+checkpoint_version: 2
+updated_at: 2026-08-15T21:28:00Z
+status: validating
+phase: validate
 branch: governance/repository-lifecycle-hygiene-1559
-pr: null
+pr: 1563
+head: 2da240ed9bb35998873f38f537b4dcd8a31aa73c
+current_live_base_head: 1f62ff29f4a2a25c929218bd3b69bf19257f3055
 proven:
   - repository metadata proves delete_branch_on_merge=true and squash-only merge policy
   - physical main branch is absent and develop remains current integration/default branch
-  - current live inventory contains 1193 branches and 14 open PRs
+  - task-start live inventory contained 1193 branches and 14 open PRs
   - no existing repository lifecycle engine was found
   - focused local lifecycle suite passes 23/23 tests
+  - workflow YAML parse passes locally
+  - PR 1563 is open with exactly six changed paths before the one-time approval
 unknown:
-  - exact live terminal candidate count until GitHub Actions inventory executes on the task PR
-  - exact open-PR health classifications until the task PR audit executes
+  - exact live terminal candidate count until PR 1563 Repository Lifecycle Hygiene inventory completes
+  - exact open-PR health classifications until PR 1563 audit completes
+  - final current-base integration result after develop advanced through PR 1558
 blockers: []
-next_action: Open the task PR, execute exact-head Repository Lifecycle Hygiene inventory/safety audit, inspect the generated candidate set, then materialize only the exact reviewed historical approval.
+next_action: Inspect exact-head PR 1563 workflow results and generated inventory/safety-audit artifacts; then review and materialize only the exact hash-bound historical candidate set before current-base final validation.
 ```

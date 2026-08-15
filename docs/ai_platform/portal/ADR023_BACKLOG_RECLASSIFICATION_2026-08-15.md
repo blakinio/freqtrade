@@ -83,11 +83,13 @@ The remaining open inventory is reclassified as follows.
 | #1140 | Full accessibility/responsive acceptance | DEFER | Maintain baseline accessibility on changed surfaces; whole-product acceptance is not the MVP blocker. |
 | #1142 | Session touch write amplification | DEFER | Performance optimization after owner workflow is operational. |
 
-## Additional open WickHunter/PAPER work
+## Additional open Portal/WickHunter/PAPER work
 
-| Issue | Former scope | ADR-023 class | Current disposition |
+| Issue | Former/current scope | ADR-023 class | Current disposition |
 |---|---|---|---|
 | #1144 | Persistent WH09 PAPER runtime operator | OBSOLETE | The old PAPER acceptance/window issue is superseded by #1561. Preserve and reuse the already-built persistent research runtime, Liquid20 input, journal/outcome and restart code. |
+| #1211 | AI Trading Portal programme parent | KEEP_NOW | Reframe the programme parent as Developer Quant Portal and point it to ADR-023, #1560 and #1561. |
+| #1305 | Protected public-origin HSTS/security-header acceptance campaign | OBSOLETE | Parent #1114 remains SIMPLIFY for sensible browser security; the separate protected-production acceptance campaign is no longer a current product gate. |
 | #1396 | SHADOW/PAPER/LIVE runtime-mode lifecycle | OBSOLETE | Product modes were explicitly removed by ADR-023. Fold useful simulation/runtime behavior into #1561 without mode transition ceremony. |
 | #1491 | G7 portfolio risk / virtual capital producer | DEFER | Useful for richer portfolio simulation later; not needed before one end-to-end WickHunter simulation workflow exists. |
 | #1492 | PaperExecutionProfile producer | SIMPLIFY | The useful concept becomes simulation assumptions/profile (fees, slippage, latency, fill limitations) under #1561; the disconnected PAPER producer is not a standalone deliverable. |

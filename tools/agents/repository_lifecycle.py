@@ -28,7 +28,10 @@ DRAFT_WORDING_RE = re.compile(
     re.I,
 )
 REQUEST_ONLY_STANDALONE_RE = re.compile(r"^\s*\*{0,2}must not be merged\.?\*{0,2}\s*$", re.I | re.M)
-CLOSE_WITHOUT_MERGE_RE = re.compile(r"^\s*(?:this\s+pr\s+)?(?:must|will)\s+close\s+without\s+merge\b", re.I | re.M)
+CLOSE_WITHOUT_MERGE_RE = re.compile(
+    r"(?:^|[.!?]\s+)(?:this\s+pr\s+)?(?:must|will)\s+close\s+without\s+merge\b",
+    re.I | re.M,
+)
 
 CLASSIFICATIONS = {
     "PROTECTED",

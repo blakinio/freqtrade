@@ -73,9 +73,9 @@ Issue #1559 adds the canonical fail-closed enforcement layer for this rule:
 
 - `docs/agents/REPOSITORY_LIFECYCLE_POLICY.json` defines the machine-readable lifecycle policy;
 - `tools/agents/repository_lifecycle.py` classifies live refs and open PR health from GitHub state;
-- `.github/workflows/repository-lifecycle-hygiene.yml` performs read-only inventory/audit, exact reviewed historical cleanup and guarded closed-unmerged cleanup.
+- `.github/workflows/repository-lifecycle-hygiene.yml` performs read-only inventory/audit, exact reviewed historical cleanup and guarded terminal-PR cleanup.
 
-Ordinary successfully merged task branches rely on repository `delete_branch_on_merge=true`. A same-repository PR closed without merge may have its source branch removed only when the branch still points to that PR's exact immutable head SHA, is not protected, has no active task claim, has no other open PR and is not a reserved release/rollback/recovery/backup ref.
+Ordinary successfully merged task branches normally disappear through repository `delete_branch_on_merge=true`. The trusted PR-close workflow is an exact-SHA fallback for both merged and closed-unmerged same-repository PRs when their source ref still exists after the close event. It may remove that ref only when it still points to the PR's exact immutable head SHA, is not protected, has no active task claim, has no other open PR and is not a reserved release/rollback/recovery/backup ref. If native auto-delete already removed the branch, the fallback records that terminal absence instead of treating it as an error.
 
 Historical cleanup is never authorized by age or prefix. It requires a generated exact candidate set whose entries and policy are hash-bound in a reviewed approval file; apply must abort on candidate, policy or SHA drift and must prove delete/restore recovery before deleting the reviewed set.
 
@@ -83,8 +83,8 @@ Open-PR age is also not closure authority. The scheduled lifecycle audit may rep
 
 Task closeout must verify one of these terminal source-ref outcomes:
 
-- merged task branch absent through repository auto-delete;
-- closed-unmerged task branch absent through guarded lifecycle cleanup;
+- merged task branch absent through repository auto-delete or the guarded exact-SHA close-event fallback;
+- closed-unmerged task branch absent through guarded exact-SHA lifecycle cleanup;
 - branch intentionally retained with an exact documented protection/recovery/evidence reason;
 - branch retained fail-closed because its state is `UNKNOWN` or otherwise ambiguous, with a concrete follow-up action.
 

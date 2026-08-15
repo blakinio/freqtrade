@@ -290,10 +290,17 @@ def _guarded_deploy(
     finally:
         if previous_handlers is None:
             signal.pthread_sigmask(signal.SIG_SETMASK, entry_mask)
-        _release_current_report_lock(deploy)
-        if previous_handlers is not None:
-            deploy._portal_termination_handlers_active = False
-            _restore_termination_handlers(previous_handlers)
+        try:
+            _release_current_report_lock(deploy)
+        except BaseException as exc:
+            pending = _pending_cancellation(deploy)
+            if pending is None:
+                raise
+            _raise_pending_after_fallback(deploy, args, pending, exc)
+        finally:
+            if previous_handlers is not None:
+                deploy._portal_termination_handlers_active = False
+                _restore_termination_handlers(previous_handlers)
 
 
 def install(deploy: Any) -> None:

@@ -689,3 +689,49 @@ def test_sigterm_is_bridged_across_handler_transitions(tmp_path, monkeypatch, tr
     assert deploy._portal_report_lock_fd is None
     assert signal.getsignal(signal.SIGINT) == previous_sigint
     assert signal.getsignal(signal.SIGTERM) == previous_sigterm
+
+
+def test_sigterm_during_lock_release_restores_handlers_and_persists_report(
+    tmp_path, monkeypatch
+) -> None:
+    report_path = tmp_path / "report.json"
+    reports: list[dict[str, Any]] = []
+    deploy = SimpleNamespace(
+        DeploymentError=RuntimeError,
+        REQUEST_ID="portal-authentik-public-oidc-20260801-v1",
+        _bounded_schema_cleanup_evidence=_cleanup_evidence(),
+    )
+
+    def original_write_report(path: Path, report: dict[str, Any]) -> str:
+        reports.append(copy.deepcopy(report))
+        path.write_text(json.dumps(report), encoding="utf-8")
+        return "digest"
+
+    deploy._run = lambda *args, **kwargs: None
+    deploy._write_report = original_write_report
+    deploy.deploy = lambda _args: 0
+    module.install(deploy)
+    original_release = module._release_current_report_lock
+
+    def interrupting_release(current_deploy: Any) -> None:
+        try:
+            handler = signal.getsignal(signal.SIGTERM)
+            assert callable(handler)
+            handler(signal.SIGTERM, None)
+        finally:
+            original_release(current_deploy)
+
+    monkeypatch.setattr(module, "_release_current_report_lock", interrupting_release)
+    previous_sigint = signal.getsignal(signal.SIGINT)
+    previous_sigterm = signal.getsignal(signal.SIGTERM)
+    args = SimpleNamespace(report=str(report_path), expected_repository_sha="7" * 40)
+
+    with pytest.raises(SystemExit) as exc_info:
+        deploy.deploy(args)
+
+    assert exc_info.value.code == 128 + signal.SIGTERM
+    assert reports[-1]["status"] == "failed"
+    assert reports[-1]["cancellation"]["type"] == "SystemExit"
+    assert deploy._portal_report_lock_fd is None
+    assert signal.getsignal(signal.SIGINT) == previous_sigint
+    assert signal.getsignal(signal.SIGTERM) == previous_sigterm

@@ -293,11 +293,10 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  close-unmerged-branch:
+  close-terminal-branch:
     if: >-
       github.event_name == 'pull_request_target' &&
       github.event.action == 'closed' &&
-      github.event.pull_request.merged == false &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -317,7 +316,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Process exact closed-unmerged branch disposition
+      - name: Process exact terminal branch disposition
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |

@@ -7,7 +7,7 @@ Current implementation completeness is defined by the living exact-head inventor
 
 That authority answers **what is currently implemented**. ADR-023 and `DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md` answer **what the current product is and what owner-facing workflow counts as product completion**. The implementation ledger must not turn historical production/PAPER findings into current product prerequisites, and ADR-023 must not fabricate implementation that exact code/tests/runtime evidence do not prove.
 
-The historical `FEATURE_COMPLETENESS_LEDGER.json` and its Markdown projection remain dated evidence only. Historical pre-ledger evidence is preserved exactly at:
+The historical `FEATURE_COMPLETENESS_LEDGER.json` and its Markdown projection remain dated **compatibility metadata** and evidence only. Historical pre-ledger evidence is preserved exactly at:
 
 ```yaml
 snapshot_sha: 4473dfc166d83fe5e0ffba4045c0dcd967626d68

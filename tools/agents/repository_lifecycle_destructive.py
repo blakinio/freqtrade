@@ -5,6 +5,7 @@ import argparse
 import base64
 import json
 import os
+import subprocess
 import sys
 import urllib.parse
 from pathlib import Path
@@ -151,6 +152,53 @@ def _terminal_pull_matches(
     return False
 
 
+def delete_branch_exact(client: rl.GitHubClient, branch: str, expected_sha: str) -> None:
+    current = client.get_ref_sha(branch)
+    if current != expected_sha:
+        raise rl.LifecycleError(
+            f"pre-delete SHA drift for {branch}: expected {expected_sha}, got {current}"
+        )
+    remote = client._validate_remote()
+    ref = f"refs/heads/{branch}"
+    basic = base64.b64encode(f"x-access-token:{client.token}".encode("utf-8")).decode("ascii")
+    env = os.environ.copy()
+    env["GIT_CONFIG_COUNT"] = "1"
+    env["GIT_CONFIG_KEY_0"] = "http.https://github.com/.extraheader"
+    env["GIT_CONFIG_VALUE_0"] = f"AUTHORIZATION: basic {basic}"
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "push",
+                "--porcelain",
+                f"--force-with-lease={ref}:{expected_sha}",
+                remote,
+                f":{ref}",
+            ],
+            cwd=client.root,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+            env=env,
+        )
+    except FileNotFoundError as exc:
+        raise rl.LifecycleError("delete branch: git executable unavailable") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise rl.LifecycleError(f"delete branch {branch}: timed out") from exc
+    if result.returncode != 0:
+        remote_sha = client.remote_ref_sha(branch)
+        if remote_sha is None:
+            raise rl.LifecycleError(f"delete returned failure but {branch} is absent; ambiguous")
+        if remote_sha != expected_sha:
+            raise rl.LifecycleError(
+                f"delete lease rejected for {branch}: remote moved to {remote_sha}"
+            )
+        raise rl.LifecycleError(f"delete push rejected for {branch}")
+    if client.remote_ref_sha(branch) is not None:
+        raise rl.LifecycleError(f"post-delete git verification found {branch} still present")
+
+
 def revalidate_candidate(
     client: rl.GitHubClient,
     policy: dict[str, Any],
@@ -245,19 +293,19 @@ def safe_recovery_test(client: rl.GitHubClient, default_branch: str, issue: int)
                 raise rl.LifecycleError(
                     f"recovery branch {branch} already exists at unexpected SHA {existing}"
                 )
-            client.delete_branch_exact(branch, base_sha)
+            delete_branch_exact(client, branch, base_sha)
             evidence["cleanup"] = "REMOVED_PREEXISTING_EXACT_REF"
         client.create_ref(branch, base_sha)
         evidence["create"] = "PASS"
         if client.get_ref_sha(branch) != base_sha:
             raise rl.LifecycleError("recovery-test create verification failed")
-        client.delete_branch_exact(branch, base_sha)
+        delete_branch_exact(client, branch, base_sha)
         evidence["delete"] = "PASS"
         client.create_ref(branch, base_sha)
         if client.get_ref_sha(branch) != base_sha:
             raise rl.LifecycleError("recovery-test restore verification failed")
         evidence["restore"] = "PASS"
-        client.delete_branch_exact(branch, base_sha)
+        delete_branch_exact(client, branch, base_sha)
         evidence["final_delete"] = "PASS"
         return evidence
     except Exception as exc:
@@ -268,7 +316,7 @@ def safe_recovery_test(client: rl.GitHubClient, default_branch: str, issue: int)
         if leftover is not None:
             if leftover == base_sha:
                 try:
-                    client.delete_branch_exact(branch, base_sha)
+                    delete_branch_exact(client, branch, base_sha)
                     evidence["cleanup"] = "PASS"
                 except Exception as cleanup_exc:
                     if primary_error is None:
@@ -319,7 +367,6 @@ def apply_reviewed_cleanup(
         raise rl.LifecycleError("default branch missing before destructive preflight")
     base_directory, base_claims = claim_snapshot(client, base_sha)
 
-    # Full preflight before the first destructive deletion.
     for candidate in candidates:
         try:
             revalidate_candidate(
@@ -346,7 +393,6 @@ def apply_reviewed_cleanup(
     )
     _write(output, result)
 
-    # Revalidate complete live ownership immediately before every exact-SHA push.
     for candidate in candidates:
         try:
             status = revalidate_candidate(
@@ -365,7 +411,7 @@ def apply_reviewed_cleanup(
             result["already_absent"].append(candidate)
             _write(output, result)
             continue
-        client.delete_branch_exact(candidate["branch"], candidate["sha"])
+        delete_branch_exact(client, candidate["branch"], candidate["sha"])
         result["deleted"].append(candidate)
         _write(output, result)
 
@@ -424,7 +470,7 @@ def event_cleanup(
             "pr": number,
             "reason": "branch already absent after terminal PR close",
         }
-    client.delete_branch_exact(branch, sha)
+    delete_branch_exact(client, branch, sha)
     return {
         "result": "PASS",
         "branch": branch,

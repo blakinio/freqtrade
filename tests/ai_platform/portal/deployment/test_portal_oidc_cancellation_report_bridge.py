@@ -713,7 +713,7 @@ def test_lock_release_runs_with_termination_blocked_and_restores_handlers(
     module.install(deploy)
     original_release = module._release_current_report_lock
 
-    observed_masks: list[set[signal.Signals]] = []
+    observed_masks: list[set[int | signal.Signals]] = []
 
     def observing_release(current_deploy: Any) -> None:
         observed_masks.append(signal.pthread_sigmask(signal.SIG_BLOCK, set()))

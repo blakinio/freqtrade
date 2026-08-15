@@ -634,7 +634,7 @@ def test_sigterm_during_stale_report_clear_persists_cancellation_and_releases_lo
     module._release_current_report_lock(contender)
 
 
-@pytest.mark.parametrize("transition", ["after_lock", "during_restore"])
+@pytest.mark.parametrize("transition", ["after_lock", "restore_handoff"])
 def test_sigterm_is_bridged_across_handler_transitions(tmp_path, monkeypatch, transition) -> None:
     report_path = tmp_path / "report.json"
     reports: list[dict[str, Any]] = []
@@ -653,6 +653,7 @@ def test_sigterm_is_bridged_across_handler_transitions(tmp_path, monkeypatch, tr
     deploy._write_report = original_write_report
     deploy.deploy = lambda _args: 0
     module.install(deploy)
+    restore_states: list[bool] = []
     if transition == "after_lock":
         original_reserve = module._reserve_current_report_path
 
@@ -664,11 +665,11 @@ def test_sigterm_is_bridged_across_handler_transitions(tmp_path, monkeypatch, tr
     else:
         original_restore = module._restore_termination_handlers
 
-        def cancel_during_restore(previous_handlers: dict[int, Any]) -> None:
-            os.kill(os.getpid(), signal.SIGTERM)
+        def observe_restore(previous_handlers: dict[int, Any]) -> None:
+            restore_states.append(deploy._portal_termination_handlers_active)
             original_restore(previous_handlers)
 
-        monkeypatch.setattr(module, "_restore_termination_handlers", cancel_during_restore)
+        monkeypatch.setattr(module, "_restore_termination_handlers", observe_restore)
 
     previous_sigint = signal.getsignal(signal.SIGINT)
     previous_sigterm = signal.getsignal(signal.SIGTERM)
@@ -676,12 +677,15 @@ def test_sigterm_is_bridged_across_handler_transitions(tmp_path, monkeypatch, tr
         report=str(report_path),
         expected_repository_sha="6" * 40,
     )
-    with pytest.raises(SystemExit) as exc_info:
-        deploy.deploy(args)
-
-    assert exc_info.value.code == 128 + signal.SIGTERM
-    assert reports[-1]["status"] == "failed"
-    assert reports[-1]["cancellation"]["type"] == "SystemExit"
+    if transition == "after_lock":
+        with pytest.raises(SystemExit) as exc_info:
+            deploy.deploy(args)
+        assert exc_info.value.code == 128 + signal.SIGTERM
+        assert reports[-1]["status"] == "failed"
+        assert reports[-1]["cancellation"]["type"] == "SystemExit"
+    else:
+        assert deploy.deploy(args) == 0
+        assert restore_states == [False]
     assert deploy._portal_report_lock_fd is None
     assert signal.getsignal(signal.SIGINT) == previous_sigint
     assert signal.getsignal(signal.SIGTERM) == previous_sigterm

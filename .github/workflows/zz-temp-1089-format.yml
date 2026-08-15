@@ -33,7 +33,7 @@ jobs:
           python -m pip install --disable-pip-version-check
           pytest ruff==0.15.21
 
-      - name: Fail closed on unknown inspect errors and validate
+      - name: Harden Docker absence checks and validate
         shell: bash
         run: |
           set -euo pipefail
@@ -49,56 +49,61 @@ jobs:
 
           lifecycle = Path("deploy/synology/portal-oidc/bounded_schema_lifecycle.py")
           source = lifecycle.read_text(encoding="utf-8")
-
-          marker = '''def _verify_absent(deploy: Any, name: str, *, cwd: Path | None) -> None:\n'''
           helper = '''def _inspect_reports_missing(result: subprocess.CompletedProcess[str]) -> bool:\n    return result.returncode != 0 and "no such object" in result.stderr.lower()\n\n\n'''
+          marker = '''def _verify_absent(deploy: Any, name: str, *, cwd: Path | None) -> None:\n'''
           if helper not in source:
               if source.count(marker) != 1:
-                  raise SystemExit("lifecycle: missing helper insertion target")
+                  raise SystemExit("lifecycle helper insertion mismatch")
               source = source.replace(marker, helper + marker)
 
-          old = '''    if (\n        version.returncode != 0\n        or listed.returncode != 0\n        or bool(listed.stdout.strip())\n        or inspect.returncode == 0\n    ):\n        raise deploy.DeploymentError("task-owned Docker workload cleanup failed")\n'''
-          new = '''    if (\n        version.returncode != 0\n        or listed.returncode != 0\n        or bool(listed.stdout.strip())\n        or not _inspect_reports_missing(inspect)\n    ):\n        raise deploy.DeploymentError("task-owned Docker workload cleanup failed")\n'''
-          if source.count(old) != 1:
-              raise SystemExit("lifecycle: exact-name absence condition target mismatch")
-          source = source.replace(old, new)
-
-          old = '''    if inspected.returncode != 0:\n        return None\n'''
-          new = '''    if inspected.returncode != 0:\n        if _inspect_reports_missing(inspected):\n            return None\n        raise deploy.DeploymentError("task-owned Docker identity query failed")\n'''
-          if source.count(old) != 1:
-              raise SystemExit("lifecycle: identity nonzero target mismatch")
-          source = source.replace(old, new)
-
-          old = '''    if version.returncode != 0 or inspected.returncode == 0:\n        raise deploy.DeploymentError("task-owned Docker identity cleanup failed")\n'''
-          new = '''    if version.returncode != 0 or not _inspect_reports_missing(inspected):\n        raise deploy.DeploymentError("task-owned Docker identity cleanup failed")\n'''
-          if source.count(old) != 1:
-              raise SystemExit("lifecycle: identity absence condition target mismatch")
-          source = source.replace(old, new)
+          replacements = [
+              (
+                  '''    if (\n        version.returncode != 0\n        or listed.returncode != 0\n        or bool(listed.stdout.strip())\n        or inspect.returncode == 0\n    ):\n        raise deploy.DeploymentError("task-owned Docker workload cleanup failed")\n''',
+                  '''    if (\n        version.returncode != 0\n        or listed.returncode != 0\n        or bool(listed.stdout.strip())\n        or not _inspect_reports_missing(inspect)\n    ):\n        raise deploy.DeploymentError("task-owned Docker workload cleanup failed")\n''',
+              ),
+              (
+                  '''    if inspected.returncode != 0:\n        return None\n''',
+                  '''    if inspected.returncode != 0:\n        if _inspect_reports_missing(inspected):\n            return None\n        raise deploy.DeploymentError("task-owned Docker identity query failed")\n''',
+              ),
+              (
+                  '''    if version.returncode != 0 or inspected.returncode == 0:\n        raise deploy.DeploymentError("task-owned Docker identity cleanup failed")\n''',
+                  '''    if version.returncode != 0 or not _inspect_reports_missing(inspected):\n        raise deploy.DeploymentError("task-owned Docker identity cleanup failed")\n''',
+              ),
+          ]
+          for old, new in replacements:
+              if source.count(old) != 1:
+                  raise SystemExit("lifecycle replacement mismatch")
+              source = source.replace(old, new)
           lifecycle.write_text(source, encoding="utf-8")
 
-          test_path = Path(
-              "tests/ai_platform/portal/deployment/"
-              "test_portal_oidc_bounded_schema_lifecycle.py"
-          )
-          tests = test_path.read_text(encoding="utf-8")
-          old = '''def _completed(command: list[str], *, returncode: int = 0, stdout: str = "") -> Any:\n    return subprocess.CompletedProcess(command, returncode, stdout=stdout, stderr="")\n'''
-          new = '''def _completed(\n    command: list[str],\n    *,\n    returncode: int = 0,\n    stdout: str = "",\n    stderr: str | None = None,\n) -> Any:\n    if stderr is None:\n        stderr = (\n            "Error: No such object\\n"\n            if returncode != 0 and command[:2] == ["docker", "inspect"]\n            else ""\n        )\n    return subprocess.CompletedProcess(command, returncode, stdout=stdout, stderr=stderr)\n'''
-          if tests.count(old) != 1:
-              raise SystemExit("tests: completed helper target mismatch")
-          tests = tests.replace(old, new)
+          helper_old = '''def _completed(command: list[str], *, returncode: int = 0, stdout: str = "") -> Any:\n    return subprocess.CompletedProcess(command, returncode, stdout=stdout, stderr="")\n'''
+          helper_new = '''def _completed(\n    command: list[str],\n    *,\n    returncode: int = 0,\n    stdout: str = "",\n    stderr: str | None = None,\n) -> Any:\n    if stderr is None:\n        stderr = (\n            "Error: No such object\\n"\n            if returncode != 0 and command[:2] == ["docker", "inspect"]\n            else ""\n        )\n    return subprocess.CompletedProcess(command, returncode, stdout=stdout, stderr=stderr)\n'''
+          test_files = [
+              Path("tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py"),
+              Path("tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_cancellation.py"),
+              Path("tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py"),
+          ]
+          for path in test_files:
+              tests = path.read_text(encoding="utf-8")
+              if tests.count(helper_old) != 1:
+                  raise SystemExit(f"test helper mismatch: {path}")
+              path.write_text(tests.replace(helper_old, helper_new), encoding="utf-8")
 
+          path = test_files[0]
+          tests = path.read_text(encoding="utf-8")
           marker = "def test_preexisting_generated_name_collision_is_never_removed"
           regression = '''def test_unknown_inspect_failure_does_not_verify_identity_absent(monkeypatch) -> None:\n    deploy, _delegated = _deploy_stub()\n    calls: list[list[str]] = []\n\n    def fake_run(command, **_kwargs):\n        calls.append(list(command))\n        if command[:2] == ["docker", "inspect"]:\n            return _completed(\n                command,\n                returncode=1,\n                stderr="Error response from daemon: context deadline exceeded\\n",\n            )\n        if command[:2] == ["docker", "version"]:\n            return _completed(command)\n        raise AssertionError(f"unexpected command: {command}")\n\n    monkeypatch.setattr(module.subprocess, "run", fake_run)\n\n    with pytest.raises(RuntimeError, match="identity cleanup failed"):\n        module._verify_container_id_absent(deploy, CONTAINER_ID, cwd=None)\n\n    assert ["docker", "inspect", CONTAINER_ID] in calls\n    assert ["docker", "version"] in calls\n\n\n'''
           if regression not in tests:
               if tests.count(marker) != 1:
-                  raise SystemExit("tests: regression insertion target mismatch")
-              tests = tests.replace(marker, regression + marker)
-          test_path.write_text(tests, encoding="utf-8")
+                  raise SystemExit("regression insertion mismatch")
+              path.write_text(tests.replace(marker, regression + marker), encoding="utf-8")
           PY
 
           files=(
             deploy/synology/portal-oidc/bounded_schema_lifecycle.py
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py
+            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_cancellation.py
+            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py
           )
           ruff format "${files[@]}"
           ruff check "${files[@]}"

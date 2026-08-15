@@ -20,7 +20,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: 24f27710f65113dcb3158f151f45276f9882c562
+          ref: 8381c8352021c69762ce4d75481ee9091bffd9d2
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
@@ -43,6 +43,7 @@ jobs:
           python -m py_compile deploy/synology/portal-oidc/market_evidence_runtime.py
           python -m py_compile deploy/synology/portal-oidc/bounded_schema_lifecycle.py
           python -m py_compile tests/ai_platform/portal/deployment/test_portal_oidc_deploy_entrypoint.py
+          python -m py_compile tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_host_mount_whitespace.py
           python -m py_compile tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_runtime.py
           python -m py_compile tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py
 
@@ -53,11 +54,13 @@ jobs:
             deploy/synology/portal-oidc/deploy_entrypoint.py \
             deploy/synology/portal-oidc/market_evidence_runtime.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_deploy_entrypoint.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_host_mount_whitespace.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_runtime.py
           ruff format --check \
             deploy/synology/portal-oidc/deploy_entrypoint.py \
             deploy/synology/portal-oidc/market_evidence_runtime.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_deploy_entrypoint.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_host_mount_whitespace.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_runtime.py
 
       - name: Validate patch whitespace
@@ -69,5 +72,6 @@ jobs:
         run: |
           python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform \
             tests/ai_platform/portal/deployment/test_portal_oidc_deploy_entrypoint.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_host_mount_whitespace.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_runtime.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py

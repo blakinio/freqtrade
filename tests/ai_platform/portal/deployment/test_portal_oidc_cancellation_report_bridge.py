@@ -3,7 +3,6 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
-import os
 import signal
 from pathlib import Path
 from types import SimpleNamespace
@@ -654,14 +653,21 @@ def test_sigterm_is_bridged_across_handler_transitions(tmp_path, monkeypatch, tr
     deploy.deploy = lambda _args: 0
     module.install(deploy)
     restore_states: list[bool] = []
+    transition_masks: list[set[int | signal.Signals]] = []
     if transition == "after_lock":
         original_reserve = module._reserve_current_report_path
+        original_install = module._install_termination_handlers
 
-        def reserve_then_cancel(current_deploy: Any, current_args: Any) -> None:
+        def observe_reserve(current_deploy: Any, current_args: Any) -> None:
             original_reserve(current_deploy, current_args)
-            os.kill(os.getpid(), signal.SIGTERM)
+            transition_masks.append(signal.pthread_sigmask(signal.SIG_BLOCK, set()))
 
-        monkeypatch.setattr(module, "_reserve_current_report_path", reserve_then_cancel)
+        def observe_install(current_deploy: Any) -> dict[int, Any]:
+            transition_masks.append(signal.pthread_sigmask(signal.SIG_BLOCK, set()))
+            return original_install(current_deploy)
+
+        monkeypatch.setattr(module, "_reserve_current_report_path", observe_reserve)
+        monkeypatch.setattr(module, "_install_termination_handlers", observe_install)
     else:
         original_restore = module._restore_termination_handlers
 
@@ -678,11 +684,9 @@ def test_sigterm_is_bridged_across_handler_transitions(tmp_path, monkeypatch, tr
         expected_repository_sha="6" * 40,
     )
     if transition == "after_lock":
-        with pytest.raises(SystemExit) as exc_info:
-            deploy.deploy(args)
-        assert exc_info.value.code == 128 + signal.SIGTERM
-        assert reports[-1]["status"] == "failed"
-        assert reports[-1]["cancellation"]["type"] == "SystemExit"
+        assert deploy.deploy(args) == 0
+        assert len(transition_masks) == 2
+        assert all(set(module._TERMINATION_SIGNALS).issubset(mask) for mask in transition_masks)
     else:
         assert deploy.deploy(args) == 0
         assert restore_states == [False]

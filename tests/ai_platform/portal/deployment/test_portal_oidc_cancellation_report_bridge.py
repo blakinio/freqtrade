@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import os
 import signal
 from pathlib import Path
 from types import SimpleNamespace
@@ -631,3 +632,56 @@ def test_sigterm_during_stale_report_clear_persists_cancellation_and_releases_lo
     )
     module._reserve_current_report_path(contender, args)
     module._release_current_report_lock(contender)
+
+
+@pytest.mark.parametrize("transition", ["after_lock", "during_restore"])
+def test_sigterm_is_bridged_across_handler_transitions(tmp_path, monkeypatch, transition) -> None:
+    report_path = tmp_path / "report.json"
+    reports: list[dict[str, Any]] = []
+    deploy = SimpleNamespace(
+        DeploymentError=RuntimeError,
+        REQUEST_ID="portal-authentik-public-oidc-20260801-v1",
+        _bounded_schema_cleanup_evidence=_cleanup_evidence(),
+    )
+
+    def original_write_report(path: Path, report: dict[str, Any]) -> str:
+        reports.append(copy.deepcopy(report))
+        path.write_text(json.dumps(report), encoding="utf-8")
+        return "digest"
+
+    deploy._run = lambda *args, **kwargs: None
+    deploy._write_report = original_write_report
+    deploy.deploy = lambda _args: 0
+    module.install(deploy)
+    if transition == "after_lock":
+        original_reserve = module._reserve_current_report_path
+
+        def reserve_then_cancel(current_deploy: Any, current_args: Any) -> None:
+            original_reserve(current_deploy, current_args)
+            os.kill(os.getpid(), signal.SIGTERM)
+
+        monkeypatch.setattr(module, "_reserve_current_report_path", reserve_then_cancel)
+    else:
+        original_restore = module._restore_termination_handlers
+
+        def cancel_during_restore(previous_handlers: dict[int, Any]) -> None:
+            os.kill(os.getpid(), signal.SIGTERM)
+            original_restore(previous_handlers)
+
+        monkeypatch.setattr(module, "_restore_termination_handlers", cancel_during_restore)
+
+    previous_sigint = signal.getsignal(signal.SIGINT)
+    previous_sigterm = signal.getsignal(signal.SIGTERM)
+    args = SimpleNamespace(
+        report=str(report_path),
+        expected_repository_sha="6" * 40,
+    )
+    with pytest.raises(SystemExit) as exc_info:
+        deploy.deploy(args)
+
+    assert exc_info.value.code == 128 + signal.SIGTERM
+    assert reports[-1]["status"] == "failed"
+    assert reports[-1]["cancellation"]["type"] == "SystemExit"
+    assert deploy._portal_report_lock_fd is None
+    assert signal.getsignal(signal.SIGINT) == previous_sigint
+    assert signal.getsignal(signal.SIGTERM) == previous_sigterm

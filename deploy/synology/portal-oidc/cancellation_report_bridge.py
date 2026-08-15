@@ -160,6 +160,22 @@ def _restore_termination_handlers(previous_handlers: dict[int, Any]) -> None:
         signal.signal(signum, previous_handler)
 
 
+def _block_termination_signals() -> set[signal.Signals]:
+    return cast(
+        set[signal.Signals],
+        signal.pthread_sigmask(signal.SIG_BLOCK, _TERMINATION_SIGNALS),
+    )
+
+
+def _consume_blocked_termination(deploy: Any) -> None:
+    pending_signals = set(signal.sigpending()).intersection(_TERMINATION_SIGNALS)
+    for signum in sorted(pending_signals):
+        signal.sigwait({signum})
+        if _pending_cancellation(deploy) is None:
+            deploy._portal_pending_cancellation = _termination_exception(signum)
+            deploy._portal_cancellation_during_restore = True
+
+
 def _raise_pending_after_fallback(
     deploy: Any,
     args: Any,
@@ -249,11 +265,13 @@ def _guarded_deploy(
 ) -> int:
     deploy._portal_current_report_path = None
     previous_handlers: dict[int, Any] | None = None
+    entry_mask = _block_termination_signals()
     try:
         _reserve_current_report_path(deploy, args)
         previous_handlers = _install_termination_handlers(deploy)
         try:
             try:
+                signal.pthread_sigmask(signal.SIG_SETMASK, entry_mask)
                 _clear_current_report_path(deploy, args)
                 return_code = int(original_deploy(args))
             except BaseException as exc:
@@ -262,14 +280,23 @@ def _guarded_deploy(
                     raise
                 _raise_pending_after_fallback(deploy, args, pending, exc)
         finally:
-            _restore_termination_handlers(previous_handlers)
+            restore_mask = _block_termination_signals()
+            try:
+                _restore_termination_handlers(previous_handlers)
+                _consume_blocked_termination(deploy)
+            finally:
+                signal.pthread_sigmask(signal.SIG_SETMASK, restore_mask)
 
         pending = _pending_cancellation(deploy)
         if pending is not None:
+            if getattr(deploy, "_portal_cancellation_during_restore", False):
+                _raise_pending_after_fallback(deploy, args, pending, pending)
             deploy._portal_pending_cancellation = None
             raise pending
         return return_code
     finally:
+        if previous_handlers is None:
+            signal.pthread_sigmask(signal.SIG_SETMASK, entry_mask)
         _release_current_report_lock(deploy)
 
 
@@ -282,6 +309,7 @@ def install(deploy: Any) -> None:
     deploy._portal_pending_cancellation = None
     deploy._portal_current_report_path = None
     deploy._portal_report_lock_fd = None
+    deploy._portal_cancellation_during_restore = False
 
     deploy._run = partial(_guarded_run, deploy, original_run)
     deploy._write_report = partial(_guarded_write_report, deploy, original_write_report)

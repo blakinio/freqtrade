@@ -1,13 +1,13 @@
 <!-- portal-status-authority: FEATURE_COMPLETENESS_LEDGER.json -->
 # Developer Quant Portal
 
-## Current product authority
+## Status authority
 
-ADR-023 and `DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md` define the current Portal product. The Portal is a private, single-owner developer/quant/research platform operating on real public market data, simulation, datasets and local model development.
+Current implementation completeness is defined by the living exact-head inventory at `tools/portal_audit/ledger/index.json`, subject to its deterministic exact-head validation and `tools/portal_audit/ledger/status_authority.json`.
 
-The living exact-head inventory at `tools/portal_audit/ledger/index.json` remains implementation evidence subject to `tools/portal_audit/ledger/status_authority.json`. It does **not** override ADR-023 product scope or turn historical production/PAPER findings into current completion prerequisites. Historical `FEATURE_COMPLETENESS_LEDGER.json` and its Markdown projection remain dated evidence only.
+That authority answers **what is currently implemented**. ADR-023 and `DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md` answer **what the current product is and what owner-facing workflow counts as product completion**. The implementation ledger must not turn historical production/PAPER findings into current product prerequisites, and ADR-023 must not fabricate implementation that exact code/tests/runtime evidence do not prove.
 
-Historical pre-ledger evidence is preserved exactly at:
+The historical `FEATURE_COMPLETENESS_LEDGER.json` and its Markdown projection remain dated evidence only. Historical pre-ledger evidence is preserved exactly at:
 
 ```yaml
 snapshot_sha: 4473dfc166d83fe5e0ffba4045c0dcd967626d68
@@ -56,7 +56,7 @@ Real-money exchange execution, private order credentials, withdrawals and capita
 
 ## Product completion model
 
-Current Portal completion is proved by a real owner-facing vertical workflow, not by the number of isolated producer packages or evidence artifacts:
+Current Portal product completion is proved by a real owner-facing vertical workflow, not by the number of isolated producer packages or evidence artifacts:
 
 ```text
 REALTIME_PUBLIC data

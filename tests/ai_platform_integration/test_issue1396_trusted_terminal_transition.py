@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
@@ -63,14 +63,12 @@ def test_paper_material_binds_current_gateway_and_authorization_identity() -> No
     assert material.generation_spec_version == "wh09-paper-production-generation-v3"
 
 
-def test_reconciliation_timestamp_advances_past_same_runtime_observation() -> None:
+def test_source_time_uses_checked_at_ms() -> None:
     module = _load_module()
-    source = datetime(2026, 8, 15, 8, 0, tzinfo=UTC)
-    latest = SimpleNamespace(reconciled_at=source + timedelta(seconds=5))
+    expected = datetime(2026, 8, 15, 8, 0, tzinfo=UTC)
+    checked_at_ms = int(expected.timestamp() * 1000)
 
-    reconciled = module._next_reconciled_at(source, latest)
-
-    assert reconciled > latest.reconciled_at
+    assert module._source_time({"checked_at_ms": checked_at_ms}) == expected
 
 
 def test_author_paper_parser_requires_gateway_identity_digests() -> None:

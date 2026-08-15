@@ -37,8 +37,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          expected_head=d335848fb97a41b3f0d8d8ece9ccb703bcd44803
-          expected_base=7836e89f17a0a79a01d58753f5793ec34d0e0353
+          expected_head=67c20078bb075bd6124502bccd0523bae06f4703
+          expected_base=8c27e33e438394151e98e5d51c3990a15d16c57a
           test "$(git rev-parse HEAD)" = "$expected_head"
           git fetch origin develop
           test "$(git rev-parse origin/develop)" = "$expected_base"

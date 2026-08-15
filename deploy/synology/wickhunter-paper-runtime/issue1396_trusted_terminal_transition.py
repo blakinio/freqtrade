@@ -7,8 +7,6 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi.testclient import TestClient
-
 from ai_platform.portal.contracts.bots import BotInstance, BotObservedState
 from ai_platform.portal.contracts.identity import ActorType, Permission
 from ai_platform.portal.contracts.runtime_generation import (
@@ -31,6 +29,7 @@ from ai_platform.portal.control_plane.runtime_adoption import (
 from ai_platform.portal.control_plane.service import ControlPlaneService
 from ai_platform.wickhunter.canonical import canonical_sha256
 from ai_platform.wickhunter.contracts import BotMode
+from fastapi.testclient import TestClient
 
 BOT_ID = "wickhunter"
 TENANT_ID = "tenant-local"
@@ -104,7 +103,9 @@ def _generation(session_factory, generation_id: str) -> RuntimeGeneration:
     return generation
 
 
-def _bot_and_generations(session_factory) -> tuple[
+def _bot_and_generations(
+    session_factory,
+) -> tuple[
     BotInstance,
     RuntimeGeneration | None,
     RuntimeGeneration | None,
@@ -191,9 +192,7 @@ def _paper_material(
         gateway_artifact_digest=args.gateway_artifact_digest,
         gateway_contract_version="wickhunter-public-market-gateway-v3",
         gateway_contract_digest=args.gateway_contract_digest,
-        market_data_egress_policy_version=(
-            "binance-usdm-public-market-only-internal-gateway-v3"
-        ),
+        market_data_egress_policy_version=("binance-usdm-public-market-only-internal-gateway-v3"),
         market_data_egress_policy_digest=args.market_egress_policy_digest,
         paper_activation_authorized=True,
         paper_authorization_id=args.authorization_id,
@@ -271,36 +270,34 @@ def _assert_authored_paper(
     rollout,
     args: argparse.Namespace,
 ) -> None:
+    authorization_matches = (
+        paper_generation.paper_authorization_digest == args.authorization_digest
+    )
+    config_matches = (
+        paper_generation.normalized_runtime_config_digest == args.config_digest
+    )
+    gateway_artifact_matches = (
+        paper_generation.gateway_artifact_digest == args.gateway_artifact_digest
+    )
+    gateway_contract_matches = (
+        paper_generation.gateway_contract_digest == args.gateway_contract_digest
+    )
+    egress_matches = (
+        paper_generation.market_data_egress_policy_digest
+        == args.market_egress_policy_digest
+    )
+    desired_matches = pending.desired_runtime_generation_id == paper_generation.generation_id
+    observed_preserved = pending.observed_runtime_generation_id == old.generation_id
     checks = {
         "managed_mode": paper_generation.managed_mode is BotMode.PAPER,
-        "authorization": (
-            paper_generation.paper_authorization_digest
-            == args.authorization_digest
-        ),
+        "authorization": authorization_matches,
         "image": paper_generation.runtime_image_digest == args.image_digest,
-        "config": (
-            paper_generation.normalized_runtime_config_digest
-            == args.config_digest
-        ),
-        "gateway_artifact": (
-            paper_generation.gateway_artifact_digest
-            == args.gateway_artifact_digest
-        ),
-        "gateway_contract": (
-            paper_generation.gateway_contract_digest
-            == args.gateway_contract_digest
-        ),
-        "egress_policy": (
-            paper_generation.market_data_egress_policy_digest
-            == args.market_egress_policy_digest
-        ),
-        "desired_generation": (
-            pending.desired_runtime_generation_id
-            == paper_generation.generation_id
-        ),
-        "observed_preserved": (
-            pending.observed_runtime_generation_id == old.generation_id
-        ),
+        "config": config_matches,
+        "gateway_artifact": gateway_artifact_matches,
+        "gateway_contract": gateway_contract_matches,
+        "egress_policy": egress_matches,
+        "desired_generation": desired_matches,
+        "observed_preserved": observed_preserved,
         "rollout_lineage": rollout.from_generation_id == old.generation_id,
     }
     failed = sorted(key for key, value in checks.items() if not value)
@@ -475,14 +472,18 @@ def _running_observation(
     evidence_kind: str,
 ) -> RuntimeGenerationObservation:
     source_observed_at = _source_time_from_health(health)
-    same_runtime = (
+    if (
         latest is not None
         and latest.generation_id == generation.generation_id
         and latest.runtime_instance_id == runtime_instance_id
-    )
-    epoch = latest.reconciliation_epoch + 1 if same_runtime else 1
-    attempt = latest.reconciliation_attempt + 1 if same_runtime else 1
-    prior = latest if same_runtime else None
+    ):
+        epoch = latest.reconciliation_epoch + 1
+        attempt = latest.reconciliation_attempt + 1
+        prior = latest
+    else:
+        epoch = 1
+        attempt = 1
+        prior = None
     reconciled_at = _next_reconciled_at(source_observed_at, prior)
     source_sequence = health.get("generation")
     if isinstance(source_sequence, bool) or not isinstance(source_sequence, int):
@@ -587,8 +588,7 @@ def reconcile_running(args: argparse.Namespace) -> None:
     )
 
 
-def final_api(args: argparse.Namespace) -> None:
-    session_factory = _session_factory()
+def _final_api_payload(session_factory) -> tuple[list[dict[str, object]], dict[str, object]]:
     context = _context("system-issue1396-final-api-v4")
     client = _client(session_factory, context)
     bots_response = client.get("/v1/bots")
@@ -598,8 +598,13 @@ def final_api(args: argparse.Namespace) -> None:
     rows = [row for row in bots_response.json() if row.get("bot_id") == BOT_ID]
     if len(rows) != 1:
         raise SystemExit("final Portal API does not contain exactly one WickHunter")
-
     payload = truth_response.json()
+    if not isinstance(payload, dict):
+        raise SystemExit("final runtime truth payload is invalid")
+    return rows, payload
+
+
+def _assert_final_truth(payload: dict[str, object], expected_mode: str) -> None:
     desired = payload.get("desired_generation")
     observed = payload.get("observed_generation")
     rollout = payload.get("latest_rollout")
@@ -607,21 +612,28 @@ def final_api(args: argparse.Namespace) -> None:
         raise SystemExit("final runtime truth is incomplete")
     if desired.get("generation_id") != observed.get("generation_id"):
         raise SystemExit("final desired/observed generation is not converged")
-    if desired.get("managed_mode") != args.expected_mode:
-        raise SystemExit(f"final desired mode is not {args.expected_mode}")
-    if observed.get("managed_mode") != args.expected_mode:
-        raise SystemExit(f"final observed mode is not {args.expected_mode}")
+    if desired.get("managed_mode") != expected_mode:
+        raise SystemExit(f"final desired mode is not {expected_mode}")
+    if observed.get("managed_mode") != expected_mode:
+        raise SystemExit(f"final observed mode is not {expected_mode}")
     if payload.get("pending_rollout") is not False:
         raise SystemExit("final runtime truth has pending rollout")
-    if args.expected_mode == "paper":
-        if not desired.get("paper_authorization_digest"):
-            raise SystemExit("final PAPER authorization identity is missing")
-        if not isinstance(rollout, dict):
-            raise SystemExit("final PAPER rollout is missing")
-        if rollout.get("status") != "SUCCEEDED":
-            raise SystemExit("final PAPER rollout is not successful")
-        if rollout.get("reason_code") != "EXTERNAL_RUNTIME_ADOPTED":
-            raise SystemExit("final PAPER rollout provenance mismatch")
+    if expected_mode != "paper":
+        return
+    if not desired.get("paper_authorization_digest"):
+        raise SystemExit("final PAPER authorization identity is missing")
+    if not isinstance(rollout, dict):
+        raise SystemExit("final PAPER rollout is missing")
+    if rollout.get("status") != "SUCCEEDED":
+        raise SystemExit("final PAPER rollout is not successful")
+    if rollout.get("reason_code") != "EXTERNAL_RUNTIME_ADOPTED":
+        raise SystemExit("final PAPER rollout provenance mismatch")
+
+
+def final_api(args: argparse.Namespace) -> None:
+    session_factory = _session_factory()
+    rows, payload = _final_api_payload(session_factory)
+    _assert_final_truth(payload, args.expected_mode)
     _dump({"bots": rows, "truth": payload})
 
 
@@ -678,12 +690,11 @@ def current_state(_args: argparse.Namespace) -> None:
     context = _context("system-issue1396-current-state-v4")
     truth = _runtime_truth(session_factory, context)
     latest = latest_runtime_observation(session_factory, context, BOT_ID)
+    latest_payload = latest.model_dump(mode="json") if latest is not None else None
     _dump(
         {
             "truth": truth,
-            "latest_observation": (
-                latest.model_dump(mode="json") if latest is not None else None
-            ),
+            "latest_observation": latest_payload,
         }
     )
 

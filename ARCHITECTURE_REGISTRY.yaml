@@ -46,20 +46,23 @@ review:
       evidence_merge: a51106eb0003910b393dd876ab68f3877eef16dc
 
 latest_architecture_change:
-  accepted_at: "2026-08-10"
-  base_sha: 2a9bee4895981f0a2b7f7f08e0e1d2d2e2ad646a
-  task: FTAI-20260810-paper-first-platform-architecture
-  decision: ADR-022
-  detail_document: docs/ai_platform/portal/PAPER_FIRST_PLATFORM_ARCHITECTURE.md
+  accepted_at: "2026-08-15"
+  base_sha: 9dd5887e301ddfeec6df6a3b3e2da24a9ced850f
+  issue: 1555
+  task: FTAI-20260815-portal-developer-platform-reset-1555
+  decision: ADR-023
+  decision_document: docs/ai_platform/portal/ADR-023_DEVELOPER_QUANT_PORTAL.md
+  detail_document: docs/ai_platform/portal/DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md
   status: accepted_target_pending_implementation
   affected_domains:
-    - research_and_strategy
     - portal_and_ux
+    - identity_and_security
     - execution_and_risk
     - data_and_observability
     - deployment_and_operations
     - ci_and_quality
-  implementation_note: Owner acceptance makes PAPER the default and only currently authorized operational mode, makes SHADOW optional/purpose-bound and makes LIVE unreachable. Exact code, tests, CI, runtime and protected-target evidence remain required for implementation claims. The delivery task must verify whether `develop` advanced after the recorded architecture base before opening or merging its PR.
+    - portal_research_integration
+  implementation_note: The owner redefined the entire current Portal as a private single-owner developer/quant/research platform using real public market data, integrated simulation, datasets and local model development. SHADOW/PAPER/LIVE are superseded as current Portal product modes. Real-money exchange execution is out of current Portal scope and requires a separate future Execution/Capital Gateway decision if ever requested. Exact code, tests, open tasks and runtime state must be reclassified and migrated before implementation is claimed complete.
 
 classification_values:
   - canonical_registry
@@ -92,12 +95,13 @@ authority:
     - Current implementation state is proven by exact revision evidence, not by target-state wording.
     - Target-only or mixed documents must never be reported as fully implemented without exact evidence.
     - Historical baselines preserve context but do not override accepted decisions or current-state evidence.
-    - Material architecture changes update this registry and the accepted decision log in the same change set.
-    - ADR-020 and its Runtime Isolation / Runtime Supervisor refinement supersede older target-state wording that conflicts with RuntimeGeneration, resolved isolation-plan identity, Runtime Supervisor, per-runtime Gateway, dry-run public-data connectivity, effective isolation attestation or generation-bound reconciliation/fencing.
-    - ADR-021 separates source integration/release branches, deployment environments, release channels and bot operating modes; no branch/environment/release promotion supplies LIVE authority or deployment authorization.
-    - ADR-021 supersedes the temporary 2026-08-09 single-develop branch target, while exact repository evidence remains authoritative for whether the physical main migration is complete.
-    - ADR-022 makes PAPER the default and only currently authorized operational mode, makes SHADOW optional and purpose-bound, and requires LIVE to remain unreachable/fail-closed until a separate explicit owner-approved architecture and implementation programme.
-    - ADR-022 supersedes legacy lifecycle wording that requires SHADOW before PAPER or exposes a current path through live-small/production.
+    - Material architecture changes update this registry and the accepted decision authority in the same change set.
+    - ADR-023 is the current product overlay for the entire Portal and supersedes conflicting current-Portal assumptions in ADR-003, ADR-004, ADR-005, ADR-013, ADR-014, ADR-016, ADR-017, ADR-020, ADR-021 and ADR-022 exactly as recorded in its supersession matrix.
+    - For current Portal work, SHADOW/PAPER/LIVE are historical or compatibility vocabulary only; current concepts are REALTIME_PUBLIC/REPLAY data source, LOCAL/SYNOLOGY runtime location, integrated simulation and BASELINE/CHALLENGER/ACTIVE/ARCHIVED model lifecycle.
+    - Real-money exchange execution, private trading credentials, withdrawals and capital authority are out of current Portal scope. A future Execution/Capital Gateway requires a separate owner-approved architecture programme.
+    - Existing RuntimeGeneration, Runtime Supervisor, Gateway, isolation and reconciliation implementation may be reused when it solves a concrete current problem, but ADR-023 removes them as universal completion prerequisites for ordinary developer simulation/research workflows.
+    - ADR-021 repository integration/release guidance may remain independently applicable, but its Portal bot-mode semantics are superseded by ADR-023.
+    - ADR-022 remains historical evidence of the former PAPER-first target and is superseded for the entire current Portal by ADR-023.
 
 system_domains:
   research_and_strategy:
@@ -108,7 +112,8 @@ system_domains:
       - tests/ai_platform/
       - tests/ai_platform_integration/
     implementation_status: mixed
-    paper_mode_overlay: ADR-022
+    portal_integration_overlay: ADR-023
+    historical_mode_overlay: ADR-022
   portal_and_ux:
     code_roots:
       - ai_platform/portal/web/
@@ -117,9 +122,10 @@ system_domains:
       - tests/ai_platform/portal/
       - ai_platform/portal/web/e2e/
     implementation_status: mixed
-    accepted_decision_overlay: ADR-020
-    release_environment_overlay: ADR-021
-    paper_mode_overlay: ADR-022
+    current_product_overlay: ADR-023
+    specialized_runtime_reference: ADR-020
+    release_reference: ADR-021
+    historical_mode_overlay: ADR-022
   identity_and_security:
     code_roots:
       - ai_platform/portal/identity/
@@ -129,8 +135,9 @@ system_domains:
       - tests/ai_platform/portal/identity/
       - tests/ai_platform/portal/security/
     implementation_status: mixed
-    accepted_decision_overlay: ADR-020
-    paper_mode_overlay: ADR-022
+    current_product_overlay: ADR-023
+    specialized_runtime_reference: ADR-020
+    historical_mode_overlay: ADR-022
   execution_and_risk:
     code_roots:
       - freqtrade/
@@ -140,10 +147,11 @@ system_domains:
       - tests/
       - tests/ai_platform/portal/
     implementation_status: mixed
-    accepted_decision_overlay: ADR-020
-    release_environment_overlay: ADR-021
-    paper_mode_overlay: ADR-022
-    safety_note: PAPER is the only currently authorized operational mode; SHADOW is optional validation-only and LIVE is unreachable until a separate explicit owner-approved programme.
+    current_product_overlay: ADR-023
+    specialized_runtime_reference: ADR-020
+    release_reference: ADR-021
+    historical_mode_overlay: ADR-022
+    safety_note: Current Portal execution means simulation/research only. Real-money exchange execution is outside current product scope rather than represented as a LIVE mode.
   data_and_observability:
     code_roots:
       - ai_platform/portal/database/
@@ -153,8 +161,9 @@ system_domains:
       - tests/ai_platform/portal/database/
       - tests/ai_platform/portal/telemetry/
     implementation_status: mixed
-    accepted_decision_overlay: ADR-020
-    paper_mode_overlay: ADR-022
+    current_product_overlay: ADR-023
+    specialized_runtime_reference: ADR-020
+    historical_mode_overlay: ADR-022
   deployment_and_operations:
     code_roots:
       - deploy/
@@ -164,9 +173,10 @@ system_domains:
       - docs/agents/evidence/
       - artifacts/
     implementation_status: mixed
-    accepted_decision_overlay: ADR-020
-    release_environment_overlay: ADR-021
-    paper_mode_overlay: ADR-022
+    current_product_overlay: ADR-023
+    specialized_runtime_reference: ADR-020
+    release_reference: ADR-021
+    historical_mode_overlay: ADR-022
   ci_and_quality:
     code_roots:
       - .github/workflows/
@@ -175,8 +185,9 @@ system_domains:
     evidence_roots:
       - tests/ci/
     implementation_status: partially_implemented
-    release_branch_overlay: ADR-021
-    paper_mode_overlay: ADR-022
+    current_product_overlay: ADR-023
+    release_reference: ADR-021
+    historical_mode_overlay: ADR-022
 
 documents:
   - path: ARCHITECTURE_REGISTRY.yaml
@@ -186,40 +197,59 @@ documents:
     authority: canonical_index
     implementation_status: not_applicable
     owner_role: A3-architecture-ci-reviewer
-    last_reviewed_at: "2026-08-10"
+    last_reviewed_at: "2026-08-15"
+
+  - path: docs/ai_platform/portal/ADR-023_DEVELOPER_QUANT_PORTAL.md
+    title: ADR-023 current Portal developer-quant product decision
+    classification: accepted_decision_log
+    scope: whole-current-Portal product identity, vocabulary, completion rule, proportionate safety and supersession matrix
+    authority: binding_current_portal_decision
+    implementation_status: target_only
+    owner_role: architecture-owner
+    last_reviewed_at: "2026-08-15"
+    evidence_rule: This decision changes current Portal architecture authority but does not claim code migration complete; exact current code, open work and runtime evidence remain authoritative for implementation state.
+
+  - path: docs/ai_platform/portal/DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md
+    title: Developer Quant Portal architecture
+    classification: canonical_target_state
+    scope: entire current Portal developer workflow from realtime public data through simulation, datasets, local challenger training, comparison and restart-safe observability
+    authority: binding_refinement_of_ADR-023
+    implementation_status: target_only
+    owner_role: architecture-owner
+    last_reviewed_at: "2026-08-15"
+    evidence_rule: Completion is proven by the real owner-facing developer workflow, not by documentation or isolated evidence bundles.
+    safety_note: Real-money exchange execution is out of current product scope and requires a separate future owner decision if ever desired.
 
   - path: docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md
-    title: AI Trading Portal architecture decisions
+    title: AI Trading Portal architecture decisions through ADR-022
     classification: accepted_decision_log
-    scope: accepted platform and Portal decisions
-    authority: binding_until_superseded
+    scope: accepted historical platform and Portal decisions through the former PAPER-first target
+    authority: binding_unless_superseded; current Portal conflicts are superseded by ADR-023
     implementation_status: mixed
     owner_role: architecture-owner
-    last_reviewed_at: "2026-08-10"
-    latest_decision: ADR-022
-    latest_refinement: PAPER-First Quant Platform Architecture
+    last_reviewed_at: "2026-08-15"
+    latest_decision_in_file: ADR-022
+    current_decision_extension: docs/ai_platform/portal/ADR-023_DEVELOPER_QUANT_PORTAL.md
 
   - path: docs/ai_platform/portal/PAPER_FIRST_PLATFORM_ARCHITECTURE.md
     title: PAPER-first Quant Platform architecture
-    classification: domain_architecture
-    scope: PAPER-default operating authority, optional SHADOW validation, unreachable LIVE, eligibility, execution realism, reconciliation and first vertical-slice priorities
-    authority: binding_refinement_of_ADR-022
-    implementation_status: target_only
+    classification: historical_baseline
+    scope: former PAPER-default operating authority target
+    authority: superseded_for_current_portal_by_ADR-023
+    implementation_status: historical
     owner_role: architecture-owner
-    last_reviewed_at: "2026-08-10"
-    evidence_rule: Acceptance defines policy and target architecture only; exact code, tests, runtime E2E, CI and target-host evidence are required for implementation claims.
-    safety_note: PAPER is the only currently authorized operational mode; LIVE remains unreachable.
+    last_reviewed_at: "2026-08-15"
+    supersession_note: ADR-023 removes SHADOW/PAPER/LIVE as current Portal product modes and replaces the production-trading target with the single-owner Developer Quant Portal.
 
   - path: docs/ai_platform/portal/PAPER_PLATFORM_IMPLEMENTATION_PLAN.md
-    title: PAPER Platform dependency-gated implementation plan
+    title: Former PAPER Platform dependency-gated implementation plan
     classification: governance_program
-    scope: ordered delivery gates from governance/runtime safety through one complete PAPER vertical slice, realism, portfolio risk and operations
-    authority: owner_requested_execution_plan_subject_to_live_state
-    implementation_status: target_only
+    scope: historical ordered delivery gates for the superseded PAPER-first target
+    authority: superseded_for_current_portal_by_ADR-023
+    implementation_status: historical
     owner_role: programme-owner
-    last_reviewed_at: "2026-08-10"
-    evidence_rule: Each gate requires its own exact task/Issue/PR, acceptance inventory, audit, E2E where applicable and exact-head CI.
-    safety_note: The plan grants no protected-target, credential, LIVE or real-capital authority.
+    last_reviewed_at: "2026-08-15"
+    evidence_rule: Open work from this plan must be reclassified KEEP_NOW, SIMPLIFY, DEFER or OBSOLETE before further execution.
 
   - path: docs/ai_platform/reviews/2026-08-10-paper-first-platform-review.md
     title: PAPER-first platform architecture and competitor-pattern review
@@ -229,60 +259,59 @@ documents:
     implementation_status: not_applicable
     owner_role: architecture-owner
     last_reviewed_at: "2026-08-10"
-    evidence_rule: Current implementation status must be re-resolved from exact live code, ledger, Issues, PRs and CI before work.
+    evidence_rule: Historical evidence only; current Portal priorities are governed by ADR-023.
 
   - path: docs/ai_platform/portal/RELEASE_ENVIRONMENT_AND_BOT_MODE_ARCHITECTURE.md
-    title: Release, environment and bot operating-mode architecture
+    title: Release, environment and former bot operating-mode architecture
     classification: domain_architecture
-    scope: repository integration/release branches, immutable release promotion, deployment environments and bot operating-mode separation
-    authority: binding_refinement_of_ADR-021_with_ADR-022_mode_overlay
-    implementation_status: target_only
+    scope: repository integration/release branches and historical environment/bot-mode separation
+    authority: release_guidance_partially_retained; Portal bot-mode sections superseded by ADR-023
+    implementation_status: mixed
     owner_role: architecture-owner
-    last_reviewed_at: "2026-08-10"
-    evidence_rule: Exact branch metadata, rules, CI/release workflows and deployed-target evidence are required before the main migration or production release path is claimed implemented.
-    safety_note: PAPER is the only currently authorized operational mode; production/stable never authorizes LIVE, which remains unreachable under ADR-022.
+    last_reviewed_at: "2026-08-15"
+    evidence_rule: Repository branch/release policy may remain applicable independently; SHADOW/PAPER/LIVE are not current Portal product modes.
 
   - path: docs/ai_platform/portal/RUNTIME_ISOLATION_AND_SUPERVISOR_CONTRACT.md
     title: Runtime isolation profile and Runtime Supervisor contract
     classification: domain_architecture
-    scope: Portal-managed Freqtrade dry-run runtime isolation, host capability resolution, provisioning attestation and privileged lifecycle boundary
-    authority: binding_refinement_of_ADR-020
+    scope: specialized Portal runtime isolation/Supervisor reference retained where a concrete runtime boundary benefits from it
+    authority: specialized_reference_subject_to_ADR-023
     implementation_status: partially_implemented
     owner_role: architecture-owner
-    last_reviewed_at: "2026-08-14"
-    evidence_rule: Runtime isolation finding #1354 is implemented and verified by PR #1464; the narrow Runtime Supervisor boundary finding #1355 is implemented and merged by PR #1496 at a51106eb0003910b393dd876ab68f3877eef16dc. Product lifecycle composition remains disconnected and is tracked separately by open Issue #1099, so the overall contract remains partially implemented. Exact code, ledger, tests, CI and deployed-host evidence remain authoritative for current implementation state.
-    safety_note: No production deployment, private exchange trading credentials or live-capital authority.
+    last_reviewed_at: "2026-08-15"
+    evidence_rule: Existing implementation remains reusable, but production-grade host attestation and generation ceremony are no longer universal completion gates for current developer workflows.
+    safety_note: Current Portal has no real-money execution capability.
 
   - path: docs/ai_platform/portal/SYSTEM_ARCHITECTURE.md
-    title: AI Trading Portal system architecture
-    classification: canonical_target_state
-    scope: Portal, control, execution, AI, data, quality and deployment planes
-    authority: target_state_subject_to_accepted_decisions
+    title: Former AI Trading Portal production-oriented system architecture
+    classification: historical_baseline
+    scope: former multi-plane production trading target and useful implemented-component context
+    authority: superseded_current_target_by_ADR-023
     implementation_status: mixed
     owner_role: architecture-owner
-    last_reviewed_at: "2026-08-08"
-    evidence_rule: Each implementation claim requires exact code, test, workflow or deployed-target evidence.
-    supersession_note: Interpret execution/runtime topology through ADR-020 and RUNTIME_ISOLATION_AND_SUPERVISOR_CONTRACT.md; interpret branch/release/environment through ADR-021 and PAPER/SHADOW/LIVE lifecycle authority through ADR-022 where older wording conflicts.
+    last_reviewed_at: "2026-08-15"
+    evidence_rule: Use exact current code for implemented components and ADR-023/DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md for current product direction.
+    supersession_note: Multi-tenant production trading, SHADOW/PAPER/LIVE and universal production-grade runtime gates no longer define the current Portal.
 
   - path: docs/ai_platform/portal/BOT_MANAGEMENT_PRODUCT_ARCHITECTURE.md
     title: Bot management product architecture
     classification: domain_architecture
-    scope: declarative bot lifecycle and management
-    authority: domain_target_state
+    scope: declarative bot lifecycle and management components
+    authority: reusable_domain_reference_subject_to_ADR-023
     implementation_status: mixed
     owner_role: bot-management-domain-owner
-    last_reviewed_at: "2026-08-05"
-    supersession_note: Config authoring/desired/observed runtime revision semantics are constrained by ADR-020; deployment environment or release status must not be treated as bot-mode authority under ADR-021; PAPER is default, SHADOW optional and LIVE unreachable under ADR-022.
+    last_reviewed_at: "2026-08-15"
+    supersession_note: Current bot management is for single-owner developer runtimes and integrated simulation; mode/tenant/production ceremony must be simplified where it conflicts with ADR-023.
 
   - path: docs/ai_platform/portal/AI_ML_AND_LEARNING_ARCHITECTURE.md
     title: AI, ML and learning architecture
     classification: domain_architecture
-    scope: model, experiment, learning and promotion boundaries
-    authority: domain_target_state
+    scope: model, experiment, learning and training components
+    authority: reusable_domain_reference_subject_to_ADR-023
     implementation_status: mixed
     owner_role: ai-research-domain-owner
-    last_reviewed_at: "2026-08-05"
-    supersession_note: Model/strategy lifecycle wording is constrained by ADR-022; SHADOW is optional validation-only, PAPER eligibility is exact-evidence-bound and no current LIVE transition exists.
+    last_reviewed_at: "2026-08-15"
+    supersession_note: Keep training separate from deliberate active-model selection; current lifecycle is BASELINE/CHALLENGER/ACTIVE/ARCHIVED and no current SHADOW/PAPER/LIVE promotion path exists.
 
   - path: docs/ai_platform/ARCHITECTURE.md
     title: Original AI trading platform architecture
@@ -292,7 +321,7 @@ documents:
     implementation_status: historical
     owner_role: architecture-owner
     last_reviewed_at: "2026-08-05"
-    supersession_note: Use the accepted decision log, Portal system architecture and exact current-state evidence for platform-wide decisions.
+    supersession_note: Use ADR-023 and Developer Quant Portal Architecture for current Portal product decisions.
 
   - path: docs/agents/programs/FTAI_PLATFORM_CONTINUOUS_ASSURANCE_PROGRAM.md
     title: Platform continuous assurance programme
@@ -311,16 +340,17 @@ documents:
     implementation_status: implemented
     owner_role: whole-platform-assurance-owner
     last_reviewed_at: "2026-08-05"
-    evidence_rule: Coverage status is bounded to the exact head and wave recorded in the ledger.
+    evidence_rule: Coverage status is bounded to the exact head and wave recorded in the ledger; current Portal remediation priorities must be reclassified through ADR-023.
 
   - path: docs/ai_platform/portal/AUDIT_2026-08-02_END_TO_END_COMPLETENESS.md
     title: Portal end-to-end completeness audit
     classification: audit_evidence
-    scope: point-in-time Portal completeness evidence
+    scope: point-in-time Portal completeness evidence under the former product definition
     authority: evidence_at_recorded_revision_only
     implementation_status: not_applicable
     owner_role: audit-owner
-    last_reviewed_at: "2026-08-05"
+    last_reviewed_at: "2026-08-15"
+    evidence_rule: Findings remain factual evidence of code at the audited revision, but whether each finding is still required is decided by ADR-023 backlog reclassification.
 
   - path: docs/ai_platform/reviews/2026-08-05-architecture-ci-review.md
     title: Platform architecture and CI review

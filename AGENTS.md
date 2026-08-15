@@ -11,7 +11,7 @@
 
 ## Purpose
 
-This fork extends upstream Freqtrade with an AI-assisted strategy research and validation platform.
+This fork extends upstream Freqtrade with an AI-assisted strategy research and validation platform. The current Portal and WickHunter product are governed by ADR-023 as a private, single-owner Developer Quant Platform working on real public market data, simulation, datasets and local model development.
 
 The repository, current Git state, active pull requests, CI results, and files in this repository are the source of truth. Do not rely on chat history when repository state can be checked directly.
 
@@ -41,104 +41,111 @@ The repository, current Git state, active pull requests, CI results, and files i
 - Modify upstream core only when the required capability cannot be implemented through supported Freqtrade extension points.
 - Keep changes easy to rebase or merge from `freqtrade/freqtrade`.
 
+## Current Portal product authority — ADR-023
+
+Owner decision date: `2026-08-15`.
+
+These rules apply to the entire current Portal, including WickHunter integration, Liquid20/market-data consumption, simulation, datasets, model training/challengers, runtime lifecycle, deployment/operations, CI/E2E and Portal-facing observability.
+
+- The current Portal is a private, single-owner developer/quant/research platform, not a multi-tenant production trading control plane.
+- Current data-source vocabulary is `REALTIME_PUBLIC | REPLAY`.
+- Current runtime-location vocabulary is `LOCAL | SYNOLOGY`.
+- Simulated positions, fees, slippage, PnL and outcomes are normal developer-platform capabilities; they do not constitute a separate trading-authority mode.
+- Current model lifecycle is `BASELINE | CHALLENGER | ACTIVE | ARCHIVED`. Training may create challengers; activation remains deliberate and attributable.
+- `SHADOW`, `PAPER`, `LIVE`, `PAPER_ELIGIBLE` and similar mode vocabulary may remain only in historical evidence, legacy compatibility schemas or migration code. Do not introduce or require them as current Portal product states.
+- When legacy Freqtrade compatibility requires an executable configuration, it MUST remain `dry_run: true`; this is a technical simulation safeguard, not a Portal product-mode ceremony.
+- Real-money exchange execution, private trading credentials for order submission, withdrawals and capital authority are outside the current Portal product. If ever requested, they require a separate owner-approved Execution/Capital Gateway architecture and implementation programme.
+- `quant.molehill.cloud` is the persistent Developer Quant Portal endpoint. Historical use of `production` for that host or Synology deployment does not turn the current product into a real-money production trading system.
+- Existing RuntimeGeneration, Runtime Supervisor, Gateway, risk, evidence and isolation components may be reused where they solve a concrete current problem. They are not universal completion prerequisites unless the current workflow actually needs them.
+- Open Portal/WickHunter work created under the superseded PAPER-first or production-like target must be reclassified `KEEP_NOW | SIMPLIFY | DEFER | OBSOLETE` before further mode-driven implementation.
+
+Current Portal completion is user-workflow based:
+
+`real public data -> bot/model decisions including NO_TRADE -> simulated positions/outcomes -> durable dataset growth -> local challenger training -> active/challenger comparison -> deliberate owner activation -> restart-safe continued observation`
+
 ## Safety rules
 
-- Never commit exchange API keys, secrets, tokens, wallet credentials, or private endpoints.
-- New trading configurations must default to `dry_run: true`; in Quant Platform terminology, a managed Freqtrade dry-run generation is `PAPER` unless a bounded validation package explicitly selects `SHADOW`.
-- `PAPER` is the normal and only currently authorized operational trading mode.
-- `SHADOW` is optional and temporary. Use it only when research, training, diagnostics, runtime/integration validation, or replay-to-runtime comparison specifically requires observation without simulated order submission.
-- `LIVE` must remain unavailable and fail closed in UI, API, configuration generation, runtime materialization, and promotion logic until the owner explicitly approves a separate LIVE architecture and implementation programme.
-- No merge, release, deployment, model promotion, strategy promotion, or environment change may implicitly enable `LIVE`.
-- Do not enable withdrawals in exchange API credentials.
-- Any future live-capital change requires an explicit, separately reviewed owner-approved work package and does not inherit authority from PAPER work.
+- Never commit exchange API keys, secrets, tokens, wallet credentials, private endpoints or browser-readable secret material.
+- Current Portal data acquisition uses public market-data interfaces. Do not add private/account/order endpoints merely to satisfy a former trading-mode contract.
+- No current Portal code may submit a real exchange order, enable withdrawals, allocate live capital or silently activate private trading credentials.
+- No merge, release, deployment, model activation, strategy activation or environment change may introduce real-money execution authority.
+- Keep authentication, same-origin browser boundaries, secret exclusion, bounded input handling, durable state, restart recovery and proportionate container/process hardening.
+- Do not add broad privileged/container-engine access when a narrower boundary suffices. Existing Supervisor/Gateway isolation may be retained when materially useful.
+- Historical research integrity remains protected: no Portal migration may rewrite frozen evidence, use protected holdout iteratively or convert past evidence into a stronger claim than it originally supported.
 
 ### Container lifecycle hygiene
 
 - Any temporary container or other Docker resource created by an agent or task must be uniquely attributable to that task through a deterministic name and/or ownership labels.
 - The task that creates a temporary Docker resource owns its cleanup. Remove task-owned temporary Docker resources as soon as they are no longer required, including failure and cancellation paths when automation supports unconditional cleanup such as `if: always()` or shell traps.
 - One-shot cleanup automation must itself be lifecycle-bounded. A temporary cleanup workflow or script committed solely for an operational cleanup must be constrained to a single authorized invocation and removed or disabled immediately after use; never leave destructive cleanup on a general push or recurring trigger.
-- Cleanup must be bounded to resources either proven to be owned by the current task or explicitly covered by the current task's cleanup scope with exact identity and obsolescence evidence. Never use broad destructive cleanup such as `docker system prune`, `docker container prune`, or equivalent host-wide pruning on shared Synology, CI, staging, or production hosts.
-- Do not remove persistent/shared deployment containers, databases, runners, portal/control-plane services, bot runtimes, evidence stores, volumes, images, or networks merely because they are stopped or old. Removal requires explicit task scope plus evidence that the exact resource is obsolete.
+- Cleanup must be bounded to resources either proven to be owned by the current task or explicitly covered by the current task's cleanup scope with exact identity and obsolescence evidence. Never use broad destructive cleanup such as `docker system prune`, `docker container prune`, or equivalent host-wide pruning on shared Synology or CI hosts.
+- Do not remove persistent/shared deployment containers, databases, runners, portal services, bot runtimes, datasets, evidence stores, volumes, images, or networks merely because they are stopped or old. Removal requires explicit task scope plus evidence that the exact resource is obsolete.
 - If ownership or continued use is uncertain, leave the resource in place and record it as unresolved instead of deleting it.
 - Docker-resource cleanup must not implicitly remove persistent data. Do not use volume-removing flags or delete volumes containing persistent/evidence state unless persistent-data deletion is explicitly authorized and separately verified.
-- Before cleanup, capture the applicable health signals for protected/current services. After cleanup, verify that every intended authorized resource is gone and that protected/current services did not degrade relative to that baseline; record pre-existing stopped or unhealthy states rather than requiring unrelated cleanup to repair them. Use declared Docker health checks and/or service-level probes where available, because process `running` state alone is not sufficient when a stronger health signal exists. Record exact resource names/IDs and the pre/post health evidence in the task closeout.
+- Before cleanup, capture the applicable health signals for protected/current services. After cleanup, verify that every intended authorized resource is gone and that current services did not degrade relative to that baseline.
 
 ### GitHub Actions CI hygiene
 
 - A task owns the temporary GitHub Actions resources it creates: diagnostic/request workflows, request files, short-lived CI branches, request-only PRs, task-specific caches, and non-durable artifacts. Close or remove them at terminal task closeout unless an explicit evidence requirement requires retention.
 - Temporary or diagnostic workflow files must be single-purpose and lifecycle-bounded. Remove them from the final delivery as soon as their terminal evidence is captured; never leave a one-shot diagnostic or destructive workflow active on a general push, pull-request, schedule, or recurring trigger.
-- Request-only CI/deployment PRs must be closed without merge after their workflow reaches a terminal result when their contract says they are non-mergeable. Delete their short-lived branch after closeout unless a documented evidence dependency requires the ref to remain. Ordinary merged task branches should rely on repository auto-delete and verify the branch is actually gone.
-- Do not upload an Actions artifact when the same bounded evidence is already sufficient in the job summary or logs. Every new or materially modified `actions/upload-artifact` use must set an explicit `retention-days` appropriate to the evidence class; prefer 1 day for disposable diagnostics, 7 days for routine CI evidence, and at most 14 days for acceptance/audit evidence unless a documented requirement justifies longer retention.
-- GitHub Actions artifacts are not the long-term system of record. Evidence that must outlive its Actions retention must be promoted before expiry to a durable repository record or approved durable evidence store with exact run/artifact identity and digest. Do not extend artifact retention merely to avoid durable publication.
-- Treat Actions caches as disposable performance data, never as acceptance evidence. Cache keys must be bounded in cardinality and based on reusable dependency/toolchain inputs; do not add run IDs, timestamps, or commit SHAs to cache keys unless a specific isolation requirement is documented. A temporary workflow that creates a dedicated cache family owns deletion of that cache family at closeout when the GitHub capability is available.
-- When performing CI hygiene, delete caches only when they are safely reconstructible and their scope is proven obsolete, such as caches bound to closed PR refs, deleted branches, or an explicitly retired temporary cache family. Do not broadly delete active default-branch caches merely to reduce storage without measuring the CI-performance impact.
-- Do not delete workflow runs, logs, artifacts, branches, PRs, or refs that are cited as the only surviving acceptance, audit, deployment, security, rollback, or incident evidence. Preserve the evidence or first promote the required facts and digests to durable storage.
-- Before adding a new artifact or cache family, inspect existing CI storage/cardinality when the task materially affects Actions storage. Prefer reusing a stable cache family and bounded artifact set over creating per-run or per-SHA families that grow without bound.
-- At closeout, verify GitHub CI hygiene: temporary workflows/request files removed, request-only PRs terminal, disposable branches deleted, task-specific caches/artifacts either deleted or covered by explicit bounded retention, and durable evidence promoted when required. Record any cleanup blocked by GitHub permissions/API capability instead of silently leaking resources.
+- Request-only CI/deployment PRs must be closed without merge after their workflow reaches a terminal result when their contract says they are non-mergeable. Delete their short-lived branch after closeout unless a documented evidence dependency requires the ref to remain.
+- Do not upload an Actions artifact when the same bounded evidence is already sufficient in the job summary or logs. Every new or materially modified `actions/upload-artifact` use must set an explicit `retention-days` appropriate to the evidence class.
+- GitHub Actions artifacts are not the long-term system of record. Evidence that must outlive its Actions retention must be promoted before expiry to a durable repository record or approved durable evidence store with exact run/artifact identity and digest.
+- Treat Actions caches as disposable performance data, never as acceptance evidence.
+- Do not delete workflow runs, logs, artifacts, branches, PRs, or refs that are cited as the only surviving acceptance, audit, deployment, security, rollback, or incident evidence.
+- At closeout, verify GitHub CI hygiene: temporary workflows/request files removed, request-only PRs terminal, disposable branches deleted, task-specific caches/artifacts either deleted or covered by explicit bounded retention, and durable evidence promoted when required.
 
-## Strategy lifecycle
+## Model and strategy lifecycle
 
-Strategies use the PAPER-first lifecycle:
+For the current Developer Quant Portal:
 
-`experiment -> candidate -> validated -> paper-eligible -> paper -> paper-suspended | retired`
+`experiment -> baseline | challenger -> active | archived`
 
-An optional validation side lane may be used when specifically required:
-
-`candidate | validated -> shadow-validation -> validated`
-
-`SHADOW` is not a mandatory promotion stage. There is no reachable `LIVE` transition in the currently authorized lifecycle.
-
-Promotion requires evidence appropriate to the stage. At minimum, before `paper-eligible` promotion:
-
-- reproducible backtest inputs;
-- out-of-sample evaluation;
-- walk-forward evaluation;
-- lookahead-analysis pass;
-- recursive-analysis review;
-- acceptable drawdown and minimum trade count;
-- documented model/config identifiers.
+- Training/retraining may create a `CHALLENGER` automatically when its dataset, feature schema, model parameters and code identity are recorded.
+- Training MUST NOT silently replace the `ACTIVE` model. Activation is a deliberate owner action and must remain attributable/reversible.
+- `ACTIVE` means active for the current developer inference/simulation workflow; it grants no real-money execution authority.
+- Compare candidates on out-of-sample/replay and accumulated realtime-public evidence appropriate to the strategy/model. Avoid leakage and repeated tuning on a protected holdout.
+- A successful backtest alone is not sufficient evidence of a robust model or strategy.
 
 ## Development workflow
 
 ### Integration, release and environment policy
 
-ADR-021 and `docs/agents/BRANCH_POLICY.md` define repository routing. Source branches, deployment environments and bot operating modes are separate control dimensions.
+ADR-021 and `docs/agents/BRANCH_POLICY.md` may continue to define repository integration/release routing where independently applicable. ADR-023 supersedes ADR-021/ADR-022 bot-mode semantics for the current Portal.
 
 - `develop` is the controlled integration branch and upstream-sync convergence point.
-- `main` is the accepted target release branch, but it becomes operational release authority only after the staged migration, protection and CI gates in ADR-021 are proven by exact repository evidence.
-- Ordinary task, feature, fix, audit, documentation, migration, runtime, portal, WickHunter, CI and infrastructure work integrates through `develop`.
-- After the physical `main` migration is complete, stable release promotion uses a dedicated reviewed `develop -> main` PR; ordinary feature PRs do not target `main`.
-- `develop` is not the staging environment and `main` is not the production environment. `dev | staging | production` are deployment environments.
-- `SHADOW | PAPER | LIVE` are bot-mode vocabulary under ADR-021/ADR-022. `PAPER` is the default and only currently authorized operational mode, `SHADOW` is optional validation-only, and `LIVE` is reserved but unreachable until a separate explicit owner decision and programme.
-- `candidate | stable` are release channels. Deployment uses immutable artifact identity; merging a branch does not itself authorize deployment.
-- Until exact repository state proves `main` is created, protected and correctly wired, do not route work to it or claim the two-branch migration is implemented.
+- `main` is only a target release branch until exact repository evidence proves its physical migration, protection and workflow routing are complete.
+- Ordinary task, feature, fix, audit, documentation, migration, runtime, Portal, WickHunter, CI and infrastructure work integrates through `develop`.
+- Source branches/release channels are not runtime locations. `LOCAL | SYNOLOGY` describes current Portal runtime location.
+- Do not use `dev | staging | production` or `SHADOW | PAPER | LIVE` as current Portal product-mode vocabulary.
+- Deployment uses attributable artifacts and durable state, but ordinary developer deployment does not require production-trading certification ceremony.
 
 1. Read this file first.
-2. Read `docs/ai_platform/ARCHITECTURE.md` and `docs/ai_platform/ROADMAP.md` for AI-platform work.
-3. For AI Trading Portal/control-plane work, also read `docs/ai_platform/portal/README.md` and the task-relevant documents under `docs/ai_platform/portal/`; use `docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md` as the program boundary.
+2. Read `ARCHITECTURE_REGISTRY.yaml` and the current accepted Portal decision (`ADR-023`) before Portal/WickHunter work.
+3. For Portal work, read `docs/ai_platform/portal/README.md`, `docs/ai_platform/portal/DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md` and the task-relevant documents; use `docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md` as the current programme boundary.
 4. Inspect current branch, HEAD, open PRs, and relevant CI before editing.
 5. Work on a dedicated feature branch.
 6. Keep commits focused and reviewable.
-7. Run the narrowest relevant validation first, then broader tests if needed.
-8. Target ordinary repository PRs to `develop`; use `main` only for the dedicated stable release-promotion path after its physical migration is proven complete.
+7. Run the narrowest relevant validation first, then broader tests when they materially protect the changed workflow.
+8. Target ordinary repository PRs to `develop`; do not invent `main` state.
 9. Record important architecture or workflow changes in repository documentation.
 
 ## Runtime and CI target
 
-- The deployment target for this fork is Linux containers, primarily Docker on Synology or another Linux host.
-- Freqtrade and portal build, test, packaging, and deployment workflows must use Linux runners only.
-- Do not add or retain native Windows or macOS compilation/test jobs unless the repository owner explicitly authorizes a separate portability work package.
+- The persistent deployment target for this fork is Linux containers, primarily Docker on Synology; local Linux-compatible developer processes/workers are also permitted where the workflow calls for `LOCAL` execution.
+- Freqtrade and Portal build, test, packaging, and Synology deployment workflows use Linux runners unless a separately authorized portability task requires otherwise.
 - Keep Linux architecture coverage relevant to deployed containers, including AMD64 and ARM64 where supported by available runners and dependencies.
-- Docker is the delivery mechanism; the container runtime remains Linux-based.
+- Docker is a delivery mechanism, not product authority.
 
 ## Portal/control-plane safety boundary
 
-- Treat Freqtrade as a private execution engine behind an internal adapter; do not expose its control API or WebSocket directly to the public Internet or browser clients.
-- Portal, research, training, execution, and autonomous-validation concerns must remain separated by explicit contracts and credentials.
-- AI/post-trade analysis may create evidence, insights, experiments, and model candidates; it must not directly mutate a running production model or bypass deterministic risk controls.
-- Autonomous repair agents may prepare regression tests, isolated branches, fixes, and PRs; they may not patch production or bypass CI/promotion gates.
-- Cloudflare/Zero Trust may protect ingress and privileged surfaces, but application RBAC, tenant isolation, secret handling, and private Freqtrade networking remain mandatory defense layers.
-- Portal implementation must not alter frozen Phase 5 thresholds, consume the protected final holdout iteratively, reopen completed Phase 6, or reinterpret PyTorch/RL evidence as promotion authorization.
+- Treat Freqtrade as an internal engine when it is used; do not expose its control API or WebSocket directly to the public Internet or browser clients.
+- Browser requests terminate at the Portal same-origin boundary. Server-side components may consume public exchange/market-data APIs directly when required by the current workflow.
+- The current Portal is single-owner. Existing tenant/RBAC fields may remain for compatibility or defense in depth, but multi-tenancy and enterprise role matrices are not completion prerequisites unless a later owner decision reintroduces them.
+- Research/training and active-model assignment remain separate: training produces challengers; activation is explicit.
+- Autonomous repair agents may prepare regression tests, isolated branches, fixes, and PRs; they may not bypass CI or perform destructive shared-host actions outside task scope.
+- Cloudflare/Tunnel/Auth may protect the endpoint, but protected-target ceremony is required only when a concrete current security/reliability risk makes it relevant to the workflow being delivered.
+- Portal implementation must not alter frozen historical research thresholds/evidence or iteratively consume protected holdout data unless a separate research decision explicitly authorizes it.
 
 ## Validation expectations
 
@@ -148,29 +155,26 @@ For Python changes:
 - Ruff on changed project Python files where applicable;
 - targeted tests where test coverage exists.
 
-For strategy changes:
+For strategy/model changes:
 
-- strategy import/listing validation;
-- FreqAI configuration validation;
-- backtesting on a declared timerange;
-- lookahead-analysis;
-- recursive-analysis;
-- walk-forward/out-of-sample evaluation before promotion.
-
-A successful backtest alone is not sufficient evidence of a robust strategy.
+- import/config validation;
+- declared replay/backtest inputs;
+- lookahead/leakage checks appropriate to the feature pipeline;
+- out-of-sample or walk-forward evaluation where selection is involved;
+- versioned model, feature, dataset and parameter identities.
 
 ## AI/ML principles
 
-- FreqAI is the prediction/model lifecycle layer, not an unrestricted execution authority.
-- Execution remains behind deterministic strategy and risk rules.
-- Prefer a simple baseline model before adding deep learning or reinforcement learning.
-- Compare models on out-of-sample trading metrics, not only training metrics.
+- FreqAI or another model layer predicts/scores; it does not grant real-money authority.
+- Prefer a simple baseline before adding deep learning or reinforcement learning.
+- Compare challengers on out-of-sample and accumulated realtime-public evidence, not only training metrics.
 - Avoid feature explosion and data leakage.
-- Version strategy code, FreqAI `identifier`, features, targets, training windows, and evaluation results together.
+- Version strategy/model code, features, targets, training windows, datasets and evaluation results together.
+- Periodic local challenger training is allowed once the data/provenance path is proven; promotion/activation remains a separate deliberate action.
 
 ## Initial baseline
 
-The first baseline lives under `ai_platform/` and is intentionally research-only. It may use bounded `SHADOW` validation when technically necessary, but it must not become `PAPER_ELIGIBLE` or run as a managed PAPER generation until the validation pipeline defined in the roadmap is implemented and passed. It has no reachable LIVE path.
+The initial baseline under `ai_platform/` remains historical/research evidence. Current Portal migration may reuse it for observation, replay and simulation when exact compatibility is known. It does not need a PAPER/SHADOW mode transition to participate in the Developer Quant workflow, and it grants no real-money execution authority.
 
 ## GitHub connector routing — mandatory
 

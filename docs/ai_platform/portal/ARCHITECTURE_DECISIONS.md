@@ -509,3 +509,58 @@ candidate | validated -> shadow-validation -> validated
 ```
 
 There is no current transition to LIVE. Any future LIVE proposal requires a separate owner-approved architecture decision and implementation programme covering credentials, deterministic and portfolio risk, execution semantics, incident response, protected deployment, operational acceptance and rollback. ADR-022 grants no deployment, protected-host mutation, private trading credential, real order, withdrawal or live-capital authority.
+
+## ADR-023 — Current Portal is a single-owner Developer Quant Platform
+
+Status: `accepted`
+
+Accepted by owner: `2026-08-15`
+
+Issue: `#1555`
+
+Decision:
+
+The entire **current Portal** is a private single-owner developer/quant/research platform. Its normal purpose is to consume real public market data, run bots and model inference, simulate positions and outcomes, grow datasets, train local challenger models, compare them with the active/baseline model, and let the owner deliberately activate the selected model.
+
+For current Portal product semantics:
+
+- data source is `REALTIME_PUBLIC | REPLAY`;
+- runtime location is `LOCAL | SYNOLOGY`;
+- simulation is an integrated developer capability, not a separate trading-authority mode;
+- model lifecycle is `BASELINE | CHALLENGER | ACTIVE | ARCHIVED`;
+- `SHADOW`, `PAPER` and `LIVE` are historical/compatibility vocabulary only and do not define current Portal operating modes;
+- real-money exchange execution, private trading credentials, withdrawals and capital authority are outside the current product. If ever requested, they require a separate future Execution/Capital Gateway architecture and implementation programme.
+
+The canonical persistent endpoint `quant.molehill.cloud` is the owner's Developer Quant Portal endpoint; the word `production` in historical deployment evidence does not turn the current Portal into a production trading system.
+
+Current delivery is judged by the owner-facing workflow:
+
+```text
+real public data
+-> bot/model decisions including NO_TRADE
+-> simulated positions/outcomes
+-> durable dataset growth
+-> local challenger training
+-> active/challenger comparison
+-> deliberate owner activation
+-> restart-safe continued observation
+```
+
+Proportionate safety remains required: authentication, secret exclusion, no unnecessary privileged/container-engine exposure, versioned data/models/configuration, durable state and backup, explicit model activation, deterministic validation and restart recovery. Production-grade trading ceremony, multi-tenant infrastructure, private-exchange credential architecture and host-certification gates are not universal prerequisites for this current developer workflow.
+
+Supersession:
+
+`docs/ai_platform/portal/ADR-023_DEVELOPER_QUANT_PORTAL.md` contains the binding detailed supersession matrix. ADR-023 supersedes conflicting **current-Portal** assumptions in ADR-003, ADR-004, ADR-005, ADR-013, ADR-014, ADR-016, ADR-017, ADR-020, ADR-021 and ADR-022 while preserving their historical evidence and any independently useful technical components. Repository branch/release guidance from ADR-021 may remain applicable independently of its former Portal bot-mode semantics.
+
+Migration impact:
+
+1. reclassify every open Portal/WickHunter task and related PR as `KEEP_NOW | SIMPLIFY | DEFER | OBSOLETE` from live repository state;
+2. stop mode-driven or production-certification work whose only justification was the superseded target;
+3. retain or simplify existing components only when they materially support the current developer workflow;
+4. implement the smallest complete vertical slice from real public data through simulation, dataset growth, local challenger training, comparison/manual activation and restart-safe Portal observability;
+5. preserve historical tasks, PRs and evidence truthfully rather than rewriting their original semantics;
+6. do not claim code migration complete until exact code/tests/runtime evidence proves it.
+
+Consequence:
+
+ADR-023 is the current product overlay for the entire Portal. Detailed current architecture is defined by `DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md`. Real-money execution is absent from the current product rather than represented as a disabled `LIVE` mode.

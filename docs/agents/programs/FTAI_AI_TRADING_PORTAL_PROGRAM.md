@@ -1,4 +1,4 @@
-# FTAI AI Trading Portal Program
+# FTAI Developer Quant Portal Program
 
 ## Program ID
 
@@ -6,204 +6,141 @@
 
 ## Status
 
-`production-like-staging-blocked`
+`architecture-reset-migration`
+
+## Governing decision
+
+ADR-023, owner-accepted `2026-08-15`, governs the **entire current Portal**, including WickHunter integration. It supersedes conflicting current-Portal assumptions from the former PAPER-first, multi-tenant and production-like staging target while preserving historical evidence truthfully.
 
 ## Mission
 
-Build a secure, modern and extensible portal above the existing Freqtrade AI Platform that can manage dry-run bot runtimes, model lifecycle, deterministic risk, post-trade intelligence, safe continual learning, Cloudflare-protected access and autonomous full-platform validation.
+Deliver a private, single-owner Developer Quant Portal that continuously turns real public market data into observable bot/model decisions, simulated outcomes, durable research datasets, local challenger training, model comparison/manual activation and restart-safe ongoing observation.
 
-## Current program state
+The programme is not a real-money trading programme. Exchange order submission, private trading credentials, withdrawals and capital authority are outside the current product and require a separate future owner-approved Execution/Capital Gateway programme if ever requested.
 
-Repository-backed implementation has progressed through P12 simulation-first acceptance, completed software-addressable product surfaces, PI-01 through PI-04 repository integrations, bounded PI-06 identity/deployment packages, PI-07 Vault credential brokering, PI-08 private dry-run submission, BM-00 through BM-09 and BMW browser convergence.
+## Current product model
 
-The final repository-side bot-management closure completed in BM-09 PR #675, squash merge `d7ae949cb91d44e260ca7c32e193d69238fad120`. Exact implementation head `e0a90ccdcfb3dc0e1ac03acede92f0f8c9da70e3` passed AI Platform CI `30437195010`, Portal Web CI `30437194948`, Portal Universal E2E `30437195047`, Freqtrade CI `30437194987` and workflow security `30437194958`.
+```text
+data source:      REALTIME_PUBLIC | REPLAY
+runtime location: LOCAL | SYNOLOGY
+simulation:       integrated developer capability
+model lifecycle:  BASELINE | CHALLENGER | ACTIVE | ARCHIVED
+```
 
-Canonical stage status remains:
-
-- P0-P10 complete for declared bounded acceptance;
-- P11 blocked until real owner-approved Cloudflare/protected GitHub staging and five-probe External E2E acceptance pass;
-- P12 complete in simulation-first mode and not a substitute for P11;
-- P13 deferred until measured bottleneck or unmet-SLO evidence exists;
-- P14 blocked and separately owner-approved; this program does not authorize live capital.
-
-Post-P12 status:
-
-- PI-01, PI-02, PI-03 and PI-04 repository packages are complete;
-- PI-05 remains provider/channel and privacy-policy gated;
-- PI-06 repository backend, BFF/browser integration and Authentik/Synology deployment package are complete, while real target identity acceptance remains owner-managed;
-- PI-07 repository credential broker is complete, while real Vault target acceptance remains owner-managed;
-- PI-08 repository private dry-run submission is complete, PR #669, merge `530f61caf9d5d4644068a93baa0b7a09298f24c6`;
-- BM-07 private position/order command activation is complete, PR #672, merge `ef0550744104f4c82ef3f106181f14442f9b82af`;
-- BM-09 closes the repository-side bot-management sequence without changing P11 or P14.
-
-Repository or fixture evidence does not prove real Authentik, Vault, Synology, Freqtrade or Cloudflare target acceptance.
+`SHADOW`, `PAPER`, `LIVE`, `PAPER_ELIGIBLE`, `production trading`, former P/PI/BM stage gates and protected-production acceptance remain historical/compatibility vocabulary only where exact current code or evidence still contains them. They are not current Portal product modes or automatic delivery blockers.
 
 ## Source of truth
 
 In order:
 
-1. current repository, PR and exact-head CI state;
-2. `AGENTS.md`;
-3. existing AI Platform lifecycle and evidence records;
-4. portal architecture/status documents;
-5. the active dated task and its context checkpoint.
+1. system/owner instructions and root `AGENTS.md`;
+2. current repository, PR, Issue and exact-head CI state;
+3. `ARCHITECTURE_REGISTRY.yaml` and ADR-023;
+4. `docs/ai_platform/portal/DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md`;
+5. this programme record and active dated tasks;
+6. historical architecture/audit/programme evidence for context only.
 
-Chat history and private UI captures are not durable program state.
+Chat history is not durable programme state.
 
 ## Required reads
 
-- `AGENTS.md`
-- `docs/agents/CONTEXT_HANDOFF.md`
-- `docs/ai_platform/ARCHITECTURE.md`
-- `docs/ai_platform/ROADMAP.md`
-- `docs/ai_platform/portal/README.md`
-- `docs/ai_platform/portal/SYSTEM_ARCHITECTURE.md`
-- `docs/ai_platform/portal/SECURITY_ARCHITECTURE.md`
-- `docs/ai_platform/portal/DELIVERY_ROADMAP.md`
-- `docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md`
-- `docs/ai_platform/portal/NEXT_WORK_AND_REPAIR_PLAN.md`
-- `docs/ai_platform/portal/AGENT_EXECUTION_PLAN.md`
+For current Portal/WickHunter work read only the minimum relevant set:
 
-Task-specific agents read additional documents only when relevant.
+- `AGENTS.md`
+- `docs/agents/PROMPTING_STANDARD.md`
+- `docs/agents/PROMPTING_HANDOVER.md`
+- `ARCHITECTURE_REGISTRY.yaml`
+- `docs/ai_platform/portal/ADR-023_DEVELOPER_QUANT_PORTAL.md`
+- `docs/ai_platform/portal/DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md`
+- `docs/ai_platform/portal/README.md`
+- the active task and live PR/Issue/CI state.
+
+Load older `SYSTEM_ARCHITECTURE.md`, PI/BM plans, PAPER-first documents, Runtime Supervisor/isolation contracts or audit reports only when their retained technical component is actually relevant.
 
 ## Program invariants
 
-- Freqtrade is an internal execution engine, not a public portal backend.
-- Browser traffic never talks directly to Freqtrade, exchanges or a secret store.
-- Portal execution reaches Freqtrade only through a controlled private adapter boundary.
-- AI predictions and deterministic risk approval are not unrestricted execution authority.
-- Every execution intent remains subject to deterministic risk and immutable attribution.
-- Exchange credentials remain opaque, tenant-scoped, withdrawal-disabled and uncommitted.
-- Research workers cannot access runtime credentials.
-- Models, configurations, strategies and risk policies used for decisions are immutable and attributable.
-- Post-trade analysis may create insights, experiments and candidates, not immediate production mutation.
-- Autonomous repair creates regression evidence, branches and PRs; it does not patch production.
-- Live capital requires a separate explicitly reviewed work package.
-- Repository or simulated P11 evidence cannot be represented as real Cloudflare production-like staging acceptance.
-- Cloudflare Access supplements product authorization and never replaces portal tenant membership, capabilities or local session revocation.
-- Browser-readable storage receives no IdP access, ID or refresh token.
-- Repository deployment validation cannot be represented as real Synology, Authentik, MFA, recovery, Vault, private Freqtrade or restore acceptance.
-- Runtime acknowledgement is not authoritative execution proof; reconciliation remains required.
+- The Portal is single-owner. Existing tenant fields/RBAC may remain for compatibility or defense in depth but are not product-completion prerequisites.
+- Browser traffic never receives secrets and does not talk directly to internal runtime-control endpoints.
+- Server-side collectors/runtimes may consume public exchange/market-data APIs required by `REALTIME_PUBLIC` workflows.
+- Existing Freqtrade compatibility remains `dry_run: true`; no current Portal path may submit a real exchange order.
+- Simulation may create positions/orders/trades **inside the simulator** and must label them as simulated.
+- Every bot/model decision, including `NO_TRADE`, should be attributable to data/model/config identity and decision-time context sufficient for later analysis.
+- Later outcomes/labels are materialized without future leakage and grow a chronological durable dataset.
+- Local training may create challenger models. It may not silently replace the active model.
+- Model activation is explicit, attributable and reversible.
+- Existing RuntimeGeneration, Supervisor, Gateway, risk, evidence, audit and isolation components are reusable tools, not universal ceremony. Keep them only where they materially solve the current workflow or a concrete safety/reliability risk.
+- Authentication, secret exclusion, durable state/backup, bounded inputs, restart recovery and proportionate process/container hardening remain required.
+- Historical research evidence and protected holdouts are not rewritten or iteratively consumed merely to make the current product look better.
+- Autonomous repair remains branch/PR based and may not perform destructive shared-host actions outside task scope.
 
-## Protected existing AI boundaries
+## Product vertical slice — current highest priority
 
-This program cannot change:
+The programme is not allowed to call the current Portal usefully delivered until this owner-facing journey works end to end:
 
-- frozen `entry_prediction_threshold = 0.006`;
-- frozen `exit_prediction_threshold = -0.009`;
-- protected final holdout v2 `20260801-20260930` or its authorization date;
-- completed Phase 6 candidates, policy and evidence;
-- authoritative Phase 6 `selected_model = null`;
-- historical PyTorch/RL evidence status.
+1. Liquid20/market collectors provide current public Binance/Bybit/OKX evidence with truthful freshness/health.
+2. WickHunter consumes canonical public market evidence continuously on the selected `SYNOLOGY` runtime.
+3. Every eligible decision, including `NO_TRADE`, is durable with score/confidence/reason/model/data context.
+4. Simulated signal/position lifecycle and later outcomes are visible with PnL, fees/slippage assumptions and drawdown.
+5. Decision-time evidence plus delayed outcomes grow a versioned chronological dataset.
+6. A `LOCAL` training worker can train at least one challenger from the accumulated dataset without touching protected holdout or silently promoting it.
+7. The Portal compares `ACTIVE`/`BASELINE` versus `CHALLENGER` on attributable evidence and lets the owner deliberately activate/archive the selected model.
+8. Portal/API/browser views expose data health, bot decisions, simulated positions/outcomes, dataset/model identities and training/comparison state.
+9. Restart of the persistent Synology services preserves/reconciles the durable workflow and continued observation.
+10. Real exchange orders, private trading credentials and live capital remain absent.
 
-Any future work affecting these boundaries requires a separate research package governed by the AI Platform lifecycle.
+## Product surfaces
 
-## Program architecture
+Current product navigation should prioritize:
 
-Six planes:
+- Dashboard / system health;
+- WickHunter / bot decisions;
+- Market Data / Liquidations;
+- Simulation / positions / outcomes;
+- Datasets;
+- Models / active vs challenger;
+- Training / experiments / replay;
+- System / logs / storage / restart state.
 
-1. Portal / UX Plane
-2. Control Plane
-3. Execution Plane
-4. AI / Research Plane
-5. Data Plane
-6. Quality & Autonomous Validation Plane
+Administration, notifications, enterprise tenant switching, production credential management and similar surfaces are not blockers unless reclassified `KEEP_NOW` for a concrete current need.
 
-Cross-cutting controls are Security, Risk and Observability.
+## Backlog migration rule
 
-## Repository completion evidence
+Before continuing any pre-ADR-023 Portal/WickHunter task, classify it from exact live state:
 
-### Identity
+- `KEEP_NOW` — directly required by the current vertical slice;
+- `SIMPLIFY` — capability is useful but former mode/enterprise/protected ceremony is removed;
+- `DEFER` — useful later but not needed to make the current owner workflow operational;
+- `OBSOLETE` — exists only because of superseded SHADOW/PAPER/LIVE, multi-tenant, private-trading, Vault/credential or production-certification assumptions.
 
-PI-06 delivered the Authentik-compatible identity/session backend, same-origin BFF/browser session handling and a secret-free Synology deployment package. Opaque sessions, CSRF, membership-derived tenant/capability context, MFA, step-up, logout and revocation are repository-tested. Real users, devices, recovery and restore remain target evidence.
+An `OBSOLETE` task/PR should become intentionally terminal with an accurate superseded/not-planned reason. Preserve historical commits, evidence and branches long enough to support provenance; do not delete useful history merely because the plan changed.
 
-### Credential and private execution
-
-PI-07 provides the single approved Vault-backed credential boundary. PI-08 binds approved intents to exact tenant, bot, configuration and runtime revisions, reserves idempotent attempts before private transport, independently verifies dry-run mode and treats ambiguous/accepted transport responses as unproven until reconciliation.
-
-BM-07 maps bounded position/order commands to private dry-run runtime operations. It reserves pending-reconciliation evidence before I/O, prevents repeat mutation on exact replay and routes exposure-increasing DCA/grid/replacement through PI-08.
-
-### Product and E2E
-
-BM-08 provides the authoritative tenant-scoped dashboard read model with explicit source states.
-
-BM-09 provides:
-
-- one versioned matrix covering each required scenario family exactly once;
-- validation that all evidence references exist;
-- critical Chromium traversal across dashboard, fleet, bot detail, exchange, signal and grid surfaces;
-- browser request evidence excluding private Freqtrade mutation and credential paths;
-- replay evidence separating persisted intent from execution proof;
-- exact-head backend, browser, full CI and security acceptance.
-
-This closes repository-side BM-00 through BM-09 and BMW delivery only.
-
-## Parallelization policy
-
-Shared contract changes are serialized through a dedicated contract-change task. New work must inspect current `develop`, open PRs and active task ownership before editing shared paths.
-
-Every new package requires a dated task, branch, exact owned paths, authoritative source definition, fail-closed states and acceptance evidence. Completed BM packages must not be silently reopened or extended.
-
-P13 scale or service extraction remains deferred without measured need.
+A `SIMPLIFY` task must be rewritten around the smallest current user outcome rather than continuing old acceptance by inertia.
 
 ## Quality policy
 
-Every implementation adds tests at its layer. Full-platform acceptance includes, as applicable:
+Validation is proportional to actual risk and workflow impact:
 
-- unit, contract and integration tests;
-- security E2E;
-- Playwright browser E2E;
-- deterministic exchange simulator;
-- AI learning-loop E2E;
-- visual and responsive acceptance;
-- chaos and recovery scenarios;
-- bounded autonomous diagnosis and repair.
+- focused unit/contract tests for changed logic;
+- component/integration tests across real producer/consumer seams being delivered;
+- real browser/API E2E for owner-facing Portal workflows;
+- real `REALTIME_PUBLIC` data evidence where market-data behavior is the feature;
+- restart/persistence validation for persistent Synology components;
+- security validation for authentication, secrets, input bounds and privileged boundaries actually used;
+- exact-head CI before merge.
 
-Simulation, local and CI evidence must remain labeled as such. Real production-like staging acceptance requires the real protected external ingress path.
+Do not require enterprise production certification, a protected-target ritual, a complete audit matrix or exact-current proof of unrelated monorepo components merely because an older plan did. A material current risk still requires a proportionate gate.
 
-## Security posture
+## Historical programme state
 
-Target ingress:
+P0-P14, PI-01..PI-08, BM-00..BM-09, ADR-020/021/022, PAPER Platform gates and prior protected staging work remain immutable history/evidence. Their completed code may be reused. Their former completion semantics do not override ADR-023.
 
-```text
-Internet -> Cloudflare -> Tunnel -> Portal
-```
+In particular:
 
-Privileged surfaces add Zero Trust/Access policy. Freqtrade remains private.
+- historical Vault/private-execution work does not require current private trading credentials to exist;
+- historical multi-tenant/RBAC work may remain in code but is not a current product blocker;
+- historical Runtime Supervisor/Gateway/isolation work may be reused for safe lifecycle control but is not mandatory for every simulated/research path;
+- historical PAPER/SHADOW evidence remains valid as evidence of what ran at that time, but future work uses current Developer Portal vocabulary.
 
-The current P11 blocker is external: owner-approved Cloudflare Tunnel, DNS, Access, WAF, rate-limit and direct-origin-denial state plus protected GitHub staging variables/secrets must be provisioned or confirmed and the real External E2E workflow must pass.
+## Immediate next action
 
-## Product surface
-
-Canonical navigation includes dashboard, performance, positions, terminal, bot management, AI intelligence, operations, exchanges, profile/security, notifications and administration.
-
-Protected browser paths use the same-origin PI-06 boundary with opaque cookies, CSRF and backend-authoritative tenant/capability enforcement. Bot management consumes canonical server models and never creates direct browser-to-Freqtrade authority.
-
-Third-party private captures are inspiration or evidence only and must not be copied with personal data or proprietary assets.
-
-## Completion definition
-
-The first major production-like staging milestone requires a real protected path that can:
-
-1. authenticate a test user;
-2. create a tenant-scoped dry-run AI bot;
-3. provision an isolated private Freqtrade runtime;
-4. execute a deterministic simulated trade through risk gates;
-5. reconcile PNL and execution evidence;
-6. produce post-trade analysis and insight;
-7. create a bounded learning experiment/candidate without changing the active model;
-8. pass critical browser, security and AI E2E;
-9. generate an evidence-based repair PR for a seeded defect;
-10. prove no public Freqtrade exposure and no live-capital authorization.
-
-Repository-side software covers the bounded implementation and deterministic quality layer, but the milestone remains incomplete until real P11 protected external ingress acceptance passes.
-
-## Next actions by authorization lane
-
-- PI-06 target acceptance: only when the owner supplies Synology access, protected secrets, DNS/TLS routing, test users, MFA devices, offline recovery material and an isolated restore target.
-- PI-05 delivery: only after the owner selects a provider/channel and destination/privacy policy.
-- P11 external staging: only when the owner intentionally starts the infrastructure phase and supplies approved Cloudflare/protected-environment resources.
-- P13: only from measured need.
-- P14: remain blocked until separate explicit capital authorization and all prerequisites.
-
-There is no remaining autonomous BM package after BM-09. Do not start another package by extending the completed sequence implicitly.
+Reclassify the full live Portal/WickHunter backlog and open related PR inventory under `KEEP_NOW | SIMPLIFY | DEFER | OBSOLETE`, make obsolete work terminal, then execute the smallest complete current vertical slice rather than opening another isolated producer programme.

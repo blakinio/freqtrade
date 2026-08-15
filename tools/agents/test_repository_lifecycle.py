@@ -210,6 +210,39 @@ class PrAuditTests(unittest.TestCase):
         self.assertEqual(item["health"], "ACTIVE")
         self.assertFalse(item["auto_close"])
 
+    def test_reference_to_another_request_pr_does_not_self_classify(self):
+        item = rl.classify_pr_health(
+            pull(
+                5,
+                "fix/implementation",
+                "a" * 40,
+                state="open",
+                body=(
+                    "This implementation remains mergeable after validation. "
+                    "Existing request-only deployment machinery may be reused, but the request PR must not be merged."
+                ),
+            ),
+            now=self.NOW,
+            stale_days=3,
+        )
+        self.assertEqual(item["health"], "ACTIVE")
+        self.assertFalse(item["auto_close"])
+
+    def test_standalone_must_not_merge_is_request_only(self):
+        item = rl.classify_pr_health(
+            pull(
+                6,
+                "ops/request-2",
+                "a" * 40,
+                state="open",
+                body="Request-only protected operation.\n\n**MUST NOT BE MERGED.**\nClose after terminal evidence.",
+            ),
+            now=self.NOW,
+            stale_days=3,
+        )
+        self.assertEqual(item["health"], "REQUEST_ONLY")
+        self.assertFalse(item["auto_close"])
+
     def test_stale_is_signal_only(self):
         item = rl.classify_pr_health(
             pull(

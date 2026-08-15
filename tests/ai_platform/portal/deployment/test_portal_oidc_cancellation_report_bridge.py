@@ -691,7 +691,7 @@ def test_sigterm_is_bridged_across_handler_transitions(tmp_path, monkeypatch, tr
     assert signal.getsignal(signal.SIGTERM) == previous_sigterm
 
 
-def test_sigterm_during_lock_release_restores_handlers_and_persists_report(
+def test_lock_release_runs_with_termination_blocked_and_restores_handlers(
     tmp_path, monkeypatch
 ) -> None:
     report_path = tmp_path / "report.json"
@@ -713,25 +713,20 @@ def test_sigterm_during_lock_release_restores_handlers_and_persists_report(
     module.install(deploy)
     original_release = module._release_current_report_lock
 
-    def interrupting_release(current_deploy: Any) -> None:
-        try:
-            handler = signal.getsignal(signal.SIGTERM)
-            assert callable(handler)
-            handler(signal.SIGTERM, None)
-        finally:
-            original_release(current_deploy)
+    observed_masks: list[set[signal.Signals]] = []
 
-    monkeypatch.setattr(module, "_release_current_report_lock", interrupting_release)
+    def observing_release(current_deploy: Any) -> None:
+        observed_masks.append(signal.pthread_sigmask(signal.SIG_BLOCK, set()))
+        original_release(current_deploy)
+
+    monkeypatch.setattr(module, "_release_current_report_lock", observing_release)
     previous_sigint = signal.getsignal(signal.SIGINT)
     previous_sigterm = signal.getsignal(signal.SIGTERM)
     args = SimpleNamespace(report=str(report_path), expected_repository_sha="7" * 40)
 
-    with pytest.raises(SystemExit) as exc_info:
-        deploy.deploy(args)
-
-    assert exc_info.value.code == 128 + signal.SIGTERM
-    assert reports[-1]["status"] == "failed"
-    assert reports[-1]["cancellation"]["type"] == "SystemExit"
+    assert deploy.deploy(args) == 0
+    assert set(module._TERMINATION_SIGNALS).issubset(observed_masks[-1])
+    assert reports == []
     assert deploy._portal_report_lock_fd is None
     assert signal.getsignal(signal.SIGINT) == previous_sigint
     assert signal.getsignal(signal.SIGTERM) == previous_sigterm

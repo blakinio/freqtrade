@@ -1,7 +1,7 @@
 {
   "schema_version": "portal-product-surface-availability-v1",
   "source": "tools/portal_audit/ledger/navigation.json",
-  "ledger_version": "2026-08-13.1",
+  "ledger_version": "2026-08-15.1",
   "unavailable_overall_statuses": [
     "DISCONNECTED",
     "MISSING"

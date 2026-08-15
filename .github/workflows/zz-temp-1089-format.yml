@@ -61,11 +61,28 @@ jobs:
               "tests/ai_platform/portal/deployment/test_portal_oidc_deploy_entrypoint.py"
           )
           tests = tests_path.read_text(encoding="utf-8")
-          marker = '''        (\n            "true|freqtrade-deploy-runner|runner\\n"\n            "bind|/volume1/docker/freqtrade/../state\\n",\n            "staging-state host bind is invalid",\n        ),\n'''
-          regression = marker + '''        (\n            "true|freqtrade-deploy-runner|runner\\n"\n            "bind|/volume1/docker/freqtrade/state \\n",\n            "staging-state host bind is invalid",\n        ),\n        (\n            "true|freqtrade-deploy-runner|runner\\n"\n            " bind|/volume1/docker/freqtrade/state\\n",\n            "staging-state host bind is invalid",\n        ),\n'''
-          if tests.count(marker) != 1:
-              raise SystemExit("mount whitespace regression insertion mismatch")
-          tests_path.write_text(tests.replace(marker, regression), encoding="utf-8")
+          test_name = "def test_market_evidence_host_root_rejects_mount_whitespace"
+          if test_name in tests:
+              raise SystemExit("mount whitespace regression already present")
+          regression = r'''
+
+
+@pytest.mark.parametrize(
+    "stdout",
+    [
+        "true|freqtrade-deploy-runner|runner\nbind|/volume1/docker/freqtrade/state \n",
+        "true|freqtrade-deploy-runner|runner\n bind|/volume1/docker/freqtrade/state\n",
+    ],
+)
+def test_market_evidence_host_root_rejects_mount_whitespace(stdout: str) -> None:
+    def run(command: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
+
+    deploy = SimpleNamespace(_run=run, DeploymentError=RuntimeError)
+    with pytest.raises(RuntimeError, match="staging-state host bind is invalid"):
+        entrypoint._resolve_market_evidence_host_root(deploy)
+'''
+          tests_path.write_text(tests + regression, encoding="utf-8")
           PY
 
           files=(

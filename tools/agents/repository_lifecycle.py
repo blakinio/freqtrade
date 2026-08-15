@@ -28,6 +28,8 @@ DRAFT_WORDING_RE = re.compile(
     r"\b(?:remain|remains|keep|kept|stays?)\s+(?:this\s+pr\s+)?(?:as\s+)?draft\b|\bthis\s+pr\s+(?:is|remains)\s+draft\b",
     re.I,
 )
+REQUEST_ONLY_STANDALONE_RE = re.compile(r"^\s*\*{0,2}must not be merged\.?\*{0,2}\s*$", re.I | re.M)
+CLOSE_WITHOUT_MERGE_RE = re.compile(r"^\s*(?:this\s+pr\s+)?(?:must|will)\s+close\s+without\s+merge\b", re.I | re.M)
 
 CLASSIFICATIONS = {
     "PROTECTED",
@@ -186,6 +188,23 @@ def parse_github_time(value: object) -> dt.datetime | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=dt.timezone.utc)
     return parsed.astimezone(dt.timezone.utc)
+
+
+def explicitly_request_only(body: str) -> bool:
+    normalized = body.casefold().strip()
+    if normalized.startswith("request-only ") or normalized.startswith("request only "):
+        return True
+    if REQUEST_ONLY_STANDALONE_RE.search(body) or CLOSE_WITHOUT_MERGE_RE.search(body):
+        return True
+    return any(
+        token in normalized
+        for token in (
+            "close this pr without merge",
+            "this pr must not be merged",
+            "this pr is request-only",
+            "this pr is request only",
+        )
+    )
 
 
 class GitHubClient:
@@ -444,10 +463,6 @@ def build_inventory(client: GitHubClient, policy: dict[str, Any], root: Path) ->
         raise LifecycleError(
             f"default branch drift: policy={policy['default_branch']} live={metadata.get('default_branch')}"
         )
-    # Repository-admin merge settings are not guaranteed to be visible to the
-    # workflow GITHUB_TOKEN. They are recorded when present but are not a
-    # deletion-safety dependency: terminal close-event cleanup below covers
-    # both merged and closed-unmerged same-repository PRs at exact head SHA.
     observed_settings = {
         "delete_branch_on_merge": metadata.get("delete_branch_on_merge", "UNAVAILABLE_TOKEN_SCOPE"),
         "allow_squash_merge": metadata.get("allow_squash_merge", "UNAVAILABLE_TOKEN_SCOPE"),
@@ -542,10 +557,6 @@ def validate_approval(approval: dict[str, Any], inventory: dict[str, Any], polic
         raise LifecycleError("approval review_summary required")
 
 
-def write_json(path: Path, value: object) -> None:
-    path.write_text(canonical_json(value), encoding="utf-8")
-
-
 def recovery_test(client: GitHubClient, default_branch: str, issue: int) -> dict[str, Any]:
     run_id = os.environ.get("GITHUB_RUN_ID", "local")
     branch = f"recovery-test/issue-{issue}-{run_id}"
@@ -608,17 +619,7 @@ def classify_pr_health(pull: dict[str, Any], *, now: dt.datetime, stale_days: in
     updated = parse_github_time(pull.get("updated_at"))
     age_days = None if updated is None else max(0.0, (now - updated).total_seconds() / 86400)
     body_lower = body.casefold()
-    request_only = any(
-        token in body_lower
-        for token in (
-            "must not be merged",
-            "must close without merge",
-            "will close without merge",
-            "close this pr without merge",
-            "this pr is request-only",
-            "this pr is request only",
-        )
-    )
+    request_only = explicitly_request_only(body)
     waiting = any(token in body_lower for token in ("blocked", "waiting", "wait until", "remains mandatory"))
     prose_draft = bool(DRAFT_WORDING_RE.search(body))
     inconsistent = (prose_draft and not draft) or (draft and "ready for review" in body_lower)
@@ -627,7 +628,7 @@ def classify_pr_health(pull: dict[str, Any], *, now: dt.datetime, stale_days: in
         reason = "GitHub draft metadata conflicts with PR prose"
     elif request_only:
         health = "REQUEST_ONLY"
-        reason = "PR prose explicitly marks request-only / close-without-merge lifecycle"
+        reason = "PR prose explicitly marks this PR as request-only / close-without-merge"
     elif waiting:
         health = "WAITING_OR_BLOCKED"
         reason = "PR prose explicitly records waiting/blocking semantics"
@@ -710,7 +711,6 @@ def event_cleanup(client: GitHubClient, policy: dict[str, Any], root: Path, even
             "classification": classification["classification"],
             "sha": current,
         }
-    # Re-fetch complete live inventory protections before destructive event cleanup.
     live_branch = next((item for item in client.branches() if item.get("name") == branch), None)
     if live_branch is None:
         return {"result": "PASS", "reason": "branch became absent", "branch": branch, "sha": sha}

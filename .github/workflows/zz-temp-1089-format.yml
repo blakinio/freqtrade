@@ -39,67 +39,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          expected_head=24f27710f65113dcb3158f151f45276f9882c562
+          expected_head=b15f51ad8cff532dc176d7b845530eccab6ff165
           expected_base=9dd5887e301ddfeec6df6a3b3e2da24a9ced850f
           test "$(git rev-parse HEAD)" = "$expected_head"
           git fetch origin develop
           test "$(git rev-parse origin/develop)" = "$expected_base"
           git merge-base --is-ancestor "$expected_base" HEAD
-
-          python - <<'PY'
-          from pathlib import Path
-
-          entrypoint = Path("deploy/synology/portal-oidc/deploy_entrypoint.py")
-          source = entrypoint.read_text(encoding="utf-8")
-          old = "    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]\n"
-          new = "    lines = [line for line in result.stdout.splitlines() if line]\n"
-          if source.count(old) != 1:
-              raise SystemExit("raw inspect line replacement mismatch")
-          entrypoint.write_text(source.replace(old, new), encoding="utf-8")
-
-          tests_path = Path(
-              "tests/ai_platform/portal/deployment/test_portal_oidc_deploy_entrypoint.py"
-          )
-          tests = tests_path.read_text(encoding="utf-8")
-          test_name = "def test_market_evidence_host_root_rejects_mount_whitespace"
-          if test_name in tests:
-              raise SystemExit("mount whitespace regression already present")
-          regression = r'''
-
-
-@pytest.mark.parametrize(
-    "stdout",
-    [
-        "true|freqtrade-deploy-runner|runner\nbind|/volume1/docker/freqtrade/state \n",
-        "true|freqtrade-deploy-runner|runner\n bind|/volume1/docker/freqtrade/state\n",
-    ],
-)
-def test_market_evidence_host_root_rejects_mount_whitespace(stdout: str) -> None:
-    def run(command: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
-        return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
-
-    deploy = SimpleNamespace(_run=run, DeploymentError=RuntimeError)
-    with pytest.raises(RuntimeError, match="staging-state host bind is invalid"):
-        entrypoint._resolve_market_evidence_host_root(deploy)
-'''
-          tests_path.write_text(tests + regression, encoding="utf-8")
-          PY
-
-          files=(
-            deploy/synology/portal-oidc/deploy_entrypoint.py
-            tests/ai_platform/portal/deployment/test_portal_oidc_deploy_entrypoint.py
-          )
-          ruff format "${files[@]}"
-          ruff check "${files[@]}"
-          python -m py_compile "${files[@]}"
+          python -c 'from pathlib import Path; p=Path("deploy/synology/portal-oidc/deploy_entrypoint.py"); s=p.read_text(encoding="utf-8"); old="    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]\n"; new="    lines = [line for line in result.stdout.splitlines() if line]\n"; assert s.count(old) == 1; p.write_text(s.replace(old, new), encoding="utf-8")'
+          ruff format deploy/synology/portal-oidc/deploy_entrypoint.py tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_host_mount_whitespace.py
+          ruff check deploy/synology/portal-oidc/deploy_entrypoint.py tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_host_mount_whitespace.py
+          python -m py_compile deploy/synology/portal-oidc/deploy_entrypoint.py tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_host_mount_whitespace.py
           python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform \
             tests/ai_platform/portal/deployment/test_portal_oidc_deploy_entrypoint.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_host_mount_whitespace.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_runtime.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py
           git diff --check
-
           git config user.name "blakinio"
           git config user.email "75369544+blakinio@users.noreply.github.com"
-          git add -- "${files[@]}"
+          git add -- deploy/synology/portal-oidc/deploy_entrypoint.py
           git commit -m "fix(portal): reject Market Evidence mount whitespace"
           git push origin HEAD:fix/1089-market-evidence-host-mount

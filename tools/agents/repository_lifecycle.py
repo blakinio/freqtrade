@@ -613,9 +613,10 @@ def classify_pr_health(pull: dict[str, Any], *, now: dt.datetime, stale_days: in
         for token in (
             "must not be merged",
             "must close without merge",
-            "request-only",
-            "request only",
-            "close after terminal",
+            "will close without merge",
+            "close this pr without merge",
+            "this pr is request-only",
+            "this pr is request only",
         )
     )
     waiting = any(token in body_lower for token in ("blocked", "waiting", "wait until", "remains mandatory"))

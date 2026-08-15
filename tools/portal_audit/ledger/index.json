@@ -2,7 +2,7 @@
   "inventory": {
     "backend_modules": {
       "count": 32,
-      "sha256": "bd3c47b0e14fe4f4c77bfc9d4071e16f40d367ea5831e4f5d1c59f47cb55b33a"
+      "sha256": "d48551f2626f8704eb5de799fb5194d95c9398050be72e824e8d32d37f81577d"
     },
     "backend_routes": {
       "count": 95,
@@ -18,7 +18,7 @@
       "sha256": "0b7a8bc4d34ff1df11b6b185cf58832a5a8b57d1eebfc0d09f885e02d3d3a403"
     }
   },
-  "ledger_version": "2026-08-13.1",
+  "ledger_version": "2026-08-15.1",
   "mode": "living_exact_head_gate",
   "schema_version": "portal-completeness-ledger-v2",
   "sections": {

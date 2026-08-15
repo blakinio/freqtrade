@@ -2,15 +2,9 @@ from pathlib import Path
 
 
 PROGRAMME_PATH = Path("docs/agents/programs/FTAI_PORTAL_REMEDIATION_PROGRAM.md")
-ARCHIVED_COORDINATOR_PATH = Path(
-    "docs/agents/tasks/archive/FTAI-20260803-portal-remediation-program.md"
-)
-ACTIVE_COORDINATOR_PATH = Path(
-    "docs/agents/tasks/active/FTAI-20260803-portal-remediation-program.md"
-)
-CUTOVER_LEDGER_PATH = Path(
-    "docs/ai_platform/portal/ADR023_BACKLOG_RECLASSIFICATION_2026-08-15.md"
-)
+ARCHIVED_COORDINATOR_PATH = Path("docs/agents/tasks/archive/FTAI-20260803-portal-remediation-program.md")
+ACTIVE_COORDINATOR_PATH = Path("docs/agents/tasks/active/FTAI-20260803-portal-remediation-program.md")
+CUTOVER_LEDGER_PATH = Path("docs/ai_platform/portal/ADR023_BACKLOG_RECLASSIFICATION_2026-08-15.md")
 CURRENT_PROGRAMME_PATH = Path("docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md")
 
 

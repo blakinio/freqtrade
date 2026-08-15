@@ -1,0 +1,20 @@
+{
+  "default_branch": "develop",
+  "deletion_classifications": [
+    "TERMINAL_CLOSED_UNMERGED",
+    "TERMINAL_MERGED"
+  ],
+  "integration_branches": [
+    "develop"
+  ],
+  "issue": 1559,
+  "repository": "blakinio/freqtrade",
+  "reserved_name_parts": [
+    "backup",
+    "recovery",
+    "release",
+    "rollback"
+  ],
+  "schema_version": 1,
+  "stale_pr_days": 3
+}

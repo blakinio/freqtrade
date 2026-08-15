@@ -49,7 +49,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "69ad5452621b0d6fc772c42071f93bff86b24c81"
           git fetch origin develop
-          test "$(git rev-parse origin/develop)" = "9dd5887e301ddfeec6df6a3b3e2da24a9ced850f"
+          test "$(git rev-parse origin/develop)" = "1f62ff29f4a2a25c929218bd3b69bf19257f3055"
           python .task-tools/tools/zz-temp-1089-json-mount-patch.py
 
       - name: Validate exact repair

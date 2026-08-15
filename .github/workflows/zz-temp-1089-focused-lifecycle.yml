@@ -15,12 +15,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
-      - name: Checkout exact repair head
+      - name: Checkout exact rebased repair head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: 69ad5452621b0d6fc772c42071f93bff86b24c81
+          ref: d8c25970362b1e886c9f8c9805b4387ddf1127fa
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
@@ -63,9 +63,9 @@ jobs:
             tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_host_mount_whitespace.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_runtime.py
 
-      - name: Validate patch whitespace
+      - name: Validate rebased patch whitespace
         shell: bash
-        run: git diff --check 9dd5887e301ddfeec6df6a3b3e2da24a9ced850f..HEAD
+        run: git diff --check 1f62ff29f4a2a25c929218bd3b69bf19257f3055..HEAD
 
       - name: Run focused Market Evidence and lifecycle regressions
         shell: bash

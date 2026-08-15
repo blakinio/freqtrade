@@ -52,25 +52,60 @@ jobs:
           test "$(git rev-parse origin/develop)" = "1f62ff29f4a2a25c929218bd3b69bf19257f3055"
           python .task-tools/tools/zz-temp-1089-json-mount-patch.py
 
-      - name: Validate exact repair
+      - name: Format repair files
         shell: bash
         run: |
-          set -euo pipefail
-          files=(
-            deploy/synology/portal-oidc/deploy_entrypoint.py
-            tests/ai_platform/portal/deployment/test_portal_oidc_deploy_entrypoint.py
-            tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_host_mount_whitespace.py
-            tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_runtime.py
-          )
-          ruff format "${files[@]}"
-          ruff check "${files[@]}"
-          python -m py_compile "${files[@]}"
-          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform \
+          ruff format \
+            deploy/synology/portal-oidc/deploy_entrypoint.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_deploy_entrypoint.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_host_mount_whitespace.py \
-            tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_runtime.py \
-            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py
-          git diff --check
+            tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_runtime.py
+
+      - name: Ruff repair files
+        shell: bash
+        run: |
+          ruff check \
+            deploy/synology/portal-oidc/deploy_entrypoint.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_deploy_entrypoint.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_host_mount_whitespace.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_runtime.py
+
+      - name: Compile repair files
+        shell: bash
+        run: |
+          python -m py_compile \
+            deploy/synology/portal-oidc/deploy_entrypoint.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_deploy_entrypoint.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_host_mount_whitespace.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_runtime.py
+
+      - name: Test deploy entrypoint repair
+        shell: bash
+        run: >-
+          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform
+          tests/ai_platform/portal/deployment/test_portal_oidc_deploy_entrypoint.py
+
+      - name: Test mount control characters
+        shell: bash
+        run: >-
+          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform
+          tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_host_mount_whitespace.py
+
+      - name: Test Market Evidence runtime
+        shell: bash
+        run: >-
+          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform
+          tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_runtime.py
+
+      - name: Test bounded lifecycle non-regression
+        shell: bash
+        run: >-
+          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform
+          tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py
+
+      - name: Validate patch whitespace
+        shell: bash
+        run: git diff --check
 
       - name: Commit and push repair
         shell: bash

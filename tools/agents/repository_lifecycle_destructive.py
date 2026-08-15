@@ -25,7 +25,7 @@ def _decode_content(payload: dict[str, Any]) -> str:
         raise rl.LifecycleError("GitHub contents response lacks base64 file content")
     try:
         return base64.b64decode(content, validate=False).decode("utf-8", errors="replace")
-    except Exception as exc:  # pragma: no cover - defensive boundary
+    except Exception as exc:  # pragma: no cover
         raise rl.LifecycleError("unable to decode task record content") from exc
 
 
@@ -41,10 +41,7 @@ def task_directory(client: rl.GitHubClient, ref: str) -> dict[str, str]:
         raise rl.LifecycleError("task-directory ref must be an immutable full SHA")
     path = urllib.parse.quote(str(rl.ACTIVE_TASKS_PATH), safe="/")
     try:
-        payload, _ = client.request(
-            "GET",
-            f"/repos/{client.repo}/contents/{path}?ref={ref}",
-        )
+        payload, _ = client.request("GET", f"/repos/{client.repo}/contents/{path}?ref={ref}")
     except rl.ApiError as exc:
         if exc.status == 404:
             return {}
@@ -69,10 +66,7 @@ def task_directory(client: rl.GitHubClient, ref: str) -> dict[str, str]:
 
 def task_file_claims(client: rl.GitHubClient, ref: str, path: str) -> set[str]:
     encoded = urllib.parse.quote(path, safe="/")
-    payload, _ = client.request(
-        "GET",
-        f"/repos/{client.repo}/contents/{encoded}?ref={ref}",
-    )
+    payload, _ = client.request("GET", f"/repos/{client.repo}/contents/{encoded}?ref={ref}")
     if not isinstance(payload, dict):
         raise rl.LifecycleError("task record response must be an object")
     return _claims_from_text(_decode_content(payload))
@@ -152,29 +146,19 @@ def _terminal_pull_matches(
     return False
 
 
-def delete_branch_exact(client: rl.GitHubClient, branch: str, expected_sha: str) -> None:
-    current = client.get_ref_sha(branch)
-    if current != expected_sha:
-        raise rl.LifecycleError(
-            f"pre-delete SHA drift for {branch}: expected {expected_sha}, got {current}"
-        )
-    remote = client._validate_remote()
-    ref = f"refs/heads/{branch}"
-    basic = base64.b64encode(f"x-access-token:{client.token}".encode("utf-8")).decode("ascii")
-    env = os.environ.copy()
-    env["GIT_CONFIG_COUNT"] = "1"
-    env["GIT_CONFIG_KEY_0"] = "http.https://github.com/.extraheader"
-    env["GIT_CONFIG_VALUE_0"] = f"AUTHORIZATION: basic {basic}"
+def create_ref(client: rl.GitHubClient, branch: str, sha: str) -> None:
+    client.request(
+        "POST",
+        f"/repos/{client.repo}/git/refs",
+        data={"ref": f"refs/heads/{branch}", "sha": sha},
+        expected=(201,),
+    )
+
+
+def _run_git(client: rl.GitHubClient, args: list[str], purpose: str, *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     try:
-        result = subprocess.run(
-            [
-                "git",
-                "push",
-                "--porcelain",
-                f"--force-with-lease={ref}:{expected_sha}",
-                remote,
-                f":{ref}",
-            ],
+        return subprocess.run(
+            args,
             cwd=client.root,
             capture_output=True,
             text=True,
@@ -183,19 +167,70 @@ def delete_branch_exact(client: rl.GitHubClient, branch: str, expected_sha: str)
             env=env,
         )
     except FileNotFoundError as exc:
-        raise rl.LifecycleError("delete branch: git executable unavailable") from exc
+        raise rl.LifecycleError(f"{purpose}: git executable unavailable") from exc
     except subprocess.TimeoutExpired as exc:
-        raise rl.LifecycleError(f"delete branch {branch}: timed out") from exc
+        raise rl.LifecycleError(f"{purpose}: timed out") from exc
+
+
+def validate_remote(client: rl.GitHubClient) -> str:
+    root = _run_git(client, ["git", "rev-parse", "--show-toplevel"], "validate git root")
+    if root.returncode != 0 or Path(root.stdout.strip()).resolve() != client.root:
+        raise rl.LifecycleError("configured root is not the checked-out Git worktree")
+    remote = _run_git(client, ["git", "remote", "get-url", "--push", "origin"], "validate origin")
+    if remote.returncode != 0:
+        raise rl.LifecycleError("origin push remote unavailable")
+    value = remote.stdout.strip().removesuffix(".git")
+    expected = client.repo.casefold()
+    if value.startswith("https://github.com/"):
+        got = value.removeprefix("https://github.com/").casefold()
+    elif value.startswith("git@github.com:"):
+        got = value.removeprefix("git@github.com:").casefold()
+    else:
+        raise rl.LifecycleError("origin is not a supported GitHub remote")
+    if got != expected:
+        raise rl.LifecycleError(f"origin repository mismatch: expected {client.repo}, got {got}")
+    return "origin"
+
+
+def remote_ref_sha(client: rl.GitHubClient, branch: str) -> str | None:
+    remote = validate_remote(client)
+    ref = f"refs/heads/{branch}"
+    result = _run_git(client, ["git", "ls-remote", "--refs", remote, ref], f"verify remote ref {branch}")
     if result.returncode != 0:
-        remote_sha = client.remote_ref_sha(branch)
+        raise rl.LifecycleError(f"git ls-remote failed for {branch}")
+    rows = [line.split() for line in result.stdout.splitlines() if line.strip()]
+    if not rows:
+        return None
+    if len(rows) != 1 or len(rows[0]) != 2 or rows[0][1] != ref or not rl.FULL_SHA_RE.fullmatch(rows[0][0]):
+        raise rl.LifecycleError(f"unexpected remote ref data for {branch}")
+    return rows[0][0]
+
+
+def delete_branch_exact(client: rl.GitHubClient, branch: str, expected_sha: str) -> None:
+    current = client.get_ref_sha(branch)
+    if current != expected_sha:
+        raise rl.LifecycleError(f"pre-delete SHA drift for {branch}: expected {expected_sha}, got {current}")
+    remote = validate_remote(client)
+    ref = f"refs/heads/{branch}"
+    basic = base64.b64encode(f"x-access-token:{client.token}".encode("utf-8")).decode("ascii")
+    env = os.environ.copy()
+    env["GIT_CONFIG_COUNT"] = "1"
+    env["GIT_CONFIG_KEY_0"] = "http.https://github.com/.extraheader"
+    env["GIT_CONFIG_VALUE_0"] = f"AUTHORIZATION: basic {basic}"
+    result = _run_git(
+        client,
+        ["git", "push", "--porcelain", f"--force-with-lease={ref}:{expected_sha}", remote, f":{ref}"],
+        f"delete branch {branch}",
+        env=env,
+    )
+    if result.returncode != 0:
+        remote_sha = remote_ref_sha(client, branch)
         if remote_sha is None:
             raise rl.LifecycleError(f"delete returned failure but {branch} is absent; ambiguous")
         if remote_sha != expected_sha:
-            raise rl.LifecycleError(
-                f"delete lease rejected for {branch}: remote moved to {remote_sha}"
-            )
+            raise rl.LifecycleError(f"delete lease rejected for {branch}: remote moved to {remote_sha}")
         raise rl.LifecycleError(f"delete push rejected for {branch}")
-    if client.remote_ref_sha(branch) is not None:
+    if remote_ref_sha(client, branch) is not None:
         raise rl.LifecycleError(f"post-delete git verification found {branch} still present")
 
 
@@ -249,18 +284,12 @@ def revalidate_candidate(
     terminal_matches: list[int] = []
     for number in pr_numbers:
         pull = pull_by_number(client, number)
-        if not rl.same_repo_pull(pull, client.repo):
-            continue
-        if _terminal_pull_matches(
-            pull,
-            branch=branch,
-            sha=sha,
-            classification=classification,
+        if rl.same_repo_pull(pull, client.repo) and _terminal_pull_matches(
+            pull, branch=branch, sha=sha, classification=classification
         ):
             terminal_matches.append(number)
     if not terminal_matches:
         raise RetainBranch(f"{branch}: no reviewed terminal PR remains exact and closed")
-
     return {
         "branch": branch,
         "sha": sha,
@@ -290,18 +319,16 @@ def safe_recovery_test(client: rl.GitHubClient, default_branch: str, issue: int)
         existing = client.get_ref_sha(branch)
         if existing is not None:
             if existing != base_sha:
-                raise rl.LifecycleError(
-                    f"recovery branch {branch} already exists at unexpected SHA {existing}"
-                )
+                raise rl.LifecycleError(f"recovery branch {branch} already exists at unexpected SHA {existing}")
             delete_branch_exact(client, branch, base_sha)
             evidence["cleanup"] = "REMOVED_PREEXISTING_EXACT_REF"
-        client.create_ref(branch, base_sha)
+        create_ref(client, branch, base_sha)
         evidence["create"] = "PASS"
         if client.get_ref_sha(branch) != base_sha:
             raise rl.LifecycleError("recovery-test create verification failed")
         delete_branch_exact(client, branch, base_sha)
         evidence["delete"] = "PASS"
-        client.create_ref(branch, base_sha)
+        create_ref(client, branch, base_sha)
         if client.get_ref_sha(branch) != base_sha:
             raise rl.LifecycleError("recovery-test restore verification failed")
         evidence["restore"] = "PASS"
@@ -346,7 +373,6 @@ def apply_reviewed_cleanup(
     rl.validate_approval(approval, inventory, policy)
     if approval["apply_on_develop"] is not True:
         raise rl.LifecycleError("reviewed approval is not activated for develop")
-
     candidates = inventory["candidates"]
     result: dict[str, Any] = {
         "schema_version": 1,
@@ -366,7 +392,6 @@ def apply_reviewed_cleanup(
     if base_sha is None:
         raise rl.LifecycleError("default branch missing before destructive preflight")
     base_directory, base_claims = claim_snapshot(client, base_sha)
-
     for candidate in candidates:
         try:
             revalidate_candidate(
@@ -388,19 +413,11 @@ def apply_reviewed_cleanup(
             "reviewed candidate set no longer passes complete preflight; no historical branch was deleted"
         )
 
-    result["recovery_test"] = safe_recovery_test(
-        client, policy["default_branch"], policy["issue"]
-    )
+    result["recovery_test"] = safe_recovery_test(client, policy["default_branch"], policy["issue"])
     _write(output, result)
-
     for candidate in candidates:
         try:
-            status = revalidate_candidate(
-                client,
-                policy,
-                candidate,
-                base_ref=policy["default_branch"],
-            )
+            status = revalidate_candidate(client, policy, candidate, base_ref=policy["default_branch"])
         except RetainBranch as exc:
             result["retained_after_revalidation"].append(
                 {"branch": candidate["branch"], "reason": str(exc), "phase": "immediate"}
@@ -414,7 +431,6 @@ def apply_reviewed_cleanup(
         delete_branch_exact(client, candidate["branch"], candidate["sha"])
         result["deleted"].append(candidate)
         _write(output, result)
-
     result["result"] = "PASS"
     _write(output, result)
     return result
@@ -439,7 +455,6 @@ def event_cleanup(
     number = pull.get("number")
     if branch is None or sha is None or not isinstance(number, int):
         raise rl.LifecycleError("closed PR lacks exact same-repository head identity")
-
     classification = "TERMINAL_MERGED" if pull.get("merged_at") or pull.get("merged") else "TERMINAL_CLOSED_UNMERGED"
     candidate = {
         "branch": branch,
@@ -448,20 +463,9 @@ def event_cleanup(
         "pr_numbers": [number],
     }
     try:
-        status = revalidate_candidate(
-            client,
-            policy,
-            candidate,
-            base_ref=policy["default_branch"],
-        )
+        status = revalidate_candidate(client, policy, candidate, base_ref=policy["default_branch"])
     except RetainBranch as exc:
-        return {
-            "result": "RETAINED",
-            "branch": branch,
-            "sha": sha,
-            "pr": number,
-            "reason": str(exc),
-        }
+        return {"result": "RETAINED", "branch": branch, "sha": sha, "pr": number, "reason": str(exc)}
     if status["status"] == "ALREADY_ABSENT":
         return {
             "result": "PASS",

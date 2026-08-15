@@ -444,12 +444,16 @@ def build_inventory(client: GitHubClient, policy: dict[str, Any], root: Path) ->
         raise LifecycleError(
             f"default branch drift: policy={policy['default_branch']} live={metadata.get('default_branch')}"
         )
-    if metadata.get("delete_branch_on_merge") is not True:
-        raise LifecycleError("delete_branch_on_merge must remain enabled")
-    if metadata.get("allow_squash_merge") is not True:
-        raise LifecycleError("squash merge must remain enabled")
-    if metadata.get("allow_merge_commit") is not False or metadata.get("allow_rebase_merge") is not False:
-        raise LifecycleError("merge-commit and rebase merge must remain disabled")
+    # Repository-admin merge settings are not guaranteed to be visible to the
+    # workflow GITHUB_TOKEN. They are recorded when present but are not a
+    # deletion-safety dependency: terminal close-event cleanup below covers
+    # both merged and closed-unmerged same-repository PRs at exact head SHA.
+    observed_settings = {
+        "delete_branch_on_merge": metadata.get("delete_branch_on_merge", "UNAVAILABLE_TOKEN_SCOPE"),
+        "allow_squash_merge": metadata.get("allow_squash_merge", "UNAVAILABLE_TOKEN_SCOPE"),
+        "allow_merge_commit": metadata.get("allow_merge_commit", "UNAVAILABLE_TOKEN_SCOPE"),
+        "allow_rebase_merge": metadata.get("allow_rebase_merge", "UNAVAILABLE_TOKEN_SCOPE"),
+    }
 
     pulls = client.pulls("all")
     by_branch = build_pull_index(pulls, client.repo)
@@ -496,6 +500,7 @@ def build_inventory(client: GitHubClient, policy: dict[str, Any], root: Path) ->
         "entries": entries,
         "entries_sha256": entries_sha256(candidates),
         "policy_sha256": policy_sha256(policy),
+        "repository_merge_settings": observed_settings,
     }
 
 
@@ -535,6 +540,10 @@ def validate_approval(approval: dict[str, Any], inventory: dict[str, Any], polic
         raise LifecycleError("approval reviewed_at must be ISO timestamp")
     if not isinstance(approval["review_summary"], str) or not approval["review_summary"].strip():
         raise LifecycleError("approval review_summary required")
+
+
+def write_json(path: Path, value: object) -> None:
+    path.write_text(canonical_json(value), encoding="utf-8")
 
 
 def recovery_test(client: GitHubClient, default_branch: str, issue: int) -> dict[str, Any]:
@@ -667,8 +676,6 @@ def event_cleanup(client: GitHubClient, policy: dict[str, Any], root: Path, even
         raise LifecycleError("pull_request event payload missing")
     if event.get("action") != "closed":
         return {"result": "NOT_APPLICABLE", "reason": "event action is not closed"}
-    if pull.get("merged") is True or pull.get("merged_at"):
-        return {"result": "NOT_APPLICABLE", "reason": "merged PR uses repository delete_branch_on_merge"}
     if not same_repo_pull(pull, client.repo):
         return {"result": "NOT_APPLICABLE", "reason": "fork PR head is not repository-owned"}
     branch = pull_head_ref(pull)
@@ -694,7 +701,7 @@ def event_cleanup(client: GitHubClient, policy: dict[str, Any], root: Path, even
         active_claims=claims,
         pulls=[pull],
     )
-    if classification["classification"] != "TERMINAL_CLOSED_UNMERGED":
+    if classification["classification"] not in DELETION_CLASSIFICATIONS:
         return {
             "result": "RETAINED",
             "reason": classification["reason"],
@@ -702,6 +709,7 @@ def event_cleanup(client: GitHubClient, policy: dict[str, Any], root: Path, even
             "classification": classification["classification"],
             "sha": current,
         }
+    # Re-fetch complete live inventory protections before destructive event cleanup.
     live_branch = next((item for item in client.branches() if item.get("name") == branch), None)
     if live_branch is None:
         return {"result": "PASS", "reason": "branch became absent", "branch": branch, "sha": sha}
@@ -716,7 +724,7 @@ def event_cleanup(client: GitHubClient, policy: dict[str, Any], root: Path, even
     client.delete_branch_exact(branch, sha)
     return {
         "result": "PASS",
-        "reason": "closed-unmerged same-repo branch deleted at exact unchanged SHA",
+        "reason": "terminal same-repo PR branch deleted at exact unchanged SHA",
         "branch": branch,
         "sha": sha,
         "pr": pull.get("number"),

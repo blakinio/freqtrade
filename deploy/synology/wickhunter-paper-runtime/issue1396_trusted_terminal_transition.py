@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
-from ai_platform.portal.contracts.bots import BotObservedState
+from ai_platform.portal.contracts.bots import BotInstance, BotObservedState
 from ai_platform.portal.contracts.identity import ActorType, Permission
 from ai_platform.portal.contracts.runtime_generation import (
     ReconciliationCompletenessStatus,
@@ -94,10 +94,45 @@ def _assert_zero_authority(payload: dict[str, object], *, prefix: str) -> None:
 
 def _generation(session_factory, generation_id: str) -> RuntimeGeneration:
     with session_factory() as session:
-        generation = BotRepository().get_runtime_generation(session, TENANT_ID, generation_id)
+        generation = BotRepository().get_runtime_generation(
+            session,
+            TENANT_ID,
+            generation_id,
+        )
     if generation is None or generation.bot_id != BOT_ID:
         raise SystemExit("RuntimeGeneration is missing or does not belong to WickHunter")
     return generation
+
+
+def _bot_and_generations(session_factory) -> tuple[
+    BotInstance,
+    RuntimeGeneration | None,
+    RuntimeGeneration | None,
+]:
+    repository = BotRepository()
+    with session_factory() as session:
+        bot = repository.get_bot(session, TENANT_ID, BOT_ID)
+        if bot is None:
+            raise SystemExit("canonical WickHunter BotInstance is missing")
+        desired = (
+            repository.get_runtime_generation(
+                session,
+                TENANT_ID,
+                bot.desired_runtime_generation_id,
+            )
+            if bot.desired_runtime_generation_id
+            else None
+        )
+        observed = (
+            repository.get_runtime_generation(
+                session,
+                TENANT_ID,
+                bot.observed_runtime_generation_id,
+            )
+            if bot.observed_runtime_generation_id
+            else None
+        )
+    return bot, desired, observed
 
 
 def _source_time_from_health(health: dict[str, object]) -> datetime:
@@ -117,7 +152,10 @@ def _next_reconciled_at(
     return reconciled_at
 
 
-def _paper_material(old: RuntimeGeneration, args: argparse.Namespace) -> RuntimeGenerationMaterial:
+def _paper_material(
+    old: RuntimeGeneration,
+    args: argparse.Namespace,
+) -> RuntimeGenerationMaterial:
     isolation = {
         "schema_version": "wh09-synology-production-paper-v3",
         "runtime_user": "65532:65532",
@@ -153,7 +191,9 @@ def _paper_material(old: RuntimeGeneration, args: argparse.Namespace) -> Runtime
         gateway_artifact_digest=args.gateway_artifact_digest,
         gateway_contract_version="wickhunter-public-market-gateway-v3",
         gateway_contract_digest=args.gateway_contract_digest,
-        market_data_egress_policy_version="binance-usdm-public-market-only-internal-gateway-v3",
+        market_data_egress_policy_version=(
+            "binance-usdm-public-market-only-internal-gateway-v3"
+        ),
         market_data_egress_policy_digest=args.market_egress_policy_digest,
         paper_activation_authorized=True,
         paper_authorization_id=args.authorization_id,
@@ -174,12 +214,15 @@ def baseline_stopped(args: argparse.Namespace) -> None:
         raise SystemExit("baseline RuntimeGeneration truth is incomplete")
     if desired.get("generation_id") != observed.get("generation_id"):
         raise SystemExit("baseline desired/observed generation is not converged")
-    if desired.get("managed_mode") != "shadow" or observed.get("managed_mode") != "shadow":
-        raise SystemExit("baseline canonical mode is not SHADOW")
+    if desired.get("managed_mode") != "shadow":
+        raise SystemExit("baseline desired mode is not SHADOW")
+    if observed.get("managed_mode") != "shadow":
+        raise SystemExit("baseline observed mode is not SHADOW")
     if truth.get("pending_rollout") is not False:
         raise SystemExit("baseline has pending rollout")
     if observed.get("runtime_image_digest") != args.old_image_digest:
-        raise SystemExit("baseline observed image differs from stopped physical SHADOW")
+        raise SystemExit("baseline observed image differs from physical SHADOW")
+
     latest = latest_runtime_observation(session_factory, context, BOT_ID)
     if latest is None:
         raise SystemExit("baseline lacks a runtime observation")
@@ -187,10 +230,11 @@ def baseline_stopped(args: argparse.Namespace) -> None:
         raise SystemExit("baseline latest observation generation mismatch")
     if latest.runtime_instance_id != args.old_container_id:
         raise SystemExit("baseline latest observation runtime instance mismatch")
-    if latest.observed_state not in {
+    allowed_states = {
         BotObservedState.RUNNING.value,
         BotObservedState.STOPPED.value,
-    }:
+    }
+    if latest.observed_state not in allowed_states:
         raise SystemExit("baseline latest observation state is unsupported")
     _dump(
         {
@@ -207,34 +251,79 @@ def baseline_stopped(args: argparse.Namespace) -> None:
     )
 
 
-def author_paper(args: argparse.Namespace) -> None:  # noqa: C901
-    session_factory = _session_factory()
-    repository = BotRepository()
-    context = _context("system-issue1396-paper-author-v4")
-    with session_factory() as session:
-        bot = repository.get_bot(session, TENANT_ID, BOT_ID)
-        if bot is None:
-            raise SystemExit("canonical WickHunter BotInstance is missing")
-        if (
-            not bot.desired_runtime_generation_id
-            or bot.desired_runtime_generation_id != bot.observed_runtime_generation_id
-        ):
-            raise SystemExit("cannot author PAPER while canonical truth is not converged")
-        old = repository.get_runtime_generation(
-            session,
-            TENANT_ID,
-            bot.observed_runtime_generation_id,
-        )
-    if old is None or old.managed_mode is not BotMode.SHADOW:
+def _load_converged_shadow(session_factory) -> RuntimeGeneration:
+    bot, desired, observed = _bot_and_generations(session_factory)
+    if desired is None or observed is None:
+        raise SystemExit("canonical RuntimeGeneration truth is incomplete")
+    if desired.generation_id != observed.generation_id:
+        raise SystemExit("cannot author PAPER while canonical truth is not converged")
+    if observed.managed_mode is not BotMode.SHADOW:
         raise SystemExit("current observed generation is not SHADOW")
-    paper_material = _paper_material(old, args)
+    if bot.desired_runtime_generation_id != observed.generation_id:
+        raise SystemExit("BotInstance desired generation identity mismatch")
+    return observed
+
+
+def _assert_authored_paper(
+    paper_generation: RuntimeGeneration,
+    old: RuntimeGeneration,
+    pending: BotInstance,
+    rollout,
+    args: argparse.Namespace,
+) -> None:
+    checks = {
+        "managed_mode": paper_generation.managed_mode is BotMode.PAPER,
+        "authorization": (
+            paper_generation.paper_authorization_digest
+            == args.authorization_digest
+        ),
+        "image": paper_generation.runtime_image_digest == args.image_digest,
+        "config": (
+            paper_generation.normalized_runtime_config_digest
+            == args.config_digest
+        ),
+        "gateway_artifact": (
+            paper_generation.gateway_artifact_digest
+            == args.gateway_artifact_digest
+        ),
+        "gateway_contract": (
+            paper_generation.gateway_contract_digest
+            == args.gateway_contract_digest
+        ),
+        "egress_policy": (
+            paper_generation.market_data_egress_policy_digest
+            == args.market_egress_policy_digest
+        ),
+        "desired_generation": (
+            pending.desired_runtime_generation_id
+            == paper_generation.generation_id
+        ),
+        "observed_preserved": (
+            pending.observed_runtime_generation_id == old.generation_id
+        ),
+        "rollout_lineage": rollout.from_generation_id == old.generation_id,
+    }
+    failed = sorted(key for key, value in checks.items() if not value)
+    if failed:
+        joined = ", ".join(failed)
+        raise SystemExit(f"PAPER RuntimeGeneration binding mismatch: {joined}")
+
+
+def author_paper(args: argparse.Namespace) -> None:
+    session_factory = _session_factory()
+    context = _context("system-issue1396-paper-author-v4")
+    old = _load_converged_shadow(session_factory)
+    material = _paper_material(old, args)
 
     def resolver(_context: RequestContext, revision):
         if revision.managed_mode is not BotMode.PAPER:
-            raise RuntimeError("Issue #1396 resolver accepts only PAPER revision material")
-        return paper_material
+            raise RuntimeError("Issue #1396 resolver accepts only PAPER material")
+        return material
 
-    service = ControlPlaneService(session_factory, generation_material_resolver=resolver)
+    service = ControlPlaneService(
+        session_factory,
+        generation_material_resolver=resolver,
+    )
     current = service.get_bot(context, BOT_ID)
     paper_spec = current.spec.model_copy(
         update={
@@ -245,12 +334,13 @@ def author_paper(args: argparse.Namespace) -> None:  # noqa: C901
         }
     )
     revised = service.revise_bot(context, BOT_ID, paper_spec)
-    if revised.latest_authored_revision_id is None:
+    revision_id = revised.latest_authored_revision_id
+    if revision_id is None:
         raise SystemExit("PAPER revision was not authored")
     promoted = service.promote_revision(
         context,
         BOT_ID,
-        revised.latest_authored_revision_id,
+        revision_id,
         revised.state_version,
     )
     current = service.get_bot(context, BOT_ID)
@@ -261,27 +351,13 @@ def author_paper(args: argparse.Namespace) -> None:  # noqa: C901
         current.state_version,
         f"issue1396-terminal-paper-v4-{args.implementation_sha[:12]}",
     )
-    checks = {
-        "managed_mode": paper_generation.managed_mode is BotMode.PAPER,
-        "paper_authorization_digest": paper_generation.paper_authorization_digest
-        == args.authorization_digest,
-        "runtime_image_digest": paper_generation.runtime_image_digest == args.image_digest,
-        "normalized_runtime_config_digest": paper_generation.normalized_runtime_config_digest
-        == args.config_digest,
-        "gateway_artifact_digest": paper_generation.gateway_artifact_digest
-        == args.gateway_artifact_digest,
-        "gateway_contract_digest": paper_generation.gateway_contract_digest
-        == args.gateway_contract_digest,
-        "market_data_egress_policy_digest": paper_generation.market_data_egress_policy_digest
-        == args.market_egress_policy_digest,
-        "desired_generation": pending.desired_runtime_generation_id
-        == paper_generation.generation_id,
-        "observed_preserved": pending.observed_runtime_generation_id == old.generation_id,
-        "rollout_lineage": rollout.from_generation_id == old.generation_id,
-    }
-    failed = sorted(key for key, value in checks.items() if not value)
-    if failed:
-        raise SystemExit(f"PAPER RuntimeGeneration binding mismatch: {', '.join(failed)}")
+    _assert_authored_paper(
+        paper_generation,
+        old,
+        pending,
+        rollout,
+        args,
+    )
     _dump(
         {
             "old_generation": old.model_dump(mode="json"),
@@ -306,7 +382,7 @@ def _record_stop(
     if latest is None:
         raise SystemExit("STOPPED proof lacks prior observation")
     if latest.generation_id != generation.generation_id:
-        raise SystemExit("STOPPED proof does not target current observed generation")
+        raise SystemExit("STOPPED proof does not target observed generation")
     if latest.runtime_instance_id != runtime_instance_id:
         raise SystemExit("STOPPED proof runtime instance mismatch")
     if latest.observed_state == BotObservedState.STOPPED.value:
@@ -317,7 +393,8 @@ def _record_stop(
             latest,
         )
     if latest.observed_state != BotObservedState.RUNNING.value:
-        raise SystemExit("latest observation cannot become authoritative STOPPED proof")
+        raise SystemExit("latest observation cannot become STOPPED proof")
+
     observed_at = datetime.now(UTC)
     if observed_at <= latest.reconciled_at:
         observed_at = latest.reconciled_at + timedelta(microseconds=1)
@@ -372,27 +449,32 @@ def record_stop(args: argparse.Namespace) -> None:
     _dump(observation.model_dump(mode="json"))
 
 
-def _reconcile_running(
-    session_factory,
-    context: RequestContext,
-    *,
-    generation_id: str,
-    runtime_instance_id: str,
-    health_path: str,
-    source_version: str,
-    evidence_kind: str,
-):
-    generation = _generation(session_factory, generation_id)
+def _validated_health(health_path: str, source_version: str) -> dict[str, object]:
     health = json.loads(Path(health_path).read_text(encoding="utf-8"))
-    if health.get("status") != "healthy" or health.get("runtime_health") != "healthy":
-        raise SystemExit("RUNNING reconciliation health is not genuinely healthy")
-    if health.get("circuit_breaker_active") is not False or health.get("circuit_breaker_reasons") != []:
+    if health.get("status") != "healthy":
+        raise SystemExit("RUNNING reconciliation status is not healthy")
+    if health.get("runtime_health") != "healthy":
+        raise SystemExit("RUNNING reconciliation runtime health is not healthy")
+    if health.get("circuit_breaker_active") is not False:
         raise SystemExit("RUNNING reconciliation circuit breaker is active")
+    if health.get("circuit_breaker_reasons") != []:
+        raise SystemExit("RUNNING reconciliation breaker reasons are not empty")
     _assert_zero_authority(health, prefix="RUNNING reconciliation")
     if health.get("operator_commit") != source_version:
         raise SystemExit("RUNNING reconciliation operator commit mismatch")
+    return health
+
+
+def _running_observation(
+    generation: RuntimeGeneration,
+    latest: RuntimeGenerationObservation | None,
+    *,
+    runtime_instance_id: str,
+    health: dict[str, object],
+    source_version: str,
+    evidence_kind: str,
+) -> RuntimeGenerationObservation:
     source_observed_at = _source_time_from_health(health)
-    latest = latest_runtime_observation(session_factory, context, BOT_ID)
     same_runtime = (
         latest is not None
         and latest.generation_id == generation.generation_id
@@ -400,7 +482,8 @@ def _reconcile_running(
     )
     epoch = latest.reconciliation_epoch + 1 if same_runtime else 1
     attempt = latest.reconciliation_attempt + 1 if same_runtime else 1
-    reconciled_at = _next_reconciled_at(source_observed_at, latest if same_runtime else None)
+    prior = latest if same_runtime else None
+    reconciled_at = _next_reconciled_at(source_observed_at, prior)
     source_sequence = health.get("generation")
     if isinstance(source_sequence, bool) or not isinstance(source_sequence, int):
         raise SystemExit("RUNNING reconciliation source generation is invalid")
@@ -419,7 +502,7 @@ def _reconcile_running(
         "observed_image_digest": generation.runtime_image_digest,
         "observed_config_digest": generation.normalized_runtime_config_digest,
     }
-    observation = RuntimeGenerationObservation(
+    return RuntimeGenerationObservation(
         observation_id=str(uuid4()),
         generation_id=generation.generation_id,
         runtime_instance_id=runtime_instance_id,
@@ -439,6 +522,29 @@ def _reconcile_running(
         evidence_hash=canonical_sha256(evidence),
         reason_code="ISSUE1396_PAPER_RUNTIME_HEALTHY",
     )
+
+
+def _reconcile_running(
+    session_factory,
+    context: RequestContext,
+    *,
+    generation_id: str,
+    runtime_instance_id: str,
+    health_path: str,
+    source_version: str,
+    evidence_kind: str,
+):
+    generation = _generation(session_factory, generation_id)
+    health = _validated_health(health_path, source_version)
+    latest = latest_runtime_observation(session_factory, context, BOT_ID)
+    observation = _running_observation(
+        generation,
+        latest,
+        runtime_instance_id=runtime_instance_id,
+        health=health,
+        source_version=source_version,
+        evidence_kind=evidence_kind,
+    )
     result = reconcile_external_runtime_observation(
         session_factory,
         context,
@@ -453,8 +559,10 @@ def _reconcile_running(
     rollout = truth.get("latest_rollout")
     if not isinstance(rollout, dict):
         raise SystemExit("reconciled rollout is missing")
-    if rollout.get("status") != "SUCCEEDED" or rollout.get("reason_code") != "EXTERNAL_RUNTIME_ADOPTED":
-        raise SystemExit("reconciled rollout is not successful external adoption")
+    if rollout.get("status") != "SUCCEEDED":
+        raise SystemExit("reconciled rollout is not successful")
+    if rollout.get("reason_code") != "EXTERNAL_RUNTIME_ADOPTED":
+        raise SystemExit("reconciled rollout provenance mismatch")
     return observation, result.bot, rollout
 
 
@@ -490,6 +598,7 @@ def final_api(args: argparse.Namespace) -> None:
     rows = [row for row in bots_response.json() if row.get("bot_id") == BOT_ID]
     if len(rows) != 1:
         raise SystemExit("final Portal API does not contain exactly one WickHunter")
+
     payload = truth_response.json()
     desired = payload.get("desired_generation")
     observed = payload.get("observed_generation")
@@ -498,17 +607,18 @@ def final_api(args: argparse.Namespace) -> None:
         raise SystemExit("final runtime truth is incomplete")
     if desired.get("generation_id") != observed.get("generation_id"):
         raise SystemExit("final desired/observed generation is not converged")
-    if (
-        desired.get("managed_mode") != args.expected_mode
-        or observed.get("managed_mode") != args.expected_mode
-    ):
-        raise SystemExit(f"final canonical mode is not {args.expected_mode}")
+    if desired.get("managed_mode") != args.expected_mode:
+        raise SystemExit(f"final desired mode is not {args.expected_mode}")
+    if observed.get("managed_mode") != args.expected_mode:
+        raise SystemExit(f"final observed mode is not {args.expected_mode}")
     if payload.get("pending_rollout") is not False:
         raise SystemExit("final runtime truth has pending rollout")
     if args.expected_mode == "paper":
         if not desired.get("paper_authorization_digest"):
             raise SystemExit("final PAPER authorization identity is missing")
-        if not isinstance(rollout, dict) or rollout.get("status") != "SUCCEEDED":
+        if not isinstance(rollout, dict):
+            raise SystemExit("final PAPER rollout is missing")
+        if rollout.get("status") != "SUCCEEDED":
             raise SystemExit("final PAPER rollout is not successful")
         if rollout.get("reason_code") != "EXTERNAL_RUNTIME_ADOPTED":
             raise SystemExit("final PAPER rollout provenance mismatch")
@@ -517,22 +627,8 @@ def final_api(args: argparse.Namespace) -> None:
 
 def recover_to_paper(args: argparse.Namespace) -> None:
     session_factory = _session_factory()
-    repository = BotRepository()
+    _bot, desired, observed = _bot_and_generations(session_factory)
     context = _context("system-issue1396-paper-recovery-v4")
-    with session_factory() as session:
-        bot = repository.get_bot(session, TENANT_ID, BOT_ID)
-        if bot is None:
-            raise SystemExit("WickHunter bot is missing during recovery")
-        desired = (
-            repository.get_runtime_generation(session, TENANT_ID, bot.desired_runtime_generation_id)
-            if bot.desired_runtime_generation_id
-            else None
-        )
-        observed = (
-            repository.get_runtime_generation(session, TENANT_ID, bot.observed_runtime_generation_id)
-            if bot.observed_runtime_generation_id
-            else None
-        )
     if desired is None or observed is None:
         raise SystemExit("recovery RuntimeGeneration truth is incomplete")
     if desired.generation_id == observed.generation_id:
@@ -543,8 +639,10 @@ def recover_to_paper(args: argparse.Namespace) -> None:
             _dump({"result": "NO_CANONICAL_MUTATION", "mode": "shadow"})
             return
         raise SystemExit("recovery converged to unsupported mode")
-    if desired.managed_mode is not BotMode.PAPER or observed.managed_mode is not BotMode.SHADOW:
-        raise SystemExit("recovery only supports desired PAPER / observed SHADOW")
+    if desired.managed_mode is not BotMode.PAPER:
+        raise SystemExit("recovery desired generation is not PAPER")
+    if observed.managed_mode is not BotMode.SHADOW:
+        raise SystemExit("recovery observed generation is not SHADOW")
     if desired.runtime_image_digest != args.image_digest:
         raise SystemExit("recovery PAPER image identity mismatch")
     if desired.normalized_runtime_config_digest != args.config_digest:
@@ -583,7 +681,9 @@ def current_state(_args: argparse.Namespace) -> None:
     _dump(
         {
             "truth": truth,
-            "latest_observation": latest.model_dump(mode="json") if latest else None,
+            "latest_observation": (
+                latest.model_dump(mode="json") if latest is not None else None
+            ),
         }
     )
 
@@ -636,7 +736,11 @@ def parser() -> argparse.ArgumentParser:
     command.set_defaults(func=recover_to_paper)
 
     command = sub.add_parser("final-api")
-    command.add_argument("--expected-mode", choices=("shadow", "paper"), required=True)
+    command.add_argument(
+        "--expected-mode",
+        choices=("shadow", "paper"),
+        required=True,
+    )
     command.set_defaults(func=final_api)
 
     command = sub.add_parser("current-state")

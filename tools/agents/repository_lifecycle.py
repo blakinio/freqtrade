@@ -7,7 +7,6 @@ import hashlib
 import json
 import os
 import re
-import subprocess
 import sys
 import urllib.error
 import urllib.parse
@@ -147,8 +146,7 @@ def active_branch_claims(root: Path) -> set[str]:
 
 
 def is_reserved(branch: str, parts: Iterable[str]) -> bool:
-    lowered = branch.casefold()
-    tokens = re.split(r"[/_.-]+", lowered)
+    tokens = re.split(r"[/_.-]+", branch.casefold())
     return any(part.casefold() in tokens for part in parts)
 
 
@@ -215,7 +213,6 @@ class GitHubClient:
         self.token = token
         self.api_url = api_url.rstrip("/")
         self.root = (root or Path(".")).resolve()
-        self.deleted_refs: set[str] = set()
 
     def request(
         self,
@@ -278,18 +275,20 @@ class GitHubClient:
         return payload
 
     def branches(self) -> list[dict[str, Any]]:
-        raw = self.paginate(f"/repos/{self.repo}/branches?per_page=100")
-        out = []
-        for item in raw:
-            if isinstance(item, dict):
-                out.append(item)
-        return out
+        return [
+            item
+            for item in self.paginate(f"/repos/{self.repo}/branches?per_page=100")
+            if isinstance(item, dict)
+        ]
 
     def pulls(self, state: str = "all") -> list[dict[str, Any]]:
-        raw = self.paginate(
-            f"/repos/{self.repo}/pulls?state={urllib.parse.quote(state)}&per_page=100&sort=updated&direction=desc"
-        )
-        return [item for item in raw if isinstance(item, dict)]
+        return [
+            item
+            for item in self.paginate(
+                f"/repos/{self.repo}/pulls?state={urllib.parse.quote(state)}&per_page=100&sort=updated&direction=desc"
+            )
+            if isinstance(item, dict)
+        ]
 
     def get_ref_sha(self, branch: str) -> str | None:
         ref = "heads/" + urllib.parse.quote(branch, safe="/")
@@ -306,90 +305,6 @@ class GitHubClient:
             return None
         sha = obj.get("sha")
         return sha if isinstance(sha, str) and FULL_SHA_RE.fullmatch(sha) else None
-
-    def create_ref(self, branch: str, sha: str) -> None:
-        self.request(
-            "POST",
-            f"/repos/{self.repo}/git/refs",
-            data={"ref": f"refs/heads/{branch}", "sha": sha},
-            expected=(201,),
-        )
-
-    def _run_git(self, args: list[str], purpose: str, timeout: int = 60) -> subprocess.CompletedProcess[str]:
-        try:
-            return subprocess.run(
-                args,
-                cwd=self.root,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                check=False,
-            )
-        except FileNotFoundError as exc:
-            raise LifecycleError(f"{purpose}: git executable unavailable") from exc
-        except subprocess.TimeoutExpired as exc:
-            raise LifecycleError(f"{purpose}: timed out") from exc
-
-    def _validate_remote(self) -> str:
-        root = self._run_git(["git", "rev-parse", "--show-toplevel"], "validate git root", 15)
-        if root.returncode != 0 or Path(root.stdout.strip()).resolve() != self.root:
-            raise LifecycleError("configured root is not the checked-out Git worktree")
-        remote = self._run_git(["git", "remote", "get-url", "--push", "origin"], "validate origin", 15)
-        if remote.returncode != 0:
-            raise LifecycleError("origin push remote unavailable")
-        value = remote.stdout.strip()
-        expected = self.repo.casefold()
-        normalized = value.removesuffix(".git")
-        if normalized.startswith("https://github.com/"):
-            got = normalized.removeprefix("https://github.com/").casefold()
-        elif normalized.startswith("git@github.com:"):
-            got = normalized.removeprefix("git@github.com:").casefold()
-        else:
-            raise LifecycleError("origin is not a supported GitHub remote")
-        if got != expected:
-            raise LifecycleError(f"origin repository mismatch: expected {self.repo}, got {got}")
-        return "origin"
-
-    def remote_ref_sha(self, branch: str) -> str | None:
-        remote = self._validate_remote()
-        ref = f"refs/heads/{branch}"
-        result = self._run_git(["git", "ls-remote", "--refs", remote, ref], f"verify remote ref {branch}")
-        if result.returncode != 0:
-            raise LifecycleError(f"git ls-remote failed for {branch}")
-        rows = [line.split() for line in result.stdout.splitlines() if line.strip()]
-        if not rows:
-            return None
-        if len(rows) != 1 or len(rows[0]) != 2 or rows[0][1] != ref or not FULL_SHA_RE.fullmatch(rows[0][0]):
-            raise LifecycleError(f"unexpected remote ref data for {branch}")
-        return rows[0][0]
-
-    def delete_branch_exact(self, branch: str, expected_sha: str) -> None:
-        current = self.get_ref_sha(branch)
-        if current != expected_sha:
-            raise LifecycleError(f"pre-delete SHA drift for {branch}: expected {expected_sha}, got {current}")
-        remote = self._validate_remote()
-        ref = f"refs/heads/{branch}"
-        result = self._run_git(
-            [
-                "git",
-                "push",
-                "--porcelain",
-                f"--force-with-lease={ref}:{expected_sha}",
-                remote,
-                f":{ref}",
-            ],
-            f"delete branch {branch}",
-        )
-        if result.returncode != 0:
-            remote_sha = self.remote_ref_sha(branch)
-            if remote_sha is None:
-                raise LifecycleError(f"delete returned failure but {branch} is absent; ambiguous")
-            if remote_sha != expected_sha:
-                raise LifecycleError(f"delete lease rejected for {branch}: remote moved to {remote_sha}")
-            raise LifecycleError(f"delete push rejected for {branch}")
-        self.deleted_refs.add(branch)
-        if self.remote_ref_sha(branch) is not None:
-            raise LifecycleError(f"post-delete git verification found {branch} still present")
 
 
 def build_pull_index(pulls: list[dict[str, Any]], repo: str) -> dict[str, list[dict[str, Any]]]:
@@ -427,27 +342,18 @@ def classify_branch(
         if exact_merged:
             classification, reason = "TERMINAL_MERGED", "closed merged PR exact head SHA matches live branch"
         elif exact_unmerged:
-            classification, reason = (
-                "TERMINAL_CLOSED_UNMERGED",
-                "closed unmerged PR exact head SHA matches live branch",
-            )
+            classification, reason = "TERMINAL_CLOSED_UNMERGED", "closed unmerged PR exact head SHA matches live branch"
         elif pulls:
             classification, reason = "UNKNOWN", "PR history exists but no terminal PR matches current branch SHA"
         else:
             classification, reason = "UNMERGED_ORPHAN", "no same-repository PR history found for branch"
-    deletion_candidate = classification in DELETION_CLASSIFICATIONS
-    pr_numbers = sorted(
-        {
-            int(pull["number"])
-            for pull in pulls
-            if isinstance(pull.get("number"), int)
-        }
-    )
     return {
         "branch": branch,
         "classification": classification,
-        "deletion_candidate": deletion_candidate,
-        "pr_numbers": pr_numbers,
+        "deletion_candidate": classification in DELETION_CLASSIFICATIONS,
+        "pr_numbers": sorted(
+            {int(pull["number"]) for pull in pulls if isinstance(pull.get("number"), int)}
+        ),
         "protected": bool(protected),
         "reason": reason,
         "sha": sha,
@@ -469,7 +375,6 @@ def build_inventory(client: GitHubClient, policy: dict[str, Any], root: Path) ->
         "allow_merge_commit": metadata.get("allow_merge_commit", "UNAVAILABLE_TOKEN_SCOPE"),
         "allow_rebase_merge": metadata.get("allow_rebase_merge", "UNAVAILABLE_TOKEN_SCOPE"),
     }
-
     pulls = client.pulls("all")
     by_branch = build_pull_index(pulls, client.repo)
     claims = active_branch_claims(root)
@@ -557,60 +462,6 @@ def validate_approval(approval: dict[str, Any], inventory: dict[str, Any], polic
         raise LifecycleError("approval review_summary required")
 
 
-def recovery_test(client: GitHubClient, default_branch: str, issue: int) -> dict[str, Any]:
-    run_id = os.environ.get("GITHUB_RUN_ID", "local")
-    branch = f"recovery-test/issue-{issue}-{run_id}"
-    if client.get_ref_sha(branch) is not None:
-        raise LifecycleError(f"recovery-test branch already exists: {branch}")
-    base_sha = client.get_ref_sha(default_branch)
-    if base_sha is None:
-        raise LifecycleError("default branch ref missing for recovery test")
-    client.create_ref(branch, base_sha)
-    if client.get_ref_sha(branch) != base_sha:
-        raise LifecycleError("recovery-test create verification failed")
-    client.delete_branch_exact(branch, base_sha)
-    client.create_ref(branch, base_sha)
-    restored_sha = client.get_ref_sha(branch)
-    if restored_sha != base_sha:
-        raise LifecycleError("recovery-test restore verification failed")
-    client.delete_branch_exact(branch, base_sha)
-    return {
-        "branch": branch,
-        "base_sha": base_sha,
-        "create": "PASS",
-        "delete": "PASS",
-        "restore": "PASS",
-        "final_delete": "PASS",
-    }
-
-
-def apply_inventory(client: GitHubClient, inventory: dict[str, Any], policy: dict[str, Any]) -> dict[str, Any]:
-    if not APPROVAL_PATH.exists():
-        raise LifecycleError("approval file missing")
-    approval = load_json(APPROVAL_PATH)
-    validate_approval(approval, inventory, policy)
-    if approval["apply_on_develop"] is not True:
-        raise LifecycleError("approval is not activated for develop")
-    recovery = recovery_test(client, policy["default_branch"], policy["issue"])
-    deleted: list[dict[str, Any]] = []
-    for candidate in inventory["candidates"]:
-        branch = candidate["branch"]
-        sha = candidate["sha"]
-        client.delete_branch_exact(branch, sha)
-        deleted.append(candidate)
-    return {
-        "schema_version": 1,
-        "repository": client.repo,
-        "candidate_count": inventory["candidate_count"],
-        "deleted_count": len(deleted),
-        "deleted": deleted,
-        "entries_sha256": inventory["entries_sha256"],
-        "policy_sha256": inventory["policy_sha256"],
-        "recovery_test": recovery,
-        "result": "PASS",
-    }
-
-
 def classify_pr_health(pull: dict[str, Any], *, now: dt.datetime, stale_days: int) -> dict[str, Any]:
     number = pull.get("number")
     title = pull.get("title") if isinstance(pull.get("title"), str) else ""
@@ -624,20 +475,15 @@ def classify_pr_health(pull: dict[str, Any], *, now: dt.datetime, stale_days: in
     prose_draft = bool(DRAFT_WORDING_RE.search(body))
     inconsistent = (prose_draft and not draft) or (draft and "ready for review" in body_lower)
     if inconsistent:
-        health = "METADATA_INCONSISTENT"
-        reason = "GitHub draft metadata conflicts with PR prose"
+        health, reason = "METADATA_INCONSISTENT", "GitHub draft metadata conflicts with PR prose"
     elif request_only:
-        health = "REQUEST_ONLY"
-        reason = "PR prose explicitly marks this PR as request-only / close-without-merge"
+        health, reason = "REQUEST_ONLY", "PR prose explicitly marks this PR as request-only / close-without-merge"
     elif waiting:
-        health = "WAITING_OR_BLOCKED"
-        reason = "PR prose explicitly records waiting/blocking semantics"
+        health, reason = "WAITING_OR_BLOCKED", "PR prose explicitly records waiting/blocking semantics"
     elif age_days is not None and age_days >= stale_days:
-        health = "STALLED_SIGNAL"
-        reason = f"no PR metadata update for at least {stale_days} days; signal only, never auto-close by age"
+        health, reason = "STALLED_SIGNAL", f"no PR metadata update for at least {stale_days} days; signal only, never auto-close by age"
     else:
-        health = "ACTIVE"
-        reason = "recent or no terminal/waiting signal detected"
+        health, reason = "ACTIVE", "recent or no terminal/waiting signal detected"
     return {
         "number": number,
         "title": title,
@@ -671,75 +517,12 @@ def pr_audit(client: GitHubClient, policy: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def event_cleanup(client: GitHubClient, policy: dict[str, Any], root: Path, event_path: Path) -> dict[str, Any]:
-    event = json.loads(event_path.read_text(encoding="utf-8"))
-    pull = event.get("pull_request")
-    if not isinstance(pull, dict):
-        raise LifecycleError("pull_request event payload missing")
-    if event.get("action") != "closed":
-        return {"result": "NOT_APPLICABLE", "reason": "event action is not closed"}
-    if not same_repo_pull(pull, client.repo):
-        return {"result": "NOT_APPLICABLE", "reason": "fork PR head is not repository-owned"}
-    branch = pull_head_ref(pull)
-    sha = pull_head_sha(pull)
-    if branch is None or sha is None:
-        raise LifecycleError("closed PR lacks exact same-repo head ref/SHA")
-    current = client.get_ref_sha(branch)
-    if current is None:
-        return {"result": "PASS", "reason": "branch already absent", "branch": branch, "sha": sha}
-    if current != sha:
-        return {
-            "result": "RETAINED",
-            "reason": "branch moved after PR head; exact SHA no longer matches",
-            "branch": branch,
-            "sha": current,
-        }
-    claims = active_branch_claims(root)
-    classification = classify_branch(
-        branch=branch,
-        sha=current,
-        protected=False,
-        policy=policy,
-        active_claims=claims,
-        pulls=[pull],
-    )
-    if classification["classification"] not in DELETION_CLASSIFICATIONS:
-        return {
-            "result": "RETAINED",
-            "reason": classification["reason"],
-            "branch": branch,
-            "classification": classification["classification"],
-            "sha": current,
-        }
-    live_branch = next((item for item in client.branches() if item.get("name") == branch), None)
-    if live_branch is None:
-        return {"result": "PASS", "reason": "branch became absent", "branch": branch, "sha": sha}
-    if bool(live_branch.get("protected")):
-        return {"result": "RETAINED", "reason": "branch is protected", "branch": branch, "sha": sha}
-    open_pulls = [
-        p for p in client.pulls("open")
-        if same_repo_pull(p, client.repo) and pull_head_ref(p) == branch
-    ]
-    if open_pulls:
-        return {"result": "RETAINED", "reason": "branch has another open PR", "branch": branch, "sha": sha}
-    client.delete_branch_exact(branch, sha)
-    return {
-        "result": "PASS",
-        "reason": "terminal same-repo PR branch deleted at exact unchanged SHA",
-        "branch": branch,
-        "sha": sha,
-        "pr": pull.get("number"),
-    }
-
-
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser()
-    p.add_argument("--mode", choices=("validate-policy", "inventory", "apply", "pr-audit", "event"), required=True)
+    p.add_argument("--mode", choices=("validate-policy", "inventory", "pr-audit"), required=True)
     p.add_argument("--root", default=".")
     p.add_argument("--policy", default=str(POLICY_PATH))
     p.add_argument("--output")
-    p.add_argument("--event")
-    p.add_argument("--evidence")
     return p
 
 
@@ -758,28 +541,12 @@ def main(argv: list[str] | None = None) -> int:
     if repo.casefold() != policy["repository"].casefold():
         raise LifecycleError(f"GITHUB_REPOSITORY mismatch: {repo}")
     client = GitHubClient(repo, token, root=root)
-
-    if args.mode == "inventory":
-        result = build_inventory(client, policy, root)
-    elif args.mode == "pr-audit":
-        result = pr_audit(client, policy)
-    elif args.mode == "apply":
-        inventory = build_inventory(client, policy, root)
-        result = apply_inventory(client, inventory, policy)
-    elif args.mode == "event":
-        if not args.event:
-            raise LifecycleError("--event is required for event mode")
-        result = event_cleanup(client, policy, root, Path(args.event))
-    else:
-        raise AssertionError(args.mode)
-
+    result = build_inventory(client, policy, root) if args.mode == "inventory" else pr_audit(client, policy)
     text = canonical_json(result)
     if args.output:
         Path(args.output).write_text(text, encoding="utf-8")
     else:
         print(text, end="")
-    if args.evidence:
-        Path(args.evidence).write_text(text, encoding="utf-8")
     return 0
 
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import stat
 import subprocess
 import sys
@@ -74,19 +75,30 @@ def _helper_script() -> str:
             f"os.chown(path, {PORTAL_UID}, {PORTAL_GID})",
             "path.chmod(0o700)",
             "metadata = path.stat()",
-            (f"if metadata.st_uid != {PORTAL_UID}: raise SystemExit('portal data uid mismatch')"),
-            (f"if metadata.st_gid != {PORTAL_GID}: raise SystemExit('portal data gid mismatch')"),
+            f"if metadata.st_uid != {PORTAL_UID}: raise SystemExit('portal data uid mismatch')",
+            f"if metadata.st_gid != {PORTAL_GID}: raise SystemExit('portal data gid mismatch')",
             "if stat.S_IMODE(metadata.st_mode) != 0o700: "
             "raise SystemExit('portal data mode mismatch')",
         ]
     )
 
 
-def _helper_run_args(image: str) -> list[str]:
+def _helper_run_args(
+    image: str,
+    *,
+    helper_name: str | None = None,
+    helper_labels: tuple[str, ...] = (),
+) -> list[str]:
+    ownership: list[str] = []
+    if helper_name:
+        ownership.extend(["--name", helper_name])
+    for label in helper_labels:
+        ownership.extend(["--label", label])
     return [
         "docker",
         "run",
         "--rm",
+        *ownership,
         "--network",
         "none",
         "--read-only",
@@ -123,7 +135,12 @@ def _preflight_command() -> list[str]:
     return [sys.executable, str(preflight)]
 
 
-def prepare(repo: Path) -> None:
+def prepare(
+    repo: Path,
+    *,
+    helper_name: str | None = None,
+    helper_labels: tuple[str, ...] = (),
+) -> None:
     try:
         _run(_preflight_command())
     except PreparationError as exc:
@@ -136,14 +153,49 @@ def prepare(repo: Path) -> None:
     image = _run(["docker", "inspect", "--format", "{{.Config.Image}}", server]).stdout.strip()
     if not image:
         raise PreparationError("Authen­tik server image is unavailable")
-    _run(_helper_run_args(image))
+
+    if helper_name:
+        subprocess.run(
+            ["docker", "rm", "-f", helper_name],
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+    try:
+        _run(_helper_run_args(image, helper_name=helper_name, helper_labels=helper_labels))
+    finally:
+        if helper_name:
+            subprocess.run(
+                ["docker", "rm", "-f", helper_name],
+                check=False,
+                text=True,
+                capture_output=True,
+            )
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repository", required=True)
+    parser.add_argument("--helper-name")
+    parser.add_argument("--helper-label", action="append", default=[])
     args = parser.parse_args()
-    prepare(Path(args.repository).resolve())
+
+    run_id = os.environ.get("GITHUB_RUN_ID", "").strip()
+    helper_name = args.helper_name or (f"portal-prepare-host-{run_id}" if run_id else None)
+    labels = list(args.helper_label)
+    if run_id:
+        labels.extend(
+            [
+                f"io.freqtrade.owner=github-actions:{run_id}",
+                "io.freqtrade.purpose=portal-host-preparation",
+            ]
+        )
+
+    prepare(
+        Path(args.repository).resolve(),
+        helper_name=helper_name,
+        helper_labels=tuple(labels),
+    )
     print(f"prepared {PORTAL_DATA_DIR} for uid={PORTAL_UID} gid={PORTAL_GID} mode=0700")
     return 0
 

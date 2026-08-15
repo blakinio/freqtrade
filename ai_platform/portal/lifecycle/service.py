@@ -2,18 +2,20 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import Any, cast
 from uuid import uuid4
 
-from pydantic import PositiveInt
+from pydantic import NonNegativeInt, PositiveInt
 from sqlalchemy import select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
-from typing import Any, cast
 
 from ai_platform.portal.contracts.bots import BotDesiredState, BotInstance
 from ai_platform.portal.contracts.common import ContractModel, NonEmptyStr, UtcDateTime
+from ai_platform.portal.contracts.identity import Permission
 from ai_platform.portal.control_plane.context import RequestContext
 from ai_platform.portal.control_plane.database import SessionFactory
 from ai_platform.portal.control_plane.models import BotRow
@@ -46,7 +48,7 @@ class LifecycleCommand(ContractModel):
     expected_state_version: PositiveInt
     accepted_state_version: PositiveInt
     status: LifecycleCommandStatus
-    attempt_count: int
+    attempt_count: NonNegativeInt
     last_error_code: NonEmptyStr | None = None
     created_at: UtcDateTime
     updated_at: UtcDateTime
@@ -65,12 +67,16 @@ class LifecycleCommandService:
         session_factory: SessionFactory,
         *,
         repository: BotRepository | None = None,
-        clock: callable | None = None,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._repository = repository or BotRepository()
         self._clock = clock or (lambda: datetime.now(UTC))
-        self._core = ControlPlaneService(session_factory, repository=self._repository, clock=self._clock)
+        self._core = ControlPlaneService(
+            session_factory,
+            repository=self._repository,
+            clock=self._clock,
+        )
 
     def request(
         self,
@@ -192,13 +198,21 @@ class LifecycleCommandService:
                 self._repository.add_audit_event(
                     session,
                     self._core._audit_event(
-                        context, bot_id, audit_action, now, details=details
+                        context,
+                        bot_id,
+                        audit_action,
+                        now,
+                        details=details,
                     ),
                 )
                 self._repository.add_outbox_event(
                     session,
                     self._core._domain_event(
-                        context, bot_id, event_type, now, payload=details
+                        context,
+                        bot_id,
+                        event_type,
+                        now,
+                        payload=details,
                     ),
                 )
                 session.flush()
@@ -219,7 +233,7 @@ class LifecycleCommandService:
             raise ControlPlaneConflictError("lifecycle command identity conflict") from exc
 
     def get(self, context: RequestContext, bot_id: str, command_id: str) -> LifecycleCommand:
-        require_permission(context.permissions, self._core._desired_state_policy(BotDesiredState.STOPPED)[0])
+        require_permission(context.permissions, Permission.BOT_READ)
         with self._session_factory() as session:
             row = session.get(LifecycleCommandRow, command_id)
             if row is None or row.tenant_id != context.tenant_id or row.bot_id != bot_id:
@@ -228,7 +242,12 @@ class LifecycleCommandService:
 
     @staticmethod
     def _digest(value: object) -> str:
-        encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode()
+        encoded = json.dumps(
+            value,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode()
         return hashlib.sha256(encoded).hexdigest()
 
     @staticmethod

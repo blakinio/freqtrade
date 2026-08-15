@@ -1,0 +1,114 @@
+name: Repository Lifecycle Approval Proposal
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/repository-lifecycle-approval-proposal.yml"
+      - "docs/agents/REPOSITORY_LIFECYCLE_POLICY.json"
+      - "docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json"
+      - "docs/agents/tasks/active/FTAI-20260815-repository-lifecycle-hygiene.md"
+      - "tools/agents/repository_lifecycle.py"
+      - "tools/agents/repository_lifecycle_destructive.py"
+      - "tools/agents/repository_lifecycle_preflight.py"
+      - "tools/agents/repository_lifecycle_approval.py"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: repository-lifecycle-approval-proposal
+  cancel-in-progress: false
+
+jobs:
+  propose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out trusted develop
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: develop
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Detect one-time proposal applicability
+        id: gate
+        shell: bash
+        run: |
+          if [[ ! -f docs/agents/tasks/active/FTAI-20260815-repository-lifecycle-hygiene.md ]]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "Lifecycle task is no longer active; proposal is NOT_APPLICABLE."
+            exit 0
+          fi
+          if [[ -f docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json ]]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "Approval already exists on develop; proposal is NOT_APPLICABLE."
+            exit 0
+          fi
+          echo "run=true" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Revalidate lifecycle implementation before proposal
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          python tools/agents/test_repository_lifecycle.py
+          python tools/agents/test_repository_lifecycle_destructive.py
+          python -m py_compile \
+            tools/agents/repository_lifecycle_preflight.py \
+            tools/agents/repository_lifecycle_approval.py
+
+      - name: Generate exact source-head-safe approval proposal
+        if: steps.gate.outputs.run == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python tools/agents/repository_lifecycle_approval.py \
+            --output docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json
+
+      - name: Create bounded approval branch
+        if: steps.gate.outputs.run == 'true'
+        id: branch
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BRANCH="governance/repository-lifecycle-approval-1559"
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "Approval branch already exists; refusing to rewrite it."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git add docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json
+          if [[ "$(git diff --cached --name-only)" != "docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json" ]]; then
+            echo "Approval proposal attempted an unexpected changed path."
+            exit 1
+          fi
+          git commit -m "docs(governance): approve exact terminal branch cleanup"
+          BASIC="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $BASIC" \
+            push origin "HEAD:refs/heads/$BRANCH"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Open approval PR
+        if: steps.gate.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh pr create \
+            --base develop \
+            --head "${{ steps.branch.outputs.branch }}" \
+            --title "docs(governance): approve exact terminal branch cleanup" \
+            --body $'Tracks #1559.\n\nThis one-time PR contains only the hash-bound approval generated from the exact source-head-safe branch preflight on trusted `develop`. The approval is invalidated by any candidate or policy drift.\n\nNo deletion occurs in this PR. Historical cleanup runs only after this PR passes lifecycle safety validation and merges.'

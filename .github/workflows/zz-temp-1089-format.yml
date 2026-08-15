@@ -35,11 +35,11 @@ jobs:
           "httpx>=0.24.1" fastapi pyjwt cryptography "PyYAML>=6.0"
           ruff==0.15.21
 
-      - name: Authenticate runner mount and push
+      - name: Reject mount whitespace and push
         shell: bash
         run: |
           set -euo pipefail
-          expected_head=a87bce498b350b14114ae27508eb55f7b2ace9c3
+          expected_head=24f27710f65113dcb3158f151f45276f9882c562
           expected_base=9dd5887e301ddfeec6df6a3b3e2da24a9ced850f
           test "$(git rev-parse HEAD)" = "$expected_head"
           git fetch origin develop
@@ -51,44 +51,21 @@ jobs:
 
           entrypoint = Path("deploy/synology/portal-oidc/deploy_entrypoint.py")
           source = entrypoint.read_text(encoding="utf-8")
-
-          old_constants = '''RUNNER_CONTAINER = "freqtrade-synology-staging-runner"\nRUNNER_STATE_DESTINATION = "/var/lib/freqtrade-staging-state"\nMARKET_EVIDENCE_STATE_DIR = "wickhunter-production-market-evidence"\nRUNNER_STATE_SOURCE_FORMAT = (\n    "{{range .Mounts}}"\n    f'{{{{if eq .Destination "{RUNNER_STATE_DESTINATION}"}}}}'\n    "{{.Type}}|{{.Source}}{{println}}"\n    "{{end}}{{end}}"\n)\n'''
-          new_constants = '''RUNNER_CONTAINER = "freqtrade-synology-staging-runner"\nRUNNER_COMPOSE_PROJECT = "freqtrade-deploy-runner"\nRUNNER_COMPOSE_SERVICE = "runner"\nRUNNER_STATE_DESTINATION = "/var/lib/freqtrade-staging-state"\nMARKET_EVIDENCE_STATE_DIR = "wickhunter-production-market-evidence"\nRUNNER_STATE_INSPECT_FORMAT = (\n    "{{.State.Running}}|"\n    '{{index .Config.Labels "com.docker.compose.project"}}|'\n    '{{index .Config.Labels "com.docker.compose.service"}}{{println}}'\n    "{{range .Mounts}}"\n    f'{{{{if eq .Destination "{RUNNER_STATE_DESTINATION}"}}}}'\n    "{{.Type}}|{{.Source}}{{println}}"\n    "{{end}}{{end}}"\n)\n'''
-          if source.count(old_constants) != 1:
-              raise SystemExit("runner constants replacement mismatch")
-          source = source.replace(old_constants, new_constants)
-
-          old_resolver = '''def _resolve_market_evidence_host_root(deploy: Any) -> Path:\n    result = cast(\n        subprocess.CompletedProcess[str],\n        deploy._run(\n            [\n                "docker",\n                "inspect",\n                "--format",\n                RUNNER_STATE_SOURCE_FORMAT,\n                RUNNER_CONTAINER,\n            ],\n            sensitive=True,\n        ),\n    )\n    matches = [line.strip() for line in result.stdout.splitlines() if line.strip()]\n    if len(matches) != 1:\n        raise deploy.DeploymentError(\n            "Synology runner must expose exactly one canonical staging-state host bind"\n        )\n    mount_type, separator, source = matches[0].partition("|")\n    source_path = Path(source)\n    if (\n        separator != "|"\n        or mount_type != "bind"\n        or re.fullmatch(r"/volume1/docker/[A-Za-z0-9._/-]+", source) is None\n        or not source_path.is_absolute()\n        or source != source_path.as_posix()\n        or ".." in source_path.parts\n    ):\n        raise deploy.DeploymentError("Synology runner staging-state host bind is invalid")\n    return source_path / MARKET_EVIDENCE_STATE_DIR\n'''
-          new_resolver = '''def _resolve_market_evidence_host_root(deploy: Any) -> Path:\n    result = cast(\n        subprocess.CompletedProcess[str],\n        deploy._run(\n            [\n                "docker",\n                "inspect",\n                "--format",\n                RUNNER_STATE_INSPECT_FORMAT,\n                RUNNER_CONTAINER,\n            ],\n            sensitive=True,\n        ),\n    )\n    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]\n    if not lines:\n        raise deploy.DeploymentError("Synology staging runner identity is invalid")\n\n    running, state_separator, identity = lines[0].partition("|")\n    project, project_separator, service = identity.partition("|")\n    if (\n        state_separator != "|"\n        or project_separator != "|"\n        or running != "true"\n        or project != RUNNER_COMPOSE_PROJECT\n        or service != RUNNER_COMPOSE_SERVICE\n    ):\n        raise deploy.DeploymentError("Synology staging runner identity is invalid")\n\n    matches = lines[1:]\n    if len(matches) != 1:\n        raise deploy.DeploymentError(\n            "Synology runner must expose exactly one canonical staging-state host bind"\n        )\n    mount_type, separator, source = matches[0].partition("|")\n    source_path = Path(source)\n    if (\n        separator != "|"\n        or mount_type != "bind"\n        or re.fullmatch(r"/volume1/docker/[A-Za-z0-9._/-]+", source) is None\n        or not source_path.is_absolute()\n        or source != source_path.as_posix()\n        or ".." in source_path.parts\n    ):\n        raise deploy.DeploymentError("Synology runner staging-state host bind is invalid")\n    return source_path / MARKET_EVIDENCE_STATE_DIR\n'''
-          if source.count(old_resolver) != 1:
-              raise SystemExit("runner resolver replacement mismatch")
-          entrypoint.write_text(source.replace(old_resolver, new_resolver), encoding="utf-8")
+          old = "    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]\n"
+          new = "    lines = [line for line in result.stdout.splitlines() if line]\n"
+          if source.count(old) != 1:
+              raise SystemExit("raw inspect line replacement mismatch")
+          entrypoint.write_text(source.replace(old, new), encoding="utf-8")
 
           tests_path = Path(
               "tests/ai_platform/portal/deployment/test_portal_oidc_deploy_entrypoint.py"
           )
           tests = tests_path.read_text(encoding="utf-8")
-          tests = tests.replace(
-              'stdout="bind|/volume1/docker/freqtrade/state\\n",',
-              'stdout=(\n                "true|freqtrade-deploy-runner|runner\\n"\n                "bind|/volume1/docker/freqtrade/state\\n"\n            ),',
-              1,
-          )
-          tests = tests.replace(
-              "entrypoint.RUNNER_STATE_SOURCE_FORMAT,",
-              "entrypoint.RUNNER_STATE_INSPECT_FORMAT,",
-              1,
-          )
-
-          old_params = '''    [\n        ("", "exactly one canonical staging-state host bind"),\n        (\n            "bind|/volume1/docker/freqtrade/state\\nbind|/volume1/docker/other/state\\n",\n            "exactly one canonical staging-state host bind",\n        ),\n        ("volume|/volume1/docker/freqtrade/state\\n", "staging-state host bind is invalid"),\n        ("bind|/tmp/freqtrade/state\\n", "staging-state host bind is invalid"),\n        (\n            "bind|/volume1/docker/freqtrade/../state\\n",\n            "staging-state host bind is invalid",\n        ),\n    ],\n)\ndef test_market_evidence_host_root_rejects_ambiguous_or_noncanonical_mounts(\n'''
-          new_params = '''    [\n        (\n            "true|freqtrade-deploy-runner|runner\\n",\n            "exactly one canonical staging-state host bind",\n        ),\n        (\n            "true|freqtrade-deploy-runner|runner\\n"\n            "bind|/volume1/docker/freqtrade/state\\n"\n            "bind|/volume1/docker/other/state\\n",\n            "exactly one canonical staging-state host bind",\n        ),\n        (\n            "true|freqtrade-deploy-runner|runner\\n"\n            "volume|/volume1/docker/freqtrade/state\\n",\n            "staging-state host bind is invalid",\n        ),\n        (\n            "true|freqtrade-deploy-runner|runner\\n"\n            "bind|/tmp/freqtrade/state\\n",\n            "staging-state host bind is invalid",\n        ),\n        (\n            "true|freqtrade-deploy-runner|runner\\n"\n            "bind|/volume1/docker/freqtrade/../state\\n",\n            "staging-state host bind is invalid",\n        ),\n    ],\n)\ndef test_market_evidence_host_root_rejects_ambiguous_or_noncanonical_mounts(\n'''
-          if tests.count(old_params) != 1:
-              raise SystemExit("mount test parameter replacement mismatch")
-          tests = tests.replace(old_params, new_params)
-
-          identity_regression = '''\n\n@pytest.mark.parametrize(\n    "stdout",\n    [\n        "",\n        "bind|/volume1/docker/freqtrade/state\\n",\n        (\n            "false|freqtrade-deploy-runner|runner\\n"\n            "bind|/volume1/docker/freqtrade/state\\n"\n        ),\n        (\n            "true|foreign-project|runner\\n"\n            "bind|/volume1/docker/freqtrade/state\\n"\n        ),\n        (\n            "true|freqtrade-deploy-runner|foreign-service\\n"\n            "bind|/volume1/docker/freqtrade/state\\n"\n        ),\n    ],\n)\ndef test_market_evidence_host_root_rejects_noncanonical_runner_identity(stdout: str) -> None:\n    def run(command: list[str], **_: Any) -> subprocess.CompletedProcess[str]:\n        return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")\n\n    deploy = SimpleNamespace(_run=run, DeploymentError=RuntimeError)\n    with pytest.raises(RuntimeError, match="staging runner identity is invalid"):\n        entrypoint._resolve_market_evidence_host_root(deploy)\n'''
-          if "def test_market_evidence_host_root_rejects_noncanonical_runner_identity" in tests:
-              raise SystemExit("runner identity regression already present")
-          tests_path.write_text(tests + identity_regression, encoding="utf-8")
+          marker = '''        (\n            "true|freqtrade-deploy-runner|runner\\n"\n            "bind|/volume1/docker/freqtrade/../state\\n",\n            "staging-state host bind is invalid",\n        ),\n'''
+          regression = marker + '''        (\n            "true|freqtrade-deploy-runner|runner\\n"\n            "bind|/volume1/docker/freqtrade/state \\n",\n            "staging-state host bind is invalid",\n        ),\n        (\n            "true|freqtrade-deploy-runner|runner\\n"\n            " bind|/volume1/docker/freqtrade/state\\n",\n            "staging-state host bind is invalid",\n        ),\n'''
+          if tests.count(marker) != 1:
+              raise SystemExit("mount whitespace regression insertion mismatch")
+          tests_path.write_text(tests.replace(marker, regression), encoding="utf-8")
           PY
 
           files=(
@@ -107,5 +84,5 @@ jobs:
           git config user.name "blakinio"
           git config user.email "75369544+blakinio@users.noreply.github.com"
           git add -- "${files[@]}"
-          git commit -m "fix(portal): authenticate Market Evidence runner mount"
+          git commit -m "fix(portal): reject Market Evidence mount whitespace"
           git push origin HEAD:fix/1089-market-evidence-host-mount

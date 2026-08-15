@@ -490,6 +490,7 @@ def test_overlapping_same_report_invocation_fails_before_deploy(tmp_path) -> Non
     args = SimpleNamespace(report=str(report_path))
 
     module._reserve_current_report_path(first, args)
+    module._clear_current_report_path(first, args)
     report_path.write_text(
         json.dumps({"status": "success", "portal": {"health": "first-invocation"}}),
         encoding="utf-8",
@@ -507,6 +508,7 @@ def test_overlapping_same_report_invocation_fails_before_deploy(tmp_path) -> Non
 
     module._reserve_current_report_path(second, args)
     try:
+        module._clear_current_report_path(second, args)
         assert second._portal_current_report_path == report_path.resolve()
         assert not report_path.exists()
     finally:
@@ -566,3 +568,66 @@ def test_lock_contention_fails_before_installing_termination_handlers(tmp_path) 
         assert json.loads(report_path.read_text(encoding="utf-8"))["portal"] == {"health": "first"}
     finally:
         module._release_current_report_lock(first)
+
+
+def test_sigterm_during_stale_report_clear_persists_cancellation_and_releases_lock(
+    tmp_path, monkeypatch
+) -> None:
+    report_path = tmp_path / "report.json"
+    report_path.write_text(json.dumps({"status": "success", "portal": {"health": "stale"}}))
+    reports: list[dict[str, Any]] = []
+    deploy_calls: list[str] = []
+    deploy = SimpleNamespace(
+        DeploymentError=RuntimeError,
+        REQUEST_ID="portal-authentik-public-oidc-20260801-v1",
+        _bounded_schema_cleanup_evidence=_cleanup_evidence(),
+    )
+
+    def original_write_report(path: Path, report: dict[str, Any]) -> str:
+        reports.append(copy.deepcopy(report))
+        path.write_text(json.dumps(report), encoding="utf-8")
+        return "digest"
+
+    def original_deploy(_args: Any) -> int:
+        deploy_calls.append("entered")
+        return 0
+
+    original_unlink = Path.unlink
+
+    def interrupting_unlink(path: Path, *args: Any, **kwargs: Any) -> None:
+        if path == report_path:
+            handler = signal.getsignal(signal.SIGTERM)
+            assert callable(handler)
+            handler(signal.SIGTERM, None)
+        original_unlink(path, *args, **kwargs)
+
+    deploy._run = lambda *args, **kwargs: None
+    deploy._write_report = original_write_report
+    deploy.deploy = original_deploy
+    previous_sigterm = signal.getsignal(signal.SIGTERM)
+    module.install(deploy)
+    monkeypatch.setattr(Path, "unlink", interrupting_unlink)
+    args = SimpleNamespace(
+        report=str(report_path),
+        expected_repository_sha="5" * 40,
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        deploy.deploy(args)
+
+    assert exc_info.value.code == 128 + signal.SIGTERM
+    assert deploy_calls == []
+    assert reports[-1]["status"] == "failed"
+    assert reports[-1]["cancellation"]["type"] == "SystemExit"
+    assert reports[-1]["implementation_sha"] == "5" * 40
+    assert "portal" not in reports[-1]
+    assert deploy._portal_report_lock_fd is None
+    assert signal.getsignal(signal.SIGTERM) == previous_sigterm
+
+    contender = SimpleNamespace(
+        DeploymentError=RuntimeError,
+        _portal_report_lock_fd=None,
+        _portal_current_report_path=None,
+    )
+    module._reserve_current_report_path(contender, args)
+    module._release_current_report_lock(contender)

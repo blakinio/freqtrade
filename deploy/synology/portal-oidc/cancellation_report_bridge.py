@@ -207,12 +207,6 @@ def _reserve_current_report_path(deploy: Any, args: Any) -> None:
             ) from exc
         deploy._portal_report_lock_fd = lock_fd
         lock_fd = None
-        if report_path.exists():
-            if not report_path.is_file():
-                raise deploy.DeploymentError(
-                    "protected deployment report path is not a regular file"
-                )
-            report_path.unlink()
     except deploy.DeploymentError:
         if lock_fd is not None:
             os.close(lock_fd)
@@ -227,6 +221,23 @@ def _reserve_current_report_path(deploy: Any, args: Any) -> None:
         _release_current_report_lock(deploy)
         raise deploy.DeploymentError(
             "protected deployment could not reserve current report evidence"
+        ) from exc
+
+
+def _clear_current_report_path(deploy: Any, args: Any) -> None:
+    report_path = Path(args.report).resolve()
+    try:
+        if report_path.exists():
+            if not report_path.is_file():
+                raise deploy.DeploymentError(
+                    "protected deployment report path is not a regular file"
+                )
+            report_path.unlink()
+    except deploy.DeploymentError:
+        raise
+    except OSError as exc:
+        raise deploy.DeploymentError(
+            "protected deployment could not clear stale report evidence"
         ) from exc
     deploy._portal_current_report_path = report_path
 
@@ -243,6 +254,7 @@ def _guarded_deploy(
         previous_handlers = _install_termination_handlers(deploy)
         try:
             try:
+                _clear_current_report_path(deploy, args)
                 return_code = int(original_deploy(args))
             except BaseException as exc:
                 pending = _pending_cancellation(deploy)

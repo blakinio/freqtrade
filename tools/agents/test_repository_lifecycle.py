@@ -6,7 +6,6 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 MODULE_PATH = Path(__file__).with_name("repository_lifecycle.py")
 SPEC = importlib.util.spec_from_file_location("repository_lifecycle", MODULE_PATH)
@@ -188,12 +187,27 @@ class PrAuditTests(unittest.TestCase):
                 "ops/request",
                 "a" * 40,
                 state="open",
-                body="MUST NOT BE MERGED. Close after terminal protected evidence.",
+                body="This PR must close without merge after terminal protected evidence.",
             ),
             now=self.NOW,
             stale_days=3,
         )
         self.assertEqual(item["health"], "REQUEST_ONLY")
+        self.assertFalse(item["auto_close"])
+
+    def test_generic_request_only_wording_does_not_self_classify(self):
+        item = rl.classify_pr_health(
+            pull(
+                4,
+                "governance/audit",
+                "a" * 40,
+                state="open",
+                body="The audit reports request-only PRs but this PR itself is normal governance work.",
+            ),
+            now=self.NOW,
+            stale_days=3,
+        )
+        self.assertEqual(item["health"], "ACTIVE")
         self.assertFalse(item["auto_close"])
 
     def test_stale_is_signal_only(self):

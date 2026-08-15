@@ -1,55 +1,57 @@
-import re
 from pathlib import Path
 
 
 PROGRAMME_PATH = Path("docs/agents/programs/FTAI_PORTAL_REMEDIATION_PROGRAM.md")
-COORDINATOR_PATH = Path("docs/agents/tasks/active/FTAI-20260803-portal-remediation-program.md")
+ARCHIVED_COORDINATOR_PATH = Path(
+    "docs/agents/tasks/archive/FTAI-20260803-portal-remediation-program.md"
+)
+ACTIVE_COORDINATOR_PATH = Path(
+    "docs/agents/tasks/active/FTAI-20260803-portal-remediation-program.md"
+)
+CUTOVER_LEDGER_PATH = Path(
+    "docs/ai_platform/portal/ADR023_BACKLOG_RECLASSIFICATION_2026-08-15.md"
+)
+CURRENT_PROGRAMME_PATH = Path("docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md")
 
 
-def _issue_states() -> dict[int, str]:
-    states: dict[int, str] = {}
-    for line in PROGRAMME_PATH.read_text(encoding="utf-8").splitlines():
-        if not line.startswith("| #"):
-            continue
-        columns = [column.strip() for column in line.strip("|").split("|")]
-        states[int(columns[0].removeprefix("#"))] = columns[3]
-    return states
-
-
-def _current_issue() -> int:
-    coordinator = COORDINATOR_PATH.read_text(encoding="utf-8")
-    match = re.search(r"^current_child_task: .*?(\d+).*?$", coordinator, re.MULTILINE)
-    assert match is not None, "coordinator must select exactly one issue"
-    return int(match.group(1))
-
-
-def test_current_child_is_not_terminal_or_waiting() -> None:
-    states = _issue_states()
-    current_issue = _current_issue()
-    assert states[current_issue] in {"READY", "ACTIVE"}
-
-
-def test_satisfied_dependencies_are_not_still_waiting() -> None:
-    states = _issue_states()
-    for issue, state in states.items():
-        match = re.fullmatch(r"WAITING_ON_(\d+)", state)
-        if match is None:
-            continue
-        dependency = int(match.group(1))
-        assert states[dependency] != "COMPLETE", (
-            f"Issue #{issue} still waits on completed Issue #{dependency}"
-        )
-
-
-def test_schema_foundation_completion_unblocks_logout_replay_work() -> None:
-    states = _issue_states()
-    coordinator = COORDINATOR_PATH.read_text(encoding="utf-8")
+def test_former_remediation_programme_is_terminally_superseded() -> None:
     programme = PROGRAMME_PATH.read_text(encoding="utf-8")
 
-    assert states[1122] == "COMPLETE"
-    assert states[1132] == "READY"
-    assert _current_issue() == 1132
-    assert re.search(r"^next_action: .*1132", coordinator, re.MULTILINE)
-    next_action = programme.split("## Programme next action", maxsplit=1)[1]
-    assert "#1132" in next_action
-    assert "Create the durable Issue `#1122` task" not in next_action
+    assert "status: superseded" in programme
+    assert "superseded_by: ADR-023" in programme
+    assert "autonomous_dispatch_enabled: false" in programme
+    assert "successor_mvp_issue: 1561" in programme
+    assert "MUST NOT dispatch Issue #1132" in programme
+
+
+def test_former_coordinator_is_archived_and_not_active() -> None:
+    assert ARCHIVED_COORDINATOR_PATH.is_file()
+    assert not ACTIVE_COORDINATOR_PATH.exists()
+
+    coordinator = ARCHIVED_COORDINATOR_PATH.read_text(encoding="utf-8")
+    assert "status: completed" in coordinator
+    assert "completion_reason: superseded_by_ADR_023" in coordinator
+    assert "successor_product_issue: 1561" in coordinator
+    assert "next_action: none" in coordinator
+
+
+def test_cutover_ledger_has_exact_classification_contract() -> None:
+    ledger = CUTOVER_LEDGER_PATH.read_text(encoding="utf-8")
+
+    for classification in ("KEEP_NOW", "SIMPLIFY", "DEFER", "OBSOLETE"):
+        assert classification in ledger
+
+    assert "#1086" in ledger and "OBSOLETE" in ledger
+    assert "#1102" in ledger and "KEEP_NOW" in ledger
+    assert "#1396" in ledger and "OBSOLETE" in ledger
+    assert "#1561" in ledger and "KEEP_NOW" in ledger
+
+
+def test_current_programme_points_to_developer_quant_vertical_slice() -> None:
+    current = CURRENT_PROGRAMME_PATH.read_text(encoding="utf-8")
+
+    assert "ADR-023" in current
+    assert "REALTIME_PUBLIC" in current
+    assert "LOCAL | SYNOLOGY" in current
+    assert "CHALLENGER" in current
+    assert "Issue #1561" in current or "#1561" in current

@@ -1,14 +1,15 @@
 ---
 task_id: FTAI-20260815-portal-developer-platform-reset-1555
-status: validating
+status: waiting
 repository: blakinio/freqtrade
 lane: freqtrade-portal
 related_issue: 1555
+pull_request: 1558
 branch: docs/portal-developer-platform-reset-20260815
 base_head: 9dd5887e301ddfeec6df6a3b3e2da24a9ced850f
 owner: chatgpt
 task_kind: architecture
-phase: validation
+phase: final_ci
 prompting_standard_version: 2.1
 execution_policy_version: 2
 context_pressure: medium
@@ -26,7 +27,7 @@ feature_scope:
   integration_required: false
   e2e_required: false
   completion_claim: internal_only
-next_action: Open one architecture PR to develop, inspect exact changed paths and CI, and merge only after document/registry validation passes.
+next_action: After PR #1558 exact-head CI becomes terminal, verify all required gates and changed paths; merge through branch protection/auto-merge only when green, then reclassify Portal/WickHunter backlog under ADR-023.
 ---
 
 # Portal developer-platform architecture reset
@@ -57,16 +58,20 @@ No product/runtime code mutation is part of this task.
 - [x] `ARCHITECTURE_REGISTRY.yaml` names ADR-023 as the latest current Portal product overlay and marks old PAPER-first/mode architecture as superseded for current Portal scope.
 - [x] Backlog migration requires `KEEP_NOW | SIMPLIFY | DEFER | OBSOLETE` reclassification from exact live state before code removal.
 - [x] Documentation does not claim code migration complete.
-- [ ] YAML/document consistency and exact changed-path set are validated through the PR/repository checks.
-- [ ] One PR targets `develop`; no runtime deployment, credentials, orders or capital effects.
+- [x] Exact PR changed paths are limited to the four intended architecture/task files.
+- [ ] Exact-head repository CI is terminal green.
+- [ ] PR #1558 is merged; no runtime deployment, credentials, orders or capital effects.
 
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 2
-updated_at: 2026-08-15T23:05:00+02:00
-head: 3f8b21029af018d18627e156fb6c0ffb56c1f73c
-status: validating
+checkpoint_version: 3
+updated_at: 2026-08-15T23:08:00+02:00
+head: 7ce47b71369952ca83e08e742cff749771cd092e
+pull_request: 1558
+status: waiting
+ci_checks_for_current_head: 2
+unchanged_state_checks: 0
 proven:
   - Owner explicitly applied the developer-Portal rules to the entire current Portal.
   - Issue #1555 records the architecture-reset decision and exact base develop@9dd5887e301ddfeec6df6a3b3e2da24a9ced850f.
@@ -74,10 +79,14 @@ proven:
   - DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md defines the whole-Portal current target and user-workflow completion rule.
   - ARCHITECTURE_REGISTRY.yaml names ADR-023 as latest architecture change and Developer Quant Portal Architecture as canonical current target state.
   - Historical ARCHITECTURE_DECISIONS.md remains intact through ADR-022; registry authority records ADR-023 as the current extension.
-derived:
-  - Open Portal/WickHunter work must be reclassified after this architecture change merges before mode-driven work continues.
+  - PR #1558 is mergeable and changes exactly four intended paths.
+  - zizmor exact-head run 31908426710 passed.
+  - Auto-merge is enabled on PR #1558 and cannot merge before repository gates pass.
 unknown:
-  - terminal PR/CI result until the architecture PR is opened and validated
-blockers: []
-next_action: Open one PR to develop, inspect exact changed paths and repository checks, then merge only if validation is green.
+  - terminal result of Freqtrade CI 31908426668
+  - terminal result of CodeQL 31908426670
+  - terminal result of Risk-aware component CI 31908426797
+blockers:
+  - exact-head CI is still queued/in progress
+next_action: Refetch PR #1558 only after CI has materially advanced; if all required exact-head gates are green, allow/perform normal protected merge, then start exact-live-state backlog reclassification under ADR-023.
 ```

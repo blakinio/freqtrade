@@ -192,6 +192,13 @@ class PrAuditTests(unittest.TestCase):
         self.assertEqual(item["health"], "REQUEST_ONLY")
         self.assertFalse(item["auto_close"])
 
+    def test_real_request_pr_sentence_after_prior_text_is_detected(self):
+        item = self.classify(
+            "Data-only request for PAPER evidence. Must close without merge after evidence is captured."
+        )
+        self.assertEqual(item["health"], "REQUEST_ONLY")
+        self.assertFalse(item["auto_close"])
+
     def test_generic_request_only_wording_does_not_self_classify(self):
         item = self.classify("The audit reports request-only PRs but this PR itself is normal governance work.")
         self.assertEqual(item["health"], "ACTIVE")

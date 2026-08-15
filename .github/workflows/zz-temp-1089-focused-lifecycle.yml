@@ -15,12 +15,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
-      - name: Checkout exact implementation head
+      - name: Checkout exact repair head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           persist-credentials: false
-          fetch-depth: 1
-          ref: 098b28782d58275e2dc19a4de35954671c1f2a7e
+          fetch-depth: 0
+          ref: f6ebee55fa4ab4497c94c06a1765b58e75acad7e
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
@@ -39,46 +39,35 @@ jobs:
       - name: Compile focused repair modules
         shell: bash
         run: |
-          python -m py_compile deploy/synology/portal-oidc/bounded_schema_lifecycle.py
-          python -m py_compile deploy/synology/portal-oidc/cancellation_report_bridge.py
           python -m py_compile deploy/synology/portal-oidc/deploy_entrypoint.py
-          python -m py_compile ai_platform/portal/database/transfer.py
+          python -m py_compile deploy/synology/portal-oidc/market_evidence_runtime.py
+          python -m py_compile deploy/synology/portal-oidc/bounded_schema_lifecycle.py
+          python -m py_compile tests/ai_platform/portal/deployment/test_portal_oidc_deploy_entrypoint.py
+          python -m py_compile tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_runtime.py
           python -m py_compile tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py
-          python -m py_compile tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_cancellation.py
-          python -m py_compile tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py
-          python -m py_compile tests/ai_platform/portal/deployment/test_portal_oidc_cancellation_report_bridge.py
-          python -m py_compile tests/ai_platform/portal/database/test_state_transfer.py
 
       - name: Ruff exact repair files
         shell: bash
         run: |
           ruff check \
-            deploy/synology/portal-oidc/bounded_schema_lifecycle.py \
-            deploy/synology/portal-oidc/cancellation_report_bridge.py \
             deploy/synology/portal-oidc/deploy_entrypoint.py \
-            ai_platform/portal/database/transfer.py \
-            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py \
-            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_cancellation.py \
-            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py \
-            tests/ai_platform/portal/deployment/test_portal_oidc_cancellation_report_bridge.py \
-            tests/ai_platform/portal/database/test_state_transfer.py
+            deploy/synology/portal-oidc/market_evidence_runtime.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_deploy_entrypoint.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_runtime.py
           ruff format --check \
-            deploy/synology/portal-oidc/bounded_schema_lifecycle.py \
-            deploy/synology/portal-oidc/cancellation_report_bridge.py \
             deploy/synology/portal-oidc/deploy_entrypoint.py \
-            ai_platform/portal/database/transfer.py \
-            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py \
-            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_cancellation.py \
-            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py \
-            tests/ai_platform/portal/deployment/test_portal_oidc_cancellation_report_bridge.py \
-            tests/ai_platform/portal/database/test_state_transfer.py
+            deploy/synology/portal-oidc/market_evidence_runtime.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_deploy_entrypoint.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_runtime.py
 
-      - name: Run focused lifecycle and transfer regressions
+      - name: Validate patch whitespace
+        shell: bash
+        run: git diff --check 9dd5887e301ddfeec6df6a3b3e2da24a9ced850f..HEAD
+
+      - name: Run focused Market Evidence and lifecycle regressions
         shell: bash
         run: |
           python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform \
-            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py \
-            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_cancellation.py \
-            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_health.py \
-            tests/ai_platform/portal/deployment/test_portal_oidc_cancellation_report_bridge.py \
-            tests/ai_platform/portal/database/test_state_transfer.py
+            tests/ai_platform/portal/deployment/test_portal_oidc_deploy_entrypoint.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_market_evidence_runtime.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_bounded_schema_lifecycle.py

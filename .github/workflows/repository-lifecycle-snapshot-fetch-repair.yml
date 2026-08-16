@@ -1,0 +1,74 @@
+name: Repository Lifecycle One-shot Snapshot Fetch Repair
+
+on:
+  push:
+    branches:
+      - fix/repository-lifecycle-recovery-git-verification-1559
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repository-lifecycle-snapshot-fetch-repair
+  cancel-in-progress: true
+
+jobs:
+  repair:
+    if: github.actor == 'blakinio'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact repair branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: fix/repository-lifecycle-recovery-git-verification-1559
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Make immutable snapshot fetch single-batch at repository scale
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('tools/agents/repository_lifecycle_preflight.py')
+          text = path.read_text(encoding='utf-8')
+          old = 'FETCH_BATCH_SIZE = 100\n'
+          new = 'FETCH_BATCH_SIZE = 1000\n'
+          if text.count(old) != 1:
+              raise SystemExit(f'unexpected FETCH_BATCH_SIZE anchor count: {text.count(old)}')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          test_path = Path('tools/agents/test_repository_lifecycle_rate_limit.py')
+          test_text = test_path.read_text(encoding='utf-8')
+          anchor = 'class HistoricalPreflightRateLimitTests(unittest.TestCase):\n'
+          addition = '''class HistoricalPreflightRateLimitTests(unittest.TestCase):\n    def test_snapshot_batch_covers_current_historical_ref_scale(self) -> None:\n        self.assertGreaterEqual(preflight.FETCH_BATCH_SIZE, 1000)\n\n'''
+          if test_text.count(anchor) != 1:
+              raise SystemExit('unexpected HistoricalPreflightRateLimitTests anchor count')
+          test_path.write_text(test_text.replace(anchor, addition, 1), encoding='utf-8')
+          PY
+
+      - name: Prove snapshot and recovery regressions plus canonical repository checks
+        run: |
+          python tools/agents/test_repository_lifecycle_destructive.py
+          python tools/agents/test_repository_lifecycle_rate_limit.py
+          python -m pip install 'pre-commit==4.6.2'
+          pre-commit run --all-files
+
+      - name: Remove one-shot helper and commit verified repair
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/repository-lifecycle-snapshot-fetch-repair.yml
+          git add tools/agents/repository_lifecycle_preflight.py \
+                  tools/agents/test_repository_lifecycle_rate_limit.py
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(governance): fetch lifecycle snapshots in one batch'
+          basic="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $basic" \
+            push origin HEAD:refs/heads/fix/repository-lifecycle-recovery-git-verification-1559

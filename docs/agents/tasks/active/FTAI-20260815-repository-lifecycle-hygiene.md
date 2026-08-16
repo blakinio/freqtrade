@@ -16,20 +16,31 @@ task_completion_policy: finalize_archive_and_continue
 user_communication: low_noise
 base_branch: develop
 task_start_base_head: 9dd5887e301ddfeec6df6a3b3e2da24a9ced850f
-current_live_base_head: 1f62ff29f4a2a25c929218bd3b69bf19257f3055
+current_live_base_head: 56949c037c10a084b68f61dc54c8461a915a6c74
 branch: governance/repository-lifecycle-hygiene-1559
 pull_request: 1563
 live_capital_authorized: false
 protected_production_deployment_authorized: false
 owned_paths:
+  - .github/workflow-registry.yaml
+  - .github/workflows/repository-lifecycle-approval-automerge.yml
+  - .github/workflows/repository-lifecycle-approval-proposal.yml
+  - .github/workflows/repository-lifecycle-final-gate.yml
   - .github/workflows/repository-lifecycle-hygiene.yml
+  - .github/workflows/repository-terminal-branch-cleanup.yml
+  - docs/agents/BRANCH_POLICY.md
   - docs/agents/REPOSITORY_LIFECYCLE_POLICY.json
   - docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json
-  - docs/agents/BRANCH_POLICY.md
   - docs/agents/tasks/active/FTAI-20260815-repository-lifecycle-hygiene.md
   - docs/agents/tasks/archive/FTAI-20260815-repository-lifecycle-hygiene.md
   - tools/agents/repository_lifecycle.py
+  - tools/agents/repository_lifecycle_apply.py
+  - tools/agents/repository_lifecycle_approval.py
+  - tools/agents/repository_lifecycle_destructive.py
+  - tools/agents/repository_lifecycle_preflight.py
   - tools/agents/test_repository_lifecycle.py
+  - tools/agents/test_repository_lifecycle_destructive.py
+  - tools/agents/test_repository_lifecycle_rate_limit.py
 ```
 
 ## Objective
@@ -45,8 +56,7 @@ Make branch and pull-request lifecycle hygiene deterministic, fail-closed and co
 - physical `main` is not present yet; ADR-021 migration remains incomplete;
 - live branch inventory at task start: 1,193 refs;
 - open PR inventory at task start: 14 PRs;
-- repository already requires short-lived branches to be deleted after terminal closeout, but no deterministic historical/closed-unmerged lifecycle engine existed;
-- after task branch creation, `develop` advanced independently to `1f62ff29f4a2a25c929218bd3b69bf19257f3055` through PR #1558; this task must rebase/merge-forward or otherwise become current-base before final merge.
+- repository already required short-lived branches to be deleted after terminal closeout, but no deterministic historical/closed-unmerged lifecycle engine existed.
 
 ## Feature scope
 
@@ -65,24 +75,28 @@ The real integration boundary is GitHub repository state plus GitHub Actions. Br
 
 ## Acceptance inventory
 
-- [ ] every live branch receives an explicit fail-closed classification;
-- [ ] `develop`, protected refs, open-PR refs, active-task refs, reserved release/rollback/recovery/backup refs, unmerged orphans and `UNKNOWN` refs are never deletion candidates;
-- [ ] only exact-head `TERMINAL_MERGED` and `TERMINAL_CLOSED_UNMERGED` refs may enter historical cleanup;
-- [ ] historical cleanup requires an exact reviewed, hash-bound approval and aborts on policy/candidate/SHA drift;
-- [ ] destructive deletion uses exact `--force-with-lease` and Git transport verifies post-delete absence;
-- [ ] apply performs create/delete/restore/final-delete recovery proof before historical deletion;
-- [ ] future same-repository closed-unmerged PR refs are cleaned only after exact-head/protection/open-PR/active-claim/reserved checks;
-- [ ] scheduled PR audit reports active, waiting/blocked, request-only, stalled-signal and metadata-inconsistent states;
-- [ ] PR age alone never auto-closes a PR;
-- [ ] deterministic independent safety-audit job falsifies deletion and PR-closure invariants;
-- [ ] one-time cleanup ends with zero currently authorized deletion candidates;
-- [ ] final exact-head checks, review/PR hygiene, task archive and ownership release are terminal.
+- [x] every live branch can receive an explicit fail-closed classification;
+- [x] `develop`, protected refs, open-PR refs, active-task refs, reserved release/rollback/recovery/backup refs, unmerged orphans and `UNKNOWN` refs are excluded from deletion candidates;
+- [x] only exact-head `TERMINAL_MERGED` and `TERMINAL_CLOSED_UNMERGED` refs may enter historical cleanup;
+- [x] closed-unmerged source-head task claims are read from exact immutable Git snapshots;
+- [x] historical cleanup requires an exact reviewed, hash-bound approval and aborts on policy/candidate/base drift;
+- [x] historical approval waves are deterministically bounded to at most 400 source-head-safe refs;
+- [x] destructive deletion uses exact `--force-with-lease` and Git transport verifies post-delete absence;
+- [x] apply performs create/delete/restore/final-delete recovery proof before historical deletion;
+- [x] each approved delete rechecks exact base SHA, exact branch SHA and live same-repository open-PR ownership immediately before deletion;
+- [x] future same-repository terminal PR refs are cleaned only after exact-head/protection/open-PR/active-claim/reserved checks;
+- [x] scheduled PR audit reports active, waiting/blocked, request-only, stalled-signal and metadata-inconsistent states;
+- [x] PR age alone never auto-closes a PR;
+- [x] deterministic independent safety-audit and exact-head final-gate workflows falsify deletion and PR-closure invariants;
+- [ ] implementation PR reaches fresh exact-head green CI on current `develop`;
+- [ ] all reviewed historical approval waves complete with recovery evidence and zero source-head-safe deletion candidates;
+- [ ] final branch/PR inventory, temporary-helper retirement, task archive and ownership release are terminal.
 
 ## Safety
 
 - No deletion by age or prefix.
 - No deletion of `develop`, protected, open-PR, active-claim, release, rollback, recovery, backup, `UNKNOWN` or unmerged-orphan refs.
-- No force without lease.
+- No force without exact lease.
 - No automatic PR closure by age.
 - No production/staging deployment, exchange credentials, orders, capital, model promotion or LIVE authority.
 - No owner-funded Codex/OpenAI/API use is authorized by this task.
@@ -90,26 +104,28 @@ The real integration boundary is GitHub repository state plus GitHub Actions. Br
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 2
-updated_at: 2026-08-15T21:28:00Z
+checkpoint_version: 3
+updated_at: 2026-08-16T11:03:00Z
 status: validating
 phase: validate
 branch: governance/repository-lifecycle-hygiene-1559
 pr: 1563
-head: 2da240ed9bb35998873f38f537b4dcd8a31aa73c
-current_live_base_head: 1f62ff29f4a2a25c929218bd3b69bf19257f3055
+integrated_predecessor_head: 6d15c7b59ce2bb4dd500529acbc7e1a7422e153d
+current_live_base_head: 56949c037c10a084b68f61dc54c8461a915a6c74
 proven:
   - repository metadata proves delete_branch_on_merge=true and squash-only merge policy
   - physical main branch is absent and develop remains current integration/default branch
   - task-start live inventory contained 1193 branches and 14 open PRs
-  - no existing repository lifecycle engine was found
-  - focused local lifecycle suite passes 23/23 tests
-  - workflow YAML parse passes locally
-  - PR 1563 is open with exactly six changed paths before the one-time approval
+  - read-only classifier, isolated destructive writer, immutable-source-head preflight and bounded approval-wave tooling are implemented
+  - lifecycle regression suites pass 23 read-only, 11 destructive and 9 rate-limit/multi-wave tests on the pre-integration exact head
+  - canonical full pre-commit passed after lifecycle formatting repair
+  - native git merge of develop@56949c037c10a084b68f61dc54c8461a915a6c74 into the task branch completed without conflicts
+  - full pre-commit passed again on the exact integrated tree before push
+  - PR 1563 is base-fresh against develop@56949c037c10a084b68f61dc54c8461a915a6c74 and still contains exactly 17 lifecycle/governance paths
+  - historical evidence previously showed 1020 raw terminal refs, 1010 source-head-safe refs and 10 retained; final counts must be rebuilt live before approval
 unknown:
-  - exact live terminal candidate count until PR 1563 Repository Lifecycle Hygiene inventory completes
-  - exact open-PR health classifications until PR 1563 audit completes
-  - final current-base integration result after develop advanced through PR 1558
+  - fresh exact-head live inventory and PR-health counts on the current base
+  - final source-head-safe candidate count after current repository activity
 blockers: []
-next_action: Inspect exact-head PR 1563 workflow results and generated inventory/safety-audit artifacts; then review and materialize only the exact hash-bound historical candidate set before current-base final validation.
+next_action: Run and inspect normal user-authored exact-head CI on the current-base branch; merge PR 1563 only after required lifecycle, pre-commit and security gates are green, then execute bounded hash-bound approval waves until safe candidate count is zero.
 ```

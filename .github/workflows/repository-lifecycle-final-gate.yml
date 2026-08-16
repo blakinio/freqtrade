@@ -32,6 +32,7 @@ jobs:
         run: |
           python tools/agents/test_repository_lifecycle.py
           python tools/agents/test_repository_lifecycle_destructive.py
+          python tools/agents/test_repository_lifecycle_rate_limit.py
           python -m py_compile \
             tools/agents/repository_lifecycle_preflight.py \
             tools/agents/repository_lifecycle_apply.py \
@@ -77,6 +78,8 @@ jobs:
               for item in preflight["candidates"]
           ):
               raise SystemExit("source-head preflight widened deletion classes")
+          if preflight.get("snapshot_transport") != "git-immutable-refs":
+              raise SystemExit("historical source-head claims are not using immutable Git snapshots")
           print(
               f"FINAL PASS branches={inventory['branch_count']} raw={inventory['candidate_count']} "
               f"safe={preflight['candidate_count']} retained={preflight['retained_count']} "

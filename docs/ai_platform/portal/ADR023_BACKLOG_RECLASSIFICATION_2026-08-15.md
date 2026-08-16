@@ -95,6 +95,7 @@ The remaining open inventory is reclassified as follows.
 | #1492 | PaperExecutionProfile producer | SIMPLIFY | The useful concept becomes simulation assumptions/profile (fees, slippage, latency, fill limitations) under #1561; the disconnected PAPER producer is not a standalone deliverable. |
 | #1493 | PAPER G3 Runtime Gateway producer | DEFER | Specialized boundary may be reused if the current Freqtrade path needs it; it is no longer a universal prerequisite. |
 | #1499 | PAPER Evidence Workbench eligibility producer | DEFER | Evidence comparison may be useful later; PAPER eligibility engine is not current product authority. |
+| #1501 | PAPER G0 residual status-authority routing | OBSOLETE | ADR-023 and the current programme/ledger replace the former PAPER G0 routing authority; historical #1101 compatibility evidence remains history, not current work selection. |
 | #1560 | ADR-023 backlog cutover | KEEP_NOW | This cutover ledger/programme retirement task closes the old work graph. |
 | #1561 | Developer Quant MVP vertical slice | KEEP_NOW | Sole current P1 product journey after cutover. |
 

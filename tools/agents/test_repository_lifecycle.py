@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 from typing import Any
 
+
 MODULE_PATH = Path(__file__).with_name("repository_lifecycle.py")
 SPEC = importlib.util.spec_from_file_location("repository_lifecycle", MODULE_PATH)
 if SPEC is None or SPEC.loader is None:
@@ -68,9 +69,7 @@ class PolicyTests(unittest.TestCase):
     def test_reserved_tokens_are_token_scoped(self) -> None:
         self.assertTrue(rl.is_reserved("backup/foo", POLICY["reserved_name_parts"]))
         self.assertTrue(rl.is_reserved("release-2026", POLICY["reserved_name_parts"]))
-        self.assertFalse(
-            rl.is_reserved("feature/releaser-ui", POLICY["reserved_name_parts"])
-        )
+        self.assertFalse(rl.is_reserved("feature/releaser-ui", POLICY["reserved_name_parts"]))
 
 
 class ClassificationTests(unittest.TestCase):
@@ -225,9 +224,7 @@ class PrAuditTests(unittest.TestCase):
         )
 
     def test_request_only_is_not_auto_closed(self) -> None:
-        item = self.classify(
-            "This PR must close without merge after terminal protected evidence."
-        )
+        item = self.classify("This PR must close without merge after terminal protected evidence.")
         self.assertEqual(item["health"], "REQUEST_ONLY")
         self.assertFalse(item["auto_close"])
 
@@ -241,8 +238,7 @@ class PrAuditTests(unittest.TestCase):
 
     def test_generic_request_only_wording_does_not_self_classify(self) -> None:
         item = self.classify(
-            "The audit reports request-only PRs but this PR itself is normal governance "
-            "work."
+            "The audit reports request-only PRs but this PR itself is normal governance work."
         )
         self.assertEqual(item["health"], "ACTIVE")
 

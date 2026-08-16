@@ -12,8 +12,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 POLICY_PATH = Path("docs/agents/REPOSITORY_LIFECYCLE_POLICY.json")
 APPROVAL_PATH = Path("docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json")
@@ -24,10 +25,14 @@ FULL_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 TASK_BRANCH_RE = re.compile(r"^\s*(?:branch|lock_branch):\s*([^\s#]+)\s*$", re.M)
 TASK_STATUS_RE = re.compile(r"^\s*status:\s*([^\s#]+)\s*$", re.M)
 DRAFT_WORDING_RE = re.compile(
-    r"\b(?:remain|remains|keep|kept|stays?)\s+(?:this\s+pr\s+)?(?:as\s+)?draft\b|\bthis\s+pr\s+(?:is|remains)\s+draft\b",
+    r"\b(?:remain|remains|keep|kept|stays?)\s+(?:this\s+pr\s+)?"
+    r"(?:as\s+)?draft\b|\bthis\s+pr\s+(?:is|remains)\s+draft\b",
     re.I,
 )
-REQUEST_ONLY_STANDALONE_RE = re.compile(r"^\s*\*{0,2}must not be merged\.?\*{0,2}\s*$", re.I | re.M)
+REQUEST_ONLY_STANDALONE_RE = re.compile(
+    r"^\s*\*{0,2}must not be merged\.?\*{0,2}\s*$",
+    re.I | re.M,
+)
 CLOSE_WITHOUT_MERGE_RE = re.compile(
     r"(?:^|[.!?]\s+)(?:this\s+pr\s+)?(?:must|will)\s+close\s+without\s+merge\b",
     re.I | re.M,
@@ -86,7 +91,9 @@ def load_json(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise LifecycleError(f"{path}: root must be an object")
     if raw != canonical_json(value):
-        raise LifecycleError(f"{path}: JSON must be canonical (sorted, indent=2, trailing newline)")
+        raise LifecycleError(
+            f"{path}: JSON must be canonical (sorted, indent=2, trailing newline)"
+        )
     return value
 
 
@@ -111,9 +118,15 @@ def validate_policy(policy: dict[str, Any]) -> None:
         raise LifecycleError("policy.repository must be owner/name")
     if not isinstance(policy["default_branch"], str) or not policy["default_branch"]:
         raise LifecycleError("policy.default_branch must be non-empty")
-    if not isinstance(policy["integration_branches"], list) or policy["default_branch"] not in policy["integration_branches"]:
+    if (
+        not isinstance(policy["integration_branches"], list)
+        or policy["default_branch"] not in policy["integration_branches"]
+    ):
         raise LifecycleError("policy.integration_branches must contain default_branch")
-    if any(not isinstance(item, str) or not item for item in policy["integration_branches"]):
+    if any(
+        not isinstance(item, str) or not item
+        for item in policy["integration_branches"]
+    ):
         raise LifecycleError("policy.integration_branches entries must be non-empty strings")
     if not isinstance(policy["reserved_name_parts"], list) or any(
         not isinstance(item, str) or not item for item in policy["reserved_name_parts"]
@@ -122,15 +135,17 @@ def validate_policy(policy: dict[str, Any]) -> None:
     if not isinstance(policy["stale_pr_days"], int) or policy["stale_pr_days"] < 1:
         raise LifecycleError("policy.stale_pr_days must be >= 1")
     if set(policy["deletion_classifications"]) != DELETION_CLASSIFICATIONS:
-        raise LifecycleError("policy.deletion_classifications must match the approved terminal set")
+        raise LifecycleError(
+            "policy.deletion_classifications must match the approved terminal set"
+        )
 
 
 def policy_sha256(policy: dict[str, Any]) -> str:
-    return sha256_bytes(canonical_json(policy).encode("utf-8"))
+    return sha256_bytes(canonical_json(policy).encode())
 
 
 def entries_sha256(entries: list[dict[str, Any]]) -> str:
-    return sha256_bytes(canonical_json(entries).encode("utf-8"))
+    return sha256_bytes(canonical_json(entries).encode())
 
 
 def active_branch_claims(root: Path) -> set[str]:
@@ -187,13 +202,13 @@ def parse_github_time(value: object) -> dt.datetime | None:
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=dt.timezone.utc)
-    return parsed.astimezone(dt.timezone.utc)
+        parsed = parsed.replace(tzinfo=dt.UTC)
+    return parsed.astimezone(dt.UTC)
 
 
 def explicitly_request_only(body: str) -> bool:
     normalized = body.casefold().strip()
-    if normalized.startswith("request-only ") or normalized.startswith("request only "):
+    if normalized.startswith(("request-only ", "request only ")):
         return True
     if REQUEST_ONLY_STANDALONE_RE.search(body) or CLOSE_WITHOUT_MERGE_RE.search(body):
         return True
@@ -209,13 +224,22 @@ def explicitly_request_only(body: str) -> bool:
 
 
 class GitHubClient:
-    def __init__(self, repo: str, token: str, api_url: str = "https://api.github.com", root: Path | None = None) -> None:
+    def __init__(
+        self,
+        repo: str,
+        token: str,
+        api_url: str = "https://api.github.com",
+        root: Path | None = None,
+    ) -> None:
         if "/" not in repo:
             raise LifecycleError("repository must be owner/name")
+        parsed_api = urllib.parse.urlparse(api_url)
+        if parsed_api.scheme != "https" or not parsed_api.netloc:
+            raise LifecycleError("GitHub API URL must use HTTPS")
         self.repo = repo
         self.token = token
         self.api_url = api_url.rstrip("/")
-        self.root = (root or Path(".")).resolve()
+        self.root = (root or Path()).resolve()
 
     def request(
         self,
@@ -226,8 +250,11 @@ class GitHubClient:
         expected: Iterable[int] = (200,),
     ) -> tuple[Any, dict[str, str]]:
         url = path if path.startswith("http") else f"{self.api_url}{path}"
-        body = None if data is None else json.dumps(data).encode("utf-8")
-        req = urllib.request.Request(
+        parsed_url = urllib.parse.urlparse(url)
+        if parsed_url.scheme != "https" or not parsed_url.netloc:
+            raise LifecycleError("refusing non-HTTPS GitHub API URL")
+        body = None if data is None else json.dumps(data).encode()
+        req = urllib.request.Request(  # noqa: S310 - URL is validated as HTTPS above.
             url,
             data=body,
             method=method,
@@ -240,7 +267,10 @@ class GitHubClient:
             },
         )
         try:
-            with urllib.request.urlopen(req, timeout=60) as response:
+            with urllib.request.urlopen(  # noqa: S310 - request URL is validated as HTTPS.
+                req,
+                timeout=60,
+            ) as response:
                 raw = response.read().decode("utf-8")
                 payload = json.loads(raw) if raw else None
                 return payload, {k.lower(): v for k, v in response.headers.items()}
@@ -285,13 +315,12 @@ class GitHubClient:
         ]
 
     def pulls(self, state: str = "all") -> list[dict[str, Any]]:
-        return [
-            item
-            for item in self.paginate(
-                f"/repos/{self.repo}/pulls?state={urllib.parse.quote(state)}&per_page=100&sort=updated&direction=desc"
-            )
-            if isinstance(item, dict)
-        ]
+        state_param = urllib.parse.quote(state)
+        path = (
+            f"/repos/{self.repo}/pulls?state={state_param}&per_page=100"
+            "&sort=updated&direction=desc"
+        )
+        return [item for item in self.paginate(path) if isinstance(item, dict)]
 
     def get_ref_sha(self, branch: str) -> str | None:
         ref = "heads/" + urllib.parse.quote(branch, safe="/")
@@ -310,7 +339,10 @@ class GitHubClient:
         return sha if isinstance(sha, str) and FULL_SHA_RE.fullmatch(sha) else None
 
 
-def build_pull_index(pulls: list[dict[str, Any]], repo: str) -> dict[str, list[dict[str, Any]]]:
+def build_pull_index(
+    pulls: list[dict[str, Any]],
+    repo: str,
+) -> dict[str, list[dict[str, Any]]]:
     by_branch: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for pull in pulls:
         if not same_repo_pull(pull, repo):
@@ -330,26 +362,42 @@ def classify_branch(
     active_claims: set[str],
     pulls: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    if branch == policy["default_branch"] or branch in set(policy["integration_branches"]) or protected:
-        classification, reason = "PROTECTED", "default/integration branch or GitHub-protected ref"
+    if (
+        branch == policy["default_branch"]
+        or branch in set(policy["integration_branches"])
+        or protected
+    ):
+        classification = "PROTECTED"
+        reason = "default/integration branch or GitHub-protected ref"
     elif any(pull.get("state") == "open" for pull in pulls):
-        classification, reason = "OPEN_PR", "same-repository open PR owns branch"
+        classification = "OPEN_PR"
+        reason = "same-repository open PR owns branch"
     elif branch in active_claims:
-        classification, reason = "ACTIVE_CLAIM", "active task record references branch"
+        classification = "ACTIVE_CLAIM"
+        reason = "active task record references branch"
     elif is_reserved(branch, policy["reserved_name_parts"]):
-        classification, reason = "RESERVED", "release/rollback/recovery/backup naming is retained fail-closed"
+        classification = "RESERVED"
+        reason = "release/rollback/recovery/backup naming is retained fail-closed"
     else:
-        exact_terminal = [pull for pull in pulls if pull_head_sha(pull) == sha and pull.get("state") == "closed"]
+        exact_terminal = [
+            pull
+            for pull in pulls
+            if pull_head_sha(pull) == sha and pull.get("state") == "closed"
+        ]
         exact_merged = [pull for pull in exact_terminal if pull.get("merged_at")]
         exact_unmerged = [pull for pull in exact_terminal if not pull.get("merged_at")]
         if exact_merged:
-            classification, reason = "TERMINAL_MERGED", "closed merged PR exact head SHA matches live branch"
+            classification = "TERMINAL_MERGED"
+            reason = "closed merged PR exact head SHA matches live branch"
         elif exact_unmerged:
-            classification, reason = "TERMINAL_CLOSED_UNMERGED", "closed unmerged PR exact head SHA matches live branch"
+            classification = "TERMINAL_CLOSED_UNMERGED"
+            reason = "closed unmerged PR exact head SHA matches live branch"
         elif pulls:
-            classification, reason = "UNKNOWN", "PR history exists but no terminal PR matches current branch SHA"
+            classification = "UNKNOWN"
+            reason = "PR history exists but no terminal PR matches current branch SHA"
         else:
-            classification, reason = "UNMERGED_ORPHAN", "no same-repository PR history found for branch"
+            classification = "UNMERGED_ORPHAN"
+            reason = "no same-repository PR history found for branch"
     return {
         "branch": branch,
         "classification": classification,
@@ -363,17 +411,24 @@ def classify_branch(
     }
 
 
-def build_inventory(client: GitHubClient, policy: dict[str, Any], root: Path) -> dict[str, Any]:
+def build_inventory(
+    client: GitHubClient,
+    policy: dict[str, Any],
+    root: Path,
+) -> dict[str, Any]:
     validate_policy(policy)
     metadata = client.repo_metadata()
     if metadata.get("full_name", "").casefold() != policy["repository"].casefold():
         raise LifecycleError("repository identity differs from policy")
     if metadata.get("default_branch") != policy["default_branch"]:
+        live_default = metadata.get("default_branch")
         raise LifecycleError(
-            f"default branch drift: policy={policy['default_branch']} live={metadata.get('default_branch')}"
+            f"default branch drift: policy={policy['default_branch']} live={live_default}"
         )
     observed_settings = {
-        "delete_branch_on_merge": metadata.get("delete_branch_on_merge", "UNAVAILABLE_TOKEN_SCOPE"),
+        "delete_branch_on_merge": metadata.get(
+            "delete_branch_on_merge", "UNAVAILABLE_TOKEN_SCOPE"
+        ),
         "allow_squash_merge": metadata.get("allow_squash_merge", "UNAVAILABLE_TOKEN_SCOPE"),
         "allow_merge_commit": metadata.get("allow_merge_commit", "UNAVAILABLE_TOKEN_SCOPE"),
         "allow_rebase_merge": metadata.get("allow_rebase_merge", "UNAVAILABLE_TOKEN_SCOPE"),
@@ -427,7 +482,11 @@ def build_inventory(client: GitHubClient, policy: dict[str, Any], root: Path) ->
     }
 
 
-def validate_approval(approval: dict[str, Any], inventory: dict[str, Any], policy: dict[str, Any]) -> None:
+def validate_approval(
+    approval: dict[str, Any],
+    manifest: dict[str, Any],
+    policy: dict[str, Any],
+) -> None:
     expected = {
         "schema_version",
         "issue",
@@ -449,51 +508,82 @@ def validate_approval(approval: dict[str, Any], inventory: dict[str, Any], polic
         raise LifecycleError("approval issue mismatch")
     if str(approval["repository"]).casefold() != policy["repository"].casefold():
         raise LifecycleError("approval repository mismatch")
-    if approval["confirmation"] != f"DELETE_EXACT_REVIEWED_TERMINAL_BRANCHES_ISSUE_{policy['issue']}":
+    expected_confirmation = (
+        f"DELETE_EXACT_REVIEWED_TERMINAL_BRANCHES_ISSUE_{policy['issue']}"
+    )
+    if approval["confirmation"] != expected_confirmation:
         raise LifecycleError("approval confirmation mismatch")
-    if approval["candidate_count"] != inventory["candidate_count"]:
+    if approval["candidate_count"] != manifest["candidate_count"]:
         raise LifecycleError("approval candidate_count drift")
-    if approval["entries_sha256"] != inventory["entries_sha256"]:
+    if approval["entries_sha256"] != manifest["entries_sha256"]:
         raise LifecycleError("approval candidate entries drift")
-    if approval["policy_sha256"] != inventory["policy_sha256"]:
+    if approval["policy_sha256"] != manifest["policy_sha256"]:
         raise LifecycleError("approval policy drift")
     if not isinstance(approval["reviewed_by"], str) or not approval["reviewed_by"].strip():
         raise LifecycleError("approval reviewed_by required")
-    if not isinstance(approval["reviewed_at"], str) or parse_github_time(approval["reviewed_at"]) is None:
+    if (
+        not isinstance(approval["reviewed_at"], str)
+        or parse_github_time(approval["reviewed_at"]) is None
+    ):
         raise LifecycleError("approval reviewed_at must be ISO timestamp")
-    if not isinstance(approval["review_summary"], str) or not approval["review_summary"].strip():
+    if (
+        not isinstance(approval["review_summary"], str)
+        or not approval["review_summary"].strip()
+    ):
         raise LifecycleError("approval review_summary required")
 
 
-def classify_pr_health(pull: dict[str, Any], *, now: dt.datetime, stale_days: int) -> dict[str, Any]:
+def classify_pr_health(
+    pull: dict[str, Any],
+    *,
+    now: dt.datetime,
+    stale_days: int,
+) -> dict[str, Any]:
     number = pull.get("number")
-    title = pull.get("title") if isinstance(pull.get("title"), str) else ""
-    body = pull.get("body") if isinstance(pull.get("body"), str) else ""
+    raw_title = pull.get("title")
+    title = raw_title if isinstance(raw_title, str) else ""
+    raw_body = pull.get("body")
+    body = raw_body if isinstance(raw_body, str) else ""
     draft = bool(pull.get("draft"))
     updated = parse_github_time(pull.get("updated_at"))
     age_days = None if updated is None else max(0.0, (now - updated).total_seconds() / 86400)
     body_lower = body.casefold()
     request_only = explicitly_request_only(body)
-    waiting = any(token in body_lower for token in ("blocked", "waiting", "wait until", "remains mandatory"))
+    waiting = any(
+        token in body_lower
+        for token in ("blocked", "waiting", "wait until", "remains mandatory")
+    )
     prose_draft = bool(DRAFT_WORDING_RE.search(body))
-    inconsistent = (prose_draft and not draft) or (draft and "ready for review" in body_lower)
+    inconsistent = (prose_draft and not draft) or (
+        draft and "ready for review" in body_lower
+    )
     if inconsistent:
-        health, reason = "METADATA_INCONSISTENT", "GitHub draft metadata conflicts with PR prose"
+        health = "METADATA_INCONSISTENT"
+        reason = "GitHub draft metadata conflicts with PR prose"
     elif request_only:
-        health, reason = "REQUEST_ONLY", "PR prose explicitly marks this PR as request-only / close-without-merge"
+        health = "REQUEST_ONLY"
+        reason = "PR prose explicitly marks this PR as request-only / close-without-merge"
     elif waiting:
-        health, reason = "WAITING_OR_BLOCKED", "PR prose explicitly records waiting/blocking semantics"
+        health = "WAITING_OR_BLOCKED"
+        reason = "PR prose explicitly records waiting/blocking semantics"
     elif age_days is not None and age_days >= stale_days:
-        health, reason = "STALLED_SIGNAL", f"no PR metadata update for at least {stale_days} days; signal only, never auto-close by age"
+        health = "STALLED_SIGNAL"
+        reason = (
+            f"no PR metadata update for at least {stale_days} days; "
+            "signal only, never auto-close by age"
+        )
     else:
-        health, reason = "ACTIVE", "recent or no terminal/waiting signal detected"
+        health = "ACTIVE"
+        reason = "recent or no terminal/waiting signal detected"
+    raw_base = pull.get("base")
+    base = raw_base.get("ref") if isinstance(raw_base, dict) else None
     return {
         "number": number,
         "title": title,
         "draft": draft,
         "head": pull_head_ref(pull),
         "head_sha": pull_head_sha(pull),
-        "base": (pull.get("base") or {}).get("ref") if isinstance(pull.get("base"), dict) else None,
+        "base": base,
         "updated_at": pull.get("updated_at"),
         "age_days": None if age_days is None else round(age_days, 2),
         "health": health,
@@ -503,10 +593,19 @@ def classify_pr_health(pull: dict[str, Any], *, now: dt.datetime, stale_days: in
 
 
 def pr_audit(client: GitHubClient, policy: dict[str, Any]) -> dict[str, Any]:
-    now = dt.datetime.now(dt.timezone.utc)
-    pulls = [pull for pull in client.pulls("open") if same_repo_pull(pull, client.repo)]
-    entries = [classify_pr_health(pull, now=now, stale_days=policy["stale_pr_days"]) for pull in pulls]
-    entries.sort(key=lambda item: int(item["number"]) if isinstance(item["number"], int) else -1)
+    now = dt.datetime.now(dt.UTC)
+    pulls = [
+        pull for pull in client.pulls("open") if same_repo_pull(pull, client.repo)
+    ]
+    entries = [
+        classify_pr_health(pull, now=now, stale_days=policy["stale_pr_days"])
+        for pull in pulls
+    ]
+    entries.sort(
+        key=lambda item: int(item["number"])
+        if isinstance(item["number"], int)
+        else -1
+    )
     counts = Counter(item["health"] for item in entries)
     return {
         "schema_version": 1,
@@ -522,7 +621,11 @@ def pr_audit(client: GitHubClient, policy: dict[str, Any]) -> dict[str, Any]:
 
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser()
-    p.add_argument("--mode", choices=("validate-policy", "inventory", "pr-audit"), required=True)
+    p.add_argument(
+        "--mode",
+        choices=("validate-policy", "inventory", "pr-audit"),
+        required=True,
+    )
     p.add_argument("--root", default=".")
     p.add_argument("--policy", default=str(POLICY_PATH))
     p.add_argument("--output")
@@ -544,7 +647,10 @@ def main(argv: list[str] | None = None) -> int:
     if repo.casefold() != policy["repository"].casefold():
         raise LifecycleError(f"GITHUB_REPOSITORY mismatch: {repo}")
     client = GitHubClient(repo, token, root=root)
-    result = build_inventory(client, policy, root) if args.mode == "inventory" else pr_audit(client, policy)
+    if args.mode == "inventory":
+        result = build_inventory(client, policy, root)
+    else:
+        result = pr_audit(client, policy)
     text = canonical_json(result)
     if args.output:
         Path(args.output).write_text(text, encoding="utf-8")

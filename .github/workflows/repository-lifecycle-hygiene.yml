@@ -106,26 +106,30 @@ jobs:
           python tools/agents/repository_lifecycle_preflight.py \
             --output repository-lifecycle-preflight.json
 
-      - name: Validate reviewed approval when present
+      - name: Validate reviewed approval wave when present
         if: hashFiles('docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json') != ''
         run: |
           python - <<'PY'
-          import importlib.util
           import json
+          import sys
           from pathlib import Path
 
-          module_path = Path("tools/agents/repository_lifecycle.py")
-          spec = importlib.util.spec_from_file_location("repository_lifecycle", module_path)
-          if spec is None or spec.loader is None:
-              raise SystemExit("unable to load repository_lifecycle")
-          rl = importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(rl)
+          sys.path.insert(0, "tools/agents")
+          import repository_lifecycle as rl
+          import repository_lifecycle_approval as approval_logic
 
           policy = rl.load_json(Path("docs/agents/REPOSITORY_LIFECYCLE_POLICY.json"))
           approval = rl.load_json(Path("docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json"))
           manifest = json.loads(Path("repository-lifecycle-preflight.json").read_text())
-          rl.validate_approval(approval, manifest, policy)
-          print(f"reviewed safe candidate set validated: {manifest['candidate_count']}")
+          wave = approval_logic.approval_wave_manifest(
+              manifest,
+              candidate_count=approval["candidate_count"],
+          )
+          rl.validate_approval(approval, wave, policy)
+          print(
+              f"reviewed approval wave validated: {wave['candidate_count']} of "
+              f"{manifest['candidate_count']} current safe candidates"
+          )
           PY
 
       - name: Publish branch inventory
@@ -297,7 +301,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Detect one-time reviewed approval
+      - name: Detect reviewed approval
         id: approval
         shell: bash
         run: |
@@ -308,7 +312,7 @@ jobs:
             echo "No reviewed approval present; historical apply is NOT_APPLICABLE."
           fi
 
-      - name: Rebuild and apply only the exact reviewed live candidate set
+      - name: Rebuild and apply only the exact reviewed wave
         if: steps.approval.outputs.exists == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -316,8 +320,9 @@ jobs:
           python tools/agents/repository_lifecycle_apply.py \
             --output repository-lifecycle-apply.json
 
-      - name: Verify post-apply source-head-safe inventory is terminal
+      - name: Verify approved wave is gone from the source-head-safe set
         if: steps.approval.outputs.exists == 'true'
+        id: post
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -328,22 +333,75 @@ jobs:
             --output repository-lifecycle-post-apply-preflight.json
           python - <<'PY'
           import json
+          import os
           from pathlib import Path
 
+          apply_report = json.loads(Path("repository-lifecycle-apply.json").read_text())
           inventory = json.loads(Path("repository-lifecycle-post-apply.json").read_text())
           preflight = json.loads(
               Path("repository-lifecycle-post-apply-preflight.json").read_text()
           )
-          if preflight["candidate_count"] != 0:
+          approved = {
+              (item["branch"], item["sha"])
+              for item in apply_report["approved_candidates"]
+          }
+          still_safe = {
+              (item["branch"], item["sha"])
+              for item in preflight["candidates"]
+          }
+          overlap = sorted(approved & still_safe)
+          if overlap:
               raise SystemExit(
-                  "post-apply preflight still has "
-                  f"{preflight['candidate_count']} source-head-safe deletion candidates"
+                  f"approved wave still contains source-head-safe refs: {overlap[:5]!r}"
               )
+          before = apply_report["safe_candidate_count_before_wave"]
+          after = preflight["candidate_count"]
+          if after >= before:
+              raise SystemExit(
+                  f"cleanup wave made no safe-set progress: before={before} after={after}"
+              )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"remaining={after}\n")
           print(
-              f"post-apply PASS: {inventory['branch_count']} branches, "
-              f"{inventory['candidate_count']} raw terminal refs, zero source-head-safe candidates"
+              f"post-wave PASS: {inventory['branch_count']} branches, "
+              f"{inventory['candidate_count']} raw terminal refs, {after} safe refs remain"
           )
           PY
+
+      - name: Generate next bounded approval when safe refs remain
+        if: steps.approval.outputs.exists == 'true' && steps.post.outputs.remaining != '0'
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          python tools/agents/repository_lifecycle_approval.py \
+            --manifest repository-lifecycle-post-apply-preflight.json \
+            --output docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json
+
+      - name: Create next approval branch only
+        if: steps.approval.outputs.exists == 'true' && steps.post.outputs.remaining != '0'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BRANCH="governance/repository-lifecycle-approval-1559"
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "Next approval branch already exists; refusing to rewrite it."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git add docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json
+          if [[ "$(git diff --cached --name-only)" != "docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json" ]]; then
+            echo "Next approval proposal attempted an unexpected changed path."
+            exit 1
+          fi
+          git commit -m "docs(governance): approve next exact branch cleanup wave"
+          BASIC="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $BASIC" \
+            push origin "HEAD:refs/heads/$BRANCH"
+          echo "Next approval branch created. Coordinator must open the PR through the trusted GitHub connector."
 
       - name: Publish deletion and recovery evidence
         if: always() && steps.approval.outputs.exists == 'true'
@@ -354,5 +412,6 @@ jobs:
             repository-lifecycle-apply.json
             repository-lifecycle-post-apply.json
             repository-lifecycle-post-apply-preflight.json
+            docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json
           if-no-files-found: warn
           retention-days: 14

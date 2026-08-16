@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+
 ROOT = Path(__file__).resolve().parent
 
 RL_SPEC = importlib.util.spec_from_file_location(
@@ -263,9 +264,7 @@ class RecoveryTests(unittest.TestCase):
         ):
             with self.assertRaises(rl.LifecycleError):
                 destructive.safe_recovery_test(client, "develop", 1559)
-        leftovers = [
-            name for name in client.refs if name.startswith("recovery-test/")
-        ]
+        leftovers = [name for name in client.refs if name.startswith("recovery-test/")]
         self.assertEqual(leftovers, [])
 
 
@@ -408,9 +407,7 @@ class EventTests(unittest.TestCase):
                 patch.object(
                     destructive,
                     "revalidate_candidate",
-                    side_effect=destructive.RetainBranch(
-                        "feature/x: active source-head task"
-                    ),
+                    side_effect=destructive.RetainBranch("feature/x: active source-head task"),
                 ),
                 patch.object(destructive, "delete_branch_exact") as delete,
             ):

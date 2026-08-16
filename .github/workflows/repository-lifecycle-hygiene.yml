@@ -11,10 +11,12 @@ on:
       - "docs/agents/tasks/active/FTAI-20260815-repository-lifecycle-hygiene.md"
       - "tools/agents/repository_lifecycle.py"
       - "tools/agents/repository_lifecycle_approval.py"
+      - "tools/agents/repository_lifecycle_apply.py"
       - "tools/agents/repository_lifecycle_destructive.py"
       - "tools/agents/repository_lifecycle_preflight.py"
       - "tools/agents/test_repository_lifecycle.py"
       - "tools/agents/test_repository_lifecycle_destructive.py"
+      - "tools/agents/test_repository_lifecycle_rate_limit.py"
   push:
     branches:
       - develop
@@ -26,10 +28,12 @@ on:
       - "docs/agents/BRANCH_POLICY.md"
       - "tools/agents/repository_lifecycle.py"
       - "tools/agents/repository_lifecycle_approval.py"
+      - "tools/agents/repository_lifecycle_apply.py"
       - "tools/agents/repository_lifecycle_destructive.py"
       - "tools/agents/repository_lifecycle_preflight.py"
       - "tools/agents/test_repository_lifecycle.py"
       - "tools/agents/test_repository_lifecycle_destructive.py"
+      - "tools/agents/test_repository_lifecycle_rate_limit.py"
   schedule:
     - cron: "25 2 * * *"
   workflow_dispatch:
@@ -62,8 +66,10 @@ jobs:
         run: |
           python tools/agents/test_repository_lifecycle.py
           python tools/agents/test_repository_lifecycle_destructive.py
+          python tools/agents/test_repository_lifecycle_rate_limit.py
           python -m py_compile \
             tools/agents/repository_lifecycle_preflight.py \
+            tools/agents/repository_lifecycle_apply.py \
             tools/agents/repository_lifecycle_approval.py
 
       - name: Validate lifecycle policy
@@ -307,8 +313,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          python tools/agents/repository_lifecycle_destructive.py \
-            --mode apply \
+          python tools/agents/repository_lifecycle_apply.py \
             --output repository-lifecycle-apply.json
 
       - name: Verify post-apply source-head-safe inventory is terminal

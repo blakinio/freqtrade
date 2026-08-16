@@ -7,6 +7,7 @@ import json
 import os
 import urllib.parse
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from audit_ledger import AuditLedgerError, issue_numbers, load_ledger
@@ -78,6 +79,22 @@ def validate_open_issue_mappings(ledger: dict[str, Any], fetch: JsonFetcher) -> 
         )
 
 
+def legacy_issue_state_gate_is_applicable(repository_root: Path | None = None) -> bool:
+    root = repository_root or Path(__file__).resolve().parents[2]
+    registry_path = root / "ARCHITECTURE_REGISTRY.yaml"
+    try:
+        registry = registry_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise AuditLedgerError(f"cannot read architecture registry: {exc}") from exc
+
+    adr023_markers = (
+        "decision: ADR-023",
+        "ADR-023 is the current product overlay for the entire Portal",
+        "SHADOW/PAPER/LIVE are historical or compatibility vocabulary only",
+    )
+    return not all(marker in registry for marker in adr023_markers)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repository", required=True)
@@ -86,10 +103,27 @@ def main() -> int:
         default=os.environ.get("GITHUB_API_URL", "https://api.github.com"),
     )
     args = parser.parse_args()
+    ledger = load_ledger()
+
+    if not legacy_issue_state_gate_is_applicable():
+        print(
+            json.dumps(
+                {
+                    "legacy_issue_state_gate": "NOT_APPLICABLE_ADR_023",
+                    "ledger_issue_mappings": len(issue_numbers(ledger)),
+                    "reason": (
+                        "ADR-023 supersedes legacy completeness-Issue state as current "
+                        "Portal delivery authority"
+                    ),
+                },
+                sort_keys=True,
+            )
+        )
+        return 0
+
     token = os.environ.get("GITHUB_TOKEN", "").strip()
     if not token:
         raise AuditLedgerError("GITHUB_TOKEN is required for fail-closed Issue-state validation")
-    ledger = load_ledger()
     validate_open_issue_mappings(
         ledger,
         github_fetcher(args.repository, token, args.api_url),

@@ -75,6 +75,8 @@ Load older `SYSTEM_ARCHITECTURE.md`, PI/BM plans, PAPER-first documents, Runtime
 
 ## Product vertical slice — current highest priority
 
+**Current work item: Issue #1561.**
+
 The programme is not allowed to call the current Portal usefully delivered until this owner-facing journey works end to end:
 
 1. Liquid20/market collectors provide current public Binance/Bybit/OKX evidence with truthful freshness/health.
@@ -143,4 +145,4 @@ In particular:
 
 ## Immediate next action
 
-Reclassify the full live Portal/WickHunter backlog and open related PR inventory under `KEEP_NOW | SIMPLIFY | DEFER | OBSOLETE`, make obsolete work terminal, then execute the smallest complete current vertical slice rather than opening another isolated producer programme.
+Execute Issue #1561 as the sole current P1 owner-facing Developer Quant vertical slice. Integrate/reuse existing real-data, runtime, simulation, dataset, training and Portal components directly into that journey; do not restart the superseded PAPER-first producer programme or create disconnected partial producers without a genuine independent dependency.

@@ -16,6 +16,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+
 POLICY_PATH = Path("docs/agents/REPOSITORY_LIFECYCLE_POLICY.json")
 APPROVAL_PATH = Path("docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json")
 ACTIVE_TASKS_PATH = Path("docs/agents/tasks/active")
@@ -91,9 +92,7 @@ def load_json(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise LifecycleError(f"{path}: root must be an object")
     if raw != canonical_json(value):
-        raise LifecycleError(
-            f"{path}: JSON must be canonical (sorted, indent=2, trailing newline)"
-        )
+        raise LifecycleError(f"{path}: JSON must be canonical (sorted, indent=2, trailing newline)")
     return value
 
 
@@ -123,10 +122,7 @@ def validate_policy(policy: dict[str, Any]) -> None:
         or policy["default_branch"] not in policy["integration_branches"]
     ):
         raise LifecycleError("policy.integration_branches must contain default_branch")
-    if any(
-        not isinstance(item, str) or not item
-        for item in policy["integration_branches"]
-    ):
+    if any(not isinstance(item, str) or not item for item in policy["integration_branches"]):
         raise LifecycleError("policy.integration_branches entries must be non-empty strings")
     if not isinstance(policy["reserved_name_parts"], list) or any(
         not isinstance(item, str) or not item for item in policy["reserved_name_parts"]
@@ -135,9 +131,7 @@ def validate_policy(policy: dict[str, Any]) -> None:
     if not isinstance(policy["stale_pr_days"], int) or policy["stale_pr_days"] < 1:
         raise LifecycleError("policy.stale_pr_days must be >= 1")
     if set(policy["deletion_classifications"]) != DELETION_CLASSIFICATIONS:
-        raise LifecycleError(
-            "policy.deletion_classifications must match the approved terminal set"
-        )
+        raise LifecycleError("policy.deletion_classifications must match the approved terminal set")
 
 
 def policy_sha256(policy: dict[str, Any]) -> str:
@@ -316,10 +310,7 @@ class GitHubClient:
 
     def pulls(self, state: str = "all") -> list[dict[str, Any]]:
         state_param = urllib.parse.quote(state)
-        path = (
-            f"/repos/{self.repo}/pulls?state={state_param}&per_page=100"
-            "&sort=updated&direction=desc"
-        )
+        path = f"/repos/{self.repo}/pulls?state={state_param}&per_page=100&sort=updated&direction=desc"
         return [item for item in self.paginate(path) if isinstance(item, dict)]
 
     def get_ref_sha(self, branch: str) -> str | None:
@@ -380,9 +371,7 @@ def classify_branch(
         reason = "release/rollback/recovery/backup naming is retained fail-closed"
     else:
         exact_terminal = [
-            pull
-            for pull in pulls
-            if pull_head_sha(pull) == sha and pull.get("state") == "closed"
+            pull for pull in pulls if pull_head_sha(pull) == sha and pull.get("state") == "closed"
         ]
         exact_merged = [pull for pull in exact_terminal if pull.get("merged_at")]
         exact_unmerged = [pull for pull in exact_terminal if not pull.get("merged_at")]
@@ -426,9 +415,7 @@ def build_inventory(
             f"default branch drift: policy={policy['default_branch']} live={live_default}"
         )
     observed_settings = {
-        "delete_branch_on_merge": metadata.get(
-            "delete_branch_on_merge", "UNAVAILABLE_TOKEN_SCOPE"
-        ),
+        "delete_branch_on_merge": metadata.get("delete_branch_on_merge", "UNAVAILABLE_TOKEN_SCOPE"),
         "allow_squash_merge": metadata.get("allow_squash_merge", "UNAVAILABLE_TOKEN_SCOPE"),
         "allow_merge_commit": metadata.get("allow_merge_commit", "UNAVAILABLE_TOKEN_SCOPE"),
         "allow_rebase_merge": metadata.get("allow_rebase_merge", "UNAVAILABLE_TOKEN_SCOPE"),
@@ -508,9 +495,7 @@ def validate_approval(
         raise LifecycleError("approval issue mismatch")
     if str(approval["repository"]).casefold() != policy["repository"].casefold():
         raise LifecycleError("approval repository mismatch")
-    expected_confirmation = (
-        f"DELETE_EXACT_REVIEWED_TERMINAL_BRANCHES_ISSUE_{policy['issue']}"
-    )
+    expected_confirmation = f"DELETE_EXACT_REVIEWED_TERMINAL_BRANCHES_ISSUE_{policy['issue']}"
     if approval["confirmation"] != expected_confirmation:
         raise LifecycleError("approval confirmation mismatch")
     if approval["candidate_count"] != manifest["candidate_count"]:
@@ -526,10 +511,7 @@ def validate_approval(
         or parse_github_time(approval["reviewed_at"]) is None
     ):
         raise LifecycleError("approval reviewed_at must be ISO timestamp")
-    if (
-        not isinstance(approval["review_summary"], str)
-        or not approval["review_summary"].strip()
-    ):
+    if not isinstance(approval["review_summary"], str) or not approval["review_summary"].strip():
         raise LifecycleError("approval review_summary required")
 
 
@@ -550,13 +532,10 @@ def classify_pr_health(
     body_lower = body.casefold()
     request_only = explicitly_request_only(body)
     waiting = any(
-        token in body_lower
-        for token in ("blocked", "waiting", "wait until", "remains mandatory")
+        token in body_lower for token in ("blocked", "waiting", "wait until", "remains mandatory")
     )
     prose_draft = bool(DRAFT_WORDING_RE.search(body))
-    inconsistent = (prose_draft and not draft) or (
-        draft and "ready for review" in body_lower
-    )
+    inconsistent = (prose_draft and not draft) or (draft and "ready for review" in body_lower)
     if inconsistent:
         health = "METADATA_INCONSISTENT"
         reason = "GitHub draft metadata conflicts with PR prose"
@@ -594,18 +573,11 @@ def classify_pr_health(
 
 def pr_audit(client: GitHubClient, policy: dict[str, Any]) -> dict[str, Any]:
     now = dt.datetime.now(dt.UTC)
-    pulls = [
-        pull for pull in client.pulls("open") if same_repo_pull(pull, client.repo)
-    ]
+    pulls = [pull for pull in client.pulls("open") if same_repo_pull(pull, client.repo)]
     entries = [
-        classify_pr_health(pull, now=now, stale_days=policy["stale_pr_days"])
-        for pull in pulls
+        classify_pr_health(pull, now=now, stale_days=policy["stale_pr_days"]) for pull in pulls
     ]
-    entries.sort(
-        key=lambda item: int(item["number"])
-        if isinstance(item["number"], int)
-        else -1
-    )
+    entries.sort(key=lambda item: int(item["number"]) if isinstance(item["number"], int) else -1)
     counts = Counter(item["health"] for item in entries)
     return {
         "schema_version": 1,

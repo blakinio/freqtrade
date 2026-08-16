@@ -25,6 +25,7 @@ def _load(name: str, path: str) -> Any:
 rl = _load("repository_lifecycle", "repository_lifecycle.py")
 destructive = _load("repository_lifecycle_destructive", "repository_lifecycle_destructive.py")
 preflight = _load("repository_lifecycle_preflight", "repository_lifecycle_preflight.py")
+approval = _load("repository_lifecycle_approval", "repository_lifecycle_approval.py")
 apply = _load("repository_lifecycle_apply", "repository_lifecycle_apply.py")
 
 POLICY = {
@@ -69,6 +70,21 @@ def inventory(candidates: list[dict[str, Any]]) -> dict[str, Any]:
                 "reason": "default branch",
             }
         ],
+    }
+
+
+def safe_manifest(candidates: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "base_sha": BASE_SHA,
+        "candidate_count": len(candidates),
+        "candidates": candidates,
+        "entries_sha256": rl.entries_sha256(candidates),
+        "policy_sha256": rl.policy_sha256(POLICY),
+        "source_inventory_candidate_count": len(candidates),
+        "retained_count": 0,
+        "retained": [],
+        "already_absent_count": 0,
+        "already_absent": [],
     }
 
 
@@ -165,6 +181,33 @@ class HistoricalPreflightRateLimitTests(unittest.TestCase):
         cleanup.assert_called_once()
 
 
+class ApprovalWaveTests(unittest.TestCase):
+    def test_large_safe_set_is_deterministically_sliced_to_wave_limit(self) -> None:
+        candidates = [
+            candidate(f"feature/{index:04d}", f"{index:040x}"[-40:], "TERMINAL_MERGED", index)
+            for index in range(1, 1011)
+        ]
+        manifest = safe_manifest(candidates)
+        wave = approval.approval_wave_manifest(manifest)
+        self.assertEqual(wave["candidate_count"], approval.APPROVAL_WAVE_SIZE)
+        self.assertEqual(wave["candidates"], candidates[: approval.APPROVAL_WAVE_SIZE])
+        self.assertEqual(
+            wave["entries_sha256"],
+            rl.entries_sha256(candidates[: approval.APPROVAL_WAVE_SIZE]),
+        )
+
+    def test_requested_wave_larger_than_limit_fails_closed(self) -> None:
+        candidates = [
+            candidate(f"feature/{index}", MERGED_SHA, "TERMINAL_MERGED", index)
+            for index in range(1, approval.APPROVAL_WAVE_SIZE + 2)
+        ]
+        with self.assertRaises(rl.LifecycleError):
+            approval.approval_wave_manifest(
+                safe_manifest(candidates),
+                candidate_count=approval.APPROVAL_WAVE_SIZE + 1,
+            )
+
+
 class HistoricalApplyRateLimitTests(unittest.TestCase):
     def test_immediate_revalidation_uses_git_and_one_open_pr_query(self) -> None:
         item = candidate("feature/merged", MERGED_SHA, "TERMINAL_MERGED", 1)
@@ -210,55 +253,23 @@ class HistoricalApplyRateLimitTests(unittest.TestCase):
                     approved_base_sha=BASE_SHA,
                 )
 
-    def test_apply_aborts_before_recovery_when_wave_exceeds_budget(self) -> None:
-        item = candidate("feature/merged", MERGED_SHA, "TERMINAL_MERGED", 1)
-        count = preflight.MAX_SINGLE_APPROVAL_SAFE_CANDIDATES + 1
-        manifest = {
-            "base_sha": BASE_SHA,
-            "candidate_count": count,
-            "candidates": [item] * count,
-            "entries_sha256": "e" * 64,
-            "policy_sha256": "p" * 64,
-            "source_inventory_candidate_count": count,
-            "retained_count": 0,
-            "retained": [],
-            "already_absent": [],
+    def test_apply_uses_only_approved_prefix_of_larger_safe_set(self) -> None:
+        candidates = [
+            candidate(f"feature/{index:04d}", f"{index:040x}"[-40:], "TERMINAL_MERGED", index)
+            for index in range(1, approval.APPROVAL_WAVE_SIZE + 3)
+        ]
+        manifest = safe_manifest(candidates)
+        wave = approval.approval_wave_manifest(manifest)
+        approval_record = {
+            "apply_on_develop": True,
+            "candidate_count": wave["candidate_count"],
         }
         client = fake_client()
         with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
             with (
                 patch.object(preflight, "build_preflight", return_value=manifest),
-                patch.object(rl, "load_json", return_value={"apply_on_develop": True}),
-                patch.object(rl, "validate_approval"),
-                patch.object(destructive, "safe_recovery_test") as recovery,
-            ):
-                with self.assertRaises(rl.LifecycleError):
-                    apply.apply_reviewed_safe_manifest(
-                        client,
-                        POLICY,
-                        Path(tmp),
-                        Path(tmp) / "apply.json",
-                    )
-        recovery.assert_not_called()
-
-    def test_apply_never_calls_legacy_rest_heavy_delete_path(self) -> None:
-        item = candidate("feature/merged", MERGED_SHA, "TERMINAL_MERGED", 1)
-        manifest = {
-            "base_sha": BASE_SHA,
-            "candidate_count": 1,
-            "candidates": [item],
-            "entries_sha256": "e" * 64,
-            "policy_sha256": "p" * 64,
-            "source_inventory_candidate_count": 1,
-            "retained_count": 0,
-            "retained": [],
-            "already_absent": [],
-        }
-        client = fake_client()
-        with tempfile.TemporaryDirectory() as tmp:
-            with (
-                patch.object(preflight, "build_preflight", return_value=manifest),
-                patch.object(rl, "load_json", return_value={"apply_on_develop": True}),
+                patch.object(rl, "load_json", return_value=approval_record),
                 patch.object(rl, "validate_approval"),
                 patch.object(
                     destructive,
@@ -269,22 +280,55 @@ class HistoricalApplyRateLimitTests(unittest.TestCase):
                     apply,
                     "_revalidate_immediately_before_delete",
                     return_value={"status": "DELETE_SAFE"},
-                ),
-                patch.object(apply, "_delete_git_exact", return_value="DELETED"),
+                ) as revalidate,
+                patch.object(apply, "_delete_git_exact", return_value="DELETED") as delete,
                 patch.object(destructive, "revalidate_candidate") as legacy_revalidate,
                 patch.object(destructive, "delete_branch_exact") as legacy_delete,
             ):
                 result = apply.apply_reviewed_safe_manifest(
                     client,
                     POLICY,
-                    Path(tmp),
-                    Path(tmp) / "apply.json",
+                    root,
+                    root / "apply.json",
                 )
 
+        self.assertEqual(revalidate.call_count, approval.APPROVAL_WAVE_SIZE)
+        self.assertEqual(delete.call_count, approval.APPROVAL_WAVE_SIZE)
         legacy_revalidate.assert_not_called()
         legacy_delete.assert_not_called()
-        self.assertEqual(result["result"], "PASS")
-        self.assertEqual(result["deleted"], [item])
+        self.assertEqual(result["reviewed_candidate_count"], approval.APPROVAL_WAVE_SIZE)
+        self.assertEqual(result["approved_candidates"], candidates[: approval.APPROVAL_WAVE_SIZE])
+        self.assertEqual(len(result["deleted"]), approval.APPROVAL_WAVE_SIZE)
+
+    def test_apply_rejects_approval_count_above_wave_limit_before_recovery(self) -> None:
+        candidates = [
+            candidate(f"feature/{index}", MERGED_SHA, "TERMINAL_MERGED", index)
+            for index in range(1, approval.APPROVAL_WAVE_SIZE + 2)
+        ]
+        manifest = safe_manifest(candidates)
+        client = fake_client()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with (
+                patch.object(preflight, "build_preflight", return_value=manifest),
+                patch.object(
+                    rl,
+                    "load_json",
+                    return_value={
+                        "apply_on_develop": True,
+                        "candidate_count": approval.APPROVAL_WAVE_SIZE + 1,
+                    },
+                ),
+                patch.object(destructive, "safe_recovery_test") as recovery,
+            ):
+                with self.assertRaises(rl.LifecycleError):
+                    apply.apply_reviewed_safe_manifest(
+                        client,
+                        POLICY,
+                        root,
+                        root / "apply.json",
+                    )
+        recovery.assert_not_called()
 
 
 if __name__ == "__main__":

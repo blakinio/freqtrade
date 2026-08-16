@@ -10,7 +10,9 @@ on:
       - "docs/agents/BRANCH_POLICY.md"
       - "docs/agents/tasks/active/FTAI-20260815-repository-lifecycle-hygiene.md"
       - "tools/agents/repository_lifecycle.py"
+      - "tools/agents/repository_lifecycle_approval.py"
       - "tools/agents/repository_lifecycle_destructive.py"
+      - "tools/agents/repository_lifecycle_preflight.py"
       - "tools/agents/test_repository_lifecycle.py"
       - "tools/agents/test_repository_lifecycle_destructive.py"
   push:
@@ -23,7 +25,9 @@ on:
       - "docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json"
       - "docs/agents/BRANCH_POLICY.md"
       - "tools/agents/repository_lifecycle.py"
+      - "tools/agents/repository_lifecycle_approval.py"
       - "tools/agents/repository_lifecycle_destructive.py"
+      - "tools/agents/repository_lifecycle_preflight.py"
       - "tools/agents/test_repository_lifecycle.py"
       - "tools/agents/test_repository_lifecycle_destructive.py"
   schedule:
@@ -58,6 +62,9 @@ jobs:
         run: |
           python tools/agents/test_repository_lifecycle.py
           python tools/agents/test_repository_lifecycle_destructive.py
+          python -m py_compile \
+            tools/agents/repository_lifecycle_preflight.py \
+            tools/agents/repository_lifecycle_approval.py
 
       - name: Validate lifecycle policy
         run: python tools/agents/repository_lifecycle.py --mode validate-policy
@@ -65,7 +72,7 @@ jobs:
   inventory:
     needs: validate
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -85,6 +92,14 @@ jobs:
             --mode inventory \
             --output repository-lifecycle-inventory.json
 
+      - name: Build source-head-safe manifest when approval is present
+        if: hashFiles('docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json') != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python tools/agents/repository_lifecycle_preflight.py \
+            --output repository-lifecycle-preflight.json
+
       - name: Validate reviewed approval when present
         if: hashFiles('docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json') != ''
         run: |
@@ -95,22 +110,25 @@ jobs:
 
           module_path = Path("tools/agents/repository_lifecycle.py")
           spec = importlib.util.spec_from_file_location("repository_lifecycle", module_path)
-          assert spec and spec.loader
+          if spec is None or spec.loader is None:
+              raise SystemExit("unable to load repository_lifecycle")
           rl = importlib.util.module_from_spec(spec)
           spec.loader.exec_module(rl)
 
           policy = rl.load_json(Path("docs/agents/REPOSITORY_LIFECYCLE_POLICY.json"))
           approval = rl.load_json(Path("docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json"))
-          inventory = json.loads(Path("repository-lifecycle-inventory.json").read_text())
-          rl.validate_approval(approval, inventory, policy)
-          print(f"reviewed candidate set validated: {inventory['candidate_count']}")
+          manifest = json.loads(Path("repository-lifecycle-preflight.json").read_text())
+          rl.validate_approval(approval, manifest, policy)
+          print(f"reviewed safe candidate set validated: {manifest['candidate_count']}")
           PY
 
       - name: Publish branch inventory
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: repository-lifecycle-inventory-${{ github.run_id }}
-          path: repository-lifecycle-inventory.json
+          path: |
+            repository-lifecycle-inventory.json
+            repository-lifecycle-preflight.json
           if-no-files-found: error
           retention-days: 14
 
@@ -150,7 +168,7 @@ jobs:
       - inventory
       - pr-health
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -168,12 +186,14 @@ jobs:
         run: |
           python tools/agents/repository_lifecycle.py --mode inventory --output audit-inventory.json
           python tools/agents/repository_lifecycle.py --mode pr-audit --output audit-pr-health.json
+          python tools/agents/repository_lifecycle_preflight.py --output audit-preflight.json
           python - <<'PY'
           import json
           from pathlib import Path
 
           inventory = json.loads(Path("audit-inventory.json").read_text())
           pr_health = json.loads(Path("audit-pr-health.json").read_text())
+          preflight = json.loads(Path("audit-preflight.json").read_text())
 
           entries = {item["branch"]: item for item in inventory["entries"]}
           develop = entries.get("develop")
@@ -201,6 +221,20 @@ jobs:
           if unsafe:
               raise SystemExit(f"unsafe deletion candidates: {unsafe[:5]!r}")
 
+          accounted = (
+              preflight["candidate_count"]
+              + preflight["retained_count"]
+              + preflight["already_absent_count"]
+          )
+          if accounted != preflight["source_inventory_candidate_count"]:
+              raise SystemExit("source-head preflight accounting mismatch")
+          if preflight["source_inventory_candidate_count"] != inventory["candidate_count"]:
+              raise SystemExit("source-head preflight raw candidate count drift")
+          raw = {item["branch"]: item for item in inventory["candidates"]}
+          for candidate in preflight["candidates"]:
+              if raw.get(candidate["branch"]) != candidate:
+                  raise SystemExit(f"safe candidate is not an exact raw candidate: {candidate!r}")
+
           if pr_health.get("auto_close_by_age") is not False:
               raise SystemExit("PR age-based automatic closure must remain disabled")
           if any(item.get("auto_close") for item in pr_health.get("entries", [])):
@@ -211,7 +245,11 @@ jobs:
               inventory["branch_count"],
               "branches,",
               inventory["candidate_count"],
-              "exact terminal candidates,",
+              "raw terminal candidates,",
+              preflight["candidate_count"],
+              "source-head-safe candidates,",
+              preflight["retained_count"],
+              "retained,",
               pr_health["open_pr_count"],
               "open PRs",
           )
@@ -224,6 +262,7 @@ jobs:
           path: |
             audit-inventory.json
             audit-pr-health.json
+            audit-preflight.json
           if-no-files-found: error
           retention-days: 14
 
@@ -234,7 +273,7 @@ jobs:
       - inventory
       - safety-audit
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     permissions:
       contents: write
       issues: read
@@ -272,7 +311,7 @@ jobs:
             --mode apply \
             --output repository-lifecycle-apply.json
 
-      - name: Verify post-apply inventory is terminal
+      - name: Verify post-apply source-head-safe inventory is terminal
         if: steps.approval.outputs.exists == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -280,16 +319,25 @@ jobs:
           python tools/agents/repository_lifecycle.py \
             --mode inventory \
             --output repository-lifecycle-post-apply.json
+          python tools/agents/repository_lifecycle_preflight.py \
+            --output repository-lifecycle-post-apply-preflight.json
           python - <<'PY'
           import json
           from pathlib import Path
 
-          report = json.loads(Path("repository-lifecycle-post-apply.json").read_text())
-          if report["candidate_count"] != 0:
+          inventory = json.loads(Path("repository-lifecycle-post-apply.json").read_text())
+          preflight = json.loads(
+              Path("repository-lifecycle-post-apply-preflight.json").read_text()
+          )
+          if preflight["candidate_count"] != 0:
               raise SystemExit(
-                  f"post-apply inventory still has {report['candidate_count']} authorized deletion candidates"
+                  "post-apply preflight still has "
+                  f"{preflight['candidate_count']} source-head-safe deletion candidates"
               )
-          print(f"post-apply inventory PASS: {report['branch_count']} branches, zero candidates")
+          print(
+              f"post-apply PASS: {inventory['branch_count']} branches, "
+              f"{inventory['candidate_count']} raw terminal refs, zero source-head-safe candidates"
+          )
           PY
 
       - name: Publish deletion and recovery evidence
@@ -300,5 +348,6 @@ jobs:
           path: |
             repository-lifecycle-apply.json
             repository-lifecycle-post-apply.json
+            repository-lifecycle-post-apply-preflight.json
           if-no-files-found: warn
           retention-days: 14

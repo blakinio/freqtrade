@@ -257,7 +257,7 @@ def delete_branch_exact(
     branch: str,
     expected_sha: str,
 ) -> None:
-    current = client.get_ref_sha(branch)
+    current = remote_ref_sha(client, branch)
     if current != expected_sha:
         raise rl.LifecycleError(
             f"pre-delete SHA drift for {branch}: expected {expected_sha}, got {current}"
@@ -432,7 +432,7 @@ def safe_recovery_test(
 ) -> dict[str, Any]:
     run_id = os.environ.get("GITHUB_RUN_ID", "local")
     branch = f"recovery-test/issue-{issue}-{run_id}"
-    base_sha = client.get_ref_sha(default_branch)
+    base_sha = remote_ref_sha(client, default_branch)
     if base_sha is None:
         raise rl.LifecycleError("default branch ref missing for recovery test")
     evidence: dict[str, Any] = {
@@ -446,7 +446,7 @@ def safe_recovery_test(
     }
     primary_error: Exception | None = None
     try:
-        existing = client.get_ref_sha(branch)
+        existing = remote_ref_sha(client, branch)
         if existing is not None:
             if existing != base_sha:
                 raise rl.LifecycleError(
@@ -456,12 +456,12 @@ def safe_recovery_test(
             evidence["cleanup"] = "REMOVED_PREEXISTING_EXACT_REF"
         create_ref(client, branch, base_sha)
         evidence["create"] = "PASS"
-        if client.get_ref_sha(branch) != base_sha:
+        if remote_ref_sha(client, branch) != base_sha:
             raise rl.LifecycleError("recovery-test create verification failed")
         delete_branch_exact(client, branch, base_sha)
         evidence["delete"] = "PASS"
         create_ref(client, branch, base_sha)
-        if client.get_ref_sha(branch) != base_sha:
+        if remote_ref_sha(client, branch) != base_sha:
             raise rl.LifecycleError("recovery-test restore verification failed")
         evidence["restore"] = "PASS"
         delete_branch_exact(client, branch, base_sha)
@@ -471,7 +471,7 @@ def safe_recovery_test(
         primary_error = exc
         raise
     finally:
-        leftover = client.get_ref_sha(branch)
+        leftover = remote_ref_sha(client, branch)
         if leftover is not None:
             if leftover == base_sha:
                 try:

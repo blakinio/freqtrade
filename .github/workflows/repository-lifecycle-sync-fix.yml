@@ -1,0 +1,65 @@
+name: Repository Lifecycle One-shot Develop Sync
+
+on:
+  push:
+    branches:
+      - governance/repository-lifecycle-hygiene-1559
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repository-lifecycle-develop-sync
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    if: github.actor == 'blakinio'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact task branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: governance/repository-lifecycle-hygiene-1559
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Merge exact current develop without rewriting history
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected='56949c037c10a084b68f61dc54c8461a915a6c74'
+          git fetch --no-tags origin develop
+          actual="$(git rev-parse origin/develop)"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "develop moved before synchronization: expected=$expected actual=$actual"
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git merge --no-ff --no-edit origin/develop
+          git rm .github/workflows/repository-lifecycle-sync-fix.yml
+
+      - name: Validate exact integrated tree
+        run: |
+          python -m pip install 'pre-commit==4.6.2'
+          pre-commit run --all-files
+          git diff --cached --check
+
+      - name: Commit helper removal and push exact integrated branch
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          expected='56949c037c10a084b68f61dc54c8461a915a6c74'
+          remote_develop="$(git ls-remote --refs origin refs/heads/develop | awk '{print $1}')"
+          if [[ "$remote_develop" != "$expected" ]]; then
+            echo "develop moved after validation: expected=$expected actual=$remote_develop"
+            exit 1
+          fi
+          git commit -m 'chore(governance): remove one-shot develop sync helper'
+          basic="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $basic" \
+            push origin HEAD:refs/heads/governance/repository-lifecycle-hygiene-1559

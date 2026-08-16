@@ -217,7 +217,7 @@ class AuditLedgerTests(unittest.TestCase):
 
     def test_digest_is_order_independent_for_mapping_keys(self) -> None:
         left = {"a": 1, "b": {"c": 2}}
-        right = {"b": {"c": 2,}, "a": 1}
+        right = {"b": {"c": 2}, "a": 1}
         self.assertEqual(canonical_digest(left), canonical_digest(right))
 
 

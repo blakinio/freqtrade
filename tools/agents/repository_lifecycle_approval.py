@@ -19,15 +19,12 @@ def build_approval(
 ) -> dict[str, Any]:
     manifest = preflight.build_preflight(client, policy, root)
     accounted = (
-        manifest["candidate_count"]
-        + manifest["retained_count"]
-        + manifest["already_absent_count"]
+        manifest["candidate_count"] + manifest["retained_count"] + manifest["already_absent_count"]
     )
     if accounted != manifest["source_inventory_candidate_count"]:
         raise rl.LifecycleError("historical preflight accounting mismatch")
     if any(
-        item["classification"] not in rl.DELETION_CLASSIFICATIONS
-        for item in manifest["candidates"]
+        item["classification"] not in rl.DELETION_CLASSIFICATIONS for item in manifest["candidates"]
     ):
         raise rl.LifecycleError("historical preflight widened deletion classifications")
     run_id = os.environ.get("GITHUB_RUN_ID", "unknown")
@@ -35,9 +32,7 @@ def build_approval(
     return {
         "apply_on_develop": True,
         "candidate_count": manifest["candidate_count"],
-        "confirmation": (
-            f"DELETE_EXACT_REVIEWED_TERMINAL_BRANCHES_ISSUE_{policy['issue']}"
-        ),
+        "confirmation": (f"DELETE_EXACT_REVIEWED_TERMINAL_BRANCHES_ISSUE_{policy['issue']}"),
         "entries_sha256": manifest["entries_sha256"],
         "issue": policy["issue"],
         "policy_sha256": manifest["policy_sha256"],

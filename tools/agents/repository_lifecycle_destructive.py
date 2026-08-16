@@ -139,9 +139,7 @@ def open_pulls_for_branch(
     if not isinstance(payload, list):
         raise rl.LifecycleError("open-PR branch query must return a list")
     return [
-        item
-        for item in payload
-        if isinstance(item, dict) and rl.same_repo_pull(item, client.repo)
+        item for item in payload if isinstance(item, dict) and rl.same_repo_pull(item, client.repo)
     ]
 
 
@@ -227,9 +225,7 @@ def validate_remote(client: rl.GitHubClient) -> str:
     else:
         raise rl.LifecycleError("origin is not a supported GitHub remote")
     if got != expected:
-        raise rl.LifecycleError(
-            f"origin repository mismatch: expected {client.repo}, got {got}"
-        )
+        raise rl.LifecycleError(f"origin repository mismatch: expected {client.repo}, got {got}")
     return "origin"
 
 
@@ -289,18 +285,14 @@ def delete_branch_exact(
     if result.returncode != 0:
         remote_sha = remote_ref_sha(client, branch)
         if remote_sha is None:
-            raise rl.LifecycleError(
-                f"delete returned failure but {branch} is absent; ambiguous"
-            )
+            raise rl.LifecycleError(f"delete returned failure but {branch} is absent; ambiguous")
         if remote_sha != expected_sha:
             raise rl.LifecycleError(
                 f"delete lease rejected for {branch}: remote moved to {remote_sha}"
             )
         raise rl.LifecycleError(f"delete push rejected for {branch}")
     if remote_ref_sha(client, branch) is not None:
-        raise rl.LifecycleError(
-            f"post-delete git verification found {branch} still present"
-        )
+        raise rl.LifecycleError(f"post-delete git verification found {branch} still present")
 
 
 def _candidate_identity(
@@ -316,9 +308,7 @@ def _candidate_identity(
     if not isinstance(sha, str) or not rl.FULL_SHA_RE.fullmatch(sha):
         raise rl.LifecycleError(f"candidate {branch}: invalid SHA")
     if not isinstance(classification, str) or classification not in rl.DELETION_CLASSIFICATIONS:
-        raise rl.LifecycleError(
-            f"candidate {branch}: unapproved classification {classification!r}"
-        )
+        raise rl.LifecycleError(f"candidate {branch}: unapproved classification {classification!r}")
     if (
         not isinstance(pr_numbers, list)
         or not pr_numbers
@@ -328,9 +318,7 @@ def _candidate_identity(
     if branch == policy["default_branch"] or branch in set(policy["integration_branches"]):
         raise RetainBranch(f"{branch}: integration/default branch")
     if rl.is_reserved(branch, policy["reserved_name_parts"]):
-        raise RetainBranch(
-            f"{branch}: reserved release/rollback/recovery/backup ref"
-        )
+        raise RetainBranch(f"{branch}: reserved release/rollback/recovery/backup ref")
     return branch, sha, classification, pr_numbers
 
 
@@ -345,15 +333,11 @@ def _validate_live_ownership(
     commit = metadata.get("commit")
     current_sha = commit.get("sha") if isinstance(commit, dict) else None
     if current_sha != sha:
-        raise RetainBranch(
-            f"{branch}: live SHA drifted from reviewed {sha} to {current_sha}"
-        )
+        raise RetainBranch(f"{branch}: live SHA drifted from reviewed {sha} to {current_sha}")
     if bool(metadata.get("protected")):
         raise RetainBranch(f"{branch}: branch is protected")
     if open_pulls_for_branch(client, branch):
-        raise RetainBranch(
-            f"{branch}: a same-repository open PR now owns the branch"
-        )
+        raise RetainBranch(f"{branch}: a same-repository open PR now owns the branch")
     return True
 
 
@@ -400,9 +384,7 @@ def _terminal_matches_for_candidate(
         ):
             matches.append(number)
     if not matches:
-        raise RetainBranch(
-            f"{branch}: no reviewed terminal PR remains exact and closed"
-        )
+        raise RetainBranch(f"{branch}: no reviewed terminal PR remains exact and closed")
     return matches
 
 
@@ -504,8 +486,7 @@ def safe_recovery_test(
                     ) from cleanup_exc
             elif primary_error is None:
                 raise rl.LifecycleError(
-                    f"recovery test left {branch} at unexpected SHA {leftover}; "
-                    "refusing deletion"
+                    f"recovery test left {branch} at unexpected SHA {leftover}; refusing deletion"
                 )
 
 

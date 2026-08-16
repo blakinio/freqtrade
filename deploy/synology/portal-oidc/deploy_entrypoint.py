@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import re
 import subprocess
 import sys
@@ -16,6 +17,17 @@ REVISION_LABEL_PREFIX = "org.opencontainers.image.revision="
 IMAGE_REVISION_FORMAT = '{{.Id}}|{{ index .Config.Labels "org.opencontainers.image.revision" }}'
 LIQUID20_PROBE_MARKER = "__PORTAL_LIQUID20__"
 LIQUID20_HELPER_TMPFS = "/tmp:rw,noexec,nosuid,nodev,size=16m"  # noqa: S108
+RUNNER_CONTAINER = "freqtrade-synology-staging-runner"
+RUNNER_COMPOSE_PROJECT = "freqtrade-deploy-runner"
+RUNNER_COMPOSE_SERVICE = "runner"
+RUNNER_STATE_DESTINATION = "/var/lib/freqtrade-staging-state"
+MARKET_EVIDENCE_STATE_DIR = "wickhunter-production-market-evidence"
+RUNNER_STATE_INSPECT_FORMAT = (
+    "{{json .State.Running}}{{println}}"
+    '{{json (index .Config.Labels "com.docker.compose.project")}}{{println}}'
+    '{{json (index .Config.Labels "com.docker.compose.service")}}{{println}}'
+    "{{json .Mounts}}"
+)
 
 
 def _load_module(name: str, path: Path) -> ModuleType:
@@ -170,6 +182,71 @@ def _install_verified_build_timeout(deploy: Any) -> None:
         )
 
     deploy._run = guarded_run
+
+
+def _resolve_market_evidence_host_root(deploy: Any) -> Path:
+    result = cast(
+        subprocess.CompletedProcess[str],
+        deploy._run(
+            [
+                "docker",
+                "inspect",
+                "--format",
+                RUNNER_STATE_INSPECT_FORMAT,
+                RUNNER_CONTAINER,
+            ],
+            sensitive=True,
+        ),
+    )
+    records = result.stdout.split("\n", 3)
+    if len(records) != 4:
+        raise deploy.DeploymentError("Synology staging runner identity is invalid")
+
+    try:
+        running = json.loads(records[0])
+        project = json.loads(records[1])
+        service = json.loads(records[2])
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise deploy.DeploymentError("Synology staging runner identity is invalid") from exc
+
+    if (
+        running is not True
+        or project != RUNNER_COMPOSE_PROJECT
+        or service != RUNNER_COMPOSE_SERVICE
+    ):
+        raise deploy.DeploymentError("Synology staging runner identity is invalid")
+
+    try:
+        mounts = json.loads(records[3])
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise deploy.DeploymentError("Synology runner staging-state host bind is invalid") from exc
+    if not isinstance(mounts, list):
+        raise deploy.DeploymentError("Synology runner staging-state host bind is invalid")
+
+    matches = [
+        mount
+        for mount in mounts
+        if isinstance(mount, dict) and mount.get("Destination") == RUNNER_STATE_DESTINATION
+    ]
+    if len(matches) != 1:
+        raise deploy.DeploymentError(
+            "Synology runner must expose exactly one canonical staging-state host bind"
+        )
+
+    mount_type = matches[0].get("Type")
+    source = matches[0].get("Source")
+    if not isinstance(source, str):
+        raise deploy.DeploymentError("Synology runner staging-state host bind is invalid")
+    source_path = Path(source)
+    if (
+        mount_type != "bind"
+        or re.fullmatch(r"/volume1/docker/[A-Za-z0-9._/-]+", source) is None
+        or not source_path.is_absolute()
+        or source != source_path.as_posix()
+        or ".." in source_path.parts
+    ):
+        raise deploy.DeploymentError("Synology runner staging-state host bind is invalid")
+    return source_path / MARKET_EVIDENCE_STATE_DIR
 
 
 def _liquidations_probe_script(deploy: Any) -> str:
@@ -333,6 +410,9 @@ def main() -> int:
     bounded_schema.install(deploy)
     docker_host_state.install(deploy)
     _install_docker_host_liquidations_preflight(deploy)
+    market_evidence.__dict__["MARKET_EVIDENCE_HOST_ROOT"] = _resolve_market_evidence_host_root(
+        deploy
+    )
     market_evidence.install(deploy)
     copy_on_write.install(deploy)
     cancellation_bridge.install(deploy)

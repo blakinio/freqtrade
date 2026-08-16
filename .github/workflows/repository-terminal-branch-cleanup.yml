@@ -1,0 +1,55 @@
+name: Repository Terminal Branch Cleanup
+
+on:
+  pull_request:
+    types:
+      - closed
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: repository-terminal-branch-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      issues: read
+      pull-requests: read
+    steps:
+      - name: Check out trusted integration branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: develop
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Revalidate and process exact terminal source ref
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python tools/agents/repository_lifecycle_destructive.py \
+            --mode event \
+            --event "$GITHUB_EVENT_PATH" \
+            --output repository-terminal-branch-result.json
+
+      - name: Publish terminal branch evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: repository-terminal-branch-${{ github.event.pull_request.number }}-${{ github.run_id }}
+          path: repository-terminal-branch-result.json
+          if-no-files-found: warn
+          retention-days: 14

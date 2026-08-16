@@ -1,0 +1,417 @@
+name: Repository Lifecycle Hygiene
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/repository-lifecycle-hygiene.yml"
+      - ".github/workflows/repository-terminal-branch-cleanup.yml"
+      - "docs/agents/REPOSITORY_LIFECYCLE_POLICY.json"
+      - "docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json"
+      - "docs/agents/BRANCH_POLICY.md"
+      - "docs/agents/tasks/active/FTAI-20260815-repository-lifecycle-hygiene.md"
+      - "tools/agents/repository_lifecycle.py"
+      - "tools/agents/repository_lifecycle_approval.py"
+      - "tools/agents/repository_lifecycle_apply.py"
+      - "tools/agents/repository_lifecycle_destructive.py"
+      - "tools/agents/repository_lifecycle_preflight.py"
+      - "tools/agents/test_repository_lifecycle.py"
+      - "tools/agents/test_repository_lifecycle_destructive.py"
+      - "tools/agents/test_repository_lifecycle_rate_limit.py"
+  push:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/repository-lifecycle-hygiene.yml"
+      - ".github/workflows/repository-terminal-branch-cleanup.yml"
+      - "docs/agents/REPOSITORY_LIFECYCLE_POLICY.json"
+      - "docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json"
+      - "docs/agents/BRANCH_POLICY.md"
+      - "tools/agents/repository_lifecycle.py"
+      - "tools/agents/repository_lifecycle_approval.py"
+      - "tools/agents/repository_lifecycle_apply.py"
+      - "tools/agents/repository_lifecycle_destructive.py"
+      - "tools/agents/repository_lifecycle_preflight.py"
+      - "tools/agents/test_repository_lifecycle.py"
+      - "tools/agents/test_repository_lifecycle_destructive.py"
+      - "tools/agents/test_repository_lifecycle_rate_limit.py"
+  schedule:
+    - cron: "25 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: repository-lifecycle-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Run focused lifecycle tests
+        run: |
+          python tools/agents/test_repository_lifecycle.py
+          python tools/agents/test_repository_lifecycle_destructive.py
+          python tools/agents/test_repository_lifecycle_rate_limit.py
+          python -m py_compile \
+            tools/agents/repository_lifecycle_preflight.py \
+            tools/agents/repository_lifecycle_apply.py \
+            tools/agents/repository_lifecycle_approval.py
+
+      - name: Validate lifecycle policy
+        run: python tools/agents/repository_lifecycle.py --mode validate-policy
+
+  inventory:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Build live fail-closed branch inventory
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python tools/agents/repository_lifecycle.py \
+            --mode inventory \
+            --output repository-lifecycle-inventory.json
+
+      - name: Build source-head-safe manifest when approval is present
+        if: hashFiles('docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json') != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python tools/agents/repository_lifecycle_preflight.py \
+            --output repository-lifecycle-preflight.json
+
+      - name: Validate reviewed approval wave when present
+        if: hashFiles('docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json') != ''
+        run: |
+          python - <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          sys.path.insert(0, "tools/agents")
+          import repository_lifecycle as rl
+          import repository_lifecycle_approval as approval_logic
+
+          policy = rl.load_json(Path("docs/agents/REPOSITORY_LIFECYCLE_POLICY.json"))
+          approval = rl.load_json(Path("docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json"))
+          manifest = json.loads(Path("repository-lifecycle-preflight.json").read_text())
+          wave = approval_logic.approval_wave_manifest(
+              manifest,
+              candidate_count=approval["candidate_count"],
+          )
+          rl.validate_approval(approval, wave, policy)
+          print(
+              f"reviewed approval wave validated: {wave['candidate_count']} of "
+              f"{manifest['candidate_count']} current safe candidates"
+          )
+          PY
+
+      - name: Publish branch inventory
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: repository-lifecycle-inventory-${{ github.run_id }}
+          path: |
+            repository-lifecycle-inventory.json
+            repository-lifecycle-preflight.json
+          if-no-files-found: error
+          retention-days: 14
+
+  pr-health:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Audit open PR lifecycle health
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python tools/agents/repository_lifecycle.py \
+            --mode pr-audit \
+            --output repository-pr-health.json
+
+      - name: Publish PR health report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: repository-pr-health-${{ github.run_id }}
+          path: repository-pr-health.json
+          if-no-files-found: error
+          retention-days: 14
+
+  safety-audit:
+    needs:
+      - inventory
+      - pr-health
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Independently rebuild and falsify lifecycle safety invariants
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python tools/agents/repository_lifecycle.py --mode inventory --output audit-inventory.json
+          python tools/agents/repository_lifecycle.py --mode pr-audit --output audit-pr-health.json
+          python tools/agents/repository_lifecycle_preflight.py --output audit-preflight.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          inventory = json.loads(Path("audit-inventory.json").read_text())
+          pr_health = json.loads(Path("audit-pr-health.json").read_text())
+          preflight = json.loads(Path("audit-preflight.json").read_text())
+
+          entries = {item["branch"]: item for item in inventory["entries"]}
+          develop = entries.get("develop")
+          if not develop:
+              raise SystemExit("develop missing from branch inventory")
+          if develop["classification"] != "PROTECTED" or develop["deletion_candidate"]:
+              raise SystemExit(f"develop is not fail-closed: {develop!r}")
+
+          forbidden_candidates = [
+              item for item in inventory["entries"]
+              if item["deletion_candidate"]
+              and item["classification"] not in {"TERMINAL_MERGED", "TERMINAL_CLOSED_UNMERGED"}
+          ]
+          if forbidden_candidates:
+              raise SystemExit(f"forbidden deletion candidates: {forbidden_candidates[:5]!r}")
+
+          unsafe = [
+              item for item in inventory["entries"]
+              if item["deletion_candidate"]
+              and (
+                  item["protected"]
+                  or item["classification"] in {"OPEN_PR", "ACTIVE_CLAIM", "RESERVED", "UNKNOWN", "UNMERGED_ORPHAN"}
+              )
+          ]
+          if unsafe:
+              raise SystemExit(f"unsafe deletion candidates: {unsafe[:5]!r}")
+
+          accounted = (
+              preflight["candidate_count"]
+              + preflight["retained_count"]
+              + preflight["already_absent_count"]
+          )
+          if accounted != preflight["source_inventory_candidate_count"]:
+              raise SystemExit("source-head preflight accounting mismatch")
+          if preflight["source_inventory_candidate_count"] != inventory["candidate_count"]:
+              raise SystemExit("source-head preflight raw candidate count drift")
+          raw = {item["branch"]: item for item in inventory["candidates"]}
+          for candidate in preflight["candidates"]:
+              if raw.get(candidate["branch"]) != candidate:
+                  raise SystemExit(f"safe candidate is not an exact raw candidate: {candidate!r}")
+
+          if pr_health.get("auto_close_by_age") is not False:
+              raise SystemExit("PR age-based automatic closure must remain disabled")
+          if any(item.get("auto_close") for item in pr_health.get("entries", [])):
+              raise SystemExit("PR audit attempted automatic closure")
+
+          print(
+              "safety audit PASS:",
+              inventory["branch_count"],
+              "branches,",
+              inventory["candidate_count"],
+              "raw terminal candidates,",
+              preflight["candidate_count"],
+              "source-head-safe candidates,",
+              preflight["retained_count"],
+              "retained,",
+              pr_health["open_pr_count"],
+              "open PRs",
+          )
+          PY
+
+      - name: Publish independent safety audit evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: repository-lifecycle-safety-audit-${{ github.run_id }}
+          path: |
+            audit-inventory.json
+            audit-pr-health.json
+            audit-preflight.json
+          if-no-files-found: error
+          retention-days: 14
+
+  apply-reviewed-historical-cleanup:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    needs:
+      - validate
+      - inventory
+      - safety-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      issues: read
+      pull-requests: read
+    steps:
+      - name: Check out protected integration branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: develop
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Detect reviewed approval
+        id: approval
+        shell: bash
+        run: |
+          if [[ -f docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json ]]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "No reviewed approval present; historical apply is NOT_APPLICABLE."
+          fi
+
+      - name: Rebuild and apply only the exact reviewed wave
+        if: steps.approval.outputs.exists == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python tools/agents/repository_lifecycle_apply.py \
+            --output repository-lifecycle-apply.json
+
+      - name: Verify approved wave is gone from the source-head-safe set
+        if: steps.approval.outputs.exists == 'true'
+        id: post
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python tools/agents/repository_lifecycle.py \
+            --mode inventory \
+            --output repository-lifecycle-post-apply.json
+          python tools/agents/repository_lifecycle_preflight.py \
+            --output repository-lifecycle-post-apply-preflight.json
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          apply_report = json.loads(Path("repository-lifecycle-apply.json").read_text())
+          inventory = json.loads(Path("repository-lifecycle-post-apply.json").read_text())
+          preflight = json.loads(
+              Path("repository-lifecycle-post-apply-preflight.json").read_text()
+          )
+          approved = {
+              (item["branch"], item["sha"])
+              for item in apply_report["approved_candidates"]
+          }
+          still_safe = {
+              (item["branch"], item["sha"])
+              for item in preflight["candidates"]
+          }
+          overlap = sorted(approved & still_safe)
+          if overlap:
+              raise SystemExit(
+                  f"approved wave still contains source-head-safe refs: {overlap[:5]!r}"
+              )
+          before = apply_report["safe_candidate_count_before_wave"]
+          after = preflight["candidate_count"]
+          if after >= before:
+              raise SystemExit(
+                  f"cleanup wave made no safe-set progress: before={before} after={after}"
+              )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"remaining={after}\n")
+          print(
+              f"post-wave PASS: {inventory['branch_count']} branches, "
+              f"{inventory['candidate_count']} raw terminal refs, {after} safe refs remain"
+          )
+          PY
+
+      - name: Generate next bounded approval when safe refs remain
+        if: steps.approval.outputs.exists == 'true' && steps.post.outputs.remaining != '0'
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          python tools/agents/repository_lifecycle_approval.py \
+            --manifest repository-lifecycle-post-apply-preflight.json \
+            --output docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json
+
+      - name: Create next approval branch only
+        if: steps.approval.outputs.exists == 'true' && steps.post.outputs.remaining != '0'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BRANCH="governance/repository-lifecycle-approval-1559"
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "Next approval branch already exists; refusing to rewrite it."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git add docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json
+          if [[ "$(git diff --cached --name-only)" != "docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json" ]]; then
+            echo "Next approval proposal attempted an unexpected changed path."
+            exit 1
+          fi
+          git commit -m "docs(governance): approve next exact branch cleanup wave"
+          BASIC="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $BASIC" \
+            push origin "HEAD:refs/heads/$BRANCH"
+          echo "Next approval branch created. Coordinator must open the PR through the trusted GitHub connector."
+
+      - name: Publish deletion and recovery evidence
+        if: always() && steps.approval.outputs.exists == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: repository-lifecycle-apply-${{ github.run_id }}
+          path: |
+            repository-lifecycle-apply.json
+            repository-lifecycle-post-apply.json
+            repository-lifecycle-post-apply-preflight.json
+            docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json
+          if-no-files-found: warn
+          retention-days: 14

@@ -5,7 +5,7 @@
     ".github/workflows/codeql.yml",
     ".github/workflows/zizmor_action.yml"
   ],
-  "generated_at": "2026-08-06T06:57:40.780532+00:00",
+  "generated_at": "2026-08-16T06:15:00+00:00",
   "governance": {
     "catalog_evidence": "docs/agents/evidence/FTAI-CI-001/workflow-catalog.json",
     "review_interval_days": 180,
@@ -13,7 +13,7 @@
   },
   "repository": "blakinio/freqtrade",
   "schema_version": 1,
-  "source_head": "db8f9db71421c8b578fc4da45a3c90334badf459",
+  "source_head": "258848d405f19b159d097ac2bca5df8fa369733a",
   "workflows": [
     {"classification":"canonical","lifecycle":"active","name":"Deploy Binance V3 Persistent Acceptance Sampler","owner":"ai-platform","path":".github/workflows/ai-platform-binance-spot-instrument-persistent-sampler-deploy.yml","permissions":{"contents":"read"},"review_date":"2027-02-02","risk_class":"high","triggers":["pull_request"]},
     {"classification":"operational_schedule","lifecycle":"active","name":"AI Platform Binance Spot Instrument Shadow Acceptance V3","owner":"ai-platform","path":".github/workflows/ai-platform-binance-spot-instrument-shadow-acceptance-v3.yml","permissions":{"contents":"read"},"review_date":"2027-02-02","risk_class":"medium","triggers":["pull_request","schedule"]},
@@ -100,6 +100,11 @@
     {"classification":"canonical","lifecycle":"active","name":"Residual PyTorch Bounded M1 V3 Request Generator","owner":"platform-ci","path":".github/workflows/residual-pytorch-bounded-m1-v3-request-generator.yml","permissions":{"contents":"write"},"review_date":"2027-02-02","risk_class":"low","triggers":["pull_request"]},
     {"classification":"bounded_diagnostic","lifecycle":"active","name":"Residual PyTorch Data Target Audit","owner":"platform-ci","path":".github/workflows/residual-pytorch-data-target-audit.yml","permissions":{"contents":"read"},"review_date":"2027-02-02","risk_class":"medium","triggers":["pull_request","push","workflow_dispatch"]},
     {"classification":"bounded_diagnostic","lifecycle":"active","name":"Residual PyTorch Runtime Smoke","owner":"platform-ci","path":".github/workflows/residual-pytorch-runtime-smoke.yml","permissions":{"contents":"read"},"review_date":"2027-02-02","risk_class":"medium","triggers":["pull_request","push","workflow_dispatch"]},
+    {"classification":"temporary_helper","expiry":"2026-08-30","lifecycle":"temporary","name":"Repository Lifecycle Approval Auto-Merge","owner":"platform-ci","path":".github/workflows/repository-lifecycle-approval-automerge.yml","permissions":{"contents":"read","pull-requests":"write"},"retirement":"Remove after Issue #1559 historical approval PR has merged and cleanup evidence is terminal.","review_date":"2026-08-30","risk_class":"high","tracking_issue":1559,"triggers":["push","workflow_dispatch"]},
+    {"classification":"temporary_helper","expiry":"2026-08-30","lifecycle":"temporary","name":"Repository Lifecycle Approval Proposal","owner":"platform-ci","path":".github/workflows/repository-lifecycle-approval-proposal.yml","permissions":{"contents":"write","pull-requests":"write"},"retirement":"Remove after Issue #1559 historical approval PR has been generated and merged.","review_date":"2026-08-30","risk_class":"high","tracking_issue":1559,"triggers":["push","workflow_dispatch"]},
+    {"classification":"temporary_helper","expiry":"2026-08-30","lifecycle":"temporary","name":"Repository Lifecycle Final Gate","owner":"platform-ci","path":".github/workflows/repository-lifecycle-final-gate.yml","permissions":{"contents":"read","issues":"read","pull-requests":"read"},"retirement":"Remove immediately after PR #1563 reaches terminal closeout.","review_date":"2026-08-30","risk_class":"medium","tracking_issue":1559,"triggers":["pull_request"]},
+    {"classification":"operational_schedule","lifecycle":"active","name":"Repository Lifecycle Hygiene","owner":"platform-ci","path":".github/workflows/repository-lifecycle-hygiene.yml","permissions":{"contents":"write","issues":"read","pull-requests":"read"},"review_date":"2027-02-12","risk_class":"high","triggers":["pull_request","push","schedule","workflow_dispatch"]},
+    {"classification":"canonical","lifecycle":"active","name":"Repository Terminal Branch Cleanup","owner":"platform-ci","path":".github/workflows/repository-terminal-branch-cleanup.yml","permissions":{"contents":"write","issues":"read","pull-requests":"read"},"review_date":"2027-02-12","risk_class":"high","triggers":["pull_request"]},
     {"classification":"canonical","lifecycle":"active","name":"WickHunter Production Live Archive Conversion","owner":"wickhunter","path":".github/workflows/wickhunter-production-live-archive-conversion.yml","permissions":{"contents":"read"},"review_date":"2027-02-02","risk_class":"high","triggers":["pull_request"]},
     {"classification":"canonical","lifecycle":"active","name":"WickHunter WH09 final runtime audit repair","owner":"wickhunter","path":".github/workflows/wickhunter-wh09-live-contract-repair.yml","permissions":{"contents":"write","issues":"write"},"review_date":"2027-02-02","risk_class":"high","triggers":["push"]},
     {"classification":"temporary_helper","expiry":"2026-08-22","lifecycle":"temporary","name":"WickHunter #1396 trusted Authentik recovery","owner":"wickhunter","path":".github/workflows/wickhunter-1396-authentik-recovery-trusted.yml","permissions":{"contents":"read"},"retirement":"Remove immediately after Issue #1396 terminal closeout and all request-only recovery PRs are closed.","review_date":"2026-08-22","risk_class":"high","tracking_issue":1396,"triggers":["pull_request"]},

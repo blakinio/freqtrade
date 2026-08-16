@@ -1,0 +1,86 @@
+name: Repository Lifecycle One-shot Recovery Repair
+
+on:
+  push:
+    branches:
+      - fix/repository-lifecycle-recovery-git-verification-1559
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repository-lifecycle-recovery-repair
+  cancel-in-progress: true
+
+jobs:
+  repair:
+    if: github.actor == 'blakinio'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact repair branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: fix/repository-lifecycle-recovery-git-verification-1559
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Replace REST recovery verification with Git transport truth
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('tools/agents/repository_lifecycle_destructive.py')
+          text = path.read_text(encoding='utf-8')
+          replacements = [
+              ('    current = client.get_ref_sha(branch)\n', '    current = remote_ref_sha(client, branch)\n', 1),
+              ('    base_sha = client.get_ref_sha(default_branch)\n', '    base_sha = remote_ref_sha(client, default_branch)\n', 1),
+              ('        existing = client.get_ref_sha(branch)\n', '        existing = remote_ref_sha(client, branch)\n', 1),
+              ('        leftover = client.get_ref_sha(branch)\n', '        leftover = remote_ref_sha(client, branch)\n', 1),
+          ]
+          for old, new, count in replacements:
+              actual = text.count(old)
+              if actual != count:
+                  raise SystemExit(f'unexpected replacement count for {old!r}: {actual} != {count}')
+              text = text.replace(old, new, count)
+          verify_old = '        if client.get_ref_sha(branch) != base_sha:\n'
+          if text.count(verify_old) != 2:
+              raise SystemExit(f'unexpected recovery verification count: {text.count(verify_old)}')
+          text = text.replace(verify_old, '        if remote_ref_sha(client, branch) != base_sha:\n')
+          path.write_text(text, encoding='utf-8')
+
+          test_path = Path('tools/agents/test_repository_lifecycle_destructive.py')
+          test_text = test_path.read_text(encoding='utf-8')
+          anchor = '''            patch.object(\n                destructive,\n                "delete_branch_exact",\n                side_effect=fake_delete,\n            ),\n'''
+          replacement = anchor + '''            patch.object(\n                destructive,\n                "remote_ref_sha",\n                side_effect=lambda _client, branch: client.refs.get(branch),\n            ),\n'''
+          if test_text.count(anchor) != 1:
+              raise SystemExit('unexpected recovery test patch anchor count')
+          test_text = test_text.replace(anchor, replacement, 1)
+          test_path.write_text(test_text, encoding='utf-8')
+          PY
+
+      - name: Prove regression and canonical repository checks
+        run: |
+          python tools/agents/test_repository_lifecycle_destructive.py
+          python tools/agents/test_repository_lifecycle_rate_limit.py
+          python -m pip install 'pre-commit==4.6.2'
+          pre-commit run --all-files
+
+      - name: Remove one-shot helper and commit verified repair
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/repository-lifecycle-recovery-repair.yml
+          git add tools/agents/repository_lifecycle_destructive.py \
+                  tools/agents/test_repository_lifecycle_destructive.py
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(governance): verify recovery refs through Git transport'
+          basic="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $basic" \
+            push origin HEAD:refs/heads/fix/repository-lifecycle-recovery-git-verification-1559

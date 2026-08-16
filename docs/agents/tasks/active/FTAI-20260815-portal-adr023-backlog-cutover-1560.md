@@ -26,7 +26,7 @@ feature_scope:
   integration_required: true
   e2e_required: false
   completion_claim: internal_only
-next_action: Validate the current PR #1564 exact head, resolve the verified review threads, merge the cutover to develop, archive this task, and close Issue #1560.
+next_action: Validate PR #1564 exact head, merge after required CI passes, then archive this task and close Issue #1560.
 ---
 
 # ADR-023 Portal/WickHunter backlog cutover
@@ -44,6 +44,8 @@ Make ADR-023 operational in repository coordination by retiring the former 50-Is
 - `docs/agents/tasks/archive/FTAI-20260803-portal-remediation-1137.md`
 - `docs/agents/tasks/archive/FTAI-20260812-wh09-e2e-recovery-1396.md`
 - `docs/agents/tasks/archive/FTAI-20260815-portal-developer-platform-reset-1555.md`
+- `tools/portal_audit/validate_issue_states.py`
+- `tools/portal_audit/tests/test_audit_ledger.py`
 - this task record
 - `tests/ci/test_portal_programme_coordinator_consistency.py`
 
@@ -60,6 +62,7 @@ Make ADR-023 operational in repository coordination by retiring the former 50-Is
 - [x] Successor MVP Issue #1561 exists.
 - [x] Obsolete/superseded issues and PRs recorded by the ledger are intentionally terminal.
 - [x] #1211 programme issue points to ADR-023 and #1561.
+- [x] Legacy completeness-Issue state validation no longer blocks the current Portal under ADR-023 while pre-ADR-023 validation remains fail-closed.
 - [ ] Exact-head CI passes and all review threads are resolved.
 - [ ] Cutover PR merges to develop.
 - [ ] This task is archived and Issue #1560 closes.
@@ -68,8 +71,8 @@ Make ADR-023 operational in repository coordination by retiring the former 50-Is
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-16T08:32:38+02:00
-head: 43f1f517b323e5e72f23f28a4ed14319cd3f250c
+updated_at: 2026-08-16T11:13:00+02:00
+head: dda87f24ef9dca1b601db1c4cf21bd08a0f64890
 branch: docs/portal-adr023-backlog-cutover-20260815
 pr: 1564
 status: validating
@@ -81,63 +84,61 @@ context_routes:
 owned_paths:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/agents/programs/FTAI_PORTAL_REMEDIATION_PROGRAM.md
-  - docs/agents/tasks/active/FTAI-20260803-portal-remediation-1137.md
-  - docs/agents/tasks/active/FTAI-20260803-portal-remediation-program.md
-  - docs/agents/tasks/active/FTAI-20260812-wh09-e2e-recovery-1396.md
   - docs/agents/tasks/active/FTAI-20260815-portal-adr023-backlog-cutover-1560.md
-  - docs/agents/tasks/active/FTAI-20260815-portal-developer-platform-reset-1555.md
   - docs/agents/tasks/archive/FTAI-20260803-portal-remediation-1137.md
   - docs/agents/tasks/archive/FTAI-20260803-portal-remediation-program.md
   - docs/agents/tasks/archive/FTAI-20260812-wh09-e2e-recovery-1396.md
   - docs/agents/tasks/archive/FTAI-20260815-portal-developer-platform-reset-1555.md
   - docs/ai_platform/portal/ADR023_BACKLOG_RECLASSIFICATION_2026-08-15.md
+  - tools/portal_audit/validate_issue_states.py
+  - tools/portal_audit/tests/test_audit_ledger.py
   - tests/ci/test_portal_programme_coordinator_consistency.py
 proven:
   - ADR-023 merged via PR #1558 at develop@1f62ff29f4a2a25c929218bd3b69bf19257f3055.
-  - Issue #1560 owns the ADR-023 backlog cutover.
   - Issue #1561 owns the current Developer Quant MVP vertical slice.
   - Canonical classification ledger covers the former 50-Issue inventory and additional legacy Portal/WickHunter/PAPER work including #1501.
-  - Former coordinator and stale old-mode/protected-acceptance task records are archived on this branch.
   - Legacy delivery PRs recorded for closure are terminal without merge; useful #1553 merged to develop as 876e5755dc3cc699e8d271a6068730f119b1e152.
   - Obsolete legacy Issues including #1396, #1144 and #1501 are closed not_planned.
   - Programme parent #1211 now names Developer Quant Portal and points to ADR-023 and #1561.
+  - PR #1564 source branch was restored at exact prior head d71c13aede569f40572430d23c6053abffe7637d after it was unexpectedly deleted while the PR remained open.
+  - The only failing Risk-aware component job was the legacy completeness Issue-state network gate; all product/browser/exact-image/core checks on d71c13a were green.
 derived:
   - The former PAPER-first producer graph can no longer be the current Portal work-selection authority after this cutover merges.
-  - Issue #1561 is the only current P1 owner-facing Portal/WickHunter product journey established by this cutover.
+  - Legacy completeness-Issue state is compatibility diagnostics under ADR-023 rather than current delivery authority.
 unknown:
-  - Exact-head CI result after this checkpoint/programme correction commit.
-  - Whether branch protection will require #1564 to be updated onto the latest develop head before merge.
+  - Exact-head CI result after the ADR-023 legacy audit-gate repair.
 conflicts: []
 first_failure:
-  marker: PR_REVIEW_CHECKPOINT_CONTRACT
-  evidence: PR #1564 review identified missing v1 checkpoint fields and a non-literal #1561 programme pointer; both are corrected on this branch.
+  marker: LEGACY_COMPLETENESS_ISSUE_STATE_HTTP_403
+  evidence: Risk-aware component CI run 31931822680 failed only when tools/portal_audit/validate_issue_states.py queried GitHub Issue #1085 and received HTTP 403; the old Issue-state authority is also semantically superseded by ADR-023.
 rejected_hypotheses:
-  - The original checkpoint was already v1-complete; rejected against tools/agents/checkpoint.py and docs/agents/GOVERNANCE_CONTRACT.json.
-  - Issue #1501 could remain outside the cutover ledger; rejected because it is a residual PAPER G0 current-routing task.
+  - Product/runtime code caused the Risk-aware failure; rejected because Freqtrade CI, Portal API Browser, WickHunter Browser E2E, Exact-Image, CodeQL and all other selected component jobs passed.
+  - Retrying the old network check alone would make it a valid current gate; rejected because ADR-023 explicitly supersedes the old completeness-Issue state as current Portal authority.
 changed_paths:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/agents/programs/FTAI_PORTAL_REMEDIATION_PROGRAM.md
-  - docs/agents/tasks/active/FTAI-20260803-portal-remediation-1137.md
-  - docs/agents/tasks/active/FTAI-20260803-portal-remediation-program.md
-  - docs/agents/tasks/active/FTAI-20260812-wh09-e2e-recovery-1396.md
   - docs/agents/tasks/active/FTAI-20260815-portal-adr023-backlog-cutover-1560.md
-  - docs/agents/tasks/active/FTAI-20260815-portal-developer-platform-reset-1555.md
   - docs/agents/tasks/archive/FTAI-20260803-portal-remediation-1137.md
   - docs/agents/tasks/archive/FTAI-20260803-portal-remediation-program.md
   - docs/agents/tasks/archive/FTAI-20260812-wh09-e2e-recovery-1396.md
   - docs/agents/tasks/archive/FTAI-20260815-portal-developer-platform-reset-1555.md
   - docs/ai_platform/portal/ADR023_BACKLOG_RECLASSIFICATION_2026-08-15.md
+  - tools/portal_audit/validate_issue_states.py
+  - tools/portal_audit/tests/test_audit_ledger.py
   - tests/ci/test_portal_programme_coordinator_consistency.py
 validation:
-  - command: python tools/agents/checkpoint.py docs/agents/tasks/active/FTAI-20260815-portal-adr023-backlog-cutover-1560.md --require-checkpoint
+  - command: Risk-aware component CI run 31931822680 on d71c13aede569f40572430d23c6053abffe7637d
+    result: FAIL
+    evidence: Only legacy Portal completeness Issue-state step failed with GitHub API HTTP 403; all other selected component/product jobs passed.
+  - command: Freqtrade CI run 31931822493 on d71c13aede569f40572430d23c6053abffe7637d
+    result: PASS
+    evidence: Freqtrade CI completed successfully.
+  - command: Portal API/WickHunter Browser/Exact-Image and CodeQL on d71c13aede569f40572430d23c6053abffe7637d
+    result: PASS
+    evidence: All named workflows completed successfully.
+  - command: tools/portal_audit regression for ADR-023 legacy issue-state applicability
     result: NOT_RUN
-    evidence: Checkpoint was rewritten from the current v1 contract; exact-head repository validation is pending after this commit.
-  - command: GitHub PR #1553 required checks and squash merge
-    result: PASS
-    evidence: Required CI was green and #1553 merged to develop as 876e5755dc3cc699e8d271a6068730f119b1e152.
-  - command: GitHub legacy PR and obsolete-Issue disposition audit
-    result: PASS
-    evidence: Ledger-designated legacy delivery PRs were closed without merge and OBSOLETE Issues were closed not_planned; #1211 was reframed before cutover merge.
+    evidence: New regression tests are committed on dda87f24ef9dca1b601db1c4cf21bd08a0f64890 and await exact-head CI.
 blockers: []
-next_action: Validate the current PR #1564 exact head, resolve only review threads whose findings are now materially fixed, merge to develop, archive this task, and close Issue #1560.
+next_action: Validate PR #1564 exact head, merge after required CI passes, then archive this task and close Issue #1560.
 ```

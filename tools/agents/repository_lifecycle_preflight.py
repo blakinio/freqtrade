@@ -157,7 +157,7 @@ def _fetch_snapshot_refs(
             ).strip()
             if actual_sha != expected_sha:
                 raise rl.LifecycleError(
-                    f"source ref drift during preflight: {local_ref} expected {expected_sha}, got {actual_sha}"
+                    f"source ref drift during preflight: {local_ref} expected {expected_sha}, got {actual_sha}"  # noqa: E501
                 )
 
     return base_sha, source_refs, local_refs
@@ -232,7 +232,7 @@ def build_preflight(
         final_base_sha = destructive.remote_ref_sha(client, policy["default_branch"])
         if final_base_sha != base_sha:
             raise rl.LifecycleError(
-                f"default branch moved during historical preflight: expected {base_sha}, got {final_base_sha}"
+                f"default branch moved during historical preflight: expected {base_sha}, got {final_base_sha}"  # noqa: E501
             )
     finally:
         _cleanup_local_refs(client, local_refs)

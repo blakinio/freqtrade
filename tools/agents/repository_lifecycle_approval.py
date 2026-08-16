@@ -18,15 +18,12 @@ APPROVAL_WAVE_SIZE = 400
 
 def _validate_preflight(manifest: dict[str, Any]) -> None:
     accounted = (
-        manifest["candidate_count"]
-        + manifest["retained_count"]
-        + manifest["already_absent_count"]
+        manifest["candidate_count"] + manifest["retained_count"] + manifest["already_absent_count"]
     )
     if accounted != manifest["source_inventory_candidate_count"]:
         raise rl.LifecycleError("historical preflight accounting mismatch")
     if any(
-        item["classification"] not in rl.DELETION_CLASSIFICATIONS
-        for item in manifest["candidates"]
+        item["classification"] not in rl.DELETION_CLASSIFICATIONS for item in manifest["candidates"]
     ):
         raise rl.LifecycleError("historical preflight widened deletion classifications")
 
@@ -71,9 +68,7 @@ def build_approval_from_manifest(
     return {
         "apply_on_develop": True,
         "candidate_count": wave["candidate_count"],
-        "confirmation": (
-            f"DELETE_EXACT_REVIEWED_TERMINAL_BRANCHES_ISSUE_{policy['issue']}"
-        ),
+        "confirmation": (f"DELETE_EXACT_REVIEWED_TERMINAL_BRANCHES_ISSUE_{policy['issue']}"),
         "entries_sha256": wave["entries_sha256"],
         "issue": policy["issue"],
         "policy_sha256": wave["policy_sha256"],

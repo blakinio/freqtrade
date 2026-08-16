@@ -310,7 +310,9 @@ class GitHubClient:
 
     def pulls(self, state: str = "all") -> list[dict[str, Any]]:
         state_param = urllib.parse.quote(state)
-        path = f"/repos/{self.repo}/pulls?state={state_param}&per_page=100&sort=updated&direction=desc"
+        path = (
+            f"/repos/{self.repo}/pulls?state={state_param}&per_page=100&sort=updated&direction=desc"
+        )
         return [item for item in self.paginate(path) if isinstance(item, dict)]
 
     def get_ref_sha(self, branch: str) -> str | None:

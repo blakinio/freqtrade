@@ -37,7 +37,7 @@ def _revalidate_immediately_before_delete(
     current_base_sha = destructive.remote_ref_sha(client, policy["default_branch"])
     if current_base_sha != approved_base_sha:
         raise rl.LifecycleError(
-            f"default branch moved during apply: expected {approved_base_sha}, got {current_base_sha}"
+            f"default branch moved during apply: expected {approved_base_sha}, got {current_base_sha}"  # noqa: E501
         )
 
     branch = candidate["branch"]
@@ -50,9 +50,7 @@ def _revalidate_immediately_before_delete(
             f"{branch}: remote SHA drifted from approved {expected_sha} to {current_sha}"
         )
     if destructive.open_pulls_for_branch(client, branch):
-        raise destructive.RetainBranch(
-            f"{branch}: a same-repository open PR now owns the branch"
-        )
+        raise destructive.RetainBranch(f"{branch}: a same-repository open PR now owns the branch")
     return {"status": "DELETE_SAFE", "branch": branch, "sha": expected_sha}
 
 
@@ -103,9 +101,7 @@ def _delete_git_exact(
             "cannot delete this protected branch",
         )
         if any(marker in detail.casefold() for marker in protected_markers):
-            raise destructive.RetainBranch(
-                f"{branch}: GitHub protection/rules rejected deletion"
-            )
+            raise destructive.RetainBranch(f"{branch}: GitHub protection/rules rejected deletion")
         raise rl.LifecycleError(f"delete push rejected for {branch}: {detail}")
 
     if destructive.remote_ref_sha(client, branch) is not None:

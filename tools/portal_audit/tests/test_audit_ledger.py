@@ -23,6 +23,7 @@ validate_inventory = audit_ledger.validate_inventory
 validate_ledger = audit_ledger.validate_ledger
 validate_report_metadata = audit_ledger.validate_report_metadata
 validate_open_issue_mappings = issue_validator.validate_open_issue_mappings
+legacy_issue_state_gate_is_applicable = issue_validator.legacy_issue_state_gate_is_applicable
 
 HEAD = "a" * 40
 
@@ -186,6 +187,33 @@ class AuditLedgerTests(unittest.TestCase):
                 "state": "open",
             },
         )
+
+    def test_adr023_registry_disables_legacy_issue_state_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "ARCHITECTURE_REGISTRY.yaml").write_text(
+                "\n".join(
+                    (
+                        "latest_architecture_change:",
+                        "  decision: ADR-023",
+                        "authority:",
+                        "  rules:",
+                        "    - ADR-023 is the current product overlay for the entire Portal",
+                        "    - For current Portal work, SHADOW/PAPER/LIVE are historical or compatibility vocabulary only",
+                    )
+                ),
+                encoding="utf-8",
+            )
+            self.assertFalse(legacy_issue_state_gate_is_applicable(root))
+
+    def test_pre_adr023_registry_keeps_legacy_issue_state_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "ARCHITECTURE_REGISTRY.yaml").write_text(
+                "latest_architecture_change:\n  decision: ADR-022\n",
+                encoding="utf-8",
+            )
+            self.assertTrue(legacy_issue_state_gate_is_applicable(root))
 
     def test_digest_is_order_independent_for_mapping_keys(self) -> None:
         left = {"a": 1, "b": {"c": 2}}

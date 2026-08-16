@@ -14,6 +14,7 @@ import repository_lifecycle_destructive as destructive
 
 FETCH_BATCH_SIZE = 100
 LOCAL_REF_ROOT = "refs/lifecycle-preflight"
+MAX_SINGLE_APPROVAL_SAFE_CANDIDATES = 750
 
 
 def _git_auth_env(client: rl.GitHubClient) -> dict[str, str]:
@@ -251,6 +252,7 @@ def build_preflight(
         "already_absent_count": 0,
         "already_absent": [],
         "snapshot_transport": "git-immutable-refs",
+        "max_single_approval_safe_candidates": MAX_SINGLE_APPROVAL_SAFE_CANDIDATES,
     }
 
 

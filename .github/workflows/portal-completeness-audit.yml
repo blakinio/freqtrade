@@ -38,14 +38,53 @@ jobs:
       - name: Run audit-tool regression tests
         run: python -m unittest discover -s tools/portal_audit/tests -v
 
+      - name: Resolve audit authority
+        id: authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -Fq "decision: ADR-023" ARCHITECTURE_REGISTRY.yaml \
+            && grep -Fq "ADR-023 is the current product overlay for the entire Portal" ARCHITECTURE_REGISTRY.yaml \
+            && grep -Fq "SHADOW/PAPER/LIVE are historical or compatibility vocabulary only" ARCHITECTURE_REGISTRY.yaml; then
+            echo "legacy_gate=false" >> "$GITHUB_OUTPUT"
+            echo "mode=adr023_diagnostic" >> "$GITHUB_OUTPUT"
+            echo "ADR-023 is current Portal authority; legacy completeness ledger is diagnostic-only."
+          else
+            echo "legacy_gate=true" >> "$GITHUB_OUTPUT"
+            echo "mode=legacy_gate" >> "$GITHUB_OUTPUT"
+            echo "ADR-023 current-product markers not proven; legacy completeness ledger remains fail-closed."
+          fi
+
       - name: Reject closed Issue mappings
+        if: steps.authority.outputs.legacy_gate == 'true'
         env:
           GITHUB_TOKEN: "${{ github.token }}"
         run: >-
           python tools/portal_audit/validate_issue_states.py
           --repository "${{ github.repository }}"
 
+      - name: Generate ADR-023 diagnostic completeness report
+        if: steps.authority.outputs.legacy_gate == 'false'
+        env:
+          GITHUB_TOKEN: "${{ github.token }}"
+        run: |
+          python tools/portal_audit/validate_issue_states.py --repository "${{ github.repository }}"
+          python tools/portal_audit/completeness_audit.py --head "$AUDIT_HEAD"
+          cat artifacts/portal-completeness-audit.md
+
+      - name: Upload ADR-023 diagnostic audit evidence
+        if: steps.authority.outputs.legacy_gate == 'false'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: portal-completeness-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/portal-completeness-audit.json
+            artifacts/portal-completeness-audit.md
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Generate exact-head portal completeness reports
+        if: steps.authority.outputs.legacy_gate == 'true'
         run: |
           python tools/portal_audit/completeness_audit.py --head "$AUDIT_HEAD"
           python tools/portal_audit/deep_inventory.py --head "$AUDIT_HEAD"
@@ -53,6 +92,7 @@ jobs:
           python tools/portal_audit/navigation_matrix.py --head "$AUDIT_HEAD"
 
       - name: Prove report reproducibility
+        if: steps.authority.outputs.legacy_gate == 'true'
         run: |
           report_files=(
             portal-completeness-audit.json
@@ -78,6 +118,7 @@ jobs:
           done
 
       - name: Print bounded composition evidence
+        if: steps.authority.outputs.legacy_gate == 'true'
         run: |
           echo "== PI-08 and private-runtime composition references =="
           grep -R -n -E \
@@ -98,6 +139,7 @@ jobs:
             | head -n 400 || true
 
       - name: Build reproducible exact-head audit source snapshot
+        if: steps.authority.outputs.legacy_gate == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -166,6 +208,7 @@ jobs:
           sha256sum artifacts/portal-audit-source.manifest.sha256 > artifacts/portal-audit-source.manifest.digest
 
       - name: Print bounded report
+        if: steps.authority.outputs.legacy_gate == 'true'
         run: |
           cat artifacts/portal-completeness-audit.md
           sed -n '1,260p' artifacts/portal-deep-inventory.md
@@ -175,6 +218,7 @@ jobs:
           sed -n '1,240p' artifacts/portal-navigation-completeness-matrix.md
 
       - name: Upload audit evidence
+        if: steps.authority.outputs.legacy_gate == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: portal-completeness-audit-${{ github.run_id }}-${{ github.run_attempt }}

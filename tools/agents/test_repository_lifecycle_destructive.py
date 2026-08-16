@@ -261,6 +261,11 @@ class RecoveryTests(unittest.TestCase):
                 "delete_branch_exact",
                 side_effect=fake_delete,
             ),
+            patch.object(
+                destructive,
+                "remote_ref_sha",
+                side_effect=lambda _client, branch: client.refs.get(branch),
+            ),
         ):
             with self.assertRaises(rl.LifecycleError):
                 destructive.safe_recovery_test(client, "develop", 1559)

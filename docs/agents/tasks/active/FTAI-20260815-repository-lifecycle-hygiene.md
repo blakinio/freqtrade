@@ -129,3 +129,13 @@ unknown:
 blockers: []
 next_action: Run and inspect normal user-authored exact-head CI on the current-base branch; merge PR 1563 only after required lifecycle, pre-commit and security gates are green, then execute bounded hash-bound approval waves until safe candidate count is zero.
 ```
+
+## Wave 1 recovery repair checkpoint
+
+- implementation PR #1563 merged as `1db9446115ef34766e6057ae85e0a93e5ed1997a` after exact-head green CI;
+- wave-1 approval PR #1570 merged as `f4115df5d3a0f69d66d7fe3faad3fb2274be9932`, approving the exact 400-ref prefix digest `7e8876e44a17aaa4e643947acec230f872b6e20f9789dead6d3ac9dc934bce91`;
+- first apply run `31944580684` deleted zero historical refs and failed closed before the deletion loop because REST visibility lagged after creating the owned recovery-test ref;
+- recovery verification is repaired to use Git transport truth consistently, preserving exact-SHA and `--force-with-lease` guarantees;
+- immutable source-head snapshot fetch is hardened to one batch at current repository scale to avoid concurrent shallow-file mutation across fetch batches;
+- repair branch regression/pre-commit helpers passed and self-removed; PR #1571 is the repair vehicle;
+- the existing wave-1 approval must pass a fresh inventory, immutable-source-head preflight and independent safety audit after repair merge before apply resumes.

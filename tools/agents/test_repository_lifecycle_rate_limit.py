@@ -97,6 +97,9 @@ def fake_client() -> Any:
 
 
 class HistoricalPreflightRateLimitTests(unittest.TestCase):
+    def test_snapshot_batch_covers_current_historical_ref_scale(self) -> None:
+        self.assertGreaterEqual(preflight.FETCH_BATCH_SIZE, 1000)
+
     def test_source_head_claims_use_git_snapshot_not_per_candidate_rest(self) -> None:
         merged = candidate("feature/merged", MERGED_SHA, "TERMINAL_MERGED", 1)
         closed = candidate(

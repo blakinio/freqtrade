@@ -12,7 +12,7 @@ import repository_lifecycle as rl
 import repository_lifecycle_destructive as destructive
 
 
-FETCH_BATCH_SIZE = 100
+FETCH_BATCH_SIZE = 1000
 LOCAL_REF_ROOT = "refs/lifecycle-preflight"
 MAX_SINGLE_APPROVAL_SAFE_CANDIDATES = 750
 

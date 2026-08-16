@@ -10,9 +10,11 @@ on:
       - "docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json"
       - "docs/agents/tasks/active/FTAI-20260815-repository-lifecycle-hygiene.md"
       - "tools/agents/repository_lifecycle.py"
+      - "tools/agents/repository_lifecycle_apply.py"
       - "tools/agents/repository_lifecycle_destructive.py"
       - "tools/agents/repository_lifecycle_preflight.py"
       - "tools/agents/repository_lifecycle_approval.py"
+      - "tools/agents/test_repository_lifecycle_rate_limit.py"
   workflow_dispatch:
 
 permissions:
@@ -62,8 +64,10 @@ jobs:
         run: |
           python tools/agents/test_repository_lifecycle.py
           python tools/agents/test_repository_lifecycle_destructive.py
+          python tools/agents/test_repository_lifecycle_rate_limit.py
           python -m py_compile \
             tools/agents/repository_lifecycle_preflight.py \
+            tools/agents/repository_lifecycle_apply.py \
             tools/agents/repository_lifecycle_approval.py
 
       - name: Generate exact source-head-safe approval proposal
@@ -74,7 +78,7 @@ jobs:
           python tools/agents/repository_lifecycle_approval.py \
             --output docs/agents/REPOSITORY_LIFECYCLE_APPROVAL.json
 
-      - name: Create bounded approval branch
+      - name: Create bounded approval branch only
         if: steps.gate.outputs.run == 'true'
         shell: bash
         env:
@@ -98,16 +102,4 @@ jobs:
           BASIC="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
           git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $BASIC" \
             push origin "HEAD:refs/heads/$BRANCH"
-
-      - name: Open approval PR
-        if: steps.gate.outputs.run == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          APPROVAL_HEAD: governance/repository-lifecycle-approval-1559
-        shell: bash
-        run: |
-          gh pr create \
-            --base develop \
-            --head "$APPROVAL_HEAD" \
-            --title "docs(governance): approve exact terminal branch cleanup" \
-            --body $'Tracks #1559.\n\nThis one-time PR contains only the hash-bound approval generated from the exact source-head-safe branch preflight on trusted `develop`. The approval is invalidated by any candidate or policy drift.\n\nNo deletion occurs in this PR. Historical cleanup runs only after this PR passes lifecycle safety validation and merges.'
+          echo "Approval branch created. The coordinator must open the approval PR through the trusted GitHub connector."

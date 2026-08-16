@@ -199,7 +199,10 @@ class AuditLedgerTests(unittest.TestCase):
                         "authority:",
                         "  rules:",
                         "    - ADR-023 is the current product overlay for the entire Portal",
-                        "    - For current Portal work, SHADOW/PAPER/LIVE are historical or compatibility vocabulary only",
+                        (
+                            "    - For current Portal work, SHADOW/PAPER/LIVE are historical "
+                            "or compatibility vocabulary only"
+                        ),
                     )
                 ),
                 encoding="utf-8",

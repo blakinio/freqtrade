@@ -13,9 +13,6 @@ import repository_lifecycle_destructive as destructive
 import repository_lifecycle_preflight as preflight
 
 
-MAX_LIVE_OPEN_PR_REVALIDATIONS = 750
-
-
 def _write(path: Path, value: dict[str, Any]) -> None:
     path.write_text(rl.canonical_json(value), encoding="utf-8")
 
@@ -126,11 +123,12 @@ def apply_reviewed_safe_manifest(
     rl.validate_approval(approval, manifest, policy)
     if approval["apply_on_develop"] is not True:
         raise rl.LifecycleError("reviewed approval is not activated for develop")
-    if manifest["candidate_count"] > MAX_LIVE_OPEN_PR_REVALIDATIONS:
+    max_candidates = preflight.MAX_SINGLE_APPROVAL_SAFE_CANDIDATES
+    if manifest["candidate_count"] > max_candidates:
         raise rl.LifecycleError(
             "source-head-safe candidate count exceeds the single-run live open-PR "
-            f"revalidation budget ({manifest['candidate_count']} > "
-            f"{MAX_LIVE_OPEN_PR_REVALIDATIONS}); split approval into bounded waves"
+            f"revalidation budget ({manifest['candidate_count']} > {max_candidates}); "
+            "split approval into bounded waves"
         )
 
     approved_base_sha = manifest["base_sha"]
@@ -148,7 +146,7 @@ def apply_reviewed_safe_manifest(
         "already_absent": manifest["already_absent"],
         "retained_after_approval": [],
         "recovery_test": None,
-        "live_open_pr_revalidation_budget": MAX_LIVE_OPEN_PR_REVALIDATIONS,
+        "live_open_pr_revalidation_budget": max_candidates,
         "result": "RUNNING",
     }
     _write(output, result)

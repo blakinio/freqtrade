@@ -6,7 +6,7 @@ status: completed
 related_issue: 1560
 cutover_pr: 1564
 cutover_merge_sha: ff4979f5c14b0d584d11eaff4260a65423abf3aa
-closeout_pr: pending
+closeout_pr: 1568
 result: ADR_023_BACKLOG_CUTOVER_COMPLETE
 successor_product_issue: 1561
 next_action: none

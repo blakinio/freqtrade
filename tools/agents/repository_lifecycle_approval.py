@@ -6,12 +6,17 @@ import datetime as dt
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 import repository_lifecycle as rl
 import repository_lifecycle_preflight as preflight
 
 
-def build_approval(client: rl.GitHubClient, policy: dict, root: Path) -> dict:
+def build_approval(
+    client: rl.GitHubClient,
+    policy: dict[str, Any],
+    root: Path,
+) -> dict[str, Any]:
     manifest = preflight.build_preflight(client, policy, root)
     accounted = (
         manifest["candidate_count"]
@@ -30,19 +35,22 @@ def build_approval(client: rl.GitHubClient, policy: dict, root: Path) -> dict:
     return {
         "apply_on_develop": True,
         "candidate_count": manifest["candidate_count"],
-        "confirmation": f"DELETE_EXACT_REVIEWED_TERMINAL_BRANCHES_ISSUE_{policy['issue']}",
+        "confirmation": (
+            f"DELETE_EXACT_REVIEWED_TERMINAL_BRANCHES_ISSUE_{policy['issue']}"
+        ),
         "entries_sha256": manifest["entries_sha256"],
         "issue": policy["issue"],
         "policy_sha256": manifest["policy_sha256"],
         "repository": policy["repository"],
         "review_summary": (
-            "Agent-authorized proposal from the exact source-head-safe historical preflight; "
-            f"develop={base_sha}, workflow_run={run_id}, raw_terminal="
-            f"{manifest['source_inventory_candidate_count']}, safe={manifest['candidate_count']}, "
-            f"retained={manifest['retained_count']}, already_absent={manifest['already_absent_count']}. "
-            "Merge remains gated by a fresh preflight and exact digest validation."
+            "Agent-authorized proposal from the exact source-head-safe historical "
+            f"preflight; develop={base_sha}, workflow_run={run_id}, raw_terminal="
+            f"{manifest['source_inventory_candidate_count']}, safe="
+            f"{manifest['candidate_count']}, retained={manifest['retained_count']}, "
+            f"already_absent={manifest['already_absent_count']}. Merge remains gated "
+            "by a fresh preflight and exact digest validation."
         ),
-        "reviewed_at": dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z"),
+        "reviewed_at": dt.datetime.now(dt.UTC).isoformat().replace("+00:00", "Z"),
         "reviewed_by": "agent:FTAI-20260815-repository-lifecycle-hygiene",
         "schema_version": 1,
     }

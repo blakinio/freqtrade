@@ -76,7 +76,6 @@ jobs:
 
       - name: Create bounded approval branch
         if: steps.gate.outputs.run == 'true'
-        id: branch
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -99,16 +98,16 @@ jobs:
           BASIC="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
           git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $BASIC" \
             push origin "HEAD:refs/heads/$BRANCH"
-          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
 
       - name: Open approval PR
         if: steps.gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          APPROVAL_HEAD: governance/repository-lifecycle-approval-1559
         shell: bash
         run: |
           gh pr create \
             --base develop \
-            --head "${{ steps.branch.outputs.branch }}" \
+            --head "$APPROVAL_HEAD" \
             --title "docs(governance): approve exact terminal branch cleanup" \
             --body $'Tracks #1559.\n\nThis one-time PR contains only the hash-bound approval generated from the exact source-head-safe branch preflight on trusted `develop`. The approval is invalidated by any candidate or policy drift.\n\nNo deletion occurs in this PR. Historical cleanup runs only after this PR passes lifecycle safety validation and merges.'

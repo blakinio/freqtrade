@@ -208,7 +208,7 @@ def test_wh09_deployment_shell_steps_are_bash_parseable() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     for step_name in (
         "Validate runner zero authority and host inputs",
-        "Build exact image verify host UID isolation and force-recreate SHADOW runtime",
+        "Pull exact image verify host UID isolation and force-recreate SHADOW runtime",
     ):
         script = _workflow_shell_step(workflow, step_name)
         subprocess.run(

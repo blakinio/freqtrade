@@ -2,12 +2,12 @@
   "apply_on_develop": true,
   "candidate_count": 400,
   "confirmation": "DELETE_EXACT_REVIEWED_TERMINAL_BRANCHES_ISSUE_1559",
-  "entries_sha256": "7e8876e44a17aaa4e643947acec230f872b6e20f9789dead6d3ac9dc934bce91",
+  "entries_sha256": "264bd5db4cc68d398ad1bf8d750eef46e563cd17e8c191b6692bbe5e27edfd25",
   "issue": 1559,
   "policy_sha256": "840d4e2a9bbeb5bfe2dba4682c9ea6be830b2e2ab40d0cb67c634728e468573c",
   "repository": "blakinio/freqtrade",
-  "review_summary": "Agent-authorized bounded wave from the exact source-head-safe historical preflight; develop=1db9446115ef34766e6057ae85e0a93e5ed1997a, workflow_run=31944311498, raw_terminal=1026, safe_total=1019, wave=400, retained=7, already_absent=0, wave_limit=400. Merge remains gated by a fresh preflight and exact prefix digest validation.",
-  "reviewed_at": "2026-08-16T11:26:47.718696Z",
+  "review_summary": "Agent-authorized bounded wave from the exact source-head-safe historical preflight; develop=b489d1274e719c00a03d866db4785218e8a8daf8, workflow_run=31945413780, raw_terminal=626, safe_total=619, wave=400, retained=7, already_absent=0, wave_limit=400. Merge remains gated by a fresh preflight and exact prefix digest validation.",
+  "reviewed_at": "2026-08-16T12:05:43.335305Z",
   "reviewed_by": "agent:FTAI-20260815-repository-lifecycle-hygiene",
   "schema_version": 1
 }

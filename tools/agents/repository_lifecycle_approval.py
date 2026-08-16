@@ -27,6 +27,13 @@ def build_approval(
         item["classification"] not in rl.DELETION_CLASSIFICATIONS for item in manifest["candidates"]
     ):
         raise rl.LifecycleError("historical preflight widened deletion classifications")
+    max_candidates = preflight.MAX_SINGLE_APPROVAL_SAFE_CANDIDATES
+    if manifest["candidate_count"] > max_candidates:
+        raise rl.LifecycleError(
+            "source-head-safe candidate set exceeds the single-approval live "
+            f"revalidation budget ({manifest['candidate_count']} > {max_candidates}); "
+            "use bounded approval waves before any destructive cleanup"
+        )
     run_id = os.environ.get("GITHUB_RUN_ID", "unknown")
     base_sha = manifest["base_sha"]
     return {
@@ -42,8 +49,9 @@ def build_approval(
             f"preflight; develop={base_sha}, workflow_run={run_id}, raw_terminal="
             f"{manifest['source_inventory_candidate_count']}, safe="
             f"{manifest['candidate_count']}, retained={manifest['retained_count']}, "
-            f"already_absent={manifest['already_absent_count']}. Merge remains gated "
-            "by a fresh preflight and exact digest validation."
+            f"already_absent={manifest['already_absent_count']}, single_wave_limit="
+            f"{max_candidates}. Merge remains gated by a fresh preflight and exact "
+            "digest validation."
         ),
         "reviewed_at": dt.datetime.now(dt.UTC).isoformat().replace("+00:00", "Z"),
         "reviewed_by": "agent:FTAI-20260815-repository-lifecycle-hygiene",

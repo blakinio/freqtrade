@@ -37,12 +37,6 @@ jobs:
           from pathlib import Path
 
           replacements = {
-              Path('tools/agents/repository_lifecycle.py'): [
-                  (
-                      '            f"/repos/{self.repo}/pulls?state={state_param}&per_page=100&sort=updated&direction=desc"\n',
-                      '            f"/repos/{self.repo}/pulls?state={state_param}&per_page=100&sort=updated&direction=desc"  # noqa: E501\n',
-                  ),
-              ],
               Path('tools/agents/repository_lifecycle_apply.py'): [
                   (
                       '            f"default branch moved during apply: expected {approved_base_sha}, got {current_base_sha}"\n',

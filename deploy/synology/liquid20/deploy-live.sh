@@ -7,6 +7,7 @@ data_root="${LIQUID20_DATA_ROOT:-/volume1/docker/freqtrade-liquidations/data}"
 defaults_file="deploy/synology/liquid20/.env.example"
 commit_sha="${GITHUB_SHA:?GITHUB_SHA is required}"
 image="${image_name}:sha-${commit_sha}"
+prebuilt_image="${LIQUID20_PREBUILT_IMAGE:-}"
 candidate_token="${GITHUB_RUN_ID:-manual}-${GITHUB_RUN_ATTEMPT:-1}"
 candidate="${container_name}-candidate-${candidate_token}"
 candidate_runner_root="${LIQUID20_CANDIDATE_RUNNER_ROOT:-/var/lib/freqtrade-staging-state/liquidations-live-candidates/${candidate_token}}"
@@ -381,15 +382,36 @@ docker compose version >/dev/null
 test -S /var/run/docker.sock
 test -f "$defaults_file"
 
-echo "Building exact live collector image: $image"
-docker build \
-    --pull \
-    --file deploy/synology/liquid20/Dockerfile \
-    --build-arg "COLLECTOR_COMMIT=${commit_sha}" \
-    --label "org.opencontainers.image.source=${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-blakinio/freqtrade}" \
-    --label "org.opencontainers.image.revision=${commit_sha}" \
-    --tag "$image" \
-    .
+if [[ -n "$prebuilt_image" ]]; then
+    if [[ ! "$prebuilt_image" =~ ^ghcr\.io/blakinio/liquid20-collector@sha256:[0-9a-f]{64}$ ]]; then
+        echo "LIQUID20_PREBUILT_IMAGE must be an immutable approved GHCR digest reference" >&2
+        exit 64
+    fi
+    docker image inspect "$prebuilt_image" >/dev/null
+    prebuilt_id="$(docker image inspect --format '{{.Id}}' "$prebuilt_image")"
+    [[ "$prebuilt_id" =~ ^sha256:[0-9a-f]{64}$ ]]
+    prebuilt_revision="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$prebuilt_image")"
+    if [[ "$prebuilt_revision" != "$commit_sha" ]]; then
+        echo "Prebuilt Liquid20 image revision does not match GITHUB_SHA" >&2
+        exit 64
+    fi
+    docker tag "$prebuilt_image" "$image"
+    [[ "$(docker image inspect --format '{{.Id}}' "$image")" == "$prebuilt_id" ]]
+    echo "Using exact prebuilt live collector image: $prebuilt_image -> $image"
+elif [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+    echo "GitHub Actions deployment requires LIQUID20_PREBUILT_IMAGE; refusing Synology build fallback" >&2
+    exit 64
+else
+    echo "Building exact live collector image: $image"
+    docker build \
+        --pull \
+        --file deploy/synology/liquid20/Dockerfile \
+        --build-arg "COLLECTOR_COMMIT=${commit_sha}" \
+        --label "org.opencontainers.image.source=${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-blakinio/freqtrade}" \
+        --label "org.opencontainers.image.revision=${commit_sha}" \
+        --tag "$image" \
+        .
+fi
 
 configure_cpu_limit
 configure_pids_limit

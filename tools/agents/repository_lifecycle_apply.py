@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import repository_lifecycle as rl
+import repository_lifecycle_approval as approval_logic
 import repository_lifecycle_destructive as destructive
 import repository_lifecycle_preflight as preflight
 
@@ -120,33 +121,36 @@ def apply_reviewed_safe_manifest(
 ) -> dict[str, Any]:
     manifest = preflight.build_preflight(client, policy, root)
     approval = rl.load_json(root / rl.APPROVAL_PATH)
-    rl.validate_approval(approval, manifest, policy)
+    approved_wave = approval_logic.approval_wave_manifest(
+        manifest,
+        candidate_count=approval.get("candidate_count"),
+    )
+    rl.validate_approval(approval, approved_wave, policy)
     if approval["apply_on_develop"] is not True:
         raise rl.LifecycleError("reviewed approval is not activated for develop")
-    max_candidates = preflight.MAX_SINGLE_APPROVAL_SAFE_CANDIDATES
-    if manifest["candidate_count"] > max_candidates:
-        raise rl.LifecycleError(
-            "source-head-safe candidate count exceeds the single-run live open-PR "
-            f"revalidation budget ({manifest['candidate_count']} > {max_candidates}); "
-            "split approval into bounded waves"
-        )
+    if approved_wave["candidate_count"] > preflight.MAX_SINGLE_APPROVAL_SAFE_CANDIDATES:
+        raise rl.LifecycleError("approval wave exceeds the hard live revalidation budget")
 
     approved_base_sha = manifest["base_sha"]
+    approved_candidates = approved_wave["candidates"]
     result: dict[str, Any] = {
-        "schema_version": 2,
+        "schema_version": 3,
         "repository": client.repo,
         "approved_base_sha": approved_base_sha,
-        "reviewed_candidate_count": manifest["candidate_count"],
-        "entries_sha256": manifest["entries_sha256"],
-        "policy_sha256": manifest["policy_sha256"],
+        "safe_candidate_count_before_wave": manifest["candidate_count"],
+        "reviewed_candidate_count": approved_wave["candidate_count"],
+        "approved_candidates": approved_candidates,
+        "entries_sha256": approved_wave["entries_sha256"],
+        "policy_sha256": approved_wave["policy_sha256"],
         "source_inventory_candidate_count": manifest["source_inventory_candidate_count"],
         "preflight_retained_count": manifest["retained_count"],
         "preflight_retained": manifest["retained"],
         "deleted": [],
-        "already_absent": manifest["already_absent"],
+        "already_absent": [],
         "retained_after_approval": [],
         "recovery_test": None,
-        "live_open_pr_revalidation_budget": max_candidates,
+        "approval_wave_limit": approval_logic.APPROVAL_WAVE_SIZE,
+        "hard_live_revalidation_budget": preflight.MAX_SINGLE_APPROVAL_SAFE_CANDIDATES,
         "result": "RUNNING",
     }
     _write(output, result)
@@ -158,7 +162,7 @@ def apply_reviewed_safe_manifest(
     )
     _write(output, result)
 
-    for candidate in manifest["candidates"]:
+    for candidate in approved_candidates:
         try:
             status = _revalidate_immediately_before_delete(
                 client,

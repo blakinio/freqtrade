@@ -8,9 +8,7 @@ ARCHIVED_COORDINATOR_PATH = Path(
 ACTIVE_COORDINATOR_PATH = Path(
     "docs/agents/tasks/active/FTAI-20260803-portal-remediation-program.md"
 )
-CUTOVER_LEDGER_PATH = Path(
-    "docs/ai_platform/portal/ADR023_BACKLOG_RECLASSIFICATION_2026-08-15.md"
-)
+CUTOVER_LEDGER_PATH = Path("docs/ai_platform/portal/ADR023_BACKLOG_RECLASSIFICATION_2026-08-15.md")
 CURRENT_PROGRAMME_PATH = Path("docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md")
 
 

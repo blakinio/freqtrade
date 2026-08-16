@@ -111,7 +111,10 @@ def main() -> int:
                 {
                     "legacy_issue_state_gate": "NOT_APPLICABLE_ADR_023",
                     "ledger_issue_mappings": len(issue_numbers(ledger)),
-                    "reason": "ADR-023 supersedes legacy completeness-Issue state as current Portal delivery authority",
+                    "reason": (
+                        "ADR-023 supersedes legacy completeness-Issue state as current "
+                        "Portal delivery authority"
+                    ),
                 },
                 sort_keys=True,
             )

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -9,6 +10,7 @@ MODULE_PATH = Path(__file__).parents[2] / "deploy" / "synology" / "task_owned_do
 spec = importlib.util.spec_from_file_location("task_owned_docker_cleanup", MODULE_PATH)
 assert spec is not None and spec.loader is not None
 cleanup_module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = cleanup_module
 spec.loader.exec_module(cleanup_module)
 
 

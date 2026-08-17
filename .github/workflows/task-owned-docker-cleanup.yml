@@ -1,0 +1,43 @@
+name: Task-owned Docker Cleanup
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Remove eligible expired stopped containers
+        required: true
+        default: false
+        type: boolean
+  schedule:
+    - cron: "17 3 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: task-owned-docker-cleanup-synology
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Cleanup expired task-owned temporary containers
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact repository state
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Evaluate and cleanup bounded resources
+        shell: bash
+        env:
+          MANUAL_APPLY: ${{ inputs.apply }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          apply_args=()
+          if [[ "$EVENT_NAME" == "schedule" || "$MANUAL_APPLY" == "true" ]]; then
+            apply_args+=(--apply)
+          fi
+          python3 deploy/synology/task_owned_docker_cleanup.py "${apply_args[@]}"

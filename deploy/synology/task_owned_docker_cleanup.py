@@ -10,6 +10,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+
 LIFECYCLE_LABEL = "io.freqtrade.lifecycle"
 CLEANUP_LABEL = "io.freqtrade.cleanup"
 OWNER_TASK_LABEL = "io.freqtrade.owner-task"
@@ -56,23 +57,71 @@ def decide(container: dict[str, Any], now: datetime) -> Decision:
     if labels.get(LIFECYCLE_LABEL) != EXPECTED_LIFECYCLE:
         return Decision(container_id, name, owner_task, expires_at, status, "keep", "not_temporary")
     if labels.get(CLEANUP_LABEL) != EXPECTED_CLEANUP:
-        return Decision(container_id, name, owner_task, expires_at, status, "keep", "cleanup_not_opted_in")
+        return Decision(
+            container_id,
+            name,
+            owner_task,
+            expires_at,
+            status,
+            "keep",
+            "cleanup_not_opted_in",
+        )
     if not owner_task:
-        return Decision(container_id, name, owner_task, expires_at, status, "keep", "missing_owner_task")
+        return Decision(
+            container_id,
+            name,
+            owner_task,
+            expires_at,
+            status,
+            "keep",
+            "missing_owner_task",
+        )
     if not expires_at:
-        return Decision(container_id, name, owner_task, expires_at, status, "keep", "missing_expiry")
+        return Decision(
+            container_id,
+            name,
+            owner_task,
+            expires_at,
+            status,
+            "keep",
+            "missing_expiry",
+        )
 
     try:
         expiry = parse_expiry(expires_at)
     except ValueError:
-        return Decision(container_id, name, owner_task, expires_at, status, "keep", "invalid_expiry")
+        return Decision(
+            container_id,
+            name,
+            owner_task,
+            expires_at,
+            status,
+            "keep",
+            "invalid_expiry",
+        )
 
     if expiry > now.astimezone(UTC):
         return Decision(container_id, name, owner_task, expires_at, status, "keep", "not_expired")
     if bool(state.get("Running")) or status in {"running", "paused", "restarting"}:
-        return Decision(container_id, name, owner_task, expires_at, status, "keep", "expired_but_active")
+        return Decision(
+            container_id,
+            name,
+            owner_task,
+            expires_at,
+            status,
+            "keep",
+            "expired_but_active",
+        )
 
-    return Decision(container_id, name, owner_task, expires_at, status, "remove", "expired_task_owned_temporary")
+    return Decision(
+        container_id,
+        name,
+        owner_task,
+        expires_at,
+        status,
+        "remove",
+        "expired_task_owned_temporary",
+    )
 
 
 def inspect_candidates() -> list[dict[str, Any]]:
@@ -129,7 +178,9 @@ def cleanup(*, apply: bool, now: datetime) -> dict[str, Any]:
         "removed_count": len(removed),
         "removed": removed,
         "failures": failures,
-        "decisions": [asdict(item) | {"container_id": item.container_id[:12]} for item in decisions],
+        "decisions": [
+            asdict(item) | {"container_id": item.container_id[:12]} for item in decisions
+        ],
     }
 
 

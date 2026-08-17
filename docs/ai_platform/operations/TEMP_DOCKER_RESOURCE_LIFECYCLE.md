@@ -41,6 +41,6 @@ Malformed, unlabeled, not-yet-expired, or active resources are reported and reta
 
 ## Automation
 
-`.github/workflows/task-owned-docker-cleanup.yml` runs daily on the Synology runner and may also be started manually. Scheduled runs apply cleanup. Manual dispatch defaults to report-only and requires `apply=true` to mutate.
+`.github/workflows/task-owned-docker-cleanup.yml` runs daily on the Synology runner and may also be started manually. Scheduled runs apply cleanup. Manual dispatch defaults to report-only and requires `apply=true` to mutate. The workflow is registered as an active `operational_schedule` owned by `platform-operations` in `.github/workflow-registry.yaml`.
 
 The job emits a JSON report to its log containing evaluated candidates, reasons, removed IDs, and failures. No secret values or container environment values are collected.

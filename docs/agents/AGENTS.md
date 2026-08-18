@@ -31,7 +31,7 @@ Never allow concurrent writers on the same branch/path. Do not force-rewrite sha
 
 ## Execution mode
 
-Use local tools when available. Use the GitHub-only protocol when connector coverage is sufficient and local execution is unavailable. Codex/Codex Spark requires explicit owner permission for the task.
+Use local tools when available. Use the GitHub-only protocol when connector coverage is sufficient and local execution is unavailable. Direct repository-agent use of Codex/Codex Spark requires explicit owner permission for the task; the bounded central Spark controller exception defined in root `AGENTS.md` remains unchanged.
 
 ## Closeout
 

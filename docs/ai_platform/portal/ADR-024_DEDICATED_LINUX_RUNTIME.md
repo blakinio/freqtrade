@@ -1,9 +1,18 @@
 # ADR-024 — Dedicated Linux runtime with GitHub CI and Synology durable storage
 
-Status: `accepted`  
-Accepted by owner: `2026-08-18`  
+Status: `superseded by ADR-025`  
+Originally accepted by owner: `2026-08-18`  
+Superseded by owner: `2026-08-18` via Issue `#1604` and `ADR-025`  
 Issue: `#1603`  
 Trusted base at decision: `develop@2389e5e70161325c7f39b8ecd9da766f078bcf3e`
+
+## Supersession note
+
+This document is preserved as historical architecture evidence. ADR-025 supersedes the current-target requirement for a separate dedicated Linux application host and restores Synology as the normal persistent runtime location for the current private Developer Quant Platform.
+
+ADR-025 **retains** ADR-024's GitHub-hosted build-plane direction: stateless CI/test/build/scan/disposable work belongs on GitHub-hosted runners where compatible; persistent application runtime does not belong on GitHub Actions; privileged self-hosted runner access should remain narrow.
+
+The historical decision below is intentionally not rewritten.
 
 ## Decision
 
@@ -101,7 +110,7 @@ Migration is service-by-service and reversible.
 7. Remove Synology application-compute responsibilities only after replacement health, restart and rollback are proven.
 8. Retain Synology storage/backup responsibilities and validate recovery after the compute cutover.
 
-Issue `#1604` owns the post-ADR service portability/cutover programme.
+Issue `#1604` owned the post-ADR service portability/cutover programme before the owner superseded that target with ADR-025.
 
 ## Cutover and rollback rules
 
@@ -131,33 +140,29 @@ This split reduces the blast radius of the Synology NAS and of GitHub self-hoste
 
 ## Supersession
 
-ADR-024 is a scoped runtime/deployment refinement of ADR-023.
+ADR-024 was a scoped runtime/deployment refinement of ADR-023.
 
-It supersedes only conflicting current-target statements that define `SYNOLOGY` as a normal target runtime location or make Synology the primary persistent application-compute target, including the runtime-location wording in:
-
-- `ADR-023_DEVELOPER_QUANT_PORTAL.md`;
-- `DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md`;
-- root `AGENTS.md` runtime/deployment guidance.
+It formerly superseded conflicting current-target statements that defined `SYNOLOGY` as a normal target runtime location or made Synology the primary persistent application-compute target. ADR-025 now supersedes that part of ADR-024.
 
 ADR-023 remains authoritative for the private single-owner Developer Quant product, `REALTIME_PUBLIC | REPLAY`, integrated simulation, `BASELINE | CHALLENGER | ACTIVE | ARCHIVED`, deliberate model activation and the prohibition on real-money execution.
 
 Historical Synology deployment evidence is not rewritten.
 
-## Implementation truth
+## Implementation truth at acceptance time
 
-At acceptance time:
+At ADR-024 acceptance time:
 
-- GitHub-hosted CI/build capability is already directly proven in repository Actions history;
-- Synology self-hosted workflows and deployments still exist;
-- `deploy/` is still Synology-centric;
-- no dedicated Linux runtime host has been verified for this task;
-- no physical runtime/storage cutover is claimed.
+- GitHub-hosted CI/build capability was already directly proven in repository Actions history;
+- Synology self-hosted workflows and deployments still existed;
+- `deploy/` was still Synology-centric;
+- no dedicated Linux runtime host had been verified for this task;
+- no physical runtime/storage cutover was claimed.
 
-Therefore the architecture is **accepted target pending implementation**. Current live implementation remains mixed until exact service-level migration evidence exists.
+Therefore ADR-024 was an **accepted target pending implementation**. ADR-025 superseded the unimplemented dedicated-Linux target while preserving the GitHub-hosted build-plane direction.
 
 ## Non-goals
 
-ADR-024 does not authorize:
+ADR-024 did not authorize:
 
 - real exchange order execution, withdrawals or capital allocation;
 - private trading credentials;

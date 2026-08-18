@@ -19,7 +19,7 @@ def route(
 
 
 def test_documentation_only_skips_heavy_runtime_gates() -> None:
-    result = route("docs/agents/PROMPTING_STANDARD.md")
+    result = route("docs/README.md")
     assert result["docs"] and result["docs_only"] and result["lightweight"]
     for gate in (
         "core_light",
@@ -146,21 +146,39 @@ def test_explicit_full_label_selects_all_heavy_acceptance_gates() -> None:
     assert result["portal_web_validation"]
 
 
-def test_ready_for_review_is_merge_ready_full_validation() -> None:
-    result = route("freqtrade/configuration/configuration.py", action="ready_for_review")
-    assert result["full"]
-    assert result["core_matrix"]
+def test_ready_for_review_preserves_changed_path_routing() -> None:
+    result = route("docs/README.md", action="ready_for_review")
+    assert result["docs_only"]
+    assert not result["full"]
+    assert not result["core_matrix"]
+    assert not result["portal_full_browser_e2e"]
 
 
-def test_protected_branch_push_and_release_are_full() -> None:
+def test_develop_push_preserves_path_routing_but_release_is_full() -> None:
     push = classify(
-        ["freqtrade/configuration/configuration.py"],
+        ["docs/README.md"],
         event="push",
         ref_name="develop",
         config=CONFIG,
     )["outputs"]
     release = classify([], event="release", config=CONFIG)["outputs"]
-    assert push["full"] and release["full"]
+    assert push["docs_only"] and not push["full"]
+    assert release["full"]
+
+
+def test_canonical_governance_change_forces_full_trusted_base_validation() -> None:
+    for path in (
+        "AGENTS.override.md",
+        "docs/agents/PROMPTING_STANDARD.md",
+        "docs/agents/RISK_BASED_EXECUTION_POLICY.json",
+        "tools/agents/risk_policy.py",
+    ):
+        result = route(path)
+        assert result["ci_architecture"], path
+        assert result["full"], path
+        assert result["core_matrix"], path
+        assert result["security_analysis"], path
+        assert result["portal_full_browser_e2e"], path
 
 
 def test_ci_architecture_change_runs_every_routing_acceptance_tier() -> None:

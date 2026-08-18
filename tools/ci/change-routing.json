@@ -36,6 +36,18 @@
         ".github/workflows/**",
         ".github/actions/**",
         ".github/dependabot.yml",
+        "AGENTS.md",
+        "AGENTS.override.md",
+        "docs/agents/AGENTS.md",
+        "docs/agents/BRANCH_POLICY.md",
+        "docs/agents/EXECUTION_PROTOCOL.md",
+        "docs/agents/PROMPTING_HANDOVER.md",
+        "docs/agents/PROMPTING_STANDARD.md",
+        "docs/agents/PROMPT_EVAL_STANDARD.md",
+        "docs/agents/RISK_BASED_EXECUTION_POLICY.json",
+        "docs/agents/TASK_CLOSEOUT_AUDIT_E2E.md",
+        "docs/agents/TRUST_AND_CONTEXT_BOUNDARIES.md",
+        "tools/agents/risk_policy.py",
         "tools/ci/**",
         "tests/ci/**"
       ]

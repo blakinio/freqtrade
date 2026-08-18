@@ -3,10 +3,11 @@ task_id: FTAI-20260818-github-build-plane-1608
 repository: blakinio/freqtrade
 issue: 1608
 branch: infra/1608-github-build-plane-adr024
-status: implementing
+status: validating
 execution_mode: github_only
 trusted_base: 079193691f199964a67bd69391db953d619844df
 supersedes_pr: 1569
+pr: 1609
 ---
 
 # ADR-024 hosted build-plane adoption
@@ -88,18 +89,18 @@ The elevated runtime gates are selected because the canonical Liquid20 `develop`
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-18T14:31:00+02:00
+updated_at: 2026-08-18T14:34:00+02:00
 branch: infra/1608-github-build-plane-adr024
-head: d14194b994410e9bfe8cad839fad914c5f678058
-pr: none
-status: implementing
+head: 81bef6e87cc67c5b956726a57e715708016573b1
+pr: 1609
+status: validating
 context_routes:
   - Issue #1608 bounded B0 task
   - Issue #1604 runtime portability programme
   - Issue #1561 Developer Quant vertical slice
   - ADR-023 current product authority
   - ADR-024 runtime/deployment topology authority
-  - superseded PR #1569 implementation evidence
+  - superseded closed PR #1569 implementation evidence
 owned_paths:
   - .github/workflows/portal-oidc-public-deploy.yml
   - .github/workflows/ai-platform-wickhunter-wh09-production-research-runtime-deploy.yml
@@ -139,31 +140,42 @@ proven:
   - seven non-task implementation/test blobs from PR #1569 were recovered exactly before ADR-024 wording reconciliation
   - PR #1569 head 1a3ce7d28f1ee126869ac716cff1f56238eaf49d had successful Freqtrade CI 32132647901 and Risk-aware CI 32132648226
   - stale PR #1569 was 13 commits behind current develop and its old task authority treated Synology as target runtime
+  - PR #1569 is now closed without merge and explicitly superseded by PR #1609
+  - fresh PR #1609 targets exact current trusted base develop@079193691f199964a67bd69391db953d619844df
   - tests/ci/test_github_build_plane.py now describes Synology only as transitional deployment compatibility
   - Liquid20 canonical workflow currently triggers on develop changes to its workflow and deploy package and therefore makes post-merge target verification mandatory
 unknown:
-  - exact-final-head CI after the fresh current-base adoption
+  - exact-final-head CI on PR #1609 after this checkpoint commit
   - post-merge GHCR package publication/pull result and transitional Synology Liquid20 deployment result
   - physical dedicated Linux target host and storage transport for Phase C
 conflicts: []
 first_failure:
-  marker: STALE_ADR023_BUILD_PLANE_BRANCH
-  evidence: PR #1569 contained useful build-plane implementation but was based on pre-ADR-024 develop and encoded Synology as target persistent runtime; direct merge/rebase was rejected in favor of fresh-current-base recovery
+  marker: none-current
+  evidence: stale branch/authority conflict was resolved by current-base recovery and superseding PR #1569 rather than by force-rebase
 rejected_hypotheses:
   - discard the verified #1569 build-plane implementation and reimplement it from scratch
   - force-rebase the stale shared #1569 branch
   - treat transitional Synology deployment success as dedicated-Linux cutover proof
 changed_paths:
-  - seven recovered implementation/test paths from PR #1569
-  - tests/ci/test_github_build_plane.py ADR-024 wording reconciliation
+  - .github/workflows/portal-oidc-public-deploy.yml
+  - .github/workflows/ai-platform-wickhunter-wh09-production-research-runtime-deploy.yml
+  - .github/workflows/liquidations-live-synology.yml
+  - .github/workflows/packages-cleanup.yml
+  - deploy/synology/liquid20/deploy-live.sh
+  - tests/ai_platform_integration/test_wickhunter_production_research_runtime_deploy.py
+  - tests/ci/test_github_build_plane.py
+  - docs/agents/tasks/active/FTAI-20260818-github-build-plane-1608.md
 validation:
   - command: current-base blob recovery from PR #1569 onto develop@079193691f199964a67bd69391db953d619844df
     result: PASS
     evidence: Git tree cd58f71cc25c5116f982a162177fa9d8d155a583 and commit 0d092eda51387722368ee4c8a7ccfb8ce7a5e3eb
+  - command: exact changed-scope review before PR
+    result: PASS
+    evidence: eight expected paths including the fresh v3 task record; obsolete #1569 task record not imported
   - command: exact-final-head CI
     result: NOT_RUN
-    evidence: implementation task record is still being finalized
+    evidence: this checkpoint commit creates the validation head
 blockers:
   - Phase C dedicated-Linux cutover remains blocked by unverified physical target; this does not block B0 hosted build-plane adoption
-next_action: Open the fresh PR to develop, close superseded PR #1569, then validate the exact final head under all selected risk gates before merge.
+next_action: Verify PR #1609 exact-head CI and full final diff; remediate only concrete failures, then perform the selected independent audit before readiness.
 ```

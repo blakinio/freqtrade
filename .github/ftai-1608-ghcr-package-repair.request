@@ -1,0 +1,4 @@
+task=FTAI-20260818-github-build-plane-1608
+issue=1608
+base=6510077ea2e7a63c0d489f94391f461a3cab4ac1
+purpose=repo-owned Liquid20 GHCR namespace repair

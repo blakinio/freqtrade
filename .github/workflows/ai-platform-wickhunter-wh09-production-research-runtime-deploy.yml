@@ -33,12 +33,81 @@ env:
   COMPOSE_SERVICE: wickhunter-production-research-runtime
 
 jobs:
+  build-runtime-image:
+    name: Build and publish exact WH09 runtime image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_ref: ${{ steps.publish.outputs.image_ref }}
+      image_id: ${{ steps.publish.outputs.image_id }}
+    steps:
+      - name: Checkout exact runtime implementation
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ env.DEPLOY_COMMIT }}
+
+      - name: Build exact runtime image
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+          local_tag="wickhunter-production-research-runtime:${DEPLOY_COMMIT:0:12}"
+          docker build --no-cache --progress=plain \
+            --build-arg "OPERATOR_COMMIT=$DEPLOY_COMMIT" \
+            --tag "$local_tag" \
+            --file deploy/synology/wickhunter-production-research-runtime/Dockerfile \
+            .
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$local_tag")" == "$DEPLOY_COMMIT" ]]
+          image_id="$(docker image inspect --format '{{.Id}}' "$local_tag")"
+          [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]
+          printf 'local_tag=%s\n' "$local_tag" >> "$GITHUB_OUTPUT"
+          printf 'image_id=%s\n' "$image_id" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR for image publication
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Publish and resolve immutable runtime image
+        id: publish
+        shell: bash
+        env:
+          LOCAL_TAG: ${{ steps.build.outputs.local_tag }}
+          EXPECTED_IMAGE_ID: ${{ steps.build.outputs.image_id }}
+        run: |
+          set -euo pipefail
+          image_repo="ghcr.io/blakinio/wickhunter-production-research-runtime"
+          image_tag="${image_repo}:deploy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${DEPLOY_COMMIT}"
+          docker tag "$LOCAL_TAG" "$image_tag"
+          docker push "$image_tag"
+          docker pull "$image_tag" >/dev/null
+          [[ "$(docker image inspect --format '{{.Id}}' "$image_tag")" == "$EXPECTED_IMAGE_ID" ]]
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image_tag")" == "$DEPLOY_COMMIT" ]]
+          image_ref="$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image_tag" \
+            | grep -E "^${image_repo}@sha256:[0-9a-f]{64}$" \
+            | head -n 1)"
+          [[ -n "$image_ref" ]]
+          printf 'image_ref=%s\n' "$image_ref" >> "$GITHUB_OUTPUT"
+          printf 'image_id=%s\n' "$EXPECTED_IMAGE_ID" >> "$GITHUB_OUTPUT"
+
   deploy:
     name: Deploy repaired WH09 SHADOW runtime and prove E2E
+    needs: build-runtime-image
     runs-on:
       - freqtrade-staging
     environment: synology-staging
     timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: read
     steps:
       - name: Checkout exact retry authorization
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
@@ -244,21 +313,31 @@ jobs:
           printf 'JOURNAL_CONTAINER=%s\n' "$journal_container" >> "$GITHUB_ENV"
           printf 'OPERATOR_CONTAINER=%s\n' "$operator_container" >> "$GITHUB_ENV"
 
-      - name: Build exact image verify host UID isolation and force-recreate SHADOW runtime
+      - name: Log in to GHCR for exact runtime image pull
         shell: bash
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Pull exact image verify host UID isolation and force-recreate SHADOW runtime
+        shell: bash
+        env:
+          BUILT_IMAGE_REF: ${{ needs.build-runtime-image.outputs.image_ref }}
+          BUILT_IMAGE_ID: ${{ needs.build-runtime-image.outputs.image_id }}
         run: |
           set -euo pipefail
           export OPERATOR_COMMIT="$DEPLOY_COMMIT"
-          build_tag="wickhunter-production-research-runtime:${DEPLOY_COMMIT:0:12}"
-          export WICKHUNTER_RESEARCH_RUNTIME_IMAGE="$build_tag"
+          [[ "$BUILT_IMAGE_REF" =~ ^ghcr\.io/blakinio/wickhunter-production-research-runtime@sha256:[0-9a-f]{64}$ ]]
+          [[ "$BUILT_IMAGE_ID" =~ ^sha256:[0-9a-f]{64}$ ]]
+          docker pull "$BUILT_IMAGE_REF" >/dev/null
+          image_id="$(docker image inspect --format '{{.Id}}' "$BUILT_IMAGE_REF")"
+          [[ "$image_id" == "$BUILT_IMAGE_ID" ]]
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$BUILT_IMAGE_REF")" == "$DEPLOY_COMMIT" ]]
+          export WICKHUNTER_RESEARCH_RUNTIME_IMAGE="$image_id"
           export MODEL_ROOT_HOST LIQUID20_LIVE_HOST LIQUID20_READER_GID JOURNAL_ROOT_HOST OPERATOR_STATE_HOST
           export POLL_SECONDS=60 MAXIMUM_SOURCE_AGE_MS=300000 MODEL_DRIFT=healthy DATA_DRIFT=healthy CIRCUIT_BREAKER_ACTIVE=false SUPERVISOR_CYCLES=0 HEALTH_MAX_AGE_SECONDS=600
-
-          docker build --no-cache --progress=plain --build-arg "OPERATOR_COMMIT=$DEPLOY_COMMIT" --tag "$build_tag" --file deploy/synology/wickhunter-production-research-runtime/Dockerfile .
-          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$build_tag")" == "$DEPLOY_COMMIT" ]]
-          image_id="$(docker image inspect --format '{{.Id}}' "$build_tag")"
-          [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]
-          export WICKHUNTER_RESEARCH_RUNTIME_IMAGE="$image_id"
 
           if [[ -n "${PREVIOUS_RUNTIME_CONTAINER_ID:-}" ]]; then
             [[ "$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$PREVIOUS_RUNTIME_CONTAINER_ID")" == "$COMPOSE_PROJECT_NAME" ]]

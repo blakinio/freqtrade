@@ -26,13 +26,116 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  build-image:
+    name: Build and publish exact collector image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      statuses: write
+    outputs:
+      image_ref: ${{ steps.publish.outputs.image_ref }}
+      image_id: ${{ steps.publish.outputs.image_id }}
+
+    steps:
+      - name: Publish pending status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          payload=$(cat <<EOF
+          {"state":"pending","context":"liquidations-live-synology","description":"Building exact collector image","target_url":"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"}
+          EOF
+          )
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            --data "$payload" >/dev/null
+
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Build exact collector image
+        id: build
+        env:
+          LOCAL_IMAGE: local/liquid20-collector:build-${{ github.sha }}
+        run: |
+          set -euo pipefail
+          docker build \
+            --pull \
+            --file deploy/synology/liquid20/Dockerfile \
+            --build-arg "COLLECTOR_COMMIT=${GITHUB_SHA}" \
+            --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --tag "$LOCAL_IMAGE" \
+            .
+          image_id="$(docker image inspect --format '{{.Id}}' "$LOCAL_IMAGE")"
+          [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$LOCAL_IMAGE")" == "$GITHUB_SHA" ]]
+          printf 'image_id=%s\n' "$image_id" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR for image publication
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Publish and resolve immutable image
+        id: publish
+        env:
+          LOCAL_IMAGE: local/liquid20-collector:build-${{ github.sha }}
+          EXPECTED_IMAGE_ID: ${{ steps.build.outputs.image_id }}
+        run: |
+          set -euo pipefail
+          image_repo="ghcr.io/blakinio/liquid20-collector"
+          image_tag="${image_repo}:deploy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_SHA}"
+          docker tag "$LOCAL_IMAGE" "$image_tag"
+          docker push "$image_tag"
+          docker pull "$image_tag" >/dev/null
+          [[ "$(docker image inspect --format '{{.Id}}' "$image_tag")" == "$EXPECTED_IMAGE_ID" ]]
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image_tag")" == "$GITHUB_SHA" ]]
+          image_ref="$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image_tag" \
+            | grep -E "^${image_repo}@sha256:[0-9a-f]{64}$" \
+            | head -n 1)"
+          [[ -n "$image_ref" ]]
+          printf 'image_ref=%s\n' "$image_ref" >> "$GITHUB_OUTPUT"
+          printf 'image_id=%s\n' "$EXPECTED_IMAGE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Publish build failure status
+        if: failure()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          payload=$(cat <<EOF
+          {"state":"failure","context":"liquidations-live-synology","description":"Collector image build failed","target_url":"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"}
+          EOF
+          )
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            --data "$payload" >/dev/null
+
   deploy:
     name: Validate and deploy exact SHA
+    needs: build-image
     runs-on: freqtrade-staging
     timeout-minutes: 45
     environment: synology-staging
     permissions:
       contents: read
+      packages: read
       statuses: write
 
     steps:
@@ -58,6 +161,25 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Log in to GHCR and materialize exact collector image
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BUILT_IMAGE_REF: ${{ needs.build-image.outputs.image_ref }}
+          BUILT_IMAGE_ID: ${{ needs.build-image.outputs.image_id }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_ARCH_VALUE" != "X64" ]]; then
+            echo "Hosted collector image is linux/amd64; refusing incompatible Synology runner architecture: $RUNNER_ARCH_VALUE" >&2
+            exit 64
+          fi
+          [[ "$BUILT_IMAGE_REF" =~ ^ghcr\.io/blakinio/liquid20-collector@sha256:[0-9a-f]{64}$ ]]
+          [[ "$BUILT_IMAGE_ID" =~ ^sha256:[0-9a-f]{64}$ ]]
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker pull "$BUILT_IMAGE_REF" >/dev/null
+          [[ "$(docker image inspect --format '{{.Id}}' "$BUILT_IMAGE_REF")" == "$BUILT_IMAGE_ID" ]]
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$BUILT_IMAGE_REF")" == "$GITHUB_SHA" ]]
+
       - name: Validate and deploy live collector
         id: deploy
         env:
@@ -67,6 +189,7 @@ jobs:
           LIQUID20_DATA_ROOT: /volume1/docker/freqtrade-liquidations/data
           LIQUID20_DEPLOY_REPORT: ${{ runner.temp }}/liquidations-live-synology-report.json
           LIQUID20_DEPLOY_LOG: ${{ runner.temp }}/liquidations-live-synology.log
+          LIQUID20_PREBUILT_IMAGE: ${{ needs.build-image.outputs.image_ref }}
         run: |
           set -o pipefail
           bash deploy/synology/liquid20/deploy-live.sh 2>&1 | tee "$LIQUID20_DEPLOY_LOG"

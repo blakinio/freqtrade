@@ -23,14 +23,148 @@ env:
   GRYPE_LINUX_AMD64_SHA256: "0122df7b655981abe547ad3d2190d65551dac6a2bfc80b4dc2a989b5d0587458"
 
 jobs:
+  build-approved-images:
+    name: Build and publish exact Portal images
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      control_ref: ${{ steps.publish.outputs.control_ref }}
+      web_ref: ${{ steps.publish.outputs.web_ref }}
+
+    steps:
+      - name: Checkout exact implementation
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: Install checksum-pinned Syft and Grype
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d "$RUNNER_TEMP/portal-tools"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz" \
+            --output "$RUNNER_TEMP/syft.tar.gz"
+          echo "${SYFT_LINUX_AMD64_SHA256}  $RUNNER_TEMP/syft.tar.gz" | sha256sum --check --strict
+          tar --extract --gzip --file "$RUNNER_TEMP/syft.tar.gz" \
+            --directory "$RUNNER_TEMP/portal-tools" syft
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_amd64.tar.gz" \
+            --output "$RUNNER_TEMP/grype.tar.gz"
+          echo "${GRYPE_LINUX_AMD64_SHA256}  $RUNNER_TEMP/grype.tar.gz" | sha256sum --check --strict
+          tar --extract --gzip --file "$RUNNER_TEMP/grype.tar.gz" \
+            --directory "$RUNNER_TEMP/portal-tools" grype
+          echo "$RUNNER_TEMP/portal-tools" >> "$GITHUB_PATH"
+
+      - name: Build, scan and approve exact deployment images
+        shell: bash
+        env:
+          IMPLEMENTATION_SHA: ${{ github.event.pull_request.base.sha }}
+          EVIDENCE_DIR: ${{ runner.temp }}/portal-supply-chain
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          python3 tools/agents/portal_supply_chain.py build-verify \
+            --repository "$GITHUB_WORKSPACE" \
+            --source-sha "$IMPLEMENTATION_SHA" \
+            --output-dir "$EVIDENCE_DIR" \
+            --approval "$EVIDENCE_DIR/approval.json"
+          python3 tools/agents/portal_supply_chain.py verify-approval \
+            --approval "$EVIDENCE_DIR/approval.json" \
+            --expected-source-sha "$IMPLEMENTATION_SHA"
+
+      - name: Log in to GHCR for image publication
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Publish exact images and resolve immutable registry refs
+        id: publish
+        shell: bash
+        env:
+          IMPLEMENTATION_SHA: ${{ github.event.pull_request.base.sha }}
+          APPROVAL_PATH: ${{ runner.temp }}/portal-supply-chain/approval.json
+        run: |
+          set -euo pipefail
+          readarray -t image_ids < <(python3 - "$APPROVAL_PATH" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          approval = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          print(approval["images"]["control-plane"]["digest"])
+          print(approval["images"]["web"]["digest"])
+          PY
+          )
+          control_id="${image_ids[0]}"
+          web_id="${image_ids[1]}"
+          control_repo="ghcr.io/blakinio/freqtrade-portal-control-plane"
+          web_repo="ghcr.io/blakinio/freqtrade-portal-web"
+          suffix="deploy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${IMPLEMENTATION_SHA}"
+          control_tag="${control_repo}:${suffix}"
+          web_tag="${web_repo}:${suffix}"
+
+          docker tag "$control_id" "$control_tag"
+          docker tag "$web_id" "$web_tag"
+          docker push "$control_tag"
+          docker push "$web_tag"
+          docker pull "$control_tag" >/dev/null
+          docker pull "$web_tag" >/dev/null
+
+          [[ "$(docker image inspect --format '{{.Id}}' "$control_tag")" == "$control_id" ]]
+          [[ "$(docker image inspect --format '{{.Id}}' "$web_tag")" == "$web_id" ]]
+          [[ "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$control_tag")" == "$IMPLEMENTATION_SHA" ]]
+          [[ "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$web_tag")" == "$IMPLEMENTATION_SHA" ]]
+
+          resolve_ref() {
+            local tag="$1"
+            local repo="$2"
+            local ref
+            ref="$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$tag" \
+              | grep -E "^${repo}@sha256:[0-9a-f]{64}$" \
+              | head -n 1)"
+            [[ -n "$ref" ]]
+            printf '%s\n' "$ref"
+          }
+          control_ref="$(resolve_ref "$control_tag" "$control_repo")"
+          web_ref="$(resolve_ref "$web_tag" "$web_repo")"
+          {
+            printf 'control_ref=%s\n' "$control_ref"
+            printf 'web_ref=%s\n' "$web_ref"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload bounded deployment input evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: portal-deploy-input-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/portal-supply-chain
+          if-no-files-found: error
+          retention-days: 1
+
   deploy:
     name: Deploy public Portal OIDC on Synology
+    needs: build-approved-images
     if: >-
+      needs.build-approved-images.result == 'success' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
     runs-on: [freqtrade-staging]
     environment: synology-staging
     timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: read
 
     steps:
       - name: Checkout exact request head
@@ -95,41 +229,50 @@ jobs:
             fi
           done
 
-      - name: Install checksum-pinned Syft and Grype
+      - name: Download approved supply-chain evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: portal-deploy-input-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/portal-supply-chain
+
+      - name: Log in to GHCR for exact image pull
         shell: bash
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          install -d "$RUNNER_TEMP/portal-tools"
-          curl --fail --location --proto '=https' --tlsv1.2 \
-            "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz" \
-            --output "$RUNNER_TEMP/syft.tar.gz"
-          echo "${SYFT_LINUX_AMD64_SHA256}  $RUNNER_TEMP/syft.tar.gz" | sha256sum --check --strict
-          tar --extract --gzip --file "$RUNNER_TEMP/syft.tar.gz" \
-            --directory "$RUNNER_TEMP/portal-tools" syft
-          curl --fail --location --proto '=https' --tlsv1.2 \
-            "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_amd64.tar.gz" \
-            --output "$RUNNER_TEMP/grype.tar.gz"
-          echo "${GRYPE_LINUX_AMD64_SHA256}  $RUNNER_TEMP/grype.tar.gz" | sha256sum --check --strict
-          tar --extract --gzip --file "$RUNNER_TEMP/grype.tar.gz" \
-            --directory "$RUNNER_TEMP/portal-tools" grype
-          echo "$RUNNER_TEMP/portal-tools" >> "$GITHUB_PATH"
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
 
-      - name: Build and approve exact deployment images
-        id: supply-chain
+      - name: Materialize and verify exact approved images
         shell: bash
         env:
           IMPLEMENTATION_SHA: ${{ github.event.pull_request.base.sha }}
-          EVIDENCE_DIR: ${{ runner.temp }}/portal-supply-chain
+          APPROVAL_PATH: ${{ runner.temp }}/portal-supply-chain/approval.json
+          CONTROL_REF: ${{ needs.build-approved-images.outputs.control_ref }}
+          WEB_REF: ${{ needs.build-approved-images.outputs.web_ref }}
         run: |
           set -euo pipefail
-          mkdir -p "$EVIDENCE_DIR"
-          python3 tools/agents/portal_supply_chain.py build-verify \
-            --repository "$GITHUB_WORKSPACE" \
-            --source-sha "$IMPLEMENTATION_SHA" \
-            --output-dir "$EVIDENCE_DIR" \
-            --approval "$EVIDENCE_DIR/approval.json"
+          [[ "$CONTROL_REF" =~ ^ghcr\.io/blakinio/freqtrade-portal-control-plane@sha256:[0-9a-f]{64}$ ]]
+          [[ "$WEB_REF" =~ ^ghcr\.io/blakinio/freqtrade-portal-web@sha256:[0-9a-f]{64}$ ]]
+          docker pull "$CONTROL_REF" >/dev/null
+          docker pull "$WEB_REF" >/dev/null
+
+          readarray -t expected_ids < <(python3 - "$APPROVAL_PATH" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          approval = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          print(approval["images"]["control-plane"]["digest"])
+          print(approval["images"]["web"]["digest"])
+          PY
+          )
+          [[ "$(docker image inspect --format '{{.Id}}' "$CONTROL_REF")" == "${expected_ids[0]}" ]]
+          [[ "$(docker image inspect --format '{{.Id}}' "$WEB_REF")" == "${expected_ids[1]}" ]]
+          [[ "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$CONTROL_REF")" == "$IMPLEMENTATION_SHA" ]]
+          [[ "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$WEB_REF")" == "$IMPLEMENTATION_SHA" ]]
           python3 tools/agents/portal_supply_chain.py verify-approval \
-            --approval "$EVIDENCE_DIR/approval.json" \
+            --approval "$APPROVAL_PATH" \
             --expected-source-sha "$IMPLEMENTATION_SHA"
 
       - name: Prepare Synology host Portal state directory

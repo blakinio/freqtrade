@@ -2,108 +2,76 @@
 task_id: FTAI-20260818-governance-simplification-1595
 repository: blakinio/freqtrade
 issue: 1595
-status: implementing
+status: validating
 base_branch: develop
 base_head: 782f0c8cdb5f24e83a2bc9ad9660df1474a470ab
 branch: docs/1595-governance-simplification
+pr: 1600
 prompt: docs/agents/prompts/FTAI_GOVERNANCE_SIMPLIFICATION.md
 evidence: docs/agents/evidence/FTAI-20260818-governance-simplification-analysis.md
+workflow_ledger: docs/agents/evidence/FTAI-20260818-governance-workflow-ledger.md
 ---
 
 # FTAI-20260818 — Risk-based governance simplification
 
 ## Objective
 
-Implement Issue `#1595`: align repository-wide execution governance with ADR-023 so ordinary Developer Quant work uses the minimum sufficient process, while higher-risk work automatically retains the controls required by the actual risk surface.
+Implement Issue `#1595`: align repository-wide execution governance with ADR-023 so ordinary Developer Quant work uses the minimum sufficient process, while higher-risk work automatically retains controls required by the actual risk surface.
 
-The desired change is **ceremony-based -> risk-based**, not **strict -> weak**.
-
-## Governing product authority
-
-Read and preserve:
-
-- `AGENTS.md`
-- `AGENTS.override.md`
-- `docs/agents/AGENTS.md`
-- `docs/agents/PROMPTING_STANDARD.md`
-- `docs/agents/PROMPTING_HANDOVER.md`
-- `docs/agents/BRANCH_POLICY.md`
-- `docs/agents/TASK_CLOSEOUT_AUDIT_E2E.md`
-- `docs/agents/EXECUTION_PROTOCOL.md`
-- `docs/ai_platform/portal/ADR-023_DEVELOPER_QUANT_PORTAL.md`
-- `docs/ai_platform/portal/DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md`
-- `docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md`
-- `docs/agents/evidence/FTAI-20260818-governance-simplification-analysis.md`
-- Issue `#1595` and live GitHub state.
+The change is **ceremony-based -> risk-based**, not **strict -> weak**.
 
 ## Required outcome
 
 1. Establish a canonical risk classifier / risk-based execution contract for repository tasks.
 2. Keep a small universal Git/validation baseline and compose stronger gates only from actual risk flags.
-3. Simplify `BRANCH_POLICY.md` around Git/integration semantics and defer the physical `main` migration absent a newly proven release-cadence need.
-4. Align global prompting/handover/closeout contracts so audit, E2E, persistence, security, deployment and destructive-operation gates are conditional on scope/risk.
+3. Simplify `BRANCH_POLICY.md` around Git/integration semantics and defer physical `main` migration absent a newly proven release-cadence need.
+4. Align global prompting/handover/closeout/execution contracts so audit, E2E, persistence, security, deployment and destructive-operation gates are conditional on scope/risk.
 5. Preserve durable coordination for long-running/multi-agent work, exact-head merge safety, research integrity, secret boundaries, deliberate model activation and persistent Synology safety.
-6. Produce an exact workflow inventory/ledger classifying relevant legacy workflows `KEEP | SIMPLIFY | RENAME | MERGE | RETIRE` from triggers/callers/dependencies/current risk; do not delete from filename semantics alone.
-7. Add deterministic regression coverage for the new governance behavior.
+6. Produce an exact legacy-workflow ledger from inspected triggers/callers/dependencies/current risk; do not mutate workflows from filename semantics alone.
+7. Add deterministic regression coverage for low-risk routing, high-risk composition and fail-closed real-capital behavior.
 
 ## Non-goals
 
 - no product feature implementation;
-- no real exchange orders;
-- no private trading credentials or withdrawals;
+- no exchange order execution, credentials or withdrawals;
 - no live capital;
 - no automatic model activation;
-- no destructive Synology cleanup;
-- no physical `main` creation/migration in this task;
-- no blind deletion of legacy workflows.
+- no Synology runtime/deployment mutation;
+- no destructive cleanup;
+- no physical `main` creation/migration;
+- no incomplete workflow retirement outside its registry/catalog lifecycle.
 
-## Authority-freeze rule
+## Authority freeze
 
-The executor invocation began under trusted-base governance at `develop@782f0c8cdb5f24e83a2bc9ad9660df1474a470ab`, after preparation PR `#1599` was merged.
+Execution began under trusted-base governance at `develop@782f0c8cdb5f24e83a2bc9ad9660df1474a470ab` after preparation PR `#1599` was merged.
 
-This task **must not use its own unmerged simplification to relax its own review/validation/closeout authority**. In particular, changes to CI routing in this task must continue to route governance/CI architecture changes through the trusted-base full validation tier. New risk-based semantics become authoritative only after merge and a later invocation based on the updated trusted base.
+This task may not use its own unmerged simplification to relax its own closeout. Because it changes `tools/ci/change_classifier.py`, `ci_architecture => full` is intentionally preserved and PR `#1600` must complete under trusted-base full validation plus fresh audit.
 
-## Execution shape
-
-```yaml
-prompting_standard_version: 2.1
-execution_policy_version: 2
-task_kind: governance_refactor
-context_pressure: medium
-decomposition_decision: phased
-execution_mode: chat_with_github_connector
-codex_spark_permission: explicitly_granted_by_owner_2026-08-18
-run_scope: single_task
-continuation_policy: stop_at_task_boundary
-task_completion_policy: finalize_archive_and_continue
-user_communication: low_noise
-```
-
-Prefer one task, one branch and one PR. Split only if live evidence proves an independently owned migration is required.
+Owner permission for Codex Spark was explicitly granted on 2026-08-18. PR `#1600` has label `spark-review`; Spark is advisory unless an actual controller result exists, and the task must not fabricate one or block solely on absent Spark output once non-Spark required gates pass.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-18T10:17:00+02:00
-head: 782f0c8cdb5f24e83a2bc9ad9660df1474a470ab
+observed_at: 2026-08-18T08:42:35Z
 branch: docs/1595-governance-simplification
-pr: none
-status: implementing
+head_before_checkpoint: 58fdd4779708050cb1e52d10c943f65e85c5bc54
+pr: 1600
+status: validating
 context_routes:
   - Issue #1595
-  - docs/agents/evidence/FTAI-20260818-governance-simplification-analysis.md
+  - PR #1600
   - docs/agents/prompts/FTAI_GOVERNANCE_SIMPLIFICATION.md
+  - docs/agents/evidence/FTAI-20260818-governance-simplification-analysis.md
+  - docs/agents/evidence/FTAI-20260818-governance-workflow-ledger.md
   - docs/ai_platform/portal/ADR-023_DEVELOPER_QUANT_PORTAL.md
-  - docs/agents/BRANCH_POLICY.md
-  - docs/agents/TASK_CLOSEOUT_AUDIT_E2E.md
 owned_paths:
   - AGENTS.override.md
   - docs/agents/**
-  - tools/agents/** governance policy only
+  - tools/agents/risk_policy.py
   - tools/ci/change_classifier.py
-  - tests/ci/** governance-policy and routing tests only
-  - .github/workflows/** inspection only unless a tightly justified migration is proven
+  - tests/ci/test_agent_risk_policy.py
+  - tests/ci/test_change_classifier.py
 risk:
   persistent_data: false
   research_integrity: false
@@ -121,41 +89,55 @@ risk_gates:
   - exact_head_full_ci_under_trusted_base
 authority_freeze:
   current_base_commit: 782f0c8cdb5f24e83a2bc9ad9660df1474a470ab
-  note: This task self-closes under the trusted-base governance and keeps governance/CI architecture changes on the full validation tier.
+  note: The unmerged risk-based policy cannot waive this task's trusted-base controls.
 proven:
-  - preparation PR #1599 was squash-merged and develop was verified at 782f0c8cdb5f24e83a2bc9ad9660df1474a470ab before executor branch creation
-  - Issue #1595 is open and owns the governance simplification objective
-  - no parallel implementation PR or governance-simplification branch existed at executor start
-  - ADR-023 requires proportionate safety for the current single-owner Developer Quant Portal
-  - repository uses develop as the integration/default branch and the task does not operationalize main
-  - real-capital authority remains absent
-  - current change_classifier forces full CI for every ready_for_review and protected-branch push, independent of changed-path risk
-  - legacy workflow names require exact trigger/dependency inspection before retirement
-  - owner explicitly permitted Codex Spark for this task
-derived:
-  - the main remaining mismatch is execution governance rather than product architecture
-  - a composable risk model can reduce ordinary-task ceremony without weakening relevant controls
-  - durable coordination remains required for long-running multi-agent or failure-prone work
+  - preparation PR #1599 was squash-merged before executor branch creation
+  - PR #1600 is mergeable and targets develop
+  - final implementation introduces docs/agents/RISK_BASED_EXECUTION_POLICY.json and tools/agents/risk_policy.py
+  - real_capital is a fail-closed STOP in the machine-readable policy
+  - ready_for_review and ordinary push-to-develop no longer force full CI solely because of event/action
+  - ci_architecture still forces full CI, so this governance/CI task self-validates at the full tier
+  - workflow ledger was built from inspected workflow content, not filenames alone
+  - WH09 self-repair is a RETIRE candidate because its target branch is absent and Issue #1144 is closed
+  - file-only WH09 retirement is unsafe/incomplete because workflow registry/catalog lifecycle tracks the file; workflow was restored exactly and physical retirement deferred
+  - exact-head lightweight CI after remediation passed compile/type-check, Ruff, tests/ci and workflow registry/security validation
+  - owner explicitly permitted Codex Spark and spark-review label is present on PR #1600
 unknown:
-  - exact current trigger and dependency status of each relevant legacy shadow paper staging production live workflow
-  - whether any legacy workflow can be safely renamed or retired in this task
-conflicts:
-  - ADR-023 proportionate validation conflicts with universal material-task ceremony in older global contracts
-  - BRANCH_POLICY mixes current Git routing with superseded Portal bot-mode and production-release semantics
+  - whether the central Spark controller will publish an advisory result for PR #1600
 first_failure:
-  marker: local-checkout-unavailable
-  evidence: local clone could not resolve github.com, so execution continues under the repository-approved GitHub-only path
+  marker: none_unresolved
+  evidence: initial PR head 48db3c15d3f0ca1569dd1e8e9214d177c2ba3d30 failed only workflow registry consistency after file-only retirement; failure was remediated by exact workflow restoration and corrected ledger, and the next-head lightweight gate passed
 rejected_hypotheses:
-  - private single-owner product means all governance can be removed
-  - legacy workflow filename alone proves the workflow is obsolete
-  - main must be created merely because ADR-021 once targeted it
+  - private single-owner product means governance can be removed rather than risk-scaled
+  - legacy workflow filename proves capital authority or safe retirement
+  - main must be operationalized because ADR-021 once targeted it
   - force-rebase is the preferred synchronization path for tracked task branches
+  - WH09 workflow can be safely retired by deleting only its YAML file
 changed_paths:
+  - AGENTS.override.md
+  - docs/agents/AGENTS.md
+  - docs/agents/BRANCH_POLICY.md
+  - docs/agents/EXECUTION_PROTOCOL.md
+  - docs/agents/PROMPTING_HANDOVER.md
+  - docs/agents/PROMPTING_STANDARD.md
+  - docs/agents/RISK_BASED_EXECUTION_POLICY.json
+  - docs/agents/TASK_CLOSEOUT_AUDIT_E2E.md
+  - docs/agents/evidence/FTAI-20260818-governance-workflow-ledger.md
   - docs/agents/tasks/active/FTAI-20260818-governance-simplification-1595.md
+  - tests/ci/test_agent_risk_policy.py
+  - tests/ci/test_change_classifier.py
+  - tools/agents/risk_policy.py
+  - tools/ci/change_classifier.py
 validation:
-  - command: GitHub live-state inspection of develop, Issue #1595, preparation PR #1599, branches and exact current policy files
+  - check: trusted-base live-state reconstruction
     result: PASS
-    evidence: develop@782f0c8cdb5f24e83a2bc9ad9660df1474a470ab; #1599 merged; no parallel implementation PR/branch found
+    evidence: develop@782f0c8cdb5f24e83a2bc9ad9660df1474a470ab; #1599 merged; no parallel #1595 implementation branch/PR at start
+  - check: initial exact-head CI diagnosis
+    result: FAIL_THEN_REMEDIATED
+    evidence: head 48db3c15d3f0ca1569dd1e8e9214d177c2ba3d30; tests/ci reported 120 passed, 1 skipped and one registry consistency failure for the deleted WH09 workflow
+  - check: remediated lightweight required PR gate
+    result: PASS
+    evidence: head 58fdd4779708050cb1e52d10c943f65e85c5bc54; compile/type-check, lint, tests/ci and workflow validation all successful
 blockers: []
-next_action: Implement the canonical risk policy, align governance documents and CI routing, then build the exact legacy-workflow ledger and run trusted-base validation on the final PR head.
+next_action: Treat the checkpoint commit as the new candidate head, run fresh final diff audit and require exact-head trusted-base CI to reach a terminal green state; triage any actual Spark result if one appears, then squash-merge PR #1600 and archive the task through a bounded follow-up closeout PR.
 ```

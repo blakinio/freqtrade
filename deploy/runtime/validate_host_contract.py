@@ -37,48 +37,55 @@ def parse_env_file(path: Path) -> dict[str, str]:
     return values
 
 
+def validate_scalar_contract(values: dict[str, str]) -> list[str]:
+    errors: list[str] = []
+    expected_values = {
+        "RUNTIME_HOST_ROLE": {"dedicated-linux"},
+        "RUNTIME_CONTAINER_ENGINE": {"docker", "podman"},
+        "DURABLE_STORAGE_PROVIDER": {"synology", "local"},
+        "GITHUB_RUNNER_SCOPE": {"disabled", "deploy-only"},
+        "ALLOW_APPLICATION_CONTAINER_ENGINE_SOCKET": {"false"},
+    }
+    for key, allowed in expected_values.items():
+        if values.get(key) not in allowed:
+            errors.append(f"{key} must be one of: {', '.join(sorted(allowed))}")
+    return errors
+
+
+def validate_path(name: str, raw_path: str) -> tuple[PurePosixPath | None, list[str]]:
+    errors: list[str] = []
+    if not raw_path or not PurePosixPath(raw_path).is_absolute():
+        return None, [f"{name} must be an absolute POSIX path"]
+
+    path = PurePosixPath(raw_path)
+    normalized = str(path)
+    if normalized == "/" or normalized == "/volume1" or normalized.startswith("/volume1/"):
+        errors.append(f"{name} must not use root or a Synology-specific /volume1 path")
+    return path, errors
+
+
+def validate_path_contract(values: dict[str, str]) -> list[str]:
+    state, state_errors = validate_path("RUNTIME_STATE_ROOT", values.get("RUNTIME_STATE_ROOT", ""))
+    storage, storage_errors = validate_path(
+        "DURABLE_STORAGE_ROOT", values.get("DURABLE_STORAGE_ROOT", "")
+    )
+    errors = [*state_errors, *storage_errors]
+    if state is None or storage is None:
+        return errors
+    if state == storage:
+        errors.append("runtime state and durable storage roots must be distinct")
+    elif state in storage.parents or storage in state.parents:
+        errors.append("runtime state and durable storage roots must not be nested")
+    return errors
+
+
 def validate_contract(values: dict[str, str]) -> list[str]:
     errors: list[str] = []
     missing = sorted(REQUIRED_KEYS - values.keys())
     if missing:
         errors.append(f"missing required keys: {', '.join(missing)}")
-
-    if values.get("RUNTIME_HOST_ROLE") != "dedicated-linux":
-        errors.append("RUNTIME_HOST_ROLE must be dedicated-linux")
-
-    if values.get("RUNTIME_CONTAINER_ENGINE") not in {"docker", "podman"}:
-        errors.append("RUNTIME_CONTAINER_ENGINE must be docker or podman")
-
-    if values.get("DURABLE_STORAGE_PROVIDER") not in {"synology", "local"}:
-        errors.append("DURABLE_STORAGE_PROVIDER must be synology or local")
-
-    if values.get("GITHUB_RUNNER_SCOPE") not in {"disabled", "deploy-only"}:
-        errors.append("GITHUB_RUNNER_SCOPE must be disabled or deploy-only")
-
-    if values.get("ALLOW_APPLICATION_CONTAINER_ENGINE_SOCKET") != "false":
-        errors.append("ALLOW_APPLICATION_CONTAINER_ENGINE_SOCKET must be false")
-
-    state_root = values.get("RUNTIME_STATE_ROOT", "")
-    storage_root = values.get("DURABLE_STORAGE_ROOT", "")
-    for name, raw_path in (
-        ("RUNTIME_STATE_ROOT", state_root),
-        ("DURABLE_STORAGE_ROOT", storage_root),
-    ):
-        if not raw_path or not PurePosixPath(raw_path).is_absolute():
-            errors.append(f"{name} must be an absolute POSIX path")
-            continue
-        normalized = str(PurePosixPath(raw_path))
-        if normalized == "/" or normalized.startswith("/volume1/") or normalized == "/volume1":
-            errors.append(f"{name} must not use root or a Synology-specific /volume1 path")
-
-    if state_root and storage_root:
-        state = PurePosixPath(state_root)
-        storage = PurePosixPath(storage_root)
-        if state == storage:
-            errors.append("runtime state and durable storage roots must be distinct")
-        elif state in storage.parents or storage in state.parents:
-            errors.append("runtime state and durable storage roots must not be nested")
-
+    errors.extend(validate_scalar_contract(values))
+    errors.extend(validate_path_contract(values))
     return errors
 
 

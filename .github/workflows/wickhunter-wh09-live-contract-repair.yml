@@ -1,0 +1,182 @@
+name: WickHunter WH09 final runtime audit repair
+# Registered follow-up trigger for the bounded executor.
+# Exact-head refresh after develop advanced; payload and authority are unchanged.
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-live-contract-repair.yml"
+      - ".github/wh09-final-audit/**"
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: wickhunter-wh09-final-runtime-audit-repair
+  cancel-in-progress: false
+
+env:
+  TARGET_BRANCH: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
+  EXPECTED_TARGET_HEAD: 08d17e1298568c2fa23b446d485491982aea0149
+  PATCH_SHA256: ee861cf115c7f70fdd35bf4c251896327cc9d993bd9756add67ec23edaca7739
+
+jobs:
+  repair-product-branch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out exact develop push
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Decode and verify bounded repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "${{ github.sha }}" ]]
+          python - <<'PY'
+          import base64
+          import hashlib
+          import os
+          import zlib
+          from pathlib import Path
+
+          parts = tuple(sorted(Path(".github/wh09-final-audit").glob("part-*.b64part")))
+          expected_names = tuple(f"part-{index:02d}.b64part" for index in range(12))
+          if tuple(path.name for path in parts) != expected_names:
+              raise SystemExit("repair payload part set mismatch")
+          encoded = "".join(path.read_text(encoding="ascii").strip() for path in parts)
+          payload = zlib.decompress(base64.b64decode(encoded, validate=True))
+          digest = hashlib.sha256(payload).hexdigest()
+          if digest != os.environ["PATCH_SHA256"]:
+              raise SystemExit("repair payload digest mismatch")
+          Path("/tmp/patch_wh09.py").write_bytes(payload)
+          PY
+          python -m py_compile /tmp/patch_wh09.py
+
+      - name: Apply and validate exact product repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          develop_sha="$(git rev-parse HEAD)"
+          git fetch origin "$TARGET_BRANCH" develop
+          git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_TARGET_HEAD" ]]
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git merge --no-ff --no-edit origin/develop
+
+          python /tmp/patch_wh09.py "$develop_sha"
+
+          python -m pip install --disable-pip-version-check \
+            pytest "pydantic>=2.2" "SQLAlchemy>=2.0.6" \
+            "httpx>=0.24.1" fastapi pyjwt cryptography "PyYAML>=6.0" \
+            lightgbm mypy ruff==0.15.20
+
+          python -m ruff check --fix \
+            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
+            deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          python -m ruff format \
+            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
+            deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          python -m ruff check \
+            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
+            deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          python -m ruff format --check \
+            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
+            deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          python -m py_compile \
+            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
+            deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          python -m mypy \
+            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
+            deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py
+          python -m pytest -q -o addopts='' \
+            --confcutdir=tests/ai_platform_integration \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_service.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_runtime_binding.py
+
+          OPERATOR_COMMIT="$(git rev-parse HEAD)" \
+          WICKHUNTER_PAPER_RUNTIME_IMAGE="wickhunter-paper-runtime:precommit" \
+          CANDIDATE_ROOT_HOST=/tmp/candidate \
+          ACTIVATION_ROOT_HOST=/tmp/activation \
+          LIQUID20_LIVE_HOST=/tmp/liquid20 \
+          JOURNAL_ROOT_HOST=/tmp/journal \
+          OPERATOR_STATE_HOST=/tmp/operator \
+            docker compose \
+              -f deploy/synology/wickhunter-paper-runtime/compose.yaml \
+              config >/dev/null
+          git diff --check
+
+          git add \
+            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
+            deploy/synology/wickhunter-paper-runtime/README.md \
+            docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          ! git diff --cached --quiet
+          git commit -m "fix(wickhunter): apply final WH09 runtime audit repair"
+
+          product_head="$(git rev-parse HEAD)"
+          docker build \
+            --file deploy/synology/wickhunter-paper-runtime/Dockerfile \
+            --build-arg "OPERATOR_COMMIT=$product_head" \
+            --tag "wickhunter-paper-runtime:$product_head" \
+            .
+          [[ "$(docker image inspect \
+            --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' \
+            "wickhunter-paper-runtime:$product_head")" == "$product_head" ]]
+
+          expected=(
+            "ai_platform/wickhunter/candidate_paper_runtime_operator.py"
+            "deploy/synology/wickhunter-paper-runtime/Dockerfile"
+            "deploy/synology/wickhunter-paper-runtime/README.md"
+            "deploy/synology/wickhunter-paper-runtime/compose.yaml"
+            "deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py"
+            "docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md"
+            "tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py"
+          )
+          mapfile -t actual < <(git diff --name-only origin/develop HEAD | sort)
+          [[ "${#actual[@]}" -eq "${#expected[@]}" ]]
+          for index in "${!expected[@]}"; do
+            [[ "${actual[$index]}" == "${expected[$index]}" ]]
+          done
+          git push origin "HEAD:$TARGET_BRANCH"
+
+      - name: Publish terminal repair checkpoint
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUN_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          product_head="$(git ls-remote origin "refs/heads/$TARGET_BRANCH" | awk '{print $1}')"
+          body="$(printf '%s\n' \
+            '## WH09 final runtime audit repair checkpoint' \
+            '' \
+            '\`\`\`yaml' \
+            "run_id: $RUN_ID" \
+            "run_attempt: $RUN_ATTEMPT" \
+            "status: $JOB_STATUS" \
+            "executor_sha: $RUN_SHA" \
+            "product_head: $product_head" \
+            "expected_product_head: $EXPECTED_TARGET_HEAD" \
+            "run_url: https://github.com/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" \
+            '\`\`\`')"
+          gh api \
+            --method POST \
+            "repos/$GITHUB_REPOSITORY/issues/1144/comments" \
+            -f "body=$body"

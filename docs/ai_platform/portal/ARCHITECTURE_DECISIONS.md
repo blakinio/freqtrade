@@ -564,3 +564,63 @@ Migration impact:
 Consequence:
 
 ADR-023 is the current product overlay for the entire Portal. Detailed current architecture is defined by `DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md`. Real-money execution is absent from the current product rather than represented as a disabled `LIVE` mode.
+
+## ADR-024 — Dedicated Linux runtime with GitHub CI and Synology durable storage
+
+Status: `accepted`
+
+Accepted by owner: `2026-08-18`
+
+Issue: `#1603`
+
+Decision:
+
+The current Developer Quant Platform separates repository automation, persistent application compute and durable storage:
+
+```text
+GitHub repository / GitHub Actions
+        |
+        | CI, test, build, verify, publish, orchestrate
+        v
+Dedicated Linux runtime host
+        |
+        | narrow durable-storage boundary
+        v
+Synology durable storage / evidence / backup
+```
+
+The current target dimensions are:
+
+```text
+runtime_location: LOCAL | DEDICATED_LINUX
+storage_provider: LOCAL | SYNOLOGY
+```
+
+GitHub-hosted Actions runners are the default for stateless CI, tests, security analysis, packaging and immutable artifact/image builds. They are not long-lived application runtime hosts.
+
+Persistent Portal, public-market collectors, WickHunter/inference, Freqtrade simulation and ordinary long-lived workers target a dedicated Linux runtime host. Synology is retained primarily as durable storage, evidence and backup infrastructure. Existing Synology-hosted application services remain transitional current implementation until each replacement is proven.
+
+A retained self-hosted GitHub runner on a privileged runtime/storage host must be disabled or narrowly `deploy-only`; it must not become the normal repository-wide CI or model-training shell. Ordinary application containers do not receive the container-engine socket.
+
+Active transactional databases must not be placed on a Synology network filesystem merely to centralize storage. They may run on local runtime storage and back up or replicate to Synology through an explicit recovery contract.
+
+The exact dedicated Linux host identity, address, architecture and access method are not created by this decision and remain unproven until separate deployment evidence exists.
+
+Detailed current architecture and migration rules are defined by `ADR-024_DEDICATED_LINUX_RUNTIME.md`, `DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md` and the portable `deploy/runtime/**` contract.
+
+Reason:
+
+The prior Synology-centric topology coupled application compute, durable data and privileged GitHub self-hosted automation onto the same NAS. Separating these roles reduces blast radius, keeps ordinary CI off privileged storage/runtime hosts, makes service restart/rollback boundaries clearer and preserves Synology for the storage/backup role it is best suited to.
+
+Migration impact:
+
+1. introduce and validate a generic `deploy/runtime/**` host/storage contract with no `/volume1` or Synology-runner identity assumption;
+2. keep existing `deploy/synology/**` packages as truthful transitional implementation until service-level replacements are proven;
+3. migrate public-data collectors first, followed by WickHunter/inference, Portal/control-plane services, Freqtrade simulation workers and remaining support services;
+4. prove exact artifact provenance, target identity, storage boundaries, health, restart behavior and bounded rollback for every physical service cutover;
+5. retain Synology durable datasets/evidence/backups and validate recovery after compute migration;
+6. do not claim a physical migration solely because this architecture change is merged.
+
+Consequence:
+
+ADR-024 is the binding runtime/deployment topology overlay. It supersedes only conflicting current-target wording in ADR-023 and related architecture/governance that makes `SYNOLOGY` the normal persistent application-compute location. ADR-023 remains authoritative for product semantics, simulation, model lifecycle and the prohibition on real-money execution. Historical Synology deployment evidence remains unchanged.

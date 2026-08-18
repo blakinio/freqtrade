@@ -3,7 +3,8 @@
 Status: **owner-accepted current Portal product architecture**  
 Owner decision date: `2026-08-15`  
 Related Issue: `#1555`  
-Applies to: **the entire current Portal product**
+Applies to: **the entire current Portal product**  
+Runtime/deployment overlay: **ADR-024**, accepted `2026-08-18`, Issue `#1603`
 
 ## 1. Product identity
 
@@ -22,7 +23,7 @@ The current product goal is to let the owner:
 - compare active/challenger/baseline models on the same evidence;
 - deliberately select an active model without automatic promotion;
 - inspect health, logs, data freshness, decisions, simulated positions and model/data drift from the Portal;
-- survive restart of the Portal/Synology runtime without losing authoritative developer state.
+- survive restart of the Portal/runtime without losing authoritative developer state.
 
 ## 2. Current product vocabulary
 
@@ -39,14 +40,21 @@ REPLAY
 - `REPLAY` means stored historical/replay evidence.
 - The word `live` may remain only in historical file/process names during migration; new user-facing/current contracts should prefer `realtime_public`.
 
-### 2.2 Runtime location
+### 2.2 Runtime location and storage provider
+
+ADR-024 separates application compute from durable storage.
 
 ```text
-LOCAL
-SYNOLOGY
+runtime_location: LOCAL | DEDICATED_LINUX
+storage_provider: LOCAL | SYNOLOGY
 ```
 
-This describes where a developer runtime is running. It does not imply release maturity, trading authority or capital use.
+- `LOCAL` runtime is developer compute for experiments, model training and bounded workflows.
+- `DEDICATED_LINUX` is the target persistent application-compute location for Portal, collectors, WickHunter/inference, Freqtrade simulation and ordinary long-lived workers.
+- `SYNOLOGY` is the target durable storage/evidence/backup provider, not the target application-compute location.
+- Existing Synology-hosted services remain valid transitional implementation state until each service is migrated and its replacement is proven.
+
+These dimensions do not imply release maturity, trading authority or capital use.
 
 ### 2.3 Simulation
 
@@ -88,7 +96,7 @@ These rules apply to all current Portal domains:
 - training, challengers, comparison and manual model activation;
 - telemetry, logs and developer observability;
 - persistence and restart recovery;
-- Synology deployment/operations;
+- dedicated-Linux deployment/operations and Synology durable storage/backup;
 - CI, E2E and acceptance for Portal work.
 
 A submodule must not reintroduce `SHADOW`, `PAPER` or `LIVE` as a current product authority model.
@@ -132,7 +140,23 @@ The same runtime may record decisions and simulation results continuously. It do
 
 ### 5.1 Default principle
 
-Use the **simplest persistent runtime architecture that safely supports the developer workflow**.
+Use the **simplest persistent runtime architecture that safely supports the developer workflow**, with application compute separated from durable storage.
+
+The target topology is:
+
+```text
+GitHub repository / GitHub-hosted Actions
+        | CI, build, security, immutable artifact publication
+        v
+Dedicated Linux runtime host
+        | narrow durable-storage boundary
+        v
+Synology durable storage / evidence / backup
+```
+
+GitHub-hosted Actions runners are the default for stateless CI/build/validation, not for long-lived application services. Persistent Portal, collectors, WickHunter/inference, Freqtrade simulation and ordinary workers target a dedicated Linux host. Synology provides durable storage and backup while existing Synology compute remains transitional current state during migration.
+
+Active transactional databases must not be placed on a network filesystem merely to centralize storage. They may run locally on the dedicated runtime and back up or replicate to Synology under an explicit recovery contract.
 
 Existing `RuntimeGeneration`, Runtime Supervisor, Gateway, reconciliation and isolation code may be reused where it provides concrete value, but those mechanisms are no longer universal completion prerequisites merely because they were part of the previous production-trading target architecture.
 
@@ -147,7 +171,9 @@ Retain proportionate properties such as:
 - no unnecessary Docker socket inside application containers;
 - non-root/no-new-privileges/read-only mounts where practical;
 - bounded resource usage where the host supports it without elaborate certification;
-- clear process ownership and cleanup for temporary resources.
+- clear process ownership and cleanup for temporary resources;
+- explicit separation of runtime-local transactional state from Synology-backed durable datasets/evidence/backups;
+- a narrowly scoped deployment runner (`deploy-only` or disabled) instead of privileged runtime/storage hosts serving as general CI workers.
 
 ### 5.3 What is no longer a default requirement
 
@@ -230,7 +256,7 @@ For the first current-platform vertical slice, completion means:
 5. local training can produce a challenger from that accumulated dataset;
 6. Portal comparison shows active vs challenger/baseline evidence;
 7. active-model selection is deliberate and does not auto-promote;
-8. the Portal and runtime survive restart with correct durable state;
+8. the Portal and persistent runtime survive restart with correct durable state;
 9. the owner can inspect the above through the actual Portal without fixture fallback.
 
 Digest-heavy evidence packages, protected-environment ceremony or exact-current whole-monorepo proofs are supporting evidence only when they address a concrete current risk; they are not substitutes for this user outcome.
@@ -264,23 +290,27 @@ Reclassification must inspect exact current code, open PRs/issues and already im
 
 This architecture supersedes conflicting **current Portal product** assumptions in ADR-003, ADR-004, ADR-005, ADR-013, ADR-014, ADR-016, ADR-017, ADR-020, ADR-021 and ADR-022 as specified by ADR-023.
 
+ADR-024 additionally supersedes conflicting current-target statements that make Synology the normal persistent application-compute location. The target runtime location is `LOCAL | DEDICATED_LINUX`; Synology remains the durable storage/evidence/backup provider and transitional compute only until service-level migration is proven.
+
 It does not rewrite historical evidence. Old runs, Issues, PRs and artifacts remain valid records of what was tested at the time.
 
 It also does not authorize real exchange execution. Real-money execution remains absent from the current Portal rather than represented as a blocked mode.
 
 ## 13. Immediate migration order
 
-1. Merge ADR-023, this document and the architecture registry update.
-2. Freeze new mode-driven/production-trading Portal architecture work until backlog reclassification is complete.
-3. Reclassify open Portal/WickHunter Issues/PRs as `KEEP_NOW | SIMPLIFY | DEFER | OBSOLETE`.
+1. Keep ADR-023 product semantics and apply the ADR-024 runtime/deployment overlay.
+2. Use `deploy/runtime/**` as the generic host/storage contract while preserving `deploy/synology/**` as transitional current-state packages.
+3. Reclassify open Portal/WickHunter Issues/PRs as `KEEP_NOW | SIMPLIFY | DEFER | OBSOLETE`, including Synology-as-compute assumptions that now require portability reconciliation.
 4. Remove or compatibility-wrap `SHADOW/PAPER/LIVE` assumptions from current Portal UI/API/runtime contracts in dependency order.
 5. Implement the smallest complete developer workflow from realtime public data through simulation, dataset growth, local challenger training and Portal observation.
-6. Simplify deployment/CI gates around actual developer risks rather than hypothetical future capital authority.
-7. Archive superseded plans only after exact references and useful implementation have been migrated.
+6. Migrate persistent service groups to a verified dedicated Linux host in the order defined by ADR-024/Issue #1604, proving state, restart and rollback per service.
+7. Keep Synology as durable storage/evidence/backup and validate recovery after compute cutover.
+8. Simplify deployment/CI gates around actual developer risks rather than hypothetical future capital authority.
+9. Archive superseded plans only after exact references and useful implementation have been migrated.
 
 ## 14. Non-goals of this architecture change
 
-This document does not claim the code migration is already complete. It changes the governing current product architecture and migration target.
+This document does not claim the code or physical runtime migration is already complete. It changes the governing current product architecture and migration target.
 
 It does not authorize:
 
@@ -289,6 +319,8 @@ It does not authorize:
 - withdrawals;
 - automatic model promotion;
 - capital allocation;
-- a future multi-user commercial product.
+- a future multi-user commercial product;
+- physical deployment to an unverified dedicated Linux host;
+- destructive cleanup of existing Synology services merely because they are transitional.
 
-Those concerns require separate future owner decisions if they ever become desired product scope.
+Those concerns require separate future owner decisions or task-specific deployment authority if they ever become desired product scope.

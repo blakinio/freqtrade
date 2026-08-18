@@ -1,0 +1,129 @@
+name: FTAI 1608 GHCR PR Repair
+
+on:
+  pull_request:
+    branches:
+      - develop
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ftai-1608-ghcr-pr-repair-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    name: Apply exact repo-owned Liquid20 package repair
+    if: >-
+      github.repository == 'blakinio/freqtrade' &&
+      github.event.pull_request.number == 1610 &&
+      github.event.pull_request.head.ref == 'fix/1608-ghcr-liquid20-package-access'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact PR branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: fix/1608-ghcr-liquid20-package-access
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Verify repair authority and apply exact substitutions
+        env:
+          EVENT_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor 6510077ea2e7a63c0d489f94391f461a3cab4ac1 HEAD
+          test -f .github/ftai-1608-ghcr-package-repair.request
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          old_repo = "ghcr.io/blakinio/liquid20-collector"
+          new_repo = "ghcr.io/blakinio/freqtrade-liquid20-collector"
+          edits = {
+              Path(".github/workflows/liquidations-live-synology.yml"): [(old_repo, new_repo, 2)],
+              Path("deploy/synology/liquid20/deploy-live.sh"): [(old_repo, new_repo, 1)],
+              Path(".github/workflows/packages-cleanup.yml"): [("'liquid20-collector'", "'freqtrade-liquid20-collector'", 2)],
+              Path("tests/ci/test_github_build_plane.py"): [("liquid20-collector", "freqtrade-liquid20-collector", 3)],
+          }
+          changed = False
+          for path, replacements in edits.items():
+              text = path.read_text(encoding="utf-8")
+              for old, new, minimum in replacements:
+                  count = text.count(old)
+                  if count == 0:
+                      continue
+                  if count < minimum:
+                      raise SystemExit(f"{path}: expected >= {minimum} occurrences of {old!r}, found {count}")
+                  text = text.replace(old, new)
+                  changed = True
+              path.write_text(text, encoding="utf-8")
+
+          task = Path("docs/agents/tasks/active/FTAI-20260818-github-build-plane-1608.md")
+          text = task.read_text(encoding="utf-8")
+          if "## Post-merge GHCR publication repair" not in text:
+              text = text.replace("branch: infra/1608-github-build-plane-adr024", "branch: fix/1608-ghcr-liquid20-package-access")
+              text = text.replace("status: validating", "status: repairing")
+              text = text.replace(
+                  "first_failure:\n  marker: none-current\n  evidence: stale branch/authority conflict was resolved by current-base recovery and superseding PR #1569 rather than by force-rebase",
+                  "first_failure:\n  marker: ghcr-write-package\n  evidence: post-merge Liquidations Live Synology run 32142491012 built the exact image on GitHub-hosted Ubuntu but GHCR rejected push to legacy ghcr.io/blakinio/liquid20-collector with permission_denied: write_package; deploy was skipped and Synology runtime was unchanged",
+              )
+              text = text.replace(
+                  "next_action: Verify PR #1609 exact-head CI and full final diff; remediate only concrete failures, then perform the selected independent audit before readiness.",
+                  "next_action: Validate PR #1610 exact-head CI/audit, merge the repo-owned GHCR namespace repair, then require a real hosted-build -> immutable GHCR -> Synology deploy PASS before closing #1608.",
+              )
+              text += """
+
+## Post-merge GHCR publication repair
+
+- PR #1609 merged as `6510077ea2e7a63c0d489f94391f461a3cab4ac1` after exact-head CI and audit passed.
+- Canonical run `32142491012` built the exact Liquid20 image on GitHub-hosted Ubuntu, then failed before Synology mutation because legacy package `ghcr.io/blakinio/liquid20-collector` rejected `GITHUB_TOKEN` with `permission_denied: write_package`.
+- Repair PR #1610 moves only Liquid20 publication/consumption to the fresh repo-owned package `ghcr.io/blakinio/freqtrade-liquid20-collector`; no PAT, new secret, package ACL bypass, capital authority or dedicated-Linux cutover is introduced.
+- The legacy package remains untouched historical/external package state.
+"""
+              task.write_text(text, encoding="utf-8")
+              changed = True
+
+          if not changed:
+              print("Repair already applied; no branch mutation required.")
+          PY
+
+      - name: Validate exact repaired scope
+        run: |
+          set -euo pipefail
+          bash -n deploy/synology/liquid20/deploy-live.sh
+          python -m compileall -q tests/ci/test_github_build_plane.py
+          grep -q 'ghcr.io/blakinio/freqtrade-liquid20-collector' .github/workflows/liquidations-live-synology.yml
+          grep -q 'ghcr\\.io/blakinio/freqtrade-liquid20-collector@sha256' deploy/synology/liquid20/deploy-live.sh
+          if grep -R -n --fixed-strings 'ghcr.io/blakinio/liquid20-collector' \
+            .github/workflows/liquidations-live-synology.yml \
+            deploy/synology/liquid20/deploy-live.sh \
+            tests/ci/test_github_build_plane.py; then
+            echo 'Legacy active Liquid20 package path remains after repair' >&2
+            exit 1
+          fi
+          git diff --check
+
+      - name: Commit exact repair when needed
+        run: |
+          set -euo pipefail
+          git add \
+            .github/workflows/liquidations-live-synology.yml \
+            .github/workflows/packages-cleanup.yml \
+            deploy/synology/liquid20/deploy-live.sh \
+            tests/ci/test_github_build_plane.py \
+            docs/agents/tasks/active/FTAI-20260818-github-build-plane-1608.md
+          if git diff --cached --quiet; then
+            echo 'No repair commit required.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(ci): use repo-owned Liquid20 GHCR package'
+          git push origin HEAD:fix/1608-ghcr-liquid20-package-access

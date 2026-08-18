@@ -2,10 +2,10 @@
 task_id: FTAI-20260818-governance-simplification-1595
 repository: blakinio/freqtrade
 issue: 1595
-status: ready
+status: implementing
 base_branch: develop
-base_head: 73037e14ac48c43ca25e2b40e1a7ecaf8c5b1369
-branch: docs/FTAI-20260818-governance-simplification-1595
+base_head: 782f0c8cdb5f24e83a2bc9ad9660df1474a470ab
+branch: docs/1595-governance-simplification
 prompt: docs/agents/prompts/FTAI_GOVERNANCE_SIMPLIFICATION.md
 evidence: docs/agents/evidence/FTAI-20260818-governance-simplification-analysis.md
 ---
@@ -59,9 +59,9 @@ Read and preserve:
 
 ## Authority-freeze rule
 
-This task began under the current trusted-base governance at `develop@73037e14ac48c43ca25e2b40e1a7ecaf8c5b1369`.
+The executor invocation began under trusted-base governance at `develop@782f0c8cdb5f24e83a2bc9ad9660df1474a470ab`, after preparation PR `#1599` was merged.
 
-The task **must not use its own unmerged simplification to relax its own current review/validation/closeout authority**. Finish this task under the trusted-base rules. New risk-based semantics become authoritative only after merge and a later invocation based on the updated trusted base.
+This task **must not use its own unmerged simplification to relax its own review/validation/closeout authority**. In particular, changes to CI routing in this task must continue to route governance/CI architecture changes through the trusted-base full validation tier. New risk-based semantics become authoritative only after merge and a later invocation based on the updated trusted base.
 
 ## Execution shape
 
@@ -71,7 +71,8 @@ execution_policy_version: 2
 task_kind: governance_refactor
 context_pressure: medium
 decomposition_decision: phased
-execution_mode: codex_or_chat_with_github
+execution_mode: chat_with_github_connector
+codex_spark_permission: explicitly_granted_by_owner_2026-08-18
 run_scope: single_task
 continuation_policy: stop_at_task_boundary
 task_completion_policy: finalize_archive_and_continue
@@ -84,11 +85,11 @@ Prefer one task, one branch and one PR. Split only if live evidence proves an in
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-18T10:03:54+02:00
-head: LIVE_BRANCH_HEAD_REQUIRED
-branch: docs/FTAI-20260818-governance-simplification-1595
+updated_at: 2026-08-18T10:17:00+02:00
+head: 782f0c8cdb5f24e83a2bc9ad9660df1474a470ab
+branch: docs/1595-governance-simplification
 pr: none
-status: ready
+status: implementing
 context_routes:
   - Issue #1595
   - docs/agents/evidence/FTAI-20260818-governance-simplification-analysis.md
@@ -97,50 +98,64 @@ context_routes:
   - docs/agents/BRANCH_POLICY.md
   - docs/agents/TASK_CLOSEOUT_AUDIT_E2E.md
 owned_paths:
+  - AGENTS.override.md
   - docs/agents/**
-  - tests/** governance-policy tests only when needed
-  - .github/workflows/** classification or tightly justified governance migration only
+  - tools/agents/** governance policy only
+  - tools/ci/change_classifier.py
+  - tests/ci/** governance-policy and routing tests only
+  - .github/workflows/** inspection only unless a tightly justified migration is proven
+risk:
+  persistent_data: false
+  research_integrity: false
+  model_activation: false
+  auth_or_secrets: false
+  shared_synology_mutation: false
+  deployment: false
+  user_workflow_change: false
+  destructive_operation: false
+  real_capital: false
+  governance_or_ci: true
+risk_gates:
+  - policy_regression
+  - independent_audit
+  - exact_head_full_ci_under_trusted_base
+authority_freeze:
+  current_base_commit: 782f0c8cdb5f24e83a2bc9ad9660df1474a470ab
+  note: This task self-closes under the trusted-base governance and keeps governance/CI architecture changes on the full validation tier.
 proven:
-  - develop base was 73037e14ac48c43ca25e2b40e1a7ecaf8c5b1369 at task creation
-  - Issue #1595 exists and owns the governance simplification objective
+  - preparation PR #1599 was squash-merged and develop was verified at 782f0c8cdb5f24e83a2bc9ad9660df1474a470ab before executor branch creation
+  - Issue #1595 is open and owns the governance simplification objective
+  - no parallel implementation PR or governance-simplification branch existed at executor start
   - ADR-023 requires proportionate safety for the current single-owner Developer Quant Portal
-  - main was not an operational branch at task creation
-  - repository used develop as default with squash merge and delete-branch-on-merge enabled
-  - current branch was created specifically for Issue #1595
-  - durable analysis was recorded on this branch
-  - this task remains governed by trusted-base authority until merged
+  - repository uses develop as the integration/default branch and the task does not operationalize main
   - real-capital authority remains absent
+  - current change_classifier forces full CI for every ready_for_review and protected-branch push, independent of changed-path risk
   - legacy workflow names require exact trigger/dependency inspection before retirement
+  - owner explicitly permitted Codex Spark for this task
 derived:
   - the main remaining mismatch is execution governance rather than product architecture
-  - a risk-composition model can reduce ordinary-task ceremony without weakening relevant controls
-  - multi-agent coordination controls remain useful despite the product being single-owner
-  - a separate main release branch should remain deferred absent a real release-cadence need
+  - a composable risk model can reduce ordinary-task ceremony without weakening relevant controls
+  - durable coordination remains required for long-running multi-agent or failure-prone work
 unknown:
-  - exact current trigger and dependency status of every legacy shadow paper staging production live workflow
-  - exact minimal file set needed to implement the risk classifier without duplicating policy
-  - whether any current required check still depends on a legacy workflow targeted for rename or retirement
+  - exact current trigger and dependency status of each relevant legacy shadow paper staging production live workflow
+  - whether any legacy workflow can be safely renamed or retired in this task
 conflicts:
-  - ADR-023 proportionate validation conflicts in spirit with universal material-task ceremony in older global contracts
+  - ADR-023 proportionate validation conflicts with universal material-task ceremony in older global contracts
   - BRANCH_POLICY mixes current Git routing with superseded Portal bot-mode and production-release semantics
 first_failure:
-  marker: none-preexecution
-  evidence: no implementation failure has occurred; task is READY from verified analysis
+  marker: local-checkout-unavailable
+  evidence: local clone could not resolve github.com, so execution continues under the repository-approved GitHub-only path
 rejected_hypotheses:
   - private single-owner product means all governance can be removed
   - legacy workflow filename alone proves the workflow is obsolete
   - main must be created merely because ADR-021 once targeted it
   - force-rebase is the preferred synchronization path for tracked task branches
 changed_paths:
-  - docs/agents/evidence/FTAI-20260818-governance-simplification-analysis.md
   - docs/agents/tasks/active/FTAI-20260818-governance-simplification-1595.md
 validation:
-  - command: GitHub live-state inspection for develop repository settings issues branches policies and workflow inventory
+  - command: GitHub live-state inspection of develop, Issue #1595, preparation PR #1599, branches and exact current policy files
     result: PASS
-    evidence: Issue #1595 and dedicated branch created from exact develop base; findings recorded in durable analysis
-  - command: python tools/agents/checkpoint.py docs/agents/tasks/active/FTAI-20260818-governance-simplification-1595.md --require-checkpoint
-    result: NOT_RUN
-    evidence: GitHub-only preparation path; executor must run the validator before merge
+    evidence: develop@782f0c8cdb5f24e83a2bc9ad9660df1474a470ab; #1599 merged; no parallel implementation PR/branch found
 blockers: []
-next_action: Execute docs/agents/prompts/FTAI_GOVERNANCE_SIMPLIFICATION.md against Issue #1595 from current live repository state and carry the task through trusted-base validation and merge-ready closeout.
+next_action: Implement the canonical risk policy, align governance documents and CI routing, then build the exact legacy-workflow ledger and run trusted-base validation on the final PR head.
 ```

@@ -3,7 +3,7 @@ task_id: FTAI-20260818-dedicated-linux-runtime-1603
 repository: blakinio/freqtrade
 issue: 1603
 branch: arch/1603-dedicated-linux-runtime
-status: implementing
+status: validating
 execution_mode: github_only
 trusted_base: 2389e5e70161325c7f39b8ecd9da766f078bcf3e
 ---
@@ -56,18 +56,20 @@ risk_gates:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-18T12:56:18+02:00
+updated_at: 2026-08-18T13:11:51+02:00
 branch: arch/1603-dedicated-linux-runtime
-head: 4042b8701d57db24e3559237c23cc05532fac0dd
-pr: none
-status: implementing
+head: 4089f5c9a28ce886defc088a9e404ed866972a70
+pr: 1606
+status: validating
 context_routes:
   - Issue #1603 architecture authority and Phase-A acceptance
   - Issue #1604 deferred physical/service portability programme
   - ADR-023 current Developer Quant product authority
+  - ADR-024 current target runtime/deployment topology overlay on this PR
   - docs/agents/RISK_BASED_EXECUTION_POLICY.json at trusted base
 owned_paths:
   - docs/ai_platform/portal/ADR-024_DEDICATED_LINUX_RUNTIME.md
+  - docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md
   - ARCHITECTURE_REGISTRY.yaml
   - AGENTS.md
   - docs/ai_platform/portal/DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md
@@ -94,37 +96,51 @@ authority_freeze:
   note: This task changes canonical architecture/governance wording and must close under the trusted-base risk policy.
 proven:
   - develop head at task start was 2389e5e70161325c7f39b8ecd9da766f078bcf3e
-  - ordinary Freqtrade CI has current successful GitHub-hosted runner evidence
+  - ordinary Freqtrade CI has directly verified successful GitHub-hosted runner evidence
   - active Synology workflows still target self-hosted freqtrade-staging/freqtrade-synology-staging
   - deploy/ contained only deploy/synology before this task
   - owner approved the dedicated Linux runtime plus Synology durable-storage direction
-  - Issue #1603 and follow-up Issue #1604 exist
-  - ADR-024 and the initial portable runtime host contract/test are committed on this branch
+  - Issue #1603, follow-up Issue #1604 and Draft PR #1606 exist
+  - ADR-024 is present both as a detailed decision and in the binding ARCHITECTURE_DECISIONS.md log
+  - ARCHITECTURE_REGISTRY.yaml, root AGENTS.md and the detailed Developer Quant architecture now agree on LOCAL/DEDICATED_LINUX runtime and LOCAL/SYNOLOGY storage roles
+  - portable deploy/runtime contract, validator and focused tests are present without /volume1 or Synology-runner identity in the example target contract
 unknown:
   - physical dedicated Linux host identity, address, architecture and access method
   - exact Synology mount/synchronization protocol for the future host
   - physical cutover date and service-by-service target state
 conflicts:
-  - ADR-023/root AGENTS/detailed architecture currently describe SYNOLOGY as a runtime location; this branch must reconcile that authority before readiness
-  - Issue #1561 currently requires persistent WickHunter on SYNOLOGY and must be reconciled only after ADR-024 merges
+  - Issue #1561 still describes a persistent SYNOLOGY WickHunter target and requires post-ADR reconciliation; it is not silently rewritten before ADR-024 merges
 first_failure:
-  marker: local-checkout-unavailable
-  evidence: container git clone could not resolve github.com; GitHub-only execution remains available and authorized
+  marker: none-current
+  evidence: initial PR head 6a4eb6a250756944303b30dcb84e3a624d806d55 exposed invalid PR-title routing, missing ADR-024 decision-log binding, Ruff C901 complexity and AGENTS.md EOF normalization; all four causes were remediated on the branch and current exact-head validation is pending
 rejected_hypotheses:
   - GitHub-hosted Actions should run persistent 24/7 application services
   - active transactional databases should be placed on Synology network storage merely to centralize durable state
 changed_paths:
-  - docs/ai_platform/portal/ADR-024_DEDICATED_LINUX_RUNTIME.md
+  - AGENTS.md
+  - ARCHITECTURE_REGISTRY.yaml
   - deploy/runtime/README.md
   - deploy/runtime/runtime-host.env.example
   - deploy/runtime/validate_host_contract.py
-  - tests/ai_platform/test_runtime_host_contract.py
   - docs/agents/tasks/active/FTAI-20260818-dedicated-linux-runtime-1603.md
+  - docs/ai_platform/portal/ADR-024_DEDICATED_LINUX_RUNTIME.md
+  - docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md
+  - docs/ai_platform/portal/DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md
+  - tests/ai_platform/test_runtime_host_contract.py
 validation:
-  - command: exact branch diff / remote CI
+  - command: PR #1606 initial exact-head Freqtrade CI run 32129633894
+    result: FAIL
+    evidence: architecture decision-log consistency plus Ruff/EOF findings exposed and remediated
+  - command: PR #1606 initial Risk-aware component CI run 32129634227
+    result: FAIL
+    evidence: component routing failed on invalid PR title; title changed to docs(architecture): ...
+  - command: exact changed-file inventory and focused final-diff inspection before checkpoint
+    result: PASS
+    evidence: exactly ten expected repository paths; no workflow, Synology runtime, secret, environment or external-system mutation in the diff
+  - command: current exact-head CI
     result: NOT_RUN
-    evidence: implementation still in progress
+    evidence: this checkpoint update creates the final validation head and must be verified after commit
 blockers:
-  - physical cutover is blocked until a dedicated Linux host is verified; this does not block Phase A repository work
-next_action: reconcile ARCHITECTURE_REGISTRY.yaml, root AGENTS.md and the detailed Developer Quant architecture with ADR-024, then open the draft PR
+  - physical cutover is blocked until a dedicated Linux host is verified; this does not block Phase A repository architecture delivery
+next_action: Verify all required GitHub Actions checks on the new exact PR #1606 head and, if green, perform the policy-required independent final-diff audit before readiness.
 ```

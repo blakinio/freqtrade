@@ -22,7 +22,7 @@
 
 ## Purpose
 
-This fork extends upstream Freqtrade with an AI-assisted strategy research and validation platform. The current Portal and WickHunter product are governed by ADR-023 as a private, single-owner Developer Quant Platform working on real public market data, simulation, datasets and local model development, with ADR-024 as the binding runtime/deployment topology overlay.
+This fork extends upstream Freqtrade with an AI-assisted strategy research and validation platform. The current Portal and WickHunter product are governed by ADR-023 as a private, single-owner Developer Quant Platform working on real public market data, simulation, datasets and local model development, with ADR-025 as the binding runtime/CI-placement overlay. ADR-024 is preserved historical architecture and is superseded by ADR-025 for current runtime placement.
 
 The repository, current Git state, active pull requests, CI results, and files in this repository are the source of truth. Do not rely on chat history when repository state can be checked directly.
 
@@ -52,16 +52,19 @@ The repository, current Git state, active pull requests, CI results, and files i
 - Modify upstream core only when the required capability cannot be implemented through supported Freqtrade extension points.
 - Keep changes easy to rebase or merge from `freqtrade/freqtrade`.
 
-## Current Portal product authority — ADR-023 + ADR-024 runtime overlay
+## Current Portal product authority — ADR-023 + ADR-025 runtime/CI overlay
 
 ADR-023 owner decision date: `2026-08-15`.  
-ADR-024 runtime-topology decision date: `2026-08-18`.
+ADR-025 runtime/CI-placement decision date: `2026-08-18`.
 
 These rules apply to the entire current Portal, including WickHunter integration, Liquid20/market-data consumption, simulation, datasets, model training/challengers, runtime lifecycle, deployment/operations, CI/E2E and Portal-facing observability.
 
 - The current Portal is a private, single-owner developer/quant/research platform, not a multi-tenant production trading control plane.
 - Current data-source vocabulary is `REALTIME_PUBLIC | REPLAY`.
-- Current target runtime-location vocabulary is `LOCAL | DEDICATED_LINUX`; current storage-provider vocabulary is `LOCAL | SYNOLOGY`. Existing Synology-hosted application services are transitional implementation state until individually migrated and proven.
+- Current target persistent runtime-location vocabulary is `LOCAL | SYNOLOGY`; current storage-provider vocabulary is `LOCAL | SYNOLOGY`. Synology is the normal persistent runtime for the Portal, bots/simulation, long-lived collectors/workers, persistent WickHunter/inference and supporting application containers where continuous availability or durable state is required.
+- GitHub-hosted Actions is the default execution plane for stateless/disposable repository CI, tests, scans, packaging, immutable image builds and bounded jobs that fit Actions lifecycle constraints. GitHub-hosted runners are not a 24/7 application host.
+- Persistent application containers run on Synology. Their images should be built/scanned/published on GitHub-hosted runners where practical and delivered by exact attributable revision or immutable digest.
+- A separate dedicated Linux runtime host is not required for current Portal completion. `deploy/runtime/**` is an optional portability reference only unless a later owner decision reintroduces separate compute.
 - Simulated positions, fees, slippage, PnL and outcomes are normal developer-platform capabilities; they do not constitute a separate trading-authority mode.
 - Current model lifecycle is `BASELINE | CHALLENGER | ACTIVE | ARCHIVED`. Training may create challengers; activation remains deliberate and attributable.
 - `SHADOW`, `PAPER`, `LIVE`, `PAPER_ELIGIBLE` and similar mode vocabulary may remain only in historical evidence, legacy compatibility schemas or migration code. Do not introduce or require them as current Portal product states.
@@ -69,7 +72,7 @@ These rules apply to the entire current Portal, including WickHunter integration
 - Real-money exchange execution, private trading credentials for order submission, withdrawals and capital authority are outside the current Portal product. If ever requested, they require a separate owner-approved Execution/Capital Gateway architecture and implementation programme.
 - `quant.molehill.cloud` is the persistent Developer Quant Portal endpoint. Historical use of `production` for that host or Synology deployment does not turn the current product into a real-money production trading system.
 - Existing RuntimeGeneration, Runtime Supervisor, Gateway, risk, evidence and isolation components may be reused where they solve a concrete current problem. They are not universal completion prerequisites unless the current workflow actually needs them.
-- Open Portal/WickHunter work created under the superseded PAPER-first or production-like target must be reclassified `KEEP_NOW | SIMPLIFY | DEFER | OBSOLETE` before further mode-driven implementation.
+- Open Portal/WickHunter work created under superseded PAPER-first, production-like or dedicated-Linux-cutover targets must be reclassified `KEEP_NOW | SIMPLIFY | DEFER | OBSOLETE` before further target-driven implementation.
 
 Current Portal completion is user-workflow based:
 
@@ -123,17 +126,17 @@ For the current Developer Quant Portal:
 
 ### Integration, release and environment policy
 
-ADR-021 and `docs/agents/BRANCH_POLICY.md` may continue to define repository integration/release routing where independently applicable. ADR-023 supersedes ADR-021/ADR-022 bot-mode semantics for the current Portal; ADR-024 supersedes conflicting Synology-as-target-runtime guidance.
+ADR-021 and `docs/agents/BRANCH_POLICY.md` may continue to define repository integration/release routing where independently applicable. ADR-023 supersedes ADR-021/ADR-022 bot-mode semantics for the current Portal; ADR-025 supersedes ADR-024's dedicated-Linux current-target requirement while retaining its GitHub-hosted build-plane direction.
 
 - `develop` is the controlled integration branch and upstream-sync convergence point.
 - `main` is only a target release branch until exact repository evidence proves its physical migration, protection and workflow routing are complete.
 - Ordinary task, feature, fix, audit, documentation, migration, runtime, Portal, WickHunter, CI and infrastructure work integrates through `develop`.
-- Source branches/release channels are not runtime locations. `LOCAL | DEDICATED_LINUX` describes current target runtime location; `SYNOLOGY` is a durable-storage provider and may remain transitional compute only until service-level cutover is proven.
+- Source branches/release channels are not runtime locations. `LOCAL | SYNOLOGY` describes current target persistent runtime location. GitHub-hosted Actions is the stateless/disposable automation plane, not a persistent runtime location.
 - Do not use `dev | staging | production` or `SHADOW | PAPER | LIVE` as current Portal product-mode vocabulary.
 - Deployment uses attributable artifacts and durable state, but ordinary developer deployment does not require production-trading certification ceremony.
 
 1. Read this file first.
-2. Read `ARCHITECTURE_REGISTRY.yaml` and the current accepted Portal decisions (`ADR-023` plus the `ADR-024` runtime overlay) before Portal/WickHunter/runtime work.
+2. Read `ARCHITECTURE_REGISTRY.yaml` and the current accepted Portal decisions (`ADR-023` plus the `ADR-025` runtime/CI overlay) before Portal/WickHunter/runtime work. Read ADR-024 only as historical/superseded context when relevant.
 3. For Portal work, read `docs/ai_platform/portal/README.md`, `docs/ai_platform/portal/DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md` and the task-relevant documents; use `docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md` as the current programme boundary.
 4. Inspect current branch, HEAD, open PRs, and relevant CI before editing.
 5. Work on a dedicated feature branch.
@@ -144,10 +147,12 @@ ADR-021 and `docs/agents/BRANCH_POLICY.md` may continue to define repository int
 
 ## Runtime and CI target
 
-- The persistent application-compute target for this fork is Linux containers on a dedicated Linux runtime host. Synology is the target durable storage/evidence/backup provider, while existing Synology-hosted application services remain transitional current state until individually migrated.
-- Freqtrade and Portal build, test, packaging, security analysis and immutable image builds use GitHub-hosted Linux runners by default when compatible with the task. GitHub-hosted runners are not persistent application runtime hosts.
-- A self-hosted GitHub runner on the dedicated runtime host or Synology, when retained, must be `deploy-only` or otherwise narrowly scoped; do not use privileged runtime/storage hosts as the normal repository-wide CI or model-training environment.
+- The persistent application-compute target for this fork is the existing Synology runtime for Portal, bots/simulation, long-lived collectors/workers, persistent WickHunter/inference and supporting containers that require continuous availability or durable state.
+- Freqtrade and Portal build, test, packaging, security analysis and immutable image builds use GitHub-hosted Linux runners by default when compatible with the task. Bounded stateless backtests/replay/data-processing/validation jobs may also use GitHub-hosted runners when they fit Actions lifecycle constraints.
+- GitHub-hosted runners are not persistent application runtime hosts. Persistent containers run on Synology; GitHub-hosted workflows build/publish their images or execute only disposable containerized jobs.
+- A self-hosted GitHub runner on Synology, when retained, must be `deploy-only` or otherwise narrowly scoped to target-specific delivery/health/persistence work; do not use the privileged runtime/storage NAS as the normal repository-wide CI or model-training environment.
 - Local Linux-compatible developer processes/workers and local model training remain permitted where the workflow calls for `LOCAL` execution.
+- `deploy/runtime/**` remains an optional portable-host reference for a possible future owner-approved compute split; it is not current dedicated-Linux deployment authority.
 - Keep Linux architecture coverage relevant to deployed containers, including AMD64 and ARM64 where supported by available runners and dependencies.
 - Docker is a delivery mechanism, not product authority.
 

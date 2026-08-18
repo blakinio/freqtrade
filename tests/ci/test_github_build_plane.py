@@ -24,7 +24,7 @@ def _split_jobs(workflow: str, first_job: str, second_job: str) -> tuple[str, st
     return workflow[first_start:second_start], workflow[second_start:]
 
 
-def test_portal_build_scan_is_hosted_and_synology_job_only_materializes_images() -> None:
+def test_portal_build_scan_is_hosted_and_transitional_synology_only_materializes_images() -> None:
     workflow = PORTAL_WORKFLOW.read_text(encoding="utf-8")
     build, deploy = _split_jobs(workflow, "build-approved-images", "deploy")
 
@@ -60,7 +60,7 @@ def test_portal_deployment_trigger_remains_bounded_to_frozen_request() -> None:
     assert "push:" not in pre_jobs
 
 
-def test_wickhunter_image_build_is_hosted_and_synology_keeps_target_checks() -> None:
+def test_wickhunter_image_build_is_hosted_and_transitional_synology_keeps_target_checks() -> None:
     workflow = WICKHUNTER_WORKFLOW.read_text(encoding="utf-8")
     build, deploy = _split_jobs(workflow, "build-runtime-image", "deploy")
 
@@ -86,7 +86,7 @@ def test_wickhunter_image_build_is_hosted_and_synology_keeps_target_checks() -> 
     assert "automatic_promotion_enabled" in deploy
 
 
-def test_wickhunter_trigger_stays_one_shot_and_runtime_stays_on_synology() -> None:
+def test_wickhunter_trigger_stays_one_shot_and_synology_is_only_transitional_deploy() -> None:
     workflow = WICKHUNTER_WORKFLOW.read_text(encoding="utf-8")
     pre_jobs = workflow.split("jobs:\n", maxsplit=1)[0]
     request = (
@@ -101,7 +101,7 @@ def test_wickhunter_trigger_stays_one_shot_and_runtime_stays_on_synology() -> No
     assert "runs-on: ubuntu-24.04" not in deploy
 
 
-def test_liquid20_image_build_is_hosted_and_synology_only_deploys_exact_image() -> None:
+def test_liquid20_image_build_is_hosted_and_transitional_synology_deploys_exact_image() -> None:
     workflow = LIQUID20_WORKFLOW.read_text(encoding="utf-8")
     build, deploy = _split_jobs(workflow, "build-image", "deploy")
 
@@ -123,7 +123,7 @@ def test_liquid20_image_build_is_hosted_and_synology_only_deploys_exact_image() 
     assert "refusing incompatible Synology runner architecture" in deploy
 
 
-def test_liquid20_actions_path_refuses_synology_build_fallback() -> None:
+def test_liquid20_actions_path_refuses_transitional_synology_build_fallback() -> None:
     script = LIQUID20_DEPLOY.read_text(encoding="utf-8")
     prebuilt = 'if [[ -n "$prebuilt_image" ]]'
     actions_guard = 'elif [[ "${GITHUB_ACTIONS:-}" == "true" ]]'

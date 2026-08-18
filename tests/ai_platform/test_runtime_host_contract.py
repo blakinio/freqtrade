@@ -74,7 +74,7 @@ def test_rejects_application_container_engine_socket(tmp_path: Path) -> None:
     )
     result = run_contract(tmp_path, content)
     assert result.returncode == 1
-    assert "must be false" in result.stdout
+    assert "ALLOW_APPLICATION_CONTAINER_ENGINE_SOCKET" in result.stdout
 
 
 def test_rejects_nested_runtime_and_storage_roots(tmp_path: Path) -> None:

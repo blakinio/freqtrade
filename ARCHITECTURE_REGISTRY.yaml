@@ -51,6 +51,7 @@ latest_architecture_change:
   issue: 1603
   task: FTAI-20260818-dedicated-linux-runtime-1603
   decision: ADR-024
+  product_decision: ADR-023
   decision_document: docs/ai_platform/portal/ADR-024_DEDICATED_LINUX_RUNTIME.md
   detail_document: docs/ai_platform/portal/DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md
   status: accepted_target_pending_implementation
@@ -96,7 +97,7 @@ authority:
     - Material architecture changes update this registry and the accepted decision authority in the same change set.
     - ADR-023 is the current product overlay for the entire Portal and supersedes conflicting current-Portal assumptions in ADR-003, ADR-004, ADR-005, ADR-013, ADR-014, ADR-016, ADR-017, ADR-020, ADR-021 and ADR-022 exactly as recorded in its supersession matrix.
     - ADR-024 is the current runtime/deployment topology overlay. It supersedes conflicting current-target wording that makes Synology the normal persistent application-compute location while leaving ADR-023 product semantics intact.
-    - For current Portal work, SHADOW/PAPER/LIVE are historical or compatibility vocabulary only; current concepts are REALTIME_PUBLIC/REPLAY data source, LOCAL/DEDICATED_LINUX runtime location, LOCAL/SYNOLOGY storage provider, integrated simulation and BASELINE/CHALLENGER/ACTIVE/ARCHIVED model lifecycle.
+    - SHADOW/PAPER/LIVE are historical or compatibility vocabulary only for current Portal work; current concepts are REALTIME_PUBLIC/REPLAY data source, LOCAL/DEDICATED_LINUX runtime location, LOCAL/SYNOLOGY storage provider, integrated simulation and BASELINE/CHALLENGER/ACTIVE/ARCHIVED model lifecycle.
     - Existing Synology-hosted application services are transitional current implementation state until exact service-level dedicated-Linux cutover evidence exists; acceptance of ADR-024 is not runtime migration evidence.
     - GitHub-hosted Actions runners are the default for stateless CI/build/validation and are not long-lived application runtime hosts. Self-hosted runners on privileged runtime/storage hosts should be disabled or narrowly deploy-only.
     - Real-money exchange execution, private trading credentials, withdrawals and capital authority are out of current Portal scope. A future Execution/Capital Gateway requires a separate owner-approved architecture programme.

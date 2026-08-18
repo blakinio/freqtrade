@@ -108,7 +108,8 @@ def test_liquid20_image_build_is_hosted_and_transitional_synology_deploys_exact_
     assert "runs-on: ubuntu-24.04" in build
     assert "packages: write" in build
     assert "docker build" in build
-    assert "ghcr.io/blakinio/liquid20-collector" in build
+    assert "ghcr.io/blakinio/freqtrade-liquid20-collector" in build
+    assert "ghcr.io/blakinio/liquid20-collector" not in build
     assert "org.opencontainers.image.revision" in build
     assert "image_ref=" in build
     assert "image_id=" in build
@@ -133,7 +134,8 @@ def test_liquid20_actions_path_refuses_transitional_synology_build_fallback() ->
     assert prebuilt in script
     assert actions_guard in script
     assert refusal in script
-    assert "ghcr\\.io/blakinio/liquid20-collector@sha256" in script
+    assert "ghcr\\.io/blakinio/freqtrade-liquid20-collector@sha256" in script
+    assert "ghcr\\.io/blakinio/liquid20-collector@sha256" not in script
     assert script.index(prebuilt) < script.index(actions_guard)
     assert script.index(actions_guard) < script.index(refusal)
     assert script.index(refusal) < script.index(build)
@@ -171,6 +173,7 @@ def test_fork_build_plane_packages_have_exact_bounded_retention_policy() -> None
         "freqtrade-portal-control-plane",
         "freqtrade-portal-web",
         "wickhunter-production-research-runtime",
-        "liquid20-collector",
+        "freqtrade-liquid20-collector",
     ):
         assert f"inputs.package_name == '{package}'" in fork_cleanup
+    assert "inputs.package_name == 'liquid20-collector'" not in fork_cleanup

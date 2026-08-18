@@ -240,16 +240,16 @@ documents:
     safety_note: Real-money exchange execution is out of current product scope and requires a separate future owner decision if ever desired.
 
   - path: docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md
-    title: AI Trading Portal architecture decisions through ADR-022
+    title: AI Trading Portal architecture decisions through ADR-024
     classification: accepted_decision_log
-    scope: accepted historical platform and Portal decisions through the former PAPER-first target
-    authority: binding_unless_superseded; current Portal conflicts are superseded by ADR-023 and runtime-topology conflicts by ADR-024
+    scope: accepted platform and Portal decisions through the current ADR-024 runtime/deployment topology overlay
+    authority: binding_unless_superseded; current Portal product conflicts are superseded by ADR-023 and runtime-topology conflicts by ADR-024
     implementation_status: mixed
     owner_role: architecture-owner
     last_reviewed_at: "2026-08-18"
-    latest_decision_in_file: ADR-022
-    current_decision_extension: docs/ai_platform/portal/ADR-023_DEVELOPER_QUANT_PORTAL.md
-    current_runtime_extension: docs/ai_platform/portal/ADR-024_DEDICATED_LINUX_RUNTIME.md
+    latest_decision_in_file: ADR-024
+    current_product_detail: docs/ai_platform/portal/ADR-023_DEVELOPER_QUANT_PORTAL.md
+    current_runtime_detail: docs/ai_platform/portal/ADR-024_DEDICATED_LINUX_RUNTIME.md
 
   - path: docs/ai_platform/portal/PAPER_FIRST_PLATFORM_ARCHITECTURE.md
     title: PAPER-first Quant Platform architecture

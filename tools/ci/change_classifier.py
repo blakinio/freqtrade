@@ -124,14 +124,11 @@ def classify(
 
     labels_set = {label.strip().lower() for label in labels if label.strip()}
     full_labels = {label.lower() for label in config.get("full_ci_labels", [])}
-    protected = set(config.get("protected_branches", []))
 
     empty_fail_closed = not changed_paths and event not in FULL_EVENTS
     full = (
         empty_fail_closed
         or event in FULL_EVENTS
-        or (event == "push" and ref_name in protected)
-        or action == "ready_for_review"
         or bool(labels_set & full_labels)
         or categories["ci_architecture"]
     )

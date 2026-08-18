@@ -146,21 +146,24 @@ def test_explicit_full_label_selects_all_heavy_acceptance_gates() -> None:
     assert result["portal_web_validation"]
 
 
-def test_ready_for_review_is_merge_ready_full_validation() -> None:
-    result = route("freqtrade/configuration/configuration.py", action="ready_for_review")
-    assert result["full"]
-    assert result["core_matrix"]
+def test_ready_for_review_preserves_changed_path_routing() -> None:
+    result = route("docs/agents/PROMPTING_STANDARD.md", action="ready_for_review")
+    assert result["docs_only"]
+    assert not result["full"]
+    assert not result["core_matrix"]
+    assert not result["portal_full_browser_e2e"]
 
 
-def test_protected_branch_push_and_release_are_full() -> None:
+def test_develop_push_preserves_path_routing_but_release_is_full() -> None:
     push = classify(
-        ["freqtrade/configuration/configuration.py"],
+        ["docs/agents/PROMPTING_STANDARD.md"],
         event="push",
         ref_name="develop",
         config=CONFIG,
     )["outputs"]
     release = classify([], event="release", config=CONFIG)["outputs"]
-    assert push["full"] and release["full"]
+    assert push["docs_only"] and not push["full"]
+    assert release["full"]
 
 
 def test_ci_architecture_change_runs_every_routing_acceptance_tier() -> None:

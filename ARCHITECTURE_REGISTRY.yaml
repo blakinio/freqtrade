@@ -47,21 +47,21 @@ review:
 
 latest_architecture_change:
   accepted_at: "2026-08-18"
-  base_sha: 2389e5e70161325c7f39b8ecd9da766f078bcf3e
-  issue: 1603
-  task: FTAI-20260818-dedicated-linux-runtime-1603
-  decision: ADR-024
+  base_sha: 6510077ea2e7a63c0d489f94391f461a3cab4ac1
+  issue: 1604
+  decision: ADR-025
   product_decision: ADR-023
-  decision_document: docs/ai_platform/portal/ADR-024_DEDICATED_LINUX_RUNTIME.md
+  supersedes_runtime_decision: ADR-024
+  decision_document: docs/ai_platform/portal/ADR-025_SYNOLOGY_PERSISTENT_RUNTIME_GITHUB_BUILD_PLANE.md
   detail_document: docs/ai_platform/portal/DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md
-  status: accepted_target_pending_implementation
+  status: accepted_target_partial_implementation
   affected_domains:
     - portal_and_ux
     - data_and_observability
     - deployment_and_operations
     - ci_and_quality
     - portal_research_integration
-  implementation_note: The owner separated application compute from durable storage. GitHub/GitHub-hosted Actions remain the repository, CI, build and orchestration plane; persistent Portal, collectors, WickHunter/inference and Freqtrade simulation target a dedicated Linux runtime; Synology becomes the durable storage/evidence/backup provider. Existing Synology-hosted services are transitional implementation state and no physical cutover is claimed until exact target-host and service-level evidence exists.
+  implementation_note: The owner retained Synology as the current persistent Portal/bot/application runtime and durable-storage host while keeping GitHub-hosted Actions as the default stateless CI/test/build/scan/disposable-compute plane. The hosted build-plane work from PR #1609 remains valid; a separate dedicated Linux runtime host is no longer a current completion requirement. Persistent containers run on Synology, while portable images are built/published on GitHub-hosted runners where practical. Retained Synology self-hosted runner access should be deploy-only or equivalently narrow.
 
 classification_values:
   - canonical_registry
@@ -96,10 +96,12 @@ authority:
     - Historical baselines preserve context but do not override accepted decisions or current-state evidence.
     - Material architecture changes update this registry and the accepted decision authority in the same change set.
     - ADR-023 is the current product overlay for the entire Portal and supersedes conflicting current-Portal assumptions in ADR-003, ADR-004, ADR-005, ADR-013, ADR-014, ADR-016, ADR-017, ADR-020, ADR-021 and ADR-022 exactly as recorded in its supersession matrix.
-    - ADR-024 is the current runtime/deployment topology overlay. It supersedes conflicting current-target wording that makes Synology the normal persistent application-compute location while leaving ADR-023 product semantics intact.
-    - SHADOW/PAPER/LIVE are historical or compatibility vocabulary only for current Portal work; current concepts are REALTIME_PUBLIC/REPLAY data source, LOCAL/DEDICATED_LINUX runtime location, LOCAL/SYNOLOGY storage provider, integrated simulation and BASELINE/CHALLENGER/ACTIVE/ARCHIVED model lifecycle.
-    - Existing Synology-hosted application services are transitional current implementation state until exact service-level dedicated-Linux cutover evidence exists; acceptance of ADR-024 is not runtime migration evidence.
-    - GitHub-hosted Actions runners are the default for stateless CI/build/validation and are not long-lived application runtime hosts. Self-hosted runners on privileged runtime/storage hosts should be disabled or narrowly deploy-only.
+    - ADR-025 is the current runtime/CI-placement overlay. Synology is the normal current persistent application runtime and durable-storage host; GitHub-hosted Actions is the default stateless/disposable CI/test/build/scan/job plane and is not a 24/7 application host.
+    - ADR-025 supersedes ADR-024 only where ADR-024 required a separate dedicated Linux persistent runtime, treated Synology compute as transitional-only, or made dedicated-Linux cutover a current completion requirement. ADR-024 remains historical evidence and its GitHub-hosted build-plane direction is retained.
+    - SHADOW/PAPER/LIVE are historical or compatibility vocabulary only for current Portal work; current concepts are REALTIME_PUBLIC/REPLAY data source, LOCAL/SYNOLOGY persistent runtime location, LOCAL/SYNOLOGY storage provider, integrated simulation and BASELINE/CHALLENGER/ACTIVE/ARCHIVED model lifecycle.
+    - Persistent application containers run on Synology. GitHub-hosted workflows may build/publish their images and execute short-lived disposable containers, but must not be described as the persistent application runtime.
+    - GitHub-hosted Actions runners are the default for stateless CI/build/validation and bounded disposable jobs where compatible. Self-hosted runners on Synology should be disabled or narrowly deploy-only/target-specific rather than serving as general repository CI shells.
+    - deploy/runtime/** is an optional portability reference only under ADR-025; it does not make a separate dedicated Linux host current target authority.
     - Real-money exchange execution, private trading credentials, withdrawals and capital authority are out of current Portal scope. A future Execution/Capital Gateway requires a separate owner-approved architecture programme.
     - Existing RuntimeGeneration, Runtime Supervisor, Gateway, isolation and reconciliation implementation may be reused when it solves a concrete current problem, but ADR-023 removes them as universal completion prerequisites for ordinary developer simulation/research workflows.
     - ADR-021 repository integration/release guidance may remain independently applicable, but its Portal bot-mode semantics are superseded by ADR-023.
@@ -115,7 +117,7 @@ system_domains:
       - tests/ai_platform_integration/
     implementation_status: mixed
     portal_integration_overlay: ADR-023
-    runtime_location_overlay: ADR-024
+    runtime_location_overlay: ADR-025
     historical_mode_overlay: ADR-022
   portal_and_ux:
     code_roots:
@@ -126,7 +128,7 @@ system_domains:
       - ai_platform/portal/web/e2e/
     implementation_status: mixed
     current_product_overlay: ADR-023
-    current_runtime_overlay: ADR-024
+    current_runtime_overlay: ADR-025
     specialized_runtime_reference: ADR-020
     release_reference: ADR-021
     historical_mode_overlay: ADR-022
@@ -140,7 +142,7 @@ system_domains:
       - tests/ai_platform/portal/security/
     implementation_status: mixed
     current_product_overlay: ADR-023
-    current_runtime_overlay: ADR-024
+    current_runtime_overlay: ADR-025
     specialized_runtime_reference: ADR-020
     historical_mode_overlay: ADR-022
   execution_and_risk:
@@ -153,7 +155,7 @@ system_domains:
       - tests/ai_platform/portal/
     implementation_status: mixed
     current_product_overlay: ADR-023
-    current_runtime_overlay: ADR-024
+    current_runtime_overlay: ADR-025
     specialized_runtime_reference: ADR-020
     release_reference: ADR-021
     historical_mode_overlay: ADR-022
@@ -168,7 +170,7 @@ system_domains:
       - tests/ai_platform/portal/telemetry/
     implementation_status: mixed
     current_product_overlay: ADR-023
-    current_runtime_overlay: ADR-024
+    current_runtime_overlay: ADR-025
     specialized_runtime_reference: ADR-020
     historical_mode_overlay: ADR-022
   deployment_and_operations:
@@ -181,7 +183,7 @@ system_domains:
       - artifacts/
     implementation_status: mixed
     current_product_overlay: ADR-023
-    current_runtime_overlay: ADR-024
+    current_runtime_overlay: ADR-025
     specialized_runtime_reference: ADR-020
     release_reference: ADR-021
     historical_mode_overlay: ADR-022
@@ -194,7 +196,7 @@ system_domains:
       - tests/ci/
     implementation_status: partially_implemented
     current_product_overlay: ADR-023
-    current_runtime_overlay: ADR-024
+    current_runtime_overlay: ADR-025
     release_reference: ADR-021
     historical_mode_overlay: ADR-022
 
@@ -208,49 +210,60 @@ documents:
     owner_role: A3-architecture-ci-reviewer
     last_reviewed_at: "2026-08-18"
 
+  - path: docs/ai_platform/portal/ADR-025_SYNOLOGY_PERSISTENT_RUNTIME_GITHUB_BUILD_PLANE.md
+    title: ADR-025 Synology persistent runtime and GitHub-hosted build/disposable-compute decision
+    classification: accepted_decision_log
+    scope: current Portal persistent runtime placement, GitHub-hosted CI/build/disposable work, self-hosted runner scope and container placement
+    authority: binding_current_runtime_deployment_overlay
+    implementation_status: partially_implemented
+    owner_role: architecture-owner
+    last_reviewed_at: "2026-08-18"
+    evidence_rule: Synology runtime and GitHub-hosted build-plane implementation must still be proven by exact current workflows/deployments. PR #1609 is direct evidence for part of the hosted build plane; this ADR does not claim every remaining runner/job is already migrated.
+    safety_note: GitHub Actions is not persistent application hosting; persistent containers run on Synology; retained Synology self-hosted runner access is narrow/deploy-only where practical; real-money execution remains out of scope.
+
   - path: docs/ai_platform/portal/ADR-024_DEDICATED_LINUX_RUNTIME.md
     title: ADR-024 dedicated Linux runtime and Synology durable-storage decision
     classification: accepted_decision_log
-    scope: current Portal runtime compute, CI/build orchestration, deployment-runner and durable-storage topology
-    authority: binding_current_runtime_deployment_overlay
-    implementation_status: target_only
+    scope: historical 2026-08-18 runtime topology target superseded by ADR-025
+    authority: superseded_current_runtime_target_by_ADR-025
+    implementation_status: historical
     owner_role: architecture-owner
     last_reviewed_at: "2026-08-18"
-    evidence_rule: The decision is accepted target authority only; existing Synology-hosted services remain current implementation evidence until exact service-level cutover to a verified dedicated Linux host is proven.
-    safety_note: GitHub Actions is control/CI/build orchestration rather than persistent runtime; Synology is durable storage/backup rather than target application compute; real-money execution remains out of scope.
+    evidence_rule: Preserve as historical architecture/evidence. ADR-025 supersedes the dedicated-Linux target while retaining the GitHub-hosted stateless build-plane principles.
+    safety_note: Do not use ADR-024 to require a separate dedicated Linux host for current Portal completion.
 
   - path: docs/ai_platform/portal/ADR-023_DEVELOPER_QUANT_PORTAL.md
     title: ADR-023 current Portal developer-quant product decision
     classification: accepted_decision_log
     scope: whole-current-Portal product identity, vocabulary, completion rule, proportionate safety and supersession matrix
-    authority: binding_current_portal_decision_subject_to_ADR-024_runtime_overlay
+    authority: binding_current_portal_decision_subject_to_ADR-025_runtime_overlay
     implementation_status: target_only
     owner_role: architecture-owner
     last_reviewed_at: "2026-08-18"
-    evidence_rule: This decision changes current Portal product authority but does not claim code migration complete; ADR-024 supersedes only its conflicting runtime-location/deployment topology wording. Exact current code, open work and runtime evidence remain authoritative for implementation state.
+    evidence_rule: This decision changes current Portal product authority but does not claim code migration complete; ADR-025 controls current runtime/CI placement. Exact current code, open work and runtime evidence remain authoritative for implementation state.
 
   - path: docs/ai_platform/portal/DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md
     title: Developer Quant Portal architecture
     classification: canonical_target_state
-    scope: entire current Portal developer workflow from realtime public data through simulation, datasets, local challenger training, comparison and restart-safe observability, with ADR-024 compute/storage topology
-    authority: binding_refinement_of_ADR-023_with_ADR-024_runtime_overlay
+    scope: entire current Portal developer workflow from realtime public data through simulation, datasets, local challenger training, comparison and restart-safe observability, with ADR-025 Synology-runtime/GitHub-build topology
+    authority: binding_refinement_of_ADR-023_with_ADR-025_runtime_overlay
     implementation_status: target_only
     owner_role: architecture-owner
     last_reviewed_at: "2026-08-18"
-    evidence_rule: Completion is proven by the real owner-facing developer workflow and exact runtime evidence, not by documentation or isolated evidence bundles. Dedicated-Linux target wording is not physical-cutover proof.
+    evidence_rule: Completion is proven by the real owner-facing developer workflow and exact runtime/workflow evidence, not by documentation or isolated evidence bundles. Synology persistent-runtime authority does not imply every remaining CI/build job is already GitHub-hosted.
     safety_note: Real-money exchange execution is out of current product scope and requires a separate future owner decision if ever desired.
 
   - path: docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md
-    title: AI Trading Portal architecture decisions through ADR-024
+    title: AI Trading Portal architecture decisions through ADR-025
     classification: accepted_decision_log
-    scope: accepted platform and Portal decisions through the current ADR-024 runtime/deployment topology overlay
-    authority: binding_unless_superseded; current Portal product conflicts are superseded by ADR-023 and runtime-topology conflicts by ADR-024
+    scope: accepted platform and Portal decisions through the current ADR-025 runtime/CI-placement overlay
+    authority: binding_unless_superseded; current Portal product conflicts are superseded by ADR-023 and runtime-topology conflicts by ADR-025
     implementation_status: mixed
     owner_role: architecture-owner
     last_reviewed_at: "2026-08-18"
-    latest_decision_in_file: ADR-024
+    latest_decision_in_file: ADR-025
     current_product_detail: docs/ai_platform/portal/ADR-023_DEVELOPER_QUANT_PORTAL.md
-    current_runtime_detail: docs/ai_platform/portal/ADR-024_DEDICATED_LINUX_RUNTIME.md
+    current_runtime_detail: docs/ai_platform/portal/ADR-025_SYNOLOGY_PERSISTENT_RUNTIME_GITHUB_BUILD_PLANE.md
 
   - path: docs/ai_platform/portal/PAPER_FIRST_PLATFORM_ARCHITECTURE.md
     title: PAPER-first Quant Platform architecture
@@ -296,11 +309,11 @@ documents:
     title: Runtime isolation profile and Runtime Supervisor contract
     classification: domain_architecture
     scope: specialized Portal runtime isolation/Supervisor reference retained where a concrete runtime boundary benefits from it
-    authority: specialized_reference_subject_to_ADR-023_and_ADR-024
+    authority: specialized_reference_subject_to_ADR-023_and_ADR-025
     implementation_status: partially_implemented
     owner_role: architecture-owner
     last_reviewed_at: "2026-08-18"
-    evidence_rule: Existing implementation remains reusable, but production-grade host attestation and generation ceremony are no longer universal completion gates for current developer workflows; any host-specific assumptions must be reconciled with ADR-024 during migration.
+    evidence_rule: Existing implementation remains reusable, but production-grade host attestation and generation ceremony are no longer universal completion gates for current developer workflows; host-specific assumptions must be reconciled with current Synology runtime authority under ADR-025.
     safety_note: Current Portal has no real-money execution capability.
 
   - path: docs/ai_platform/portal/SYSTEM_ARCHITECTURE.md
@@ -311,7 +324,7 @@ documents:
     implementation_status: mixed
     owner_role: architecture-owner
     last_reviewed_at: "2026-08-15"
-    evidence_rule: Use exact current code for implemented components and ADR-023/ADR-024/DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md for current product direction.
+    evidence_rule: Use exact current code for implemented components and ADR-023/ADR-025/DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md for current product direction.
     supersession_note: Multi-tenant production trading, SHADOW/PAPER/LIVE and universal production-grade runtime gates no longer define the current Portal.
 
   - path: docs/ai_platform/portal/BOT_MANAGEMENT_PRODUCT_ARCHITECTURE.md
@@ -342,7 +355,7 @@ documents:
     implementation_status: historical
     owner_role: architecture-owner
     last_reviewed_at: "2026-08-05"
-    supersession_note: Use ADR-023, ADR-024 and Developer Quant Portal Architecture for current Portal product and runtime decisions.
+    supersession_note: Use ADR-023, ADR-025 and Developer Quant Portal Architecture for current Portal product and runtime decisions.
 
   - path: docs/agents/programs/FTAI_PLATFORM_CONTINUOUS_ASSURANCE_PROGRAM.md
     title: Platform continuous assurance programme
@@ -361,7 +374,7 @@ documents:
     implementation_status: implemented
     owner_role: whole-platform-assurance-owner
     last_reviewed_at: "2026-08-05"
-    evidence_rule: Coverage status is bounded to the exact head and wave recorded in the ledger; current Portal remediation priorities must be reclassified through ADR-023 and runtime assumptions through ADR-024.
+    evidence_rule: Coverage status is bounded to the exact head and wave recorded in the ledger; current Portal remediation priorities must be reclassified through ADR-023 and runtime assumptions through ADR-025.
 
   - path: docs/ai_platform/portal/AUDIT_2026-08-02_END_TO_END_COMPLETENESS.md
     title: Portal end-to-end completeness audit
@@ -371,7 +384,7 @@ documents:
     implementation_status: not_applicable
     owner_role: audit-owner
     last_reviewed_at: "2026-08-15"
-    evidence_rule: Findings remain factual evidence of code at the audited revision, but whether each finding is still required is decided by ADR-023 backlog reclassification and ADR-024 runtime-topology reconciliation.
+    evidence_rule: Findings remain factual evidence of code at the audited revision, but whether each finding is still required is decided by ADR-023 backlog reclassification and ADR-025 runtime/CI-placement reconciliation.
 
   - path: docs/ai_platform/reviews/2026-08-05-architecture-ci-review.md
     title: Platform architecture and CI review

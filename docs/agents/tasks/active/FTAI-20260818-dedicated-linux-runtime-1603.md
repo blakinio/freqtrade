@@ -56,9 +56,9 @@ risk_gates:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-18T13:11:51+02:00
+updated_at: 2026-08-18T13:31:00+02:00
 branch: arch/1603-dedicated-linux-runtime
-head: 4089f5c9a28ce886defc088a9e404ed866972a70
+head: 4c67d8c6ca5d0f82fed13f02059c7cbac23bbe66
 pr: 1606
 status: validating
 context_routes:
@@ -102,8 +102,9 @@ proven:
   - owner approved the dedicated Linux runtime plus Synology durable-storage direction
   - Issue #1603, follow-up Issue #1604 and Draft PR #1606 exist
   - ADR-024 is present both as a detailed decision and in the binding ARCHITECTURE_DECISIONS.md log
-  - ARCHITECTURE_REGISTRY.yaml, root AGENTS.md and the detailed Developer Quant architecture now agree on LOCAL/DEDICATED_LINUX runtime and LOCAL/SYNOLOGY storage roles
+  - ARCHITECTURE_REGISTRY.yaml, root AGENTS.md and the detailed Developer Quant architecture agree on LOCAL/DEDICATED_LINUX runtime and LOCAL/SYNOLOGY storage roles
   - portable deploy/runtime contract, validator and focused tests are present without /volume1 or Synology-runner identity in the example target contract
+  - registry retains ADR-023 as explicit product_decision while ADR-024 remains the latest runtime/deployment decision
 unknown:
   - physical dedicated Linux host identity, address, architecture and access method
   - exact Synology mount/synchronization protocol for the future host
@@ -112,10 +113,11 @@ conflicts:
   - Issue #1561 still describes a persistent SYNOLOGY WickHunter target and requires post-ADR reconciliation; it is not silently rewritten before ADR-024 merges
 first_failure:
   marker: none-current
-  evidence: initial PR head 6a4eb6a250756944303b30dcb84e3a624d806d55 exposed invalid PR-title routing, missing ADR-024 decision-log binding, Ruff C901 complexity and AGENTS.md EOF normalization; all four causes were remediated on the branch and current exact-head validation is pending
+  evidence: exact-head 72cd93210224186b78f0f17ea9d0d040b2307e06 exposed a Portal completeness audit compatibility failure because ADR-024 replaced literal ADR-023 registry markers used only to select the diagnostic legacy-audit mode; commit 4c67d8c6ca5d0f82fed13f02059c7cbac23bbe66 restored explicit product_decision ADR-023 and the expected compatibility marker while retaining decision ADR-024
 rejected_hypotheses:
   - GitHub-hosted Actions should run persistent 24/7 application services
   - active transactional databases should be placed on Synology network storage merely to centralize durable state
+  - the Portal completeness workflow should be weakened or bypassed to accept ADR-024
 changed_paths:
   - AGENTS.md
   - ARCHITECTURE_REGISTRY.yaml
@@ -130,17 +132,23 @@ changed_paths:
 validation:
   - command: PR #1606 initial exact-head Freqtrade CI run 32129633894
     result: FAIL
-    evidence: architecture decision-log consistency plus Ruff/EOF findings exposed and remediated
+    evidence: decision-log consistency, Ruff complexity and EOF findings exposed and remediated
   - command: PR #1606 initial Risk-aware component CI run 32129634227
     result: FAIL
-    evidence: component routing failed on invalid PR title; title changed to docs(architecture): ...
-  - command: exact changed-file inventory and focused final-diff inspection before checkpoint
+    evidence: invalid PR-title routing exposed and remediated
+  - command: PR #1606 exact-head Freqtrade CI run 32130618193 on 72cd93210224186b78f0f17ea9d0d040b2307e06
+    result: PASS_PARTIAL_STALE
+    evidence: lightweight gate, pre-commit, documentation, core and compatibility jobs observed green before later registry remediation made the run stale
+  - command: PR #1606 exact-head Risk-aware component CI run 32130618582 on 72cd93210224186b78f0f17ea9d0d040b2307e06
+    result: FAIL_STALE
+    evidence: Portal completeness audit selected legacy gate and rejected closed Issues #1086 #1097 #1100; registry authority-detection compatibility was remediated without workflow changes
+  - command: exact changed-file inventory and focused diff inspection
     result: PASS
     evidence: exactly ten expected repository paths; no workflow, Synology runtime, secret, environment or external-system mutation in the diff
   - command: current exact-head CI
     result: NOT_RUN
-    evidence: this checkpoint update creates the final validation head and must be verified after commit
+    evidence: this checkpoint commit creates the new final validation head and all required checks must be verified again on that exact SHA
 blockers:
   - physical cutover is blocked until a dedicated Linux host is verified; this does not block Phase A repository architecture delivery
-next_action: Verify all required GitHub Actions checks on the new exact PR #1606 head and, if green, perform the policy-required independent final-diff audit before readiness.
+next_action: Verify every required GitHub Actions workflow on the exact PR #1606 head created by this checkpoint; if all required checks pass, perform one fresh final-diff audit and close the PR lifecycle without further code changes.
 ```

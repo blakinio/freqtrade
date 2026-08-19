@@ -1,13 +1,11 @@
 name: Portal WickHunter WH09 Deployed Browser Acceptance
 
 on:
-  workflow_run:
-    workflows:
-      - Portal WickHunter WH09 Adoption
-    types:
-      - completed
+  push:
     branches:
       - develop
+    paths:
+      - deploy/synology/portal-oidc/run-requests/wickhunter-wh09-portal-adoption-20260819-v2.json
   workflow_dispatch:
     inputs:
       authorization_sha:
@@ -30,16 +28,12 @@ env:
   WH09_EXPECTED_REVISION: 1af35b4ccef6bbd06c771603a80760c342d334aa
 
 jobs:
-  seed-session:
-    name: Seed bounded read-only browser session
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
-    runs-on:
-      - freqtrade-staging
-    environment: synology-staging
-    timeout-minutes: 20
+  wait-adoption:
+    name: Wait for exact Portal adoption
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
     permissions:
+      actions: read
       contents: read
     outputs:
       authorization_sha: ${{ steps.authority.outputs.authorization_sha }}
@@ -48,11 +42,15 @@ jobs:
         id: authority
         shell: bash
         env:
-          WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          PUSH_SHA: ${{ github.sha }}
           DISPATCH_SHA: ${{ inputs.authorization_sha }}
         run: |
           set -euo pipefail
-          authorization_sha="${WORKFLOW_RUN_SHA:-${DISPATCH_SHA:-}}"
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            authorization_sha="$PUSH_SHA"
+          else
+            authorization_sha="$DISPATCH_SHA"
+          fi
           [[ "$authorization_sha" =~ ^[0-9a-f]{40}$ ]]
           printf 'authorization_sha=%s\n' "$authorization_sha" >> "$GITHUB_OUTPUT"
 
@@ -63,7 +61,7 @@ jobs:
           fetch-depth: 2
           ref: ${{ steps.authority.outputs.authorization_sha }}
 
-      - name: Validate one-shot request and deployed target
+      - name: Validate one-shot request identity
         shell: bash
         env:
           AUTHORIZATION_SHA: ${{ steps.authority.outputs.authorization_sha }}
@@ -99,6 +97,67 @@ jobs:
                   raise SystemExit(f"deployed-browser authorization mismatch: {key}")
           PY
 
+      - name: Wait for exact Portal adoption success
+        shell: bash
+        env:
+          AUTHORIZATION_SHA: ${{ steps.authority.outputs.authorization_sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          run_id=""
+          for _ in $(seq 1 120); do
+            run_id="$(
+              gh api \
+                "repos/$GITHUB_REPOSITORY/actions/workflows/portal-wickhunter-wh09-adoption.yml/runs?branch=develop&event=push&per_page=20" \
+                --jq '.workflow_runs[] | [.head_sha, (.id | tostring)] | @tsv' \
+                | awk -F '\t' -v sha="$AUTHORIZATION_SHA" '$1 == sha {print $2; exit}'
+            )"
+            if [[ "$run_id" =~ ^[0-9]+$ ]]; then
+              break
+            fi
+            sleep 5
+          done
+          [[ "$run_id" =~ ^[0-9]+$ ]]
+          echo "Waiting for exact Portal adoption run $run_id"
+          for _ in $(seq 1 540); do
+            status="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq '.status')"
+            conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq '.conclusion // ""')"
+            if [[ "$status" == "completed" ]]; then
+              [[ "$conclusion" == "success" ]]
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "exact Portal adoption did not complete inside the bounded wait" >&2
+          exit 1
+
+  seed-session:
+    name: Seed bounded read-only browser session
+    needs: wait-adoption
+    runs-on:
+      - freqtrade-staging
+    environment: synology-staging
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      authorization_sha: ${{ needs.wait-adoption.outputs.authorization_sha }}
+    steps:
+      - name: Checkout exact merged authorization
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+          ref: ${{ needs.wait-adoption.outputs.authorization_sha }}
+
+      - name: Validate deployed target
+        shell: bash
+        env:
+          AUTHORIZATION_SHA: ${{ needs.wait-adoption.outputs.authorization_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$AUTHORIZATION_SHA" ]]
+          git cat-file -e "$AUTHORIZATION_SHA:$REQUEST_PATH"
           for _ in $(seq 1 90); do
             control_revision="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$PORTAL_CONTROL_CONTAINER" 2>/dev/null || true)"
             web_revision="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$PORTAL_WEB_CONTAINER" 2>/dev/null || true)"
@@ -133,7 +192,9 @@ jobs:
           docker exec -i "$PORTAL_CONTROL_CONTAINER" python - <<'PY'
           import os
           from uuid import uuid4
+
           from fastapi.testclient import TestClient
+
           from ai_platform.portal.contracts.identity import ActorType, Permission
           from ai_platform.portal.control_plane.api import create_app
           from ai_platform.portal.control_plane.context import RequestContext
@@ -144,7 +205,9 @@ jobs:
               actor_id="system-wh09-deployed-browser-preflight",
               actor_type=ActorType.SYSTEM,
               permissions=(Permission.BOT_READ, Permission.AUDIT_READ),
-              request_id=uuid4(), correlation_id=uuid4(), causation_id=None,
+              request_id=uuid4(),
+              correlation_id=uuid4(),
+              causation_id=None,
           )
           factory = build_session_factory(build_engine(os.environ["PORTAL_DATABASE_URL"]))
           client = TestClient(create_app(factory, identity_context_provider=lambda: context))
@@ -165,8 +228,10 @@ jobs:
               raise SystemExit("durable decision/NO_TRADE evidence is empty")
           if evidence.get("execution_enabled") is not False or evidence.get("orders_submitted") != 0:
               raise SystemExit("WickHunter execution authority changed")
-          if evidence.get("trading_credentials_present") is not False or evidence.get("live_capital_authorized") is not False:
-              raise SystemExit("WickHunter trading/capital authority changed")
+          if evidence.get("trading_credentials_present") is not False:
+              raise SystemExit("WickHunter trading credentials unexpectedly appeared")
+          if evidence.get("live_capital_authorized") is not False:
+              raise SystemExit("WickHunter live-capital authority unexpectedly appeared")
           PY
 
       - name: Seed task-owned read-only session
@@ -197,7 +262,12 @@ jobs:
 
           token = os.environ["PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN"]
           config = IdentityRuntimeConfig.from_environment()
-          crypto = IdentityCrypto(IdentitySecrets(config.session_hmac_key, config.flow_encryption_key))
+          crypto = IdentityCrypto(
+              IdentitySecrets(
+                  session_hmac_key=config.session_hmac_key,
+                  flow_encryption_key=config.flow_encryption_key,
+              )
+          )
           engine = build_engine(os.environ["PORTAL_DATABASE_URL"])
           factory = build_session_factory(engine)
           now = datetime.now(UTC)
@@ -269,11 +339,12 @@ jobs:
           [[ -x "$chrome" ]]
           export WICKHUNTER_BROWSER_EXECUTABLE_PATH="$chrome"
           export WICKHUNTER_SESSION_TOKEN="$PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN"
-          export WICKHUNTER_CSRF_TOKEN="wh09-browser-csrf-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          export WICKHUNTER_CSRF_TOKEN="${PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN}:csrf"
           node e2e/wickhunter-api-mode-ci.mjs
           python3 - "$WICKHUNTER_BROWSER_EVIDENCE_PATH" <<'PY'
           import json
           import sys
+
           evidence = json.load(open(sys.argv[1], encoding="utf-8"))
           required = {
               "result": "PASS",
@@ -334,7 +405,11 @@ jobs:
 
           from ai_platform.portal.control_plane.database import build_engine, build_session_factory
           from ai_platform.portal.identity.crypto import IdentityCrypto, IdentitySecrets
-          from ai_platform.portal.identity.models import IdentityPrincipalRow, PortalSessionRow, TenantMembershipRow
+          from ai_platform.portal.identity.models import (
+              IdentityPrincipalRow,
+              PortalSessionRow,
+              TenantMembershipRow,
+          )
           from ai_platform.portal.identity.runtime import IdentityRuntimeConfig
 
           token = os.environ["PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN"]
@@ -342,7 +417,12 @@ jobs:
           membership_id = os.environ["PORTAL_WH09_ACCEPTANCE_MEMBERSHIP_ID"]
           subject = os.environ["PORTAL_WH09_ACCEPTANCE_SUBJECT"]
           config = IdentityRuntimeConfig.from_environment()
-          crypto = IdentityCrypto(IdentitySecrets(config.session_hmac_key, config.flow_encryption_key))
+          crypto = IdentityCrypto(
+              IdentitySecrets(
+                  session_hmac_key=config.session_hmac_key,
+                  flow_encryption_key=config.flow_encryption_key,
+              )
+          )
           session_hash = crypto.hash_token(token)
           engine = build_engine(os.environ["PORTAL_DATABASE_URL"])
           factory = build_session_factory(engine)
@@ -350,7 +430,10 @@ jobs:
               with factory() as session:
                   portal_session = session.get(PortalSessionRow, session_hash)
                   if portal_session is not None:
-                      if portal_session.principal_id != principal_id or portal_session.membership_id != membership_id:
+                      if (
+                          portal_session.principal_id != principal_id
+                          or portal_session.membership_id != membership_id
+                      ):
                           raise SystemExit("refusing to remove non-task-owned Portal session")
                       session.delete(portal_session)
                       session.flush()

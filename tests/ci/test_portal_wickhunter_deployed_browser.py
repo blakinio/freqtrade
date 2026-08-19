@@ -58,9 +58,7 @@ def test_deployed_browser_proves_real_api_mode_public_wickhunter_truth() -> None
     assert "portal_fixture_" in browser
     assert r"Decisions: (\d+) · NO_TRADE: (\d+)" in browser
     assert "WICKHUNTER_BROWSER_EVIDENCE_PATH" in browser
-    assert (
-        "Decisions: {runtime.decision_count} · NO_TRADE: {runtime.no_trade_count}" in bots_page
-    )
+    assert "Decisions: {runtime.decision_count} · NO_TRADE: {runtime.no_trade_count}" in bots_page
     assert 'WICKHUNTER_CSRF_TOKEN="${PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN}:csrf"' in workflow
 
 

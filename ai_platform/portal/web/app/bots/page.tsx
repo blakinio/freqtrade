@@ -96,6 +96,9 @@ function WickHunterCanonicalRuntimeCell({
         <>
           <span>no_trade_confidence={runtime.no_trade_confidence}</span>
           <span>
+            Decisions: {runtime.decision_count} · NO_TRADE: {runtime.no_trade_count}
+          </span>
+          <span>
             Decision: {runtime.latest_decision?.final_decision ?? "No decision evidence yet"}
             {runtime.latest_decision?.calibrated_confidence
               ? ` (${runtime.latest_decision.calibrated_confidence})`

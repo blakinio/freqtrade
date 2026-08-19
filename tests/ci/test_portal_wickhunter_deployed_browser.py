@@ -73,7 +73,7 @@ def test_deployed_browser_proves_real_api_mode_public_wickhunter_truth() -> None
     assert '"PORTAL_WEB_DATA_MODE=api"' in workflow
     assert '"PORTAL_IDENTITY_FIXTURE_MODE=disabled"' in workflow
     assert "freqtrade-staging" in workflow
-    assert 'WICKHUNTER_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium' in workflow
+    assert "WICKHUNTER_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium" in workflow
     assert "WICKHUNTER_BROWSER_NO_SANDBOX=1" in workflow
     assert "WICKHUNTER_BROWSER_NO_SANDBOX" in browser
     assert "WICKHUNTER_SESSION_TOKEN" in browser

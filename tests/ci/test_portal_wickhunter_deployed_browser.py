@@ -10,12 +10,17 @@ BOTS_PAGE = ROOT / "ai_platform/portal/web/app/bots/page.tsx"
 def test_deployed_browser_acceptance_is_one_shot_and_post_adoption() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
-    assert "Portal WickHunter WH09 Adoption" in workflow
-    assert "workflow_run:" in workflow
-    assert "github.event.workflow_run.conclusion == 'success'" in workflow
+    assert "workflow_run:" not in workflow
+    assert "push:" in workflow
+    assert "actions: read" in workflow
+    assert "Wait for exact Portal adoption success" in workflow
+    assert "portal-wickhunter-wh09-adoption.yml/runs" in workflow
     assert "wickhunter-wh09-portal-adoption-20260819-v2.json" in workflow
     assert 'git cat-file -e "$AUTHORIZATION_SHA^:$REQUEST_PATH"' in workflow
-    assert "deployed-browser acceptance is not bound to a newly introduced one-shot request" in workflow
+    assert (
+        "deployed-browser acceptance is not bound to a newly introduced one-shot request"
+        in workflow
+    )
 
 
 def test_deployed_browser_session_has_read_only_authority_and_bounded_lifetime() -> None:
@@ -51,9 +56,12 @@ def test_deployed_browser_proves_real_api_mode_public_wickhunter_truth() -> None
     assert "WICKHUNTER_SESSION_TOKEN" in browser
     assert "WICKHUNTER_BROWSER_EXECUTABLE_PATH" in browser
     assert "portal_fixture_" in browser
-    assert r"Decisions: (\d+) · NO_TRADE: (\d+)" in browser.replace("\\\\d", "\\d")
+    assert r"Decisions: (\d+) · NO_TRADE: (\d+)" in browser
     assert "WICKHUNTER_BROWSER_EVIDENCE_PATH" in browser
-    assert "Decisions: {runtime.decision_count} · NO_TRADE: {runtime.no_trade_count}" in bots_page
+    assert (
+        "Decisions: {runtime.decision_count} · NO_TRADE: {runtime.no_trade_count}" in bots_page
+    )
+    assert 'WICKHUNTER_CSRF_TOKEN="${PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN}:csrf"' in workflow
 
 
 def test_deployed_browser_cleanup_is_exact_and_fail_closed() -> None:

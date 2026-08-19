@@ -746,4 +746,16 @@ jobs:
                   raise SystemExit(f"terminal adoption evidence failed: {key}")
           if report.get("desired_runtime_generation_id") != report.get("observed_runtime_generation_id"):
               raise SystemExit("terminal desired/observed generation mismatch")
+          if report.get("decision_count", 0) <= 0:
+              raise SystemExit("terminal decision evidence is empty")
+          if report.get("no_trade_count", 0) <= 0:
+              raise SystemExit("terminal NO_TRADE evidence is empty")
+          if report.get("latest_decision") is None:
+              raise SystemExit("terminal latest decision evidence is unavailable")
+          if report.get("post_restart_decision_count", 0) <= 0:
+              raise SystemExit("terminal post-restart decision evidence is empty")
+          if report.get("post_restart_no_trade_count", 0) <= 0:
+              raise SystemExit("terminal post-restart NO_TRADE evidence is empty")
+          if report.get("post_restart_latest_decision") is None:
+              raise SystemExit("terminal post-restart latest decision evidence is unavailable")
           PY

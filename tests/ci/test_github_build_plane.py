@@ -123,6 +123,14 @@ def test_wickhunter_portal_adoption_builds_portal_on_hosted_and_synology_only_de
     assert 'docker restart "$before_id"' in adopt
     assert '"duplicate_registration": False' in adopt
     assert '"restart_persistence": True' in adopt
+    terminal = adopt.split("Enforce terminal zero-authority evidence", 1)[1]
+    assert 'report.get("decision_count", 0) <= 0' in terminal
+    assert 'report.get("no_trade_count", 0) <= 0' in terminal
+    assert 'report.get("latest_decision") is None' in terminal
+    assert 'report.get("post_restart_decision_count", 0) <= 0' in terminal
+    assert 'report.get("post_restart_no_trade_count", 0) <= 0' in terminal
+    assert 'report.get("post_restart_latest_decision") is None' in terminal
+
 
 def test_liquid20_image_build_is_hosted_and_transitional_synology_deploys_exact_image() -> None:
     workflow = LIQUID20_WORKFLOW.read_text(encoding="utf-8")

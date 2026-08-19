@@ -55,7 +55,7 @@ jobs:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Build exact Portal images
+      - name: Build exact Portal images and deployed-browser helper
         env:
           SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
@@ -68,6 +68,13 @@ jobs:
             --label "org.opencontainers.image.revision=${SOURCE_SHA}" \
             --file deploy/synology/portal/Dockerfile \
             --tag "portal-wickhunter-web:${SOURCE_SHA}" ai_platform/portal/web
+          docker build --pull=false \
+            --label "org.opencontainers.image.revision=${SOURCE_SHA}" \
+            --file deploy/synology/portal-oidc/Dockerfile.wickhunter-browser \
+            --tag "portal-wickhunter-deployed-browser:${SOURCE_SHA}" .
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "portal-wickhunter-deployed-browser:${SOURCE_SHA}")" == "$SOURCE_SHA" ]]
+          docker run --rm --entrypoint /usr/bin/chromium \
+            "portal-wickhunter-deployed-browser:${SOURCE_SHA}" --version
 
       - name: Migrate and seed authenticated tenant-local session
         env:

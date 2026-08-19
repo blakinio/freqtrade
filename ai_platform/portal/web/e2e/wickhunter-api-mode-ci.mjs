@@ -11,6 +11,7 @@ const csrfToken =
   process.env.WICKHUNTER_CSRF_TOKEN ?? "wickhunter-browser-csrf-" + "c".repeat(40);
 const browserExecutablePath = process.env.WICKHUNTER_BROWSER_EXECUTABLE_PATH ?? "";
 const evidencePath = process.env.WICKHUNTER_BROWSER_EVIDENCE_PATH ?? "";
+const noSandbox = process.env.WICKHUNTER_BROWSER_NO_SANDBOX === "1";
 
 if (!new Set(["shadow", "paper"]).has(expectedMode)) {
   throw new Error(`unsupported WICKHUNTER_EXPECTED_MODE=${expectedMode}`);
@@ -26,6 +27,7 @@ const shortId = (value) => (value.length <= 12 ? value : `${value.slice(0, 12)}â
 const browser = await chromium.launch({
   headless: true,
   ...(browserExecutablePath ? { executablePath: browserExecutablePath } : {}),
+  ...(noSandbox ? { args: ["--no-sandbox"] } : {}),
 });
 try {
   const context = await browser.newContext({ ignoreHTTPSErrors: true });

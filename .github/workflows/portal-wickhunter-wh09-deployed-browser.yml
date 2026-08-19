@@ -1,0 +1,388 @@
+name: Portal WickHunter WH09 Deployed Browser Acceptance
+
+on:
+  workflow_run:
+    workflows:
+      - Portal WickHunter WH09 Adoption
+    types:
+      - completed
+    branches:
+      - develop
+  workflow_dispatch:
+    inputs:
+      authorization_sha:
+        description: Exact develop commit that newly introduced the v2 adoption request
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portal-wickhunter-wh09-deployed-browser
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: deploy/synology/portal-oidc/run-requests/wickhunter-wh09-portal-adoption-20260819-v2.json
+  PORTAL_CONTROL_CONTAINER: freqtrade-portal-control-plane
+  PORTAL_WEB_CONTAINER: freqtrade-portal-staging
+  PORTAL_ORIGIN: https://quant.molehill.cloud
+  WH09_EXPECTED_REVISION: 1af35b4ccef6bbd06c771603a80760c342d334aa
+
+jobs:
+  seed-session:
+    name: Seed bounded read-only browser session
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on:
+      - freqtrade-staging
+    environment: synology-staging
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      authorization_sha: ${{ steps.authority.outputs.authorization_sha }}
+    steps:
+      - name: Resolve exact one-shot authorization
+        id: authority
+        shell: bash
+        env:
+          WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          DISPATCH_SHA: ${{ inputs.authorization_sha }}
+        run: |
+          set -euo pipefail
+          authorization_sha="${WORKFLOW_RUN_SHA:-${DISPATCH_SHA:-}}"
+          [[ "$authorization_sha" =~ ^[0-9a-f]{40}$ ]]
+          printf 'authorization_sha=%s\n' "$authorization_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact merged authorization
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+          ref: ${{ steps.authority.outputs.authorization_sha }}
+
+      - name: Validate one-shot request and deployed target
+        shell: bash
+        env:
+          AUTHORIZATION_SHA: ${{ steps.authority.outputs.authorization_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$AUTHORIZATION_SHA" ]]
+          git cat-file -e "$AUTHORIZATION_SHA:$REQUEST_PATH"
+          if git cat-file -e "$AUTHORIZATION_SHA^:$REQUEST_PATH" 2>/dev/null; then
+            echo "deployed-browser acceptance is not bound to a newly introduced one-shot request" >&2
+            exit 1
+          fi
+          python3 - "$REQUEST_PATH" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          required = {
+              "request_id": "wickhunter-wh09-portal-adoption-20260819-v2",
+              "portal_origin": "https://quant.molehill.cloud",
+              "bot_id": "wickhunter",
+              "existing_runtime_adoption_authorized": True,
+              "portal_deploy_authorized": True,
+              "runtime_e2e_required": True,
+              "trading_credentials_present": False,
+              "order_adapter_present": False,
+              "execution_enabled": False,
+              "orders_submitted": 0,
+              "live_capital_authorized": False,
+          }
+          for key, expected in required.items():
+              if payload.get(key) != expected:
+                  raise SystemExit(f"deployed-browser authorization mismatch: {key}")
+          PY
+
+          for _ in $(seq 1 90); do
+            control_revision="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$PORTAL_CONTROL_CONTAINER" 2>/dev/null || true)"
+            web_revision="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$PORTAL_WEB_CONTAINER" 2>/dev/null || true)"
+            control_health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$PORTAL_CONTROL_CONTAINER" 2>/dev/null || true)"
+            web_health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$PORTAL_WEB_CONTAINER" 2>/dev/null || true)"
+            if [[ "$control_revision" == "$AUTHORIZATION_SHA" && "$web_revision" == "$AUTHORIZATION_SHA" && "$control_health" == "healthy" && "$web_health" == "healthy" ]]; then
+              break
+            fi
+            sleep 2
+          done
+          [[ "$control_revision" == "$AUTHORIZATION_SHA" ]]
+          [[ "$web_revision" == "$AUTHORIZATION_SHA" ]]
+          [[ "$control_health" == "healthy" ]]
+          [[ "$web_health" == "healthy" ]]
+          docker inspect "$PORTAL_WEB_CONTAINER" > "$RUNNER_TEMP/portal-web-inspect.json"
+          python3 - "$RUNNER_TEMP/portal-web-inspect.json" <<'PY'
+          import json
+          import sys
+
+          container = json.load(open(sys.argv[1], encoding="utf-8"))[0]
+          env = set(container["Config"].get("Env") or [])
+          if "PORTAL_WEB_DATA_MODE=api" not in env:
+              raise SystemExit("deployed Portal web is not in API mode")
+          if "PORTAL_IDENTITY_FIXTURE_MODE=disabled" not in env:
+              raise SystemExit("deployed Portal identity fixture mode is not disabled")
+          PY
+
+      - name: Verify canonical WickHunter truth before browser session
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec -i "$PORTAL_CONTROL_CONTAINER" python - <<'PY'
+          import os
+          from uuid import uuid4
+          from fastapi.testclient import TestClient
+          from ai_platform.portal.contracts.identity import ActorType, Permission
+          from ai_platform.portal.control_plane.api import create_app
+          from ai_platform.portal.control_plane.context import RequestContext
+          from ai_platform.portal.control_plane.database import build_engine, build_session_factory
+
+          context = RequestContext(
+              tenant_id="tenant-local",
+              actor_id="system-wh09-deployed-browser-preflight",
+              actor_type=ActorType.SYSTEM,
+              permissions=(Permission.BOT_READ, Permission.AUDIT_READ),
+              request_id=uuid4(), correlation_id=uuid4(), causation_id=None,
+          )
+          factory = build_session_factory(build_engine(os.environ["PORTAL_DATABASE_URL"]))
+          client = TestClient(create_app(factory, identity_context_provider=lambda: context))
+          bots = client.get("/v1/bots")
+          truth = client.get("/v1/bots/wickhunter/runtime-truth")
+          runtime = client.get("/v1/bots/wickhunter/wickhunter-runtime-evidence")
+          if bots.status_code != 200 or truth.status_code != 200 or runtime.status_code != 200:
+              raise SystemExit("canonical WickHunter preflight API is unavailable")
+          rows = [row for row in bots.json() if row.get("bot_id") == "wickhunter"]
+          if len(rows) != 1:
+              raise SystemExit("canonical WickHunter bot identity is not unique")
+          if truth.json().get("pending_rollout") is not False:
+              raise SystemExit("RuntimeGeneration is not converged")
+          evidence = runtime.json().get("runtime") or {}
+          if evidence.get("health") != "HEALTHY":
+              raise SystemExit("WickHunter runtime is not HEALTHY")
+          if evidence.get("decision_count", 0) <= 0 or evidence.get("no_trade_count", 0) <= 0:
+              raise SystemExit("durable decision/NO_TRADE evidence is empty")
+          if evidence.get("execution_enabled") is not False or evidence.get("orders_submitted") != 0:
+              raise SystemExit("WickHunter execution authority changed")
+          if evidence.get("trading_credentials_present") is not False or evidence.get("live_capital_authorized") is not False:
+              raise SystemExit("WickHunter trading/capital authority changed")
+          PY
+
+      - name: Seed task-owned read-only session
+        shell: bash
+        env:
+          PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN: ${{ secrets.PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN }}
+        run: |
+          set -euo pipefail
+          [[ -n "$PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN" ]]
+          [[ ${#PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN} -ge 48 ]]
+          principal_id="wh09-browser-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          membership_id="wh09-browser-membership-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          subject="urn:freqtrade:wh09-browser:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}"
+          docker exec -i \
+            --env PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN \
+            --env "PORTAL_WH09_ACCEPTANCE_PRINCIPAL_ID=$principal_id" \
+            --env "PORTAL_WH09_ACCEPTANCE_MEMBERSHIP_ID=$membership_id" \
+            --env "PORTAL_WH09_ACCEPTANCE_SUBJECT=$subject" \
+            "$PORTAL_CONTROL_CONTAINER" python - <<'PY'
+          from datetime import UTC, datetime, timedelta
+          import os
+
+          from ai_platform.portal.contracts.identity import RoleName
+          from ai_platform.portal.control_plane.database import build_engine, build_session_factory
+          from ai_platform.portal.identity.crypto import IdentityCrypto, IdentitySecrets
+          from ai_platform.portal.identity.repository import IdentityRepository
+          from ai_platform.portal.identity.runtime import IdentityRuntimeConfig
+
+          token = os.environ["PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN"]
+          config = IdentityRuntimeConfig.from_environment()
+          crypto = IdentityCrypto(IdentitySecrets(config.session_hmac_key, config.flow_encryption_key))
+          engine = build_engine(os.environ["PORTAL_DATABASE_URL"])
+          factory = build_session_factory(engine)
+          now = datetime.now(UTC)
+          try:
+              with factory() as session:
+                  repository = IdentityRepository(session)
+                  principal = repository.create_principal(
+                      principal_id=os.environ["PORTAL_WH09_ACCEPTANCE_PRINCIPAL_ID"],
+                      issuer=config.issuer,
+                      subject=os.environ["PORTAL_WH09_ACCEPTANCE_SUBJECT"],
+                      display_name="WickHunter browser acceptance",
+                      email=None,
+                      now=now,
+                  )
+                  membership = repository.create_membership(
+                      membership_id=os.environ["PORTAL_WH09_ACCEPTANCE_MEMBERSHIP_ID"],
+                      principal_id=principal.principal_id,
+                      tenant_id="tenant-local",
+                      roles=(RoleName.USER,),
+                      valid_from=now,
+                      valid_until=now + timedelta(minutes=30),
+                      now=now,
+                  )
+                  repository.create_session(
+                      session_id_hash=crypto.hash_token(token),
+                      csrf_token_hash=crypto.hash_token(token + ":csrf"),
+                      principal_id=principal.principal_id,
+                      membership_id=membership.membership_id,
+                      membership_version=membership.membership_version,
+                      idp_session_id=None,
+                      authentication_time=now,
+                      mfa_satisfied=True,
+                      created_at=now,
+                      idle_expires_at=now + timedelta(minutes=15),
+                      absolute_expires_at=now + timedelta(minutes=30),
+                  )
+                  session.commit()
+          finally:
+              engine.dispose()
+          print("task-owned RoleName.USER browser session seeded")
+          PY
+
+  deployed-browser:
+    name: Real authenticated Chromium against deployed Portal
+    needs: seed-session
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact merged Portal
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ needs.seed-session.outputs.authorization_sha }}
+
+      - name: Run public deployed Chromium journey
+        working-directory: ai_platform/portal/web
+        shell: bash
+        env:
+          PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN: ${{ secrets.PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN }}
+          WICKHUNTER_BROWSER_ORIGIN: https://quant.molehill.cloud
+          WICKHUNTER_BROWSER_EVIDENCE_PATH: ${{ runner.temp }}/portal-wh09-deployed-browser.json
+        run: |
+          set -euo pipefail
+          [[ -n "$PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN" ]]
+          npm ci
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || true)"
+          [[ -x "$chrome" ]]
+          export WICKHUNTER_BROWSER_EXECUTABLE_PATH="$chrome"
+          export WICKHUNTER_SESSION_TOKEN="$PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN"
+          export WICKHUNTER_CSRF_TOKEN="wh09-browser-csrf-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          node e2e/wickhunter-api-mode-ci.mjs
+          python3 - "$WICKHUNTER_BROWSER_EVIDENCE_PATH" <<'PY'
+          import json
+          import sys
+          evidence = json.load(open(sys.argv[1], encoding="utf-8"))
+          required = {
+              "result": "PASS",
+              "origin": "https://quant.molehill.cloud",
+              "mode": "shadow",
+              "authenticated": True,
+              "fixture_cookie_present": False,
+              "health_visible": True,
+              "runtime_generation_converged": True,
+              "reload_persistence": True,
+          }
+          for key, expected in required.items():
+              if evidence.get(key) != expected:
+                  raise SystemExit(f"deployed browser evidence mismatch: {key}")
+          if evidence.get("decision_count", 0) <= 0 or evidence.get("no_trade_count", 0) <= 0:
+              raise SystemExit("deployed browser did not expose decision/NO_TRADE evidence")
+          PY
+
+      - name: Upload secret-free deployed browser evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: portal-wh09-deployed-browser-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/portal-wh09-deployed-browser.json
+          if-no-files-found: error
+          retention-days: 30
+
+  cleanup-session:
+    name: Remove task-owned browser session
+    if: always()
+    needs:
+      - seed-session
+      - deployed-browser
+    runs-on:
+      - freqtrade-staging
+    environment: synology-staging
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Remove exact task-owned identity rows
+        shell: bash
+        env:
+          PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN: ${{ secrets.PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN }}
+        run: |
+          set -euo pipefail
+          [[ -n "$PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN" ]]
+          principal_id="wh09-browser-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          membership_id="wh09-browser-membership-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          subject="urn:freqtrade:wh09-browser:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}"
+          docker exec -i \
+            --env PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN \
+            --env "PORTAL_WH09_ACCEPTANCE_PRINCIPAL_ID=$principal_id" \
+            --env "PORTAL_WH09_ACCEPTANCE_MEMBERSHIP_ID=$membership_id" \
+            --env "PORTAL_WH09_ACCEPTANCE_SUBJECT=$subject" \
+            "$PORTAL_CONTROL_CONTAINER" python - <<'PY'
+          import os
+
+          from ai_platform.portal.control_plane.database import build_engine, build_session_factory
+          from ai_platform.portal.identity.crypto import IdentityCrypto, IdentitySecrets
+          from ai_platform.portal.identity.models import IdentityPrincipalRow, PortalSessionRow, TenantMembershipRow
+          from ai_platform.portal.identity.runtime import IdentityRuntimeConfig
+
+          token = os.environ["PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN"]
+          principal_id = os.environ["PORTAL_WH09_ACCEPTANCE_PRINCIPAL_ID"]
+          membership_id = os.environ["PORTAL_WH09_ACCEPTANCE_MEMBERSHIP_ID"]
+          subject = os.environ["PORTAL_WH09_ACCEPTANCE_SUBJECT"]
+          config = IdentityRuntimeConfig.from_environment()
+          crypto = IdentityCrypto(IdentitySecrets(config.session_hmac_key, config.flow_encryption_key))
+          session_hash = crypto.hash_token(token)
+          engine = build_engine(os.environ["PORTAL_DATABASE_URL"])
+          factory = build_session_factory(engine)
+          try:
+              with factory() as session:
+                  portal_session = session.get(PortalSessionRow, session_hash)
+                  if portal_session is not None:
+                      if portal_session.principal_id != principal_id or portal_session.membership_id != membership_id:
+                          raise SystemExit("refusing to remove non-task-owned Portal session")
+                      session.delete(portal_session)
+                      session.flush()
+                  membership = session.get(TenantMembershipRow, membership_id)
+                  if membership is not None:
+                      if membership.principal_id != principal_id or membership.tenant_id != "tenant-local":
+                          raise SystemExit("refusing to remove non-task-owned membership")
+                      session.delete(membership)
+                      session.flush()
+                  principal = session.get(IdentityPrincipalRow, principal_id)
+                  if principal is not None:
+                      if principal.subject != subject:
+                          raise SystemExit("refusing to remove non-task-owned principal")
+                      session.delete(principal)
+                  session.commit()
+                  if session.get(PortalSessionRow, session_hash) is not None:
+                      raise SystemExit("task-owned Portal session cleanup failed")
+                  if session.get(TenantMembershipRow, membership_id) is not None:
+                      raise SystemExit("task-owned membership cleanup failed")
+                  if session.get(IdentityPrincipalRow, principal_id) is not None:
+                      raise SystemExit("task-owned principal cleanup failed")
+          finally:
+              engine.dispose()
+          print("task-owned deployed-browser identity rows removed")
+          PY
+
+      - name: Enforce browser and cleanup result
+        shell: bash
+        env:
+          SEED_RESULT: ${{ needs.seed-session.result }}
+          BROWSER_RESULT: ${{ needs.deployed-browser.result }}
+        run: |
+          set -euo pipefail
+          [[ "$SEED_RESULT" == "success" ]]
+          [[ "$BROWSER_RESULT" == "success" ]]

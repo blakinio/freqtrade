@@ -51,7 +51,7 @@ def test_deployed_browser_proves_real_api_mode_public_wickhunter_truth() -> None
     assert "WICKHUNTER_SESSION_TOKEN" in browser
     assert "WICKHUNTER_BROWSER_EXECUTABLE_PATH" in browser
     assert "portal_fixture_" in browser
-    assert r"Decisions: (\d+) · NO_TRADE: (\d+)" in browser
+    assert r"Decisions: (\d+) · NO_TRADE: (\d+)" in browser.replace("\\\\d", "\\d")
     assert "WICKHUNTER_BROWSER_EVIDENCE_PATH" in browser
     assert "Decisions: {runtime.decision_count} · NO_TRADE: {runtime.no_trade_count}" in bots_page
 

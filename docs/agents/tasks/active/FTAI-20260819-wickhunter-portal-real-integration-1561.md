@@ -7,9 +7,9 @@ Authority: ADR-023 + ADR-025
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-20T00:06:00+02:00
+updated_at: 2026-08-20T00:09:00+02:00
 branch: feat/1561-wickhunter-portal-real-integration
-head: 446056118ae298549f67ad43f070183fde12f8da
+head: 438de0b6747060f9488492aca4c1cfe307d63720
 pr: 1619
 status: validating
 context_routes:
@@ -35,15 +35,18 @@ authority_freeze: trusted base develop@1af35b4ccef6bbd06c771603a80760c342d334aa;
 proven:
   - develop remains 1af35b4ccef6bbd06c771603a80760c342d334aa
   - PR #1619 remains open, draft and mergeable with base develop
-  - previous exact head caf75be46a5f1eca5077dbfeb9e7ae6a8810557d passed the fresh independent audit with zero P0/P1/P2 findings before the deployed-browser extension
+  - previous exact head caf75be46a5f1eca5077dbfeb9e7ae6a8810557d passed an independent audit before the deployed-browser extension
   - terminal Portal adoption fails closed on missing current or post-restart decision and NO_TRADE evidence
-  - deployed-browser extension uses a short-lived RoleName.USER session and exact task-owned cleanup identities
-  - deployed-browser extension targets https://quant.molehill.cloud and requires API mode with fixture identity disabled
-  - WickHunter durable decision and NO_TRADE counters are now rendered on the owner-facing bots page
+  - deployed-browser acceptance no longer uses the high-risk workflow_run trigger
+  - deployed-browser acceptance waits on GitHub-hosted compute for the exact adoption run at the same one-shot authorization SHA before Synology access
+  - browser session is short-lived RoleName.USER only and exact task-owned identity rows are removed after acceptance
+  - deployed browser targets https://quant.molehill.cloud and requires API mode with fixture identity disabled
+  - WickHunter durable decision and NO_TRADE counters are rendered on the owner-facing bots page
+  - zizmor passed after the workflow_run trigger was removed
   - no real-capital or exchange-order authority is authorized by this task
 derived: []
 unknown:
-  - exact-head CI result for the deployed-browser extension
+  - exact-head CI result for the final checkpoint head
   - fresh independent audit result for the final deployed-browser diff
   - post-merge Synology WH09 and Portal target acceptance
   - real deployed authenticated Chromium result and task-owned session cleanup
@@ -51,9 +54,10 @@ conflicts:
   - issue #1561 stale ADR-024 dedicated-Linux prose conflicts with binding ADR-025 Synology runtime placement
 first_failure:
   marker: EXACT_HEAD_CI_PENDING
-  evidence: PR head changed after adding real deployed-browser acceptance and requires a new exact-head CI cycle
+  evidence: implementation head 438de0b6747060f9488492aca4c1cfe307d63720 has the hardened trigger and exact Ruff formatting; checkpoint commit requires the final exact-head CI cycle
 rejected_hypotheses:
   - PR-local Chromium against localhost can substitute for actual Synology-deployed browser acceptance; rejected because the owner contract requires the real deployed Portal
+  - workflow_run is an acceptable privileged post-deploy trigger; rejected by zizmor dangerous-triggers and replaced with push plus exact-run polling
 changed_paths:
   - .github/workflows/ai-platform-wickhunter-wh09-production-research-runtime-deploy.yml
   - .github/workflows/portal-wickhunter-wh09-adoption.yml
@@ -76,9 +80,12 @@ validation:
   - command: previous exact-head independent audit at caf75be46a5f1eca5077dbfeb9e7ae6a8810557d
     result: PASS
     evidence: local qwen2.5-coder:14b reported zero P0/P1/P2 findings; invalidated as final gate by later browser changes
-  - command: exact-head CI for deployed-browser extension
+  - command: zizmor after removing workflow_run trigger
+    result: PASS
+    evidence: GitHub Actions Security Analysis succeeded on implementation head 438de0b6747060f9488492aca4c1cfe307d63720
+  - command: exact-head CI for final checkpoint head
     result: NOT_RUN
-    evidence: new PR CI cycle is currently running
+    evidence: final cycle starts after this checkpoint commit
 blockers: []
-next_action: Inspect exact-head CI for PR #1619 on the deployed-browser head and remediate the first genuine failure; if all relevant jobs pass, run the fresh final independent audit.
+next_action: Inspect exact-head CI for PR #1619 after this checkpoint commit and remediate the first genuine failure; when all relevant jobs pass, run the fresh final independent audit.
 ```

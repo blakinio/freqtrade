@@ -5,7 +5,7 @@ name: Deploy WickHunter WH09 Production Research Runtime
     branches:
       - develop
     paths:
-      - deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260809-v6.json
+      - deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260819-v7.json
 
 permissions:
   contents: read
@@ -15,8 +15,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  REQUEST_PATH: deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260809-v6.json
-  DEPLOY_COMMIT: 90cfc5ded10b0c6cb6406d00042817aca611e900
+  REQUEST_PATH: deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260819-v7.json
+  DEPLOY_COMMIT: 1af35b4ccef6bbd06c771603a80760c342d334aa
   EXPECTED_COMPOSE_BLOB_SHA: 8e783dec49c3054c46db845e5c7a2deff3ab55bf
   RUNTIME_UID: "65531"
   RUNTIME_GID: "65531"
@@ -130,14 +130,11 @@ jobs:
 
           expected = {
               "schema_version": 1,
-              "request_id": "wickhunter-wh09-production-research-deploy-retry-20260809-v6",
-              "deploy_commit": "90cfc5ded10b0c6cb6406d00042817aca611e900",
-              "previous_run_id": 31326580829,
-              "previous_job_id": 93277819212,
-              "failure_class": "bash_case_pattern_parse_error_before_host_validation",
+              "request_id": "wickhunter-wh09-production-research-deploy-retry-20260819-v7",
+              "deploy_commit": "1af35b4ccef6bbd06c771603a80760c342d334aa",
+              "failure_class": "runtime_image_predates_legacy_restart_suffix_reconciliation_1487",
               "runtime_repair_authorized": True,
               "container_recreate_authorized": True,
-              "replace_unsupported_pids_cgroup_with_nproc_rlimit": True,
               "persistent_internal_demo_production_authorized": True,
               "mode": "shadow",
               "no_trade_confidence": "0.60",
@@ -149,9 +146,9 @@ jobs:
               "orders_submitted": 0,
               "live_capital_authorized": False,
           }
-          payload = json.loads(Path("deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260809-v6.json").read_text(encoding="utf-8"))
+          payload = json.loads(Path("deploy/synology/wickhunter-production-research-runtime/run-requests/retry-wh09-production-research-20260819-v7.json").read_text(encoding="utf-8"))
           if payload != expected:
-              raise SystemExit("WH09 retry v6 authorization contract mismatch")
+              raise SystemExit("WH09 retry v7 authorization contract mismatch")
           PY
 
       - name: Snapshot authorized Synology compose hardening
@@ -580,7 +577,7 @@ jobs:
           report = {
               'schema_version': 1,
               'result': 'PASS',
-              'request_id': 'wickhunter-wh09-production-research-deploy-retry-20260809-v6',
+              'request_id': 'wickhunter-wh09-production-research-deploy-retry-20260819-v7',
               'deployment_commit': deploy_commit,
               'workflow_authorization_commit': os.environ['GITHUB_SHA'],
               'container_id': container_id,

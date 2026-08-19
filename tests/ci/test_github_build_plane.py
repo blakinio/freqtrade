@@ -4,6 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 PORTAL_WORKFLOW = ROOT / ".github/workflows/portal-oidc-public-deploy.yml"
+PORTAL_WICKHUNTER_ADOPTION_WORKFLOW = ROOT / ".github/workflows/portal-wickhunter-wh09-adoption.yml"
 WICKHUNTER_WORKFLOW = (
     ROOT / ".github/workflows/ai-platform-wickhunter-wh09-production-research-runtime-deploy.yml"
 )
@@ -91,7 +92,7 @@ def test_wickhunter_trigger_stays_one_shot_and_synology_is_only_transitional_dep
     pre_jobs = workflow.split("jobs:\n", maxsplit=1)[0]
     request = (
         "deploy/synology/wickhunter-production-research-runtime/run-requests/"
-        "retry-wh09-production-research-20260809-v6.json"
+        "retry-wh09-production-research-20260819-v7.json"
     )
     assert request in pre_jobs
     assert "schedule:" not in pre_jobs
@@ -100,6 +101,28 @@ def test_wickhunter_trigger_stays_one_shot_and_synology_is_only_transitional_dep
     assert "freqtrade-staging" in deploy
     assert "runs-on: ubuntu-24.04" not in deploy
 
+
+def test_wickhunter_portal_adoption_builds_portal_on_hosted_and_synology_only_deploys() -> None:
+    workflow = PORTAL_WICKHUNTER_ADOPTION_WORKFLOW.read_text(encoding="utf-8")
+    build, adopt = _split_jobs(workflow, "build-portal-images", "adopt")
+    assert "runs-on: ubuntu-24.04" in build
+    assert "packages: write" in build
+    assert "portal_supply_chain.py build-verify" in build
+    assert 'docker push "$control_tag"' in build
+    assert 'docker push "$web_tag"' in build
+    assert "retention-days: 1" in build
+    assert "needs: build-portal-images" in adopt
+    assert "freqtrade-staging" in adopt
+    assert "packages: read" in adopt
+    assert "portal_supply_chain.py build-verify" not in adopt
+    assert "actions/download-artifact@" in adopt
+    assert 'docker pull "$CONTROL_REF"' in adopt
+    assert 'docker pull "$WEB_REF"' in adopt
+    assert "Wait for exact WH09 redeploy to converge" in adopt
+    assert "Prove WH09 restart persistence and idempotent adoption" in adopt
+    assert 'docker restart "$before_id"' in adopt
+    assert '"duplicate_registration": False' in adopt
+    assert '"restart_persistence": True' in adopt
 
 def test_liquid20_image_build_is_hosted_and_transitional_synology_deploys_exact_image() -> None:
     workflow = LIQUID20_WORKFLOW.read_text(encoding="utf-8")

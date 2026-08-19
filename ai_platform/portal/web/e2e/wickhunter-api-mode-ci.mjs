@@ -1,11 +1,16 @@
+import fs from "node:fs";
 import { chromium } from "@playwright/test";
 
 const origin = process.env.WICKHUNTER_BROWSER_ORIGIN ?? "https://127.0.0.1:3443";
 const expectedMode = (process.env.WICKHUNTER_EXPECTED_MODE ?? "shadow").toLowerCase();
 const expectedDesiredGeneration = process.env.WICKHUNTER_EXPECTED_DESIRED_GENERATION ?? "";
 const expectedObservedGeneration = process.env.WICKHUNTER_EXPECTED_OBSERVED_GENERATION ?? "";
-const sessionToken = "wickhunter-browser-session-" + "s".repeat(40);
-const csrfToken = "wickhunter-browser-csrf-" + "c".repeat(40);
+const sessionToken =
+  process.env.WICKHUNTER_SESSION_TOKEN ?? "wickhunter-browser-session-" + "s".repeat(40);
+const csrfToken =
+  process.env.WICKHUNTER_CSRF_TOKEN ?? "wickhunter-browser-csrf-" + "c".repeat(40);
+const browserExecutablePath = process.env.WICKHUNTER_BROWSER_EXECUTABLE_PATH ?? "";
+const evidencePath = process.env.WICKHUNTER_BROWSER_EVIDENCE_PATH ?? "";
 
 if (!new Set(["shadow", "paper"]).has(expectedMode)) {
   throw new Error(`unsupported WICKHUNTER_EXPECTED_MODE=${expectedMode}`);
@@ -13,9 +18,15 @@ if (!new Set(["shadow", "paper"]).has(expectedMode)) {
 if (Boolean(expectedDesiredGeneration) !== Boolean(expectedObservedGeneration)) {
   throw new Error("both expected generation ids must be provided together");
 }
+if (sessionToken.length < 48) {
+  throw new Error("WickHunter browser session token is too short");
+}
 const shortId = (value) => (value.length <= 12 ? value : `${value.slice(0, 12)}…`);
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  headless: true,
+  ...(browserExecutablePath ? { executablePath: browserExecutablePath } : {}),
+});
 try {
   const context = await browser.newContext({ ignoreHTTPSErrors: true });
   await context.addCookies([
@@ -43,7 +54,12 @@ try {
     throw new Error(`WickHunter bots page failed: ${response?.status()}`);
   }
 
-  const common = ["WickHunter", "wickhunter", "Canonical RuntimeGeneration", "Generation: desired = observed"];
+  const common = [
+    "WickHunter",
+    "wickhunter",
+    "Canonical RuntimeGeneration",
+    "Generation: desired = observed",
+  ];
   const expected =
     expectedMode === "shadow"
       ? [
@@ -70,8 +86,17 @@ try {
   for (const text of expected) {
     await page.getByText(text, { exact: true }).waitFor();
   }
-  if (expectedMode === "shadow" && !(await page.locator("body").innerText()).includes("HEALTHY")) {
+  const bodyText = await page.locator("body").innerText();
+  if (expectedMode === "shadow" && !bodyText.includes("HEALTHY")) {
     throw new Error("WickHunter HEALTHY state is not visible");
+  }
+  const counts = /Decisions: (\d+) · NO_TRADE: (\d+)/u.exec(bodyText);
+  if (expectedMode === "shadow" && (!counts || Number(counts[1]) <= 0 || Number(counts[2]) <= 0)) {
+    throw new Error("durable WickHunter decision/NO_TRADE counters are not visible");
+  }
+  const cookies = await context.cookies();
+  if (cookies.some((cookie) => cookie.name.startsWith("portal_fixture_"))) {
+    throw new Error("fixture authentication cookie appeared in API-mode browser journey");
   }
 
   await page.reload({ waitUntil: "networkidle" });
@@ -88,6 +113,29 @@ try {
         { exact: true },
       )
       .waitFor();
+  }
+
+  if (evidencePath) {
+    fs.writeFileSync(
+      evidencePath,
+      `${JSON.stringify(
+        {
+          result: "PASS",
+          origin,
+          mode: expectedMode,
+          authenticated: true,
+          fixture_cookie_present: false,
+          health_visible: expectedMode === "shadow" ? true : null,
+          decision_count: counts ? Number(counts[1]) : null,
+          no_trade_count: counts ? Number(counts[2]) : null,
+          runtime_generation_converged: true,
+          reload_persistence: true,
+        },
+        null,
+        2,
+      )}\n`,
+      { encoding: "utf-8", mode: 0o600 },
+    );
   }
 } finally {
   await browser.close();

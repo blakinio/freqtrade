@@ -25,7 +25,6 @@ env:
   PORTAL_CONTROL_CONTAINER: freqtrade-portal-control-plane
   PORTAL_WEB_CONTAINER: freqtrade-portal-staging
   PORTAL_ORIGIN: https://quant.molehill.cloud
-  WH09_EXPECTED_REVISION: 1af35b4ccef6bbd06c771603a80760c342d334aa
 
 jobs:
   wait-adoption:
@@ -131,17 +130,90 @@ jobs:
           echo "exact Portal adoption did not complete inside the bounded wait" >&2
           exit 1
 
-  seed-session:
-    name: Seed bounded read-only browser session
+  build-browser-image:
+    name: Build exact deployed-browser helper image
     needs: wait-adoption
-    runs-on:
-      - freqtrade-staging
-    environment: synology-staging
-    timeout-minutes: 20
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     permissions:
       contents: read
     outputs:
-      authorization_sha: ${{ needs.wait-adoption.outputs.authorization_sha }}
+      artifact_name: ${{ steps.package.outputs.artifact_name }}
+    steps:
+      - name: Checkout exact merged Portal
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ needs.wait-adoption.outputs.authorization_sha }}
+
+      - name: Build and package exact browser helper
+        id: package
+        shell: bash
+        env:
+          AUTHORIZATION_SHA: ${{ needs.wait-adoption.outputs.authorization_sha }}
+        run: |
+          set -euo pipefail
+          image="portal-wh09-deployed-browser:$AUTHORIZATION_SHA"
+          out="$RUNNER_TEMP/portal-wh09-browser-image"
+          artifact_name="portal-wh09-browser-image-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          mkdir -p "$out"
+          docker build \
+            --pull=false \
+            --label "org.opencontainers.image.revision=$AUTHORIZATION_SHA" \
+            --label "org.opencontainers.image.title=portal-wh09-deployed-browser" \
+            --file deploy/synology/portal-oidc/Dockerfile.wickhunter-browser \
+            --tag "$image" \
+            .
+          image_id="$(docker image inspect --format '{{.Id}}' "$image")"
+          revision="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")"
+          [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$revision" == "$AUTHORIZATION_SHA" ]]
+          docker save "$image" | gzip -9 > "$out/browser-image.tar.gz"
+          tar_sha256="$(sha256sum "$out/browser-image.tar.gz" | awk '{print $1}')"
+          python3 - "$out/approval.json" "$AUTHORIZATION_SHA" "$image_id" "$tar_sha256" "$image" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          pathlib.Path(sys.argv[1]).write_text(
+              json.dumps(
+                  {
+                      "schema_version": 1,
+                      "source_sha": sys.argv[2],
+                      "image_id": sys.argv[3],
+                      "tar_sha256": sys.argv[4],
+                      "image_tag": sys.argv[5],
+                      "purpose": "task-owned deployed Chromium acceptance",
+                      "persistent_runtime": False,
+                  },
+                  indent=2,
+                  sort_keys=True,
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+          PY
+          printf 'artifact_name=%s\n' "$artifact_name" >> "$GITHUB_OUTPUT"
+
+      - name: Upload bounded browser helper image
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: ${{ runner.temp }}/portal-wh09-browser-image
+          if-no-files-found: error
+          retention-days: 1
+
+  accept:
+    name: Real authenticated Chromium against deployed Portal
+    needs:
+      - wait-adoption
+      - build-browser-image
+    runs-on:
+      - freqtrade-staging
+    environment: synology-staging
+    timeout-minutes: 35
+    permissions:
+      contents: read
     steps:
       - name: Checkout exact merged authorization
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -150,14 +222,46 @@ jobs:
           fetch-depth: 2
           ref: ${{ needs.wait-adoption.outputs.authorization_sha }}
 
-      - name: Validate deployed target
+      - name: Download exact browser helper image
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.build-browser-image.outputs.artifact_name }}
+          path: ${{ runner.temp }}/portal-wh09-browser-image
+
+      - name: Validate helper provenance and deployed target
+        id: target
         shell: bash
         env:
           AUTHORIZATION_SHA: ${{ needs.wait-adoption.outputs.authorization_sha }}
         run: |
           set -euo pipefail
           [[ "$(git rev-parse HEAD)" == "$AUTHORIZATION_SHA" ]]
-          git cat-file -e "$AUTHORIZATION_SHA:$REQUEST_PATH"
+          approval="$RUNNER_TEMP/portal-wh09-browser-image/approval.json"
+          archive="$RUNNER_TEMP/portal-wh09-browser-image/browser-image.tar.gz"
+          readarray -t expected < <(python3 - "$approval" "$AUTHORIZATION_SHA" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          approval = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if approval.get("schema_version") != 1 or approval.get("source_sha") != sys.argv[2]:
+              raise SystemExit("browser helper approval source mismatch")
+          if approval.get("persistent_runtime") is not False:
+              raise SystemExit("browser helper unexpectedly claims persistent runtime authority")
+          print(approval["image_id"])
+          print(approval["tar_sha256"])
+          print(approval["image_tag"])
+          PY
+          )
+          expected_id="${expected[0]}"
+          expected_tar_sha="${expected[1]}"
+          browser_image="${expected[2]}"
+          [[ "$(sha256sum "$archive" | awk '{print $1}')" == "$expected_tar_sha" ]]
+          gzip -dc "$archive" | docker load >/dev/null
+          [[ "$(docker image inspect --format '{{.Id}}' "$browser_image")" == "$expected_id" ]]
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$browser_image")" == "$AUTHORIZATION_SHA" ]]
+          printf 'browser_image=%s\n' "$browser_image" >> "$GITHUB_OUTPUT"
+
           for _ in $(seq 1 90); do
             control_revision="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$PORTAL_CONTROL_CONTAINER" 2>/dev/null || true)"
             web_revision="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$PORTAL_WEB_CONTAINER" 2>/dev/null || true)"
@@ -234,19 +338,27 @@ jobs:
               raise SystemExit("WickHunter live-capital authority unexpectedly appeared")
           PY
 
-      - name: Seed task-owned read-only session
+      - name: Seed session, run deployed Chromium and capture evidence
         shell: bash
         env:
-          PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN: ${{ secrets.PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN }}
+          AUTHORIZATION_SHA: ${{ needs.wait-adoption.outputs.authorization_sha }}
+          BROWSER_IMAGE: ${{ steps.target.outputs.browser_image }}
         run: |
           set -euo pipefail
-          [[ -n "$PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN" ]]
-          [[ ${#PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN} -ge 48 ]]
+          token_file="$RUNNER_TEMP/portal-wh09-browser-session-token"
+          evidence="$RUNNER_TEMP/portal-wh09-deployed-browser.json"
+          browser_name="portal-wh09-deployed-browser-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           principal_id="wh09-browser-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           membership_id="wh09-browser-membership-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           subject="urn:freqtrade:wh09-browser:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}"
+          umask 077
+          openssl rand -base64 48 | tr -d '\n' > "$token_file"
+          session_token="$(cat "$token_file")"
+          echo "::add-mask::$session_token"
+          [[ ${#session_token} -ge 48 ]]
+
           docker exec -i \
-            --env PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN \
+            --env "PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN=$session_token" \
             --env "PORTAL_WH09_ACCEPTANCE_PRINCIPAL_ID=$principal_id" \
             --env "PORTAL_WH09_ACCEPTANCE_MEMBERSHIP_ID=$membership_id" \
             --env "PORTAL_WH09_ACCEPTANCE_SUBJECT=$subject" \
@@ -307,100 +419,36 @@ jobs:
                   session.commit()
           finally:
               engine.dispose()
-          print("task-owned RoleName.USER browser session seeded")
           PY
 
-  deployed-browser:
-    name: Real authenticated Chromium against deployed Portal
-    needs: seed-session
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout exact merged Portal
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-          ref: ${{ needs.seed-session.outputs.authorization_sha }}
+          browser_rc=0
+          docker create \
+            --name "$browser_name" \
+            --label "ftai.task=FTAI-20260819-wickhunter-portal-real-integration-1561" \
+            --label "ftai.authorization_sha=$AUTHORIZATION_SHA" \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=512m \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --shm-size 256m \
+            --env WICKHUNTER_BROWSER_ORIGIN="$PORTAL_ORIGIN" \
+            --env WICKHUNTER_SESSION_TOKEN="$session_token" \
+            --env WICKHUNTER_CSRF_TOKEN="${session_token}:csrf" \
+            --env WICKHUNTER_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium \
+            --env WICKHUNTER_BROWSER_EVIDENCE_PATH=/tmp/evidence.json \
+            "$BROWSER_IMAGE" >/dev/null
+          docker start --attach "$browser_name" || browser_rc=$?
+          if docker cp "$browser_name:/tmp/evidence.json" "$evidence" 2>/dev/null; then
+            chmod 0600 "$evidence"
+          fi
 
-      - name: Run public deployed Chromium journey
-        working-directory: ai_platform/portal/web
-        shell: bash
-        env:
-          PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN: ${{ secrets.PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN }}
-          WICKHUNTER_BROWSER_ORIGIN: https://quant.molehill.cloud
-          WICKHUNTER_BROWSER_EVIDENCE_PATH: ${{ runner.temp }}/portal-wh09-deployed-browser.json
-        run: |
-          set -euo pipefail
-          [[ -n "$PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN" ]]
-          npm ci
-          chrome="$(command -v google-chrome || command -v google-chrome-stable || true)"
-          [[ -x "$chrome" ]]
-          export WICKHUNTER_BROWSER_EXECUTABLE_PATH="$chrome"
-          export WICKHUNTER_SESSION_TOKEN="$PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN"
-          export WICKHUNTER_CSRF_TOKEN="${PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN}:csrf"
-          node e2e/wickhunter-api-mode-ci.mjs
-          python3 - "$WICKHUNTER_BROWSER_EVIDENCE_PATH" <<'PY'
-          import json
-          import sys
-
-          evidence = json.load(open(sys.argv[1], encoding="utf-8"))
-          required = {
-              "result": "PASS",
-              "origin": "https://quant.molehill.cloud",
-              "mode": "shadow",
-              "authenticated": True,
-              "fixture_cookie_present": False,
-              "health_visible": True,
-              "runtime_generation_converged": True,
-              "reload_persistence": True,
-          }
-          for key, expected in required.items():
-              if evidence.get(key) != expected:
-                  raise SystemExit(f"deployed browser evidence mismatch: {key}")
-          if evidence.get("decision_count", 0) <= 0 or evidence.get("no_trade_count", 0) <= 0:
-              raise SystemExit("deployed browser did not expose decision/NO_TRADE evidence")
-          PY
-
-      - name: Upload secret-free deployed browser evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: portal-wh09-deployed-browser-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/portal-wh09-deployed-browser.json
-          if-no-files-found: error
-          retention-days: 30
-
-  cleanup-session:
-    name: Remove task-owned browser session
-    if: always()
-    needs:
-      - seed-session
-      - deployed-browser
-    runs-on:
-      - freqtrade-staging
-    environment: synology-staging
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - name: Remove exact task-owned identity rows
-        shell: bash
-        env:
-          PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN: ${{ secrets.PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN }}
-        run: |
-          set -euo pipefail
-          [[ -n "$PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN" ]]
-          principal_id="wh09-browser-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          membership_id="wh09-browser-membership-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          subject="urn:freqtrade:wh09-browser:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}"
+          cleanup_rc=0
           docker exec -i \
-            --env PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN \
+            --env "PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN=$session_token" \
             --env "PORTAL_WH09_ACCEPTANCE_PRINCIPAL_ID=$principal_id" \
             --env "PORTAL_WH09_ACCEPTANCE_MEMBERSHIP_ID=$membership_id" \
             --env "PORTAL_WH09_ACCEPTANCE_SUBJECT=$subject" \
-            "$PORTAL_CONTROL_CONTAINER" python - <<'PY'
+            "$PORTAL_CONTROL_CONTAINER" python - <<'PY' || cleanup_rc=$?
           import os
 
           from ai_platform.portal.control_plane.database import build_engine, build_session_factory
@@ -457,15 +505,40 @@ jobs:
                       raise SystemExit("task-owned principal cleanup failed")
           finally:
               engine.dispose()
-          print("task-owned deployed-browser identity rows removed")
+          PY
+          rm -f "$token_file"
+          docker rm -f "$browser_name" >/dev/null 2>&1 || true
+          docker image rm "$BROWSER_IMAGE" >/dev/null 2>&1 || true
+          [[ "$cleanup_rc" -eq 0 ]]
+          [[ "$browser_rc" -eq 0 ]]
+          test -s "$evidence"
+          python3 - "$evidence" <<'PY'
+          import json
+          import sys
+
+          evidence = json.load(open(sys.argv[1], encoding="utf-8"))
+          required = {
+              "result": "PASS",
+              "origin": "https://quant.molehill.cloud",
+              "mode": "shadow",
+              "authenticated": True,
+              "fixture_cookie_present": False,
+              "health_visible": True,
+              "runtime_generation_converged": True,
+              "reload_persistence": True,
+          }
+          for key, expected in required.items():
+              if evidence.get(key) != expected:
+                  raise SystemExit(f"deployed browser evidence mismatch: {key}")
+          if evidence.get("decision_count", 0) <= 0 or evidence.get("no_trade_count", 0) <= 0:
+              raise SystemExit("deployed browser did not expose decision/NO_TRADE evidence")
           PY
 
-      - name: Enforce browser and cleanup result
-        shell: bash
-        env:
-          SEED_RESULT: ${{ needs.seed-session.result }}
-          BROWSER_RESULT: ${{ needs.deployed-browser.result }}
-        run: |
-          set -euo pipefail
-          [[ "$SEED_RESULT" == "success" ]]
-          [[ "$BROWSER_RESULT" == "success" ]]
+      - name: Upload secret-free deployed browser evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: portal-wh09-deployed-browser-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/portal-wh09-deployed-browser.json
+          if-no-files-found: warn
+          retention-days: 30

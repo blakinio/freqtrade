@@ -422,7 +422,7 @@ jobs:
           PY
 
           browser_rc=0
-          docker create \
+          if docker create \
             --name "$browser_name" \
             --label "ftai.task=FTAI-20260819-wickhunter-portal-real-integration-1561" \
             --label "ftai.authorization_sha=$AUTHORIZATION_SHA" \
@@ -435,11 +435,15 @@ jobs:
             --env WICKHUNTER_SESSION_TOKEN="$session_token" \
             --env WICKHUNTER_CSRF_TOKEN="${session_token}:csrf" \
             --env WICKHUNTER_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium \
+            --env WICKHUNTER_BROWSER_NO_SANDBOX=1 \
             --env WICKHUNTER_BROWSER_EVIDENCE_PATH=/tmp/evidence.json \
-            "$BROWSER_IMAGE" >/dev/null
-          docker start --attach "$browser_name" || browser_rc=$?
-          if docker cp "$browser_name:/tmp/evidence.json" "$evidence" 2>/dev/null; then
-            chmod 0600 "$evidence"
+            "$BROWSER_IMAGE" >/dev/null; then
+            docker start --attach "$browser_name" || browser_rc=$?
+            if docker cp "$browser_name:/tmp/evidence.json" "$evidence" 2>/dev/null; then
+              chmod 0600 "$evidence"
+            fi
+          else
+            browser_rc=$?
           fi
 
           cleanup_rc=0
@@ -506,10 +510,17 @@ jobs:
           finally:
               engine.dispose()
           PY
+
+          resource_cleanup_rc=0
           rm -f "$token_file"
-          docker rm -f "$browser_name" >/dev/null 2>&1 || true
-          docker image rm "$BROWSER_IMAGE" >/dev/null 2>&1 || true
+          if docker inspect "$browser_name" >/dev/null 2>&1; then
+            docker rm -f "$browser_name" >/dev/null 2>&1 || resource_cleanup_rc=$?
+          fi
+          if docker image inspect "$BROWSER_IMAGE" >/dev/null 2>&1; then
+            docker image rm "$BROWSER_IMAGE" >/dev/null 2>&1 || resource_cleanup_rc=$?
+          fi
           [[ "$cleanup_rc" -eq 0 ]]
+          [[ "$resource_cleanup_rc" -eq 0 ]]
           [[ "$browser_rc" -eq 0 ]]
           test -s "$evidence"
           python3 - "$evidence" <<'PY'

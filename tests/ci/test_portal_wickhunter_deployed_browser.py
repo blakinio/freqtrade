@@ -74,6 +74,8 @@ def test_deployed_browser_proves_real_api_mode_public_wickhunter_truth() -> None
     assert '"PORTAL_IDENTITY_FIXTURE_MODE=disabled"' in workflow
     assert "freqtrade-staging" in workflow
     assert 'WICKHUNTER_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium' in workflow
+    assert "WICKHUNTER_BROWSER_NO_SANDBOX=1" in workflow
+    assert "WICKHUNTER_BROWSER_NO_SANDBOX" in browser
     assert "WICKHUNTER_SESSION_TOKEN" in browser
     assert "WICKHUNTER_BROWSER_EXECUTABLE_PATH" in browser
     assert "portal_fixture_" in browser
@@ -93,6 +95,10 @@ def test_deployed_browser_cleanup_is_exact_and_fail_closed() -> None:
     assert "refusing to remove non-task-owned membership" in workflow
     assert "refusing to remove non-task-owned principal" in workflow
     assert 'rm -f "$token_file"' in workflow
+    assert 'if docker inspect "$browser_name"' in workflow
     assert 'docker rm -f "$browser_name"' in workflow
+    assert 'if docker image inspect "$BROWSER_IMAGE"' in workflow
     assert '[[ "$cleanup_rc" -eq 0 ]]' in workflow
+    assert '[[ "$resource_cleanup_rc" -eq 0 ]]' in workflow
     assert '[[ "$browser_rc" -eq 0 ]]' in workflow
+    assert "if docker create" in workflow

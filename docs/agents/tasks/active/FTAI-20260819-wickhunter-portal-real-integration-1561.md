@@ -7,9 +7,9 @@ Authority: ADR-023 + ADR-025
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-19T15:50:00+02:00
+updated_at: 2026-08-19T15:55:00+02:00
 branch: feat/1561-wickhunter-portal-real-integration
-head: 1af35b4ccef6bbd06c771603a80760c342d334aa
+head: e025dcd07530a6f752beaf859966ebb714bd06cf
 pr: none
 status: implementing
 context_routes:
@@ -77,6 +77,9 @@ validation:
   - command: Ruff changed Python tests plus git diff --check and checkpoint validation
     result: PASS
     evidence: all checks passed; checkpoint valid
+  - command: trusted-base risk policy regression plus deployment policy tests
+    result: PASS
+    evidence: 26 passed; risk policy, hosted build plane, and WH09 deployment contract
 blockers: []
-next_action: Commit the validated implementation on the dedicated branch, push it, and open a Draft PR to develop for exact-head CI before any runtime recreation.
+next_action: Commit this checkpoint refresh, push the dedicated branch, and open a Draft PR to develop for exact-head CI before any runtime recreation.
 ```

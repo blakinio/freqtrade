@@ -141,7 +141,7 @@ def test_throttle_sleep_time(mocker, default_conf, caplog) -> None:
     caplog.set_level(logging.DEBUG)
     worker = get_patched_worker(mocker, default_conf)
     sleep_mock = mocker.patch("freqtrade.worker.Worker._sleep")
-    with time_machine.travel("2022-09-01 05:00:00 +00:00") as t:
+    with time_machine.travel("2022-09-01 05:00:00 +00:00", tick=False) as t:
 
         def throttled_func(x=1):
             t.shift(timedelta(seconds=x))

@@ -567,7 +567,7 @@ ADR-023 is the current product overlay for the entire Portal. Detailed current a
 
 ## ADR-024 — Dedicated Linux runtime with GitHub CI and Synology durable storage
 
-Status: `accepted`
+Status: `superseded for current runtime target by ADR-025`
 
 Accepted by owner: `2026-08-18`
 
@@ -575,7 +575,7 @@ Issue: `#1603`
 
 Decision:
 
-The current Developer Quant Platform separates repository automation, persistent application compute and durable storage:
+The current Developer Quant Platform originally separated repository automation, persistent application compute and durable storage:
 
 ```text
 GitHub repository / GitHub Actions
@@ -589,30 +589,26 @@ Dedicated Linux runtime host
 Synology durable storage / evidence / backup
 ```
 
-The current target dimensions are:
+The ADR-024 target dimensions were:
 
 ```text
 runtime_location: LOCAL | DEDICATED_LINUX
 storage_provider: LOCAL | SYNOLOGY
 ```
 
-GitHub-hosted Actions runners are the default for stateless CI, tests, security analysis, packaging and immutable artifact/image builds. They are not long-lived application runtime hosts.
+GitHub-hosted Actions runners were established as the default for stateless CI, tests, security analysis, packaging and immutable artifact/image builds. They were not long-lived application runtime hosts.
 
-Persistent Portal, public-market collectors, WickHunter/inference, Freqtrade simulation and ordinary long-lived workers target a dedicated Linux runtime host. Synology is retained primarily as durable storage, evidence and backup infrastructure. Existing Synology-hosted application services remain transitional current implementation until each replacement is proven.
+ADR-024 targeted persistent Portal, public-market collectors, WickHunter/inference, Freqtrade simulation and ordinary long-lived workers at a dedicated Linux runtime host, with Synology retained primarily as durable storage, evidence and backup infrastructure.
 
-A retained self-hosted GitHub runner on a privileged runtime/storage host must be disabled or narrowly `deploy-only`; it must not become the normal repository-wide CI or model-training shell. Ordinary application containers do not receive the container-engine socket.
+A retained self-hosted GitHub runner on a privileged runtime/storage host was required to be disabled or narrowly `deploy-only`; ordinary application containers were not to receive the container-engine socket.
 
-Active transactional databases must not be placed on a Synology network filesystem merely to centralize storage. They may run on local runtime storage and back up or replicate to Synology through an explicit recovery contract.
-
-The exact dedicated Linux host identity, address, architecture and access method are not created by this decision and remain unproven until separate deployment evidence exists.
-
-Detailed current architecture and migration rules are defined by `ADR-024_DEDICATED_LINUX_RUNTIME.md`, `DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md` and the portable `deploy/runtime/**` contract.
+The exact dedicated Linux host identity, address, architecture and access method were never created or proven under ADR-024.
 
 Reason:
 
-The prior Synology-centric topology coupled application compute, durable data and privileged GitHub self-hosted automation onto the same NAS. Separating these roles reduces blast radius, keeps ordinary CI off privileged storage/runtime hosts, makes service restart/rollback boundaries clearer and preserves Synology for the storage/backup role it is best suited to.
+The prior Synology-centric topology coupled application compute, durable data and privileged GitHub self-hosted automation onto the same NAS. ADR-024 attempted to separate those roles while keeping ordinary CI off privileged storage/runtime hosts.
 
-Migration impact:
+Migration impact at the time:
 
 1. introduce and validate a generic `deploy/runtime/**` host/storage contract with no `/volume1` or Synology-runner identity assumption;
 2. keep existing `deploy/synology/**` packages as truthful transitional implementation until service-level replacements are proven;
@@ -623,4 +619,76 @@ Migration impact:
 
 Consequence:
 
-ADR-024 is the binding runtime/deployment topology overlay. It supersedes only conflicting current-target wording in ADR-023 and related architecture/governance that makes `SYNOLOGY` the normal persistent application-compute location. ADR-023 remains authoritative for product semantics, simulation, model lifecycle and the prohibition on real-money execution. Historical Synology deployment evidence remains unchanged.
+ADR-025 supersedes ADR-024's unimplemented separate-dedicated-Linux current target. ADR-024 remains historical architecture evidence. Its GitHub-hosted build-plane principles remain retained by ADR-025: stateless CI/build/validation belongs on GitHub-hosted runners where compatible; GitHub Actions is not persistent application hosting; privileged self-hosted runner access remains narrow.
+
+## ADR-025 — Synology persistent runtime with GitHub-hosted build and disposable compute
+
+Status: `accepted`
+
+Accepted by owner: `2026-08-18`
+
+Issue: `#1604`
+
+Trusted base: `develop@6510077ea2e7a63c0d489f94391f461a3cab4ac1`
+
+Decision:
+
+The current Developer Quant Platform keeps its continuously available/stateful application runtime on Synology while moving stateless/disposable repository work to GitHub-hosted runners by default.
+
+```text
+GitHub repository / GitHub Actions / GHCR
+        |
+        | CI, test, scan, build, publish, disposable/stateless jobs
+        v
+Synology persistent application runtime
+        |
+        | Portal / bots / collectors / WickHunter / supporting services
+        v
+Synology durable application state / datasets / evidence / backup
+```
+
+The current target dimensions are:
+
+```text
+runtime_location: LOCAL | SYNOLOGY
+storage_provider: LOCAL | SYNOLOGY
+```
+
+Workload placement is based on lifecycle, not merely on whether code runs in a container:
+
+- repository CI, lint/type/security checks, tests, packaging, immutable image builds, GHCR publication and bounded stateless/disposable jobs use GitHub-hosted runners where compatible;
+- short-lived containers may execute inside GitHub Actions when they are part of a bounded workflow job;
+- the Portal, persistent Freqtrade simulation/bot runtimes, persistent WickHunter/inference, long-lived collectors/workers and persistent supporting containers run on Synology when they require continuous availability or durable state;
+- persistent containers are **not** hosted by GitHub Actions; their images should be built/scanned/published there where practical and deployed to Synology by exact revision or immutable digest;
+- a Synology self-hosted runner may remain only for target-specific operations such as immutable image pull, bounded deploy/update, health/restart/persistence proof and rollback, with `deploy-only` or equivalently narrow authority;
+- Synology must not remain the normal repository-wide CI/build/test shell merely because it hosts the application runtime;
+- ordinary application containers do not receive the Docker/container-engine socket merely because compute and storage share the NAS.
+
+A separate dedicated Linux application host is not required for current Portal completion. `deploy/runtime/**` remains an optional future portability reference only.
+
+Reason:
+
+The current product is a private single-owner Developer Quant Platform, and the owner prefers to keep the actual Portal/bot runtime on the existing Synology while removing unnecessary CI/build workload from the NAS. This retains the operational simplicity and existing persistent runtime, preserves the already-completed GitHub-hosted build-plane migration, and avoids inventing or purchasing an otherwise unnecessary dedicated Linux host.
+
+The decision knowingly accepts greater compute/storage co-location on Synology than ADR-024. Risk is bounded by keeping broad repository automation on GitHub-hosted runners, narrowing any retained self-hosted runner, keeping application containers away from the container-engine socket, preserving authentication/secret boundaries and maintaining restart/recovery evidence for persistent state.
+
+Migration impact:
+
+1. retain PR #1609 hosted build-plane work and complete compatible GHCR/deploy repairs such as PR #1610;
+2. stop work whose sole objective is provisioning or cutting over to a separate dedicated Linux runtime host;
+3. restore `LOCAL | SYNOLOGY` as the current persistent runtime-location vocabulary;
+4. move remaining stateless CI/test/build/scan/disposable jobs off general-purpose Synology self-hosted execution when GitHub-hosted execution is compatible;
+5. keep persistent Portal/bot/collector/inference/supporting containers on Synology with explicit health, restart, persistence, backup and rollback behavior;
+6. narrow retained Synology self-hosted runner responsibilities to `deploy-only` or disable the runner when target access is unnecessary;
+7. treat `deploy/runtime/**` as optional portability tooling rather than current target authority;
+8. preserve historical ADR-024, PR #1606 and PR #1609 evidence without rewriting their point-in-time claims.
+
+Consequence:
+
+ADR-025 is the binding current runtime/CI-placement overlay. It supersedes only the conflicting portions of ADR-024 that require a separate dedicated Linux persistent runtime, define Synology as transitional-only compute, or make physical dedicated-Linux cutover part of current completion.
+
+ADR-025 retains ADR-024's GitHub-hosted build-plane direction and does not authorize GitHub Actions as a persistent application host.
+
+ADR-023 remains authoritative for product semantics, simulation, model lifecycle and the prohibition on real-money exchange execution, withdrawals, private trading credentials and capital authority.
+
+Detailed current placement and migration rules are defined by `ADR-025_SYNOLOGY_PERSISTENT_RUNTIME_GITHUB_BUILD_PLANE.md` and `DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md`.

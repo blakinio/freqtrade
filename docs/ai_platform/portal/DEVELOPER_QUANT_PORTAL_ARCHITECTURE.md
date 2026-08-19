@@ -1,10 +1,11 @@
 # Developer Quant Portal Architecture
 
 Status: **owner-accepted current Portal product architecture**  
-Owner decision date: `2026-08-15`  
-Related Issue: `#1555`  
+Owner product decision date: `2026-08-15`  
+Related product Issue: `#1555`  
 Applies to: **the entire current Portal product**  
-Runtime/deployment overlay: **ADR-024**, accepted `2026-08-18`, Issue `#1603`
+Runtime/deployment overlay: **ADR-025**, accepted `2026-08-18`, Issue `#1604`  
+Historical runtime overlay: ADR-024, superseded by ADR-025 for current target placement
 
 ## 1. Product identity
 
@@ -42,17 +43,18 @@ REPLAY
 
 ### 2.2 Runtime location and storage provider
 
-ADR-024 separates application compute from durable storage.
+ADR-025 defines current workload placement.
 
 ```text
-runtime_location: LOCAL | DEDICATED_LINUX
+runtime_location: LOCAL | SYNOLOGY
 storage_provider: LOCAL | SYNOLOGY
 ```
 
 - `LOCAL` runtime is developer compute for experiments, model training and bounded workflows.
-- `DEDICATED_LINUX` is the target persistent application-compute location for Portal, collectors, WickHunter/inference, Freqtrade simulation and ordinary long-lived workers.
-- `SYNOLOGY` is the target durable storage/evidence/backup provider, not the target application-compute location.
-- Existing Synology-hosted services remain valid transitional implementation state until each service is migrated and its replacement is proven.
+- `SYNOLOGY` is the normal persistent application-compute location for the owner-facing Portal, persistent bots/simulation runtimes, long-lived collectors/workers and persistent WickHunter/inference where those services require continuous availability or durable state.
+- `SYNOLOGY` is also the normal durable storage/evidence/backup provider.
+- GitHub-hosted Actions is a **workload execution plane**, not a persistent runtime-location value: it handles stateless/disposable CI, test, build, scan and bounded jobs where compatible.
+- A separate dedicated Linux runtime host is not required for current Portal completion.
 
 These dimensions do not imply release maturity, trading authority or capital use.
 
@@ -96,7 +98,8 @@ These rules apply to all current Portal domains:
 - training, challengers, comparison and manual model activation;
 - telemetry, logs and developer observability;
 - persistence and restart recovery;
-- dedicated-Linux deployment/operations and Synology durable storage/backup;
+- Synology deployment/operations and durable storage/backup;
+- GitHub-hosted CI/build/scan/disposable compute;
 - CI, E2E and acceptance for Portal work.
 
 A submodule must not reintroduce `SHADOW`, `PAPER` or `LIVE` as a current product authority model.
@@ -134,33 +137,60 @@ REALTIME_PUBLIC market + liquidation data
               deliberate ACTIVE selection
 ```
 
-The same runtime may record decisions and simulation results continuously. It does not need a mode rollout to begin or stop recording simulated outcomes.
+The same persistent runtime may record decisions and simulation results continuously. It does not need a mode rollout to begin or stop recording simulated outcomes.
 
 ## 5. Runtime architecture
 
 ### 5.1 Default principle
 
-Use the **simplest persistent runtime architecture that safely supports the developer workflow**, with application compute separated from durable storage.
+Use the **simplest persistent runtime architecture that safely supports the developer workflow**. For the current private platform, persistent application runtime and durable storage are intentionally co-located on Synology, while repository-wide stateless work is pushed to GitHub-hosted runners where practical.
 
 The target topology is:
 
 ```text
-GitHub repository / GitHub-hosted Actions
-        | CI, build, security, immutable artifact publication
+GitHub repository / GitHub-hosted Actions / GHCR
+        | CI, test, security, build, immutable image publication
+        | disposable/stateless bounded jobs
         v
-Dedicated Linux runtime host
-        | narrow durable-storage boundary
+Synology persistent runtime
+        | Portal / bots / collectors / WickHunter / supporting services
         v
-Synology durable storage / evidence / backup
+Synology durable application state / datasets / evidence / backup
 ```
 
-GitHub-hosted Actions runners are the default for stateless CI/build/validation, not for long-lived application services. Persistent Portal, collectors, WickHunter/inference, Freqtrade simulation and ordinary workers target a dedicated Linux host. Synology provides durable storage and backup while existing Synology compute remains transitional current state during migration.
+GitHub-hosted Actions runners are the default for stateless CI/build/validation. They are not long-lived application hosts.
 
-Active transactional databases must not be placed on a network filesystem merely to centralize storage. They may run locally on the dedicated runtime and back up or replicate to Synology under an explicit recovery contract.
+Persistent Portal, Freqtrade simulation/bot runtimes, WickHunter/inference and workers/collectors that require continuous availability or durable state run on Synology. Their portable images should be built, scanned and published in GitHub-hosted workflows where practical and consumed by immutable digest.
 
-Existing `RuntimeGeneration`, Runtime Supervisor, Gateway, reconciliation and isolation code may be reused where it provides concrete value, but those mechanisms are no longer universal completion prerequisites merely because they were part of the previous production-trading target architecture.
+Short-lived backtests, replay/data-processing jobs, packaging, scans and disposable containerized validation may execute on GitHub-hosted runners when their inputs, runtime, retention and resource requirements fit the Actions lifecycle.
 
-### 5.2 What remains valuable
+Existing `RuntimeGeneration`, Runtime Supervisor, Gateway, reconciliation and isolation code may be reused where it provides concrete value, but those mechanisms are no longer universal completion prerequisites merely because they were part of a previous production-trading target architecture.
+
+### 5.2 Persistent container and runner boundary
+
+Persistent application containers run on Synology. GitHub Actions builds/publishes their images; it does not host those containers continuously.
+
+Ordinary Portal/bot/application containers must not receive the container-engine socket merely because they share the NAS with Docker. Container-engine authority remains a narrow deployment/lifecycle boundary.
+
+A Synology self-hosted GitHub runner may remain when target-specific operations genuinely require NAS access, but its normal scope is:
+
+```text
+runner_scope = disabled | deploy-only
+```
+
+It may perform bounded immutable-image pull, configuration validation, deployment update, health/restart/persistence checks and rollback. It must not be the normal repository-wide CI, dependency-build, unrestricted shell or model-training runner when GitHub-hosted execution is compatible.
+
+### 5.3 State and durability
+
+Co-locating current compute and storage on Synology does not remove persistence discipline.
+
+- runtime/application state has explicit ownership;
+- active databases use filesystem semantics appropriate to the deployed database/container package;
+- datasets, models, evidence, reports and backups remain durable Synology responsibilities;
+- important application state has a separate backup/recovery path rather than treating the active copy as its own backup;
+- GitHub Actions artifacts and caches are disposable and are not the durable system of record.
+
+### 5.4 What remains valuable
 
 Retain proportionate properties such as:
 
@@ -172,13 +202,15 @@ Retain proportionate properties such as:
 - non-root/no-new-privileges/read-only mounts where practical;
 - bounded resource usage where the host supports it without elaborate certification;
 - clear process ownership and cleanup for temporary resources;
-- explicit separation of runtime-local transactional state from Synology-backed durable datasets/evidence/backups;
-- a narrowly scoped deployment runner (`deploy-only` or disabled) instead of privileged runtime/storage hosts serving as general CI workers.
+- explicit backup/recovery boundaries for durable state;
+- a narrowly scoped Synology deployment runner (`deploy-only` or disabled) instead of using the NAS as a general CI worker.
 
-### 5.3 What is no longer a default requirement
+### 5.5 What is no longer a default requirement
 
 The current Portal does **not** require, as a universal product gate:
 
+- a separate dedicated Linux application host;
+- physical service cutover away from Synology;
 - per-runtime production-grade host capability certification;
 - mandatory effective CPU/PID attestation before a developer bot may run;
 - mandatory stop-then-replace rollout solely to change a simulated/observational mode;
@@ -225,7 +257,8 @@ KEEP:
 - versioned model/config/dataset identities;
 - explicit manual model activation;
 - dependency/security updates and ordinary CI;
-- bounded external I/O and truthful error states.
+- bounded external I/O and truthful error states;
+- repository-wide CI/build offloaded to GitHub-hosted runners by default so the Synology runtime/storage host is not also a broad CI shell.
 
 DO NOT make current MVP completion depend on enterprise controls that exist only for hypothetical future multi-user/private-capital operation.
 
@@ -256,14 +289,14 @@ For the first current-platform vertical slice, completion means:
 5. local training can produce a challenger from that accumulated dataset;
 6. Portal comparison shows active vs challenger/baseline evidence;
 7. active-model selection is deliberate and does not auto-promote;
-8. the Portal and persistent runtime survive restart with correct durable state;
+8. the Portal and persistent Synology runtime survive restart with correct durable state;
 9. the owner can inspect the above through the actual Portal without fixture fallback.
 
 Digest-heavy evidence packages, protected-environment ceremony or exact-current whole-monorepo proofs are supporting evidence only when they address a concrete current risk; they are not substitutes for this user outcome.
 
 ## 11. Backlog migration
 
-After this architecture is merged, every open Portal/WickHunter item must be reclassified from current live state as exactly one of:
+Every open Portal/WickHunter item must be classified from current live state as exactly one of:
 
 ```text
 KEEP_NOW
@@ -282,35 +315,38 @@ Useful capability whose current enterprise/production design is unnecessarily he
 Potentially useful later but not a blocker for current developer usefulness.
 
 ### OBSOLETE
-Exists only because of the superseded multi-tenant/SHADOW-PAPER-LIVE/private-capital product model.
+Exists only because of a superseded multi-tenant/SHADOW-PAPER-LIVE/private-capital or dedicated-Linux-cutover target.
 
 Reclassification must inspect exact current code, open PRs/issues and already implemented components before removing anything. Useful implementation should be reused rather than deleted merely because its original justification changed.
 
 ## 12. Supersession and historical evidence
 
-This architecture supersedes conflicting **current Portal product** assumptions in ADR-003, ADR-004, ADR-005, ADR-013, ADR-014, ADR-016, ADR-017, ADR-020, ADR-021 and ADR-022 as specified by ADR-023.
+ADR-023 supersedes conflicting **current Portal product** assumptions in ADR-003, ADR-004, ADR-005, ADR-013, ADR-014, ADR-016, ADR-017, ADR-020, ADR-021 and ADR-022 as specified by ADR-023.
 
-ADR-024 additionally supersedes conflicting current-target statements that make Synology the normal persistent application-compute location. The target runtime location is `LOCAL | DEDICATED_LINUX`; Synology remains the durable storage/evidence/backup provider and transitional compute only until service-level migration is proven.
+ADR-025 supersedes the conflicting current-target parts of ADR-024 that required persistent application compute to migrate away from Synology onto a separate dedicated Linux host. The current target runtime location is again `LOCAL | SYNOLOGY`.
 
-It does not rewrite historical evidence. Old runs, Issues, PRs and artifacts remain valid records of what was tested at the time.
+ADR-025 deliberately retains ADR-024's GitHub-hosted build-plane direction: stateless CI/build/validation should use GitHub-hosted runners by default where compatible; persistent application runtime must not be misrepresented as GitHub Actions hosting; privileged self-hosted runner access remains narrow.
 
-It also does not authorize real exchange execution. Real-money execution remains absent from the current Portal rather than represented as a blocked mode.
+Historical evidence is not rewritten. Old runs, Issues, PRs and artifacts remain valid records of what was tested or decided at the time.
+
+This architecture does not authorize real exchange execution. Real-money execution remains absent from the current Portal rather than represented as a blocked mode.
 
 ## 13. Immediate migration order
 
-1. Keep ADR-023 product semantics and apply the ADR-024 runtime/deployment overlay.
-2. Use `deploy/runtime/**` as the generic host/storage contract while preserving `deploy/synology/**` as transitional current-state packages.
-3. Reclassify open Portal/WickHunter Issues/PRs as `KEEP_NOW | SIMPLIFY | DEFER | OBSOLETE`, including Synology-as-compute assumptions that now require portability reconciliation.
-4. Remove or compatibility-wrap `SHADOW/PAPER/LIVE` assumptions from current Portal UI/API/runtime contracts in dependency order.
-5. Implement the smallest complete developer workflow from realtime public data through simulation, dataset growth, local challenger training and Portal observation.
-6. Migrate persistent service groups to a verified dedicated Linux host in the order defined by ADR-024/Issue #1604, proving state, restart and rollback per service.
-7. Keep Synology as durable storage/evidence/backup and validate recovery after compute cutover.
-8. Simplify deployment/CI gates around actual developer risks rather than hypothetical future capital authority.
-9. Archive superseded plans only after exact references and useful implementation have been migrated.
+1. Keep ADR-023 product semantics and apply the ADR-025 runtime/CI placement overlay.
+2. Preserve and complete the GitHub-hosted build-plane work from PR #1609/#1610: build/scan/publish portable images on GitHub-hosted Linux, consume immutable identities on Synology.
+3. Stop work whose only objective is provisioning or cutting over to a separate dedicated Linux host.
+4. Move remaining repository-wide stateless CI/test/build/scan/disposable jobs off general-purpose Synology self-hosted execution when GitHub-hosted execution is compatible.
+5. Keep persistent Portal, bot/simulation, required collector/worker and supporting containers on Synology with explicit restart/persistence/backup behavior.
+6. Narrow retained Synology self-hosted runner responsibilities toward `deploy-only` or disable them when target access is not needed.
+7. Remove or compatibility-wrap `SHADOW/PAPER/LIVE` assumptions from current Portal UI/API/runtime contracts in dependency order.
+8. Implement the smallest complete developer workflow from realtime public data through simulation, dataset growth, local challenger training and Portal observation.
+9. Simplify deployment/CI gates around actual developer risks rather than hypothetical future capital authority.
+10. Keep `deploy/runtime/**` as an optional portability reference only; a future separate-compute migration requires a new explicit owner decision.
 
 ## 14. Non-goals of this architecture change
 
-This document does not claim the code or physical runtime migration is already complete. It changes the governing current product architecture and migration target.
+This document does not claim every remaining CI runner/workload has already been migrated. Exact workflow and runner evidence determines implementation state.
 
 It does not authorize:
 
@@ -320,7 +356,8 @@ It does not authorize:
 - automatic model promotion;
 - capital allocation;
 - a future multi-user commercial product;
-- physical deployment to an unverified dedicated Linux host;
-- destructive cleanup of existing Synology services merely because they are transitional.
+- treating GitHub Actions as a 24/7 persistent application host;
+- broadening Synology self-hosted runner authority;
+- destructive cleanup of current Synology services merely because their build path moved to GitHub.
 
-Those concerns require separate future owner decisions or task-specific deployment authority if they ever become desired product scope.
+A future decision may revisit separate compute if scale, reliability, performance or isolation requirements justify it, but such a migration is not part of current Portal completion.

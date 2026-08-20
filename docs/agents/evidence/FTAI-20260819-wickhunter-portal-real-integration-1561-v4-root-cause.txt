@@ -1,0 +1,1 @@
+Run 32419995064 / job 96591217707 failed in Validate dual provenance and deployed target because build-browser-image emitted approval schema_version=3 while the accept consumer required schema_version=2. The canonical truth and Chromium steps were skipped. This was a harness-only fail-closed mismatch.

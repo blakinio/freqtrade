@@ -52,6 +52,12 @@ def test_deployed_browser_session_has_read_only_authority_and_bounded_lifetime()
     assert "roles=(RoleName.USER,)" in workflow
     assert "timedelta(minutes=15)" in workflow
     assert workflow.count("timedelta(minutes=30)") >= 2
+    assert "acceptance_key=" in workflow
+    assert 'principal_id="wh09-p-${acceptance_key}"' in workflow
+    assert 'membership_id="wh09-m-${acceptance_key}"' in workflow
+    assert '[[ ${#principal_id} -le 36 ]]' in workflow
+    assert '[[ ${#membership_id} -le 36 ]]' in workflow
+    assert 'membership_id="wh09-browser-membership-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"' not in workflow
     for forbidden in (
         "RoleName.TRADER",
         "RoleName.ANALYST",

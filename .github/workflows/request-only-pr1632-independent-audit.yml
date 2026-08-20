@@ -124,8 +124,9 @@ jobs:
                   "the mandatory three-line schema only:\nRESULT=PASS\nFINDINGS=0\n"
                   "SUMMARY=<brief evidence-based summary>"
               )
-          pathlib.Path(sys.argv[3]).write_text(result + "\n", encoding="utf-8")
-          print(result)
+          normalized = "\n".join(line.rstrip() for line in result.splitlines())
+          pathlib.Path(sys.argv[3]).write_text(normalized + "\n", encoding="utf-8")
+          print(normalized)
           PY
           sha256sum "$RUNNER_TEMP/audit-result.txt"
           grep -Fx 'RESULT=PASS' "$RUNNER_TEMP/audit-result.txt"

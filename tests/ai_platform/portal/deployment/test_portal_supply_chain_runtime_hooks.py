@@ -44,12 +44,14 @@ def test_approved_deploy_installs_runtime_hooks_after_approved_images() -> None:
     approved_images = function.index('"_build_images",')
     docker_host = function.index("docker_host_state.install(deploy)")
     liquidations = function.index("entrypoint._install_docker_host_liquidations_preflight(deploy)")
+    market_root = function.index('market_evidence.__dict__["MARKET_EVIDENCE_HOST_ROOT"]')
     market_evidence = function.index("market_evidence.install(deploy)")
     copy_on_write = function.index("copy_on_write.install(deploy)")
     deploy_call = function.index("deploy.deploy(")
 
     assert approved_images < docker_host
-    assert docker_host < liquidations < market_evidence < copy_on_write < deploy_call
+    assert docker_host < liquidations < market_root < market_evidence < copy_on_write < deploy_call
+    assert "entrypoint._resolve_market_evidence_host_root(deploy)" in function
     assert 'directory / "docker_host_state.py"' in function
     assert 'directory / "market_evidence_runtime.py"' in function
     assert 'directory / "postgresql_copy_on_write.py"' in function

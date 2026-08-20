@@ -1,0 +1,55 @@
+name: Request-only PR1644 final Qwen audit
+on:
+  pull_request:
+    branches: [develop]
+permissions:
+  contents: read
+jobs:
+  audit:
+    if: github.head_ref == 'audit/1644-final-qwen-v3'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      BASE: 3fc65d7da9511e0bd15c0ab924f6d8dacd1829cc
+      HEAD_SHA: f46a3bf2088b0300c706fc442cb3f067f5a982b4
+      MODEL: qwen2.5-coder:7b
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ env.HEAD_SHA }}
+      - name: Prepare exact diff
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$HEAD_SHA" ]]
+          git diff --no-ext-diff --unified=8 "$BASE...$HEAD_SHA" > "$RUNNER_TEMP/diff"
+          test -s "$RUNNER_TEMP/diff"
+      - name: Install bounded reviewer
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/ollama/ollama/releases/download/v0.32.7/install.sh -o "$RUNNER_TEMP/i"
+          OLLAMA_VERSION=0.32.7 sh "$RUNNER_TEMP/i"
+          nohup ollama serve > "$RUNNER_TEMP/ollama.log" 2>&1 &
+          for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:11434/api/tags >/dev/null && break; sleep 1; done
+          ollama pull "$MODEL"
+      - name: Audit exact diff
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP/diff" "$RUNNER_TEMP/result" <<'PY'
+          import json,pathlib,sys,urllib.request
+          c='''Independently audit only this exact diff for material P0/P1/P2 issues. #1561 browser-only real Synology acceptance; persistent target SHA eafc198857c90caf89a5920da60ae7661c1061ba and adoption run 32373954360 stay fixed. No Portal/WH09 redeploy/restart, PAPER/LIVE/model activation, trading credentials, order adapter, orders, withdrawals or capital authority. Verify one-shot semantics, dual provenance, helper schema consistency, meaningful real authenticated Chromium /bots assertions, URL-safe bounded USER session, exact task-owned cleanup, secret-free evidence, bounded HEALTHY convergence, least privilege and workflow-registry compatibility. Output exactly three lines: RESULT=PASS or RESULT=FAIL; FINDINGS=<integer>; SUMMARY=<brief evidence-based summary>.'''
+          p=c+'\n\nEXACT DIFF:\n'+pathlib.Path(sys.argv[1]).read_text(); b=json.dumps({'model':'qwen2.5-coder:7b','prompt':p,'stream':False,'options':{'temperature':0.1,'num_ctx':32768,'num_predict':1400}}).encode(); q=urllib.request.Request('http://127.0.0.1:11434/api/generate',data=b,headers={'Content-Type':'application/json'})
+          with urllib.request.urlopen(q,timeout=1800) as r: out=json.load(r).get('response','').strip()
+          pathlib.Path(sys.argv[2]).write_text(out+'\n'); print(out)
+          PY
+          grep -Fx 'RESULT=PASS' "$RUNNER_TEMP/result"
+          grep -Fx 'FINDINGS=0' "$RUNNER_TEMP/result"
+          grep -Eq '^SUMMARY=.+$' "$RUNNER_TEMP/result"
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: pr1644-final-audit-${{ github.run_id }}
+          path: ${{ runner.temp }}/result
+          if-no-files-found: warn
+          retention-days: 30

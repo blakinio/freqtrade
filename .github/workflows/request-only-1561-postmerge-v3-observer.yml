@@ -1,0 +1,36 @@
+name: Request-only #1561 postmerge v3 observer
+
+on:
+  pull_request:
+    branches: [develop]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  observe:
+    if: github.head_ref == 'audit/1561-postmerge-v3-observer'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Observe exact merge browser run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_SHA: 3fc65d7da9511e0bd15c0ab924f6d8dacd1829cc
+        shell: bash
+        run: |
+          set -euo pipefail
+          runs="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$TARGET_SHA&event=push&per_page=100")"
+          python3 - "$TARGET_SHA" <<'PY' <<<"$runs"
+          import json, sys
+          target = sys.argv[1]
+          data = json.load(sys.stdin)
+          matches = [r for r in data.get('workflow_runs', []) if r.get('head_sha') == target and r.get('name') == 'Portal WickHunter WH09 Browser Retry Trigger']
+          if not matches:
+              raise SystemExit('postmerge v3 browser trigger not found')
+          r = sorted(matches, key=lambda x: x['id'])[-1]
+          print(json.dumps({'run_id':r['id'],'status':r['status'],'conclusion':r['conclusion'],'head_sha':r['head_sha'],'event':r['event'],'head_branch':r['head_branch']}, sort_keys=True))
+          if r['status'] != 'completed':
+              raise SystemExit('postmerge v3 browser trigger not terminal')
+          PY

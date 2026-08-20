@@ -55,8 +55,8 @@ def test_deployed_browser_session_has_read_only_authority_and_bounded_lifetime()
     assert "acceptance_key=" in workflow
     assert 'principal_id="wh09-p-${acceptance_key}"' in workflow
     assert 'membership_id="wh09-m-${acceptance_key}"' in workflow
-    assert '[[ ${#principal_id} -le 36 ]]' in workflow
-    assert '[[ ${#membership_id} -le 36 ]]' in workflow
+    assert "[[ ${#principal_id} -le 36 ]]" in workflow
+    assert "[[ ${#membership_id} -le 36 ]]" in workflow
     assert 'membership_id="wh09-browser-membership-' not in workflow
     for forbidden in (
         "RoleName.TRADER",

@@ -81,11 +81,13 @@ def test_browser_v2_keeps_zero_authority_and_exact_cleanup() -> None:
 def test_browser_harness_uses_bounded_content_convergence() -> None:
     browser = BROWSER.read_text(encoding="utf-8")
 
-    assert "page.goto(`${origin}/bots`" in browser
-    assert 'new URL(page.url()).pathname !== "/bots"' in browser
+    assert 'const expectedBotsUrl = new URL("/bots", origin).toString()' in browser
+    assert "await page.goto(expectedBotsUrl" in browser
+    assert "finalUrl === expectedBotsUrl" in browser
     assert 'page.locator("body").innerText()' in browser
-    assert "for (let attempt = 0; attempt < 3; attempt += 1)" in browser
-    assert "missing_markers" in browser
+    assert "const maxPageAttempts = 3" in browser
+    assert "attempt <= maxPageAttempts" in browser
+    assert "missing_visible_markers" in browser
     assert "body_sha256" in browser
     assert "portal_fixture_" in browser
     assert "Execution: disabled · Orders: 0" in browser

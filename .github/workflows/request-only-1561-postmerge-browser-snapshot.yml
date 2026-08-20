@@ -1,0 +1,33 @@
+name: Request-only #1561 post-merge browser snapshot
+
+on:
+  pull_request:
+    branches:
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    name: Snapshot exact post-merge browser acceptance
+    if: github.head_ref == 'audit/1561-postmerge-browser-snapshot'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    env:
+      TARGET_MERGE_SHA: d9e430bf89ec85d20499966cabf6baabcf7c275b
+    steps:
+      - name: Snapshot exact runs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$TARGET_MERGE_SHA&per_page=100")"
+          echo '=== exact merge SHA runs ==='
+          jq '[.workflow_runs[] | {id,name,event,head_sha,status,conclusion,created_at,updated_at,run_attempt,html_url}] | sort_by(.created_at)' <<<"$runs"
+          echo '=== WickHunter browser exact runs ==='
+          jq '[.workflow_runs[] | select((.name | test("Portal WickHunter WH09 (Browser Retry Trigger|Deployed Browser Acceptance)"))) | {id,name,event,head_sha,status,conclusion,created_at,updated_at,run_attempt,html_url}] | sort_by(.created_at)' <<<"$runs"

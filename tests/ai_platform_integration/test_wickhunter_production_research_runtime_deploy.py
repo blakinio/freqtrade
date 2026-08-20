@@ -15,7 +15,7 @@ WORKFLOW = (
     / "workflows"
     / "ai-platform-wickhunter-wh09-production-research-runtime-deploy.yml"
 )
-RETRY_V6 = DEPLOY / "run-requests" / "retry-wh09-production-research-20260809-v6.json"
+RETRY_V7 = DEPLOY / "run-requests" / "retry-wh09-production-research-20260819-v7.json"
 DIAGNOSTIC_PATH = (
     "deploy/synology/wickhunter-production-research-runtime/run-requests/"
     "diagnose-wh09-production-research-20260808-v4.json"
@@ -122,14 +122,14 @@ def test_healthcheck_rejects_nested_fail_closed_runtime() -> None:
     assert 'error_code = None if status == "healthy" else "runtime_fail_closed"' in operator
 
 
-def test_final_retry_v6_is_one_shot_exact_source_and_zero_authority() -> None:
+def test_final_retry_v7_is_one_shot_exact_source_and_zero_authority() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
-    retry = json.loads(RETRY_V6.read_text(encoding="utf-8"))
+    retry = json.loads(RETRY_V7.read_text(encoding="utf-8"))
 
     assert "environment: synology-staging" in workflow
     assert "timeout-minutes: 45" in workflow
     assert "freqtrade-staging" in workflow
-    assert "retry-wh09-production-research-20260809-v6.json" in workflow
+    assert "retry-wh09-production-research-20260819-v7.json" in workflow
     assert "EXPECTED_COMPOSE_BLOB_SHA" in workflow
     assert "git diff --name-status" in workflow
     assert "$'A\\t'\"$REQUEST_PATH\"" in workflow
@@ -183,14 +183,11 @@ def test_final_retry_v6_is_one_shot_exact_source_and_zero_authority() -> None:
 
     assert retry == {
         "schema_version": 1,
-        "request_id": "wickhunter-wh09-production-research-deploy-retry-20260809-v6",
-        "deploy_commit": "90cfc5ded10b0c6cb6406d00042817aca611e900",
-        "previous_run_id": 31326580829,
-        "previous_job_id": 93277819212,
-        "failure_class": "bash_case_pattern_parse_error_before_host_validation",
+        "request_id": "wickhunter-wh09-production-research-deploy-retry-20260819-v7",
+        "deploy_commit": "1af35b4ccef6bbd06c771603a80760c342d334aa",
+        "failure_class": "runtime_image_predates_legacy_restart_suffix_reconciliation_1487",
         "runtime_repair_authorized": True,
         "container_recreate_authorized": True,
-        "replace_unsupported_pids_cgroup_with_nproc_rlimit": True,
         "persistent_internal_demo_production_authorized": True,
         "mode": "shadow",
         "no_trade_confidence": "0.60",

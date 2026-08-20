@@ -1,0 +1,97 @@
+name: Request-only #1561 post-merge browser observer
+
+on:
+  pull_request:
+    branches:
+      - develop
+
+permissions:
+  contents: read
+
+concurrency:
+  group: request-only-1561-postmerge-browser-observer
+  cancel-in-progress: true
+
+env:
+  TARGET_MERGE_SHA: d9e430bf89ec85d20499966cabf6baabcf7c275b
+  TRIGGER_WORKFLOW_NAME: Portal WickHunter WH09 Browser Retry Trigger
+  BROWSER_WORKFLOW_NAME: Portal WickHunter WH09 Deployed Browser Acceptance
+
+jobs:
+  observe:
+    name: Observe exact post-merge browser acceptance
+    if: github.head_ref == 'audit/1561-postmerge-browser-observer'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Wait for exact trigger and deployed-browser terminality
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          trigger_id=''
+          browser_id=''
+          for _ in $(seq 1 240); do
+            runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$TARGET_MERGE_SHA&per_page=100")"
+            trigger_id="$(jq -r --arg name "$TRIGGER_WORKFLOW_NAME" --arg sha "$TARGET_MERGE_SHA" '
+              [.workflow_runs[] | select(.name == $name and .event == "push" and .head_sha == $sha)]
+              | sort_by(.created_at) | last | .id // empty
+            ' <<<"$runs")"
+            browser_id="$(jq -r --arg name "$BROWSER_WORKFLOW_NAME" --arg sha "$TARGET_MERGE_SHA" '
+              [.workflow_runs[] | select(.name == $name and .event == "workflow_dispatch" and .head_sha == $sha)]
+              | sort_by(.created_at) | last | .id // empty
+            ' <<<"$runs")"
+
+            trigger_status='missing'
+            trigger_conclusion=''
+            browser_status='missing'
+            browser_conclusion=''
+            if [[ "$trigger_id" =~ ^[0-9]+$ ]]; then
+              trigger_status="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$trigger_id" --jq '.status')"
+              trigger_conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$trigger_id" --jq '.conclusion // ""')"
+            fi
+            if [[ "$browser_id" =~ ^[0-9]+$ ]]; then
+              browser_status="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$browser_id" --jq '.status')"
+              browser_conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$browser_id" --jq '.conclusion // ""')"
+            fi
+            printf 'trigger=%s status=%s conclusion=%s browser=%s status=%s conclusion=%s\n' \
+              "$trigger_id" "$trigger_status" "$trigger_conclusion" \
+              "$browser_id" "$browser_status" "$browser_conclusion"
+
+            if [[ "$trigger_status" == 'completed' && "$browser_status" == 'completed' ]]; then
+              [[ "$trigger_conclusion" == 'success' ]]
+              [[ "$browser_conclusion" == 'success' ]]
+              break
+            fi
+            sleep 5
+          done
+
+          [[ "$trigger_id" =~ ^[0-9]+$ ]]
+          [[ "$browser_id" =~ ^[0-9]+$ ]]
+          [[ "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$trigger_id" --jq '.status + ":" + (.conclusion // "")')" == 'completed:success' ]]
+          [[ "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$browser_id" --jq '.status + ":" + (.conclusion // "")')" == 'completed:success' ]]
+
+          echo '=== trigger run ==='
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$trigger_id" \
+            --jq '{id,name,event,head_sha,status,conclusion,created_at,updated_at,html_url}'
+          echo '=== browser run ==='
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$browser_id" \
+            --jq '{id,name,event,head_sha,status,conclusion,created_at,updated_at,html_url,run_attempt}'
+          echo '=== browser jobs ==='
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$browser_id/jobs?per_page=100" \
+            --jq '[.jobs[] | {id,name,status,conclusion,started_at,completed_at}]'
+          echo '=== browser artifacts ==='
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$browser_id/artifacts?per_page=100" \
+            --jq '[.artifacts[] | {id,name,size_in_bytes,archive_download_url,expired,digest}]'
+
+          {
+            echo '### Exact post-merge browser acceptance'
+            echo
+            echo "- merge SHA: \`$TARGET_MERGE_SHA\`"
+            echo "- trigger run: \`$trigger_id\` — SUCCESS"
+            echo "- deployed-browser run: \`$browser_id\` — SUCCESS"
+          } >> "$GITHUB_STEP_SUMMARY"

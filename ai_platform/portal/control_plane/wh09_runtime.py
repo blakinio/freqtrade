@@ -46,6 +46,7 @@ WH09_FROZEN_NO_TRADE_CONFIDENCE = Decimal("0.60")
 WH09_OUTCOME_HORIZON_MS = 900_000
 WH09_MAX_EVIDENCE_AGE_SECONDS = 600
 WH09_MAX_OBSERVER_RESPONSE_BYTES = 512 * 1024
+WH09_OBSERVER_TIMEOUT_SECONDS = 30.0
 
 ZERO_AUTHORITY_FIELDS = (
     "protected_holdout_accessed",
@@ -202,6 +203,27 @@ def _millis_to_datetime(value: object, *, field: str) -> datetime:
     return datetime.fromtimestamp(value / 1000, tz=UTC)
 
 
+def _health_state(
+    health: dict[str, Any], *, clock: Callable[[], datetime], max_age_seconds: int
+) -> Literal["HEALTHY", "DEGRADED", "STALE"]:
+    checked_at = _millis_to_datetime(health.get("checked_at_ms"), field="checked_at_ms")
+    age_seconds = (clock() - checked_at).total_seconds()
+    if age_seconds < -60:
+        raise Wh09RuntimeEvidenceError("WH09 health timestamp is unreasonably in the future")
+    source_healthy = (
+        health.get("status") == "healthy"
+        and health.get("runtime_health") == "healthy"
+        and health.get("model_drift") == "healthy"
+        and health.get("data_drift") == "healthy"
+        and health.get("circuit_breaker_active") is False
+        and health.get("circuit_breaker_reasons") == []
+        and health.get("error_code") is None
+    )
+    if age_seconds > max_age_seconds:
+        return "STALE"
+    return "HEALTHY" if source_healthy else "DEGRADED"
+
+
 class Wh09RuntimeEvidenceReader:
     def __init__(
         self,
@@ -221,6 +243,36 @@ class Wh09RuntimeEvidenceReader:
     @property
     def root(self) -> Path:
         return self._root
+
+    def read_health(self) -> tuple[Literal["HEALTHY", "DEGRADED", "STALE"], BotMode]:
+        """Validate bounded runtime health and zero-authority without scanning decision history."""
+        if self._root.is_symlink() or not self._root.is_dir():
+            raise Wh09RuntimeEvidenceError("WH09 runtime evidence root is unavailable")
+        operator = self._root / "operator"
+        if operator.is_symlink() or not operator.is_dir():
+            raise Wh09RuntimeEvidenceError("WH09 operator evidence root is invalid")
+        health = _load_object(operator / "health.json", label="WH09 health")
+        _verify_hash(health, hash_field="health_sha256", label="WH09 health")
+        if health.get("schema_version") != WH09_HEALTH_SCHEMA:
+            raise Wh09RuntimeEvidenceError("WH09 health schema mismatch")
+        _require_zero_authority(health, label="WH09 health")
+        expected = {
+            "mode": BotMode.SHADOW.value,
+            "model_hash": WH09_EXPECTED_MODEL_HASH,
+            "model_artifact_sha256": WH09_EXPECTED_MODEL_ARTIFACT_SHA256,
+            "parameter_hash": WH09_EXPECTED_PARAMETER_HASH,
+            "no_trade_confidence": str(WH09_FROZEN_NO_TRADE_CONFIDENCE),
+            "outcome_horizon_ms": WH09_OUTCOME_HORIZON_MS,
+        }
+        for key, value in expected.items():
+            if health.get(key) != value:
+                raise Wh09RuntimeEvidenceError(f"WH09 frozen health mismatch: {key}")
+        generation = health.get("generation")
+        if type(generation) is not int or generation < 0:
+            raise Wh09RuntimeEvidenceError("WH09 source runtime generation is invalid")
+        return _health_state(
+            health, clock=self._clock, max_age_seconds=self._max_age_seconds
+        ), BotMode.SHADOW
 
     def read(self) -> Wh09RuntimeEvidence:  # noqa: C901 - evidence checks are fail-closed
         if self._root.is_symlink() or not self._root.is_dir():
@@ -295,24 +347,9 @@ class Wh09RuntimeEvidenceReader:
             raise Wh09RuntimeEvidenceError("WH09 source generation differs across telemetry/health")
 
         checked_at = _millis_to_datetime(health.get("checked_at_ms"), field="checked_at_ms")
-        age_seconds = (self._clock() - checked_at).total_seconds()
-        if age_seconds < -60:
-            raise Wh09RuntimeEvidenceError("WH09 health timestamp is unreasonably in the future")
-        source_healthy = (
-            health.get("status") == "healthy"
-            and health.get("runtime_health") == "healthy"
-            and health.get("model_drift") == "healthy"
-            and health.get("data_drift") == "healthy"
-            and health.get("circuit_breaker_active") is False
-            and health.get("circuit_breaker_reasons") == []
-            and health.get("error_code") is None
+        health_state = _health_state(
+            health, clock=self._clock, max_age_seconds=self._max_age_seconds
         )
-        if age_seconds > self._max_age_seconds:
-            health_state: Literal["HEALTHY", "DEGRADED", "STALE"] = "STALE"
-        elif source_healthy:
-            health_state = "HEALTHY"
-        else:
-            health_state = "DEGRADED"
 
         latest_decision = self._latest_decision(journal / "decisions", identity)
         source_generation = telemetry.get("runtime_generation")
@@ -420,7 +457,7 @@ class Wh09RuntimeEvidenceHttpClient:
             method="GET",
         )
         try:
-            with urlopen(request, timeout=5) as response:  # noqa: S310 - fixed endpoint above
+            with urlopen(request, timeout=WH09_OBSERVER_TIMEOUT_SECONDS) as response:  # noqa: S310 - fixed endpoint above
                 body = response.read(WH09_MAX_OBSERVER_RESPONSE_BYTES + 1)
         except (HTTPError, URLError, TimeoutError) as exc:
             raise Wh09RuntimeEvidenceError("WH09 private observer is unavailable") from exc

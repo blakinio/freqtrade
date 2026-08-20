@@ -33,22 +33,24 @@ class Wh09ObserverHandler(BaseHTTPRequestHandler):
             self._json(HTTPStatus.NOT_FOUND, {"detail": "not found"})
             return
         try:
-            evidence = _reader().read()
+            reader = _reader()
+            if self.path == "/healthz":
+                source_health, mode = reader.read_health()
+                self._json(
+                    HTTPStatus.OK,
+                    {
+                        "status": "ready",
+                        "source_health": source_health,
+                        "mode": mode.value,
+                        "live_capital_authorized": False,
+                    },
+                )
+                return
+            evidence = reader.read()
         except Wh09RuntimeEvidenceError:
             self._json(
                 HTTPStatus.SERVICE_UNAVAILABLE,
                 {"status": "unavailable", "live_capital_authorized": False},
-            )
-            return
-        if self.path == "/healthz":
-            self._json(
-                HTTPStatus.OK,
-                {
-                    "status": "ready",
-                    "source_health": evidence.health,
-                    "mode": evidence.mode.value,
-                    "live_capital_authorized": False,
-                },
             )
             return
         self._json(HTTPStatus.OK, evidence.model_dump(mode="json"))

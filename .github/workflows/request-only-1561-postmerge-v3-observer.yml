@@ -21,11 +21,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          runs="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$TARGET_SHA&event=push&per_page=100")"
-          python3 - "$TARGET_SHA" <<'PY' <<<"$runs"
-          import json, sys
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$TARGET_SHA&event=push&per_page=100" > "$RUNNER_TEMP/runs.json"
+          python3 - "$TARGET_SHA" "$RUNNER_TEMP/runs.json" <<'PY'
+          import json, pathlib, sys
           target = sys.argv[1]
-          data = json.load(sys.stdin)
+          data = json.loads(pathlib.Path(sys.argv[2]).read_text())
           matches = [r for r in data.get('workflow_runs', []) if r.get('head_sha') == target and r.get('name') == 'Portal WickHunter WH09 Browser Retry Trigger']
           if not matches:
               raise SystemExit('postmerge v3 browser trigger not found')

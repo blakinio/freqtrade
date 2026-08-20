@@ -48,6 +48,6 @@ def test_browser_retry_trigger_binds_to_accepted_v4_adoption() -> None:
 
     assert f"AUTHORIZATION_SHA: {AUTHORIZATION_SHA}" in workflow
     assert f'ADOPTION_RUN_ID: "{ADOPTION_RUN_ID}"' in workflow
-    assert 'actions/runs/$ADOPTION_RUN_ID' in workflow
+    assert "actions/runs/$ADOPTION_RUN_ID" in workflow
     assert '[[ "${adoption[3]}" == "$AUTHORIZATION_SHA" ]]' in workflow
     assert '[[ "${adoption[5]}" == "success" ]]' in workflow

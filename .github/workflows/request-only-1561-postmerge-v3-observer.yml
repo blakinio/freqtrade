@@ -34,3 +34,48 @@ jobs:
           if r['status'] != 'completed':
               raise SystemExit('postmerge v3 browser trigger not terminal')
           PY
+
+  prepare-v4-repair:
+    if: github.head_ref == 'audit/1561-postmerge-v3-observer'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout exact post-1641 develop
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: 3fc65d7da9511e0bd15c0ab924f6d8dacd1829cc
+          fetch-depth: 2
+      - name: Create bounded v4 repair branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch=fix/1561-browser-v4-approval-health-window
+          git switch -c "$branch"
+          workflow=.github/workflows/portal-wickhunter-wh09-browser-retry-trigger.yml
+          tests=tests/ci/test_portal_wickhunter_browser_retry_trigger.py
+          python3 - "$workflow" "$tests" <<'PY'
+          from pathlib import Path
+          import sys
+          w = Path(sys.argv[1]); s = w.read_text()
+          s = s.replace('v3', 'v4').replace('"schema_version": 3', '"schema_version": 4')
+          s = s.replace('approval.get("schema_version") != 2', 'approval.get("schema_version") != 4')
+          s = s.replace('for attempt in range(6):', 'for attempt in range(181):').replace('if attempt < 5:', 'if attempt < 180:')
+          s = s.replace('Seed session, run v2 Chromium', 'Seed session, run v4 Chromium')
+          w.write_text(s)
+          t = Path(sys.argv[2]); s = t.read_text().replace('v3', 'v4').replace('== 3', '== 4')
+          s = s.replace('assert "timeout-minutes: 50" in workflow', 'assert "timeout-minutes: 50" in workflow\n    assert "for attempt in range(181):" in workflow\n    assert "if attempt < 180:" in workflow\n    assert \'approval.get("schema_version") != 4\' in workflow')
+          t.write_text(s)
+          PY
+          cat > deploy/synology/portal-oidc/run-requests/wickhunter-wh09-browser-acceptance-20260820-v4.json <<'EOF'
+          {"schema_version":4,"request_id":"wickhunter-wh09-browser-acceptance-20260820-v4","target_authorization_sha":"eafc198857c90caf89a5920da60ae7661c1061ba","harness_source":"trigger_merge_sha","session_token_format":"urlsafe","acceptance_timeout_minutes":50,"adoption_run_id":32373954360,"portal_origin":"https://quant.molehill.cloud","browser_only":true,"runtime_e2e_required":true,"portal_deploy_authorized":false,"wh09_redeploy_authorized":false,"paper_activation_authorized":false,"trading_credentials_present":false,"order_adapter_present":false,"execution_enabled":false,"orders_submitted":0,"live_capital_authorized":false}
+          EOF
+          python3 -m py_compile "$tests"
+          python3 -m json.tool deploy/synology/portal-oidc/run-requests/wickhunter-wh09-browser-acceptance-20260820-v4.json >/dev/null
+          git diff --check
+          git config user.name 'ChatGPT task agent'
+          git config user.email 'chatgpt@users.noreply.github.com'
+          git add "$workflow" "$tests" deploy/synology/portal-oidc/run-requests/wickhunter-wh09-browser-acceptance-20260820-v4.json
+          git commit -m 'fix(portal): repair WH09 browser v4 provenance gate'
+          git push origin "$branch"

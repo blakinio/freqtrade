@@ -1,0 +1,1 @@
+V4 implementation uses the existing registered workflow path and packages a task-owned acceptance script with its SHA256 bound into approval.json. Helper approval producer and consumer both require schema_version=3. Synology performs no repository checkout. The request remains browser-only and zero-authority.

@@ -1,9 +1,11 @@
-import json
 from pathlib import Path
+import json
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/portal-wickhunter-wh09-browser-retry-trigger.yml"
-REQUEST = ROOT / "deploy/synology/portal-oidc/run-requests/wickhunter-wh09-browser-acceptance-20260820-v4.json"
+REQUEST = ROOT / (
+    "deploy/synology/portal-oidc/run-requests/wickhunter-wh09-browser-acceptance-20260820-v4.json"
+)
 BROWSER = ROOT / "ai_platform/portal/web/e2e/wickhunter-api-mode-ci.mjs"
 TARGET = "eafc198857c90caf89a5920da60ae7661c1061ba"
 

@@ -1,0 +1,20 @@
+{
+  "schema_version": 3,
+  "request_id": "wickhunter-wh09-browser-acceptance-20260820-v3",
+  "target_authorization_sha": "eafc198857c90caf89a5920da60ae7661c1061ba",
+  "harness_source": "trigger_merge_sha",
+  "session_token_format": "urlsafe",
+  "acceptance_timeout_minutes": 50,
+  "adoption_run_id": 32373954360,
+  "portal_origin": "https://quant.molehill.cloud",
+  "browser_only": true,
+  "runtime_e2e_required": true,
+  "portal_deploy_authorized": false,
+  "wh09_redeploy_authorized": false,
+  "paper_activation_authorized": false,
+  "trading_credentials_present": false,
+  "order_adapter_present": false,
+  "execution_enabled": false,
+  "orders_submitted": 0,
+  "live_capital_authorized": false
+}

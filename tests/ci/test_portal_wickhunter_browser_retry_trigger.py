@@ -5,35 +5,43 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/portal-wickhunter-wh09-browser-retry-trigger.yml"
 REQUEST = ROOT / (
-    "deploy/synology/portal-oidc/run-requests/wickhunter-wh09-browser-acceptance-20260820-v2.json"
+    "deploy/synology/portal-oidc/run-requests/wickhunter-wh09-browser-acceptance-20260820-v3.json"
 )
 BROWSER = ROOT / "ai_platform/portal/web/e2e/wickhunter-api-mode-ci.mjs"
 TARGET_AUTHORIZATION_SHA = "eafc198857c90caf89a5920da60ae7661c1061ba"
 ADOPTION_RUN_ID = 32373954360
 
 
-def test_browser_v2_is_one_shot_and_dual_provenance() -> None:
+def test_browser_v3_is_one_shot_and_dual_provenance() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
     assert 'git cat-file -e "$GITHUB_SHA^:$REQUEST_PATH"' in workflow
-    assert "browser-only v2 request is not newly introduced one-shot material" in workflow
+    assert "browser-only v3 request is not newly introduced one-shot material" in workflow
     assert "harness_sha=%s" in workflow
     assert "harness_source_sha" in workflow
     assert "target_authorization_sha" in workflow
     assert "ftai.target_authorization_sha" in workflow
     assert "org.opencontainers.image.revision=$HARNESS_SHA" in workflow
-    assert "portal-wh09-deployed-browser-v2" in workflow
+    assert "portal-wh09-deployed-browser-v3" in workflow
     assert "gh workflow run" not in workflow
     assert "docker restart" not in workflow
     assert "docker compose" not in workflow
+    assert "python3 -c 'import secrets; print(secrets.token_urlsafe(48))'" in workflow
+    assert "openssl rand -base64 48" not in workflow
+    assert '[[ "$session_token" =~ ^[A-Za-z0-9_-]+$ ]]' in workflow
+    assert '[[ "$GITHUB_SHA" == "$HARNESS_SHA" ]]' in workflow
+    assert workflow.count("Checkout exact harness source") == 1
+    assert "timeout-minutes: 50" in workflow
 
 
-def test_browser_v2_request_cannot_authorize_runtime_mutation() -> None:
+def test_browser_v3_request_cannot_authorize_runtime_mutation() -> None:
     payload = json.loads(REQUEST.read_text(encoding="utf-8"))
 
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
     assert payload["target_authorization_sha"] == TARGET_AUTHORIZATION_SHA
     assert payload["harness_source"] == "trigger_merge_sha"
+    assert payload["session_token_format"] == "urlsafe"
+    assert payload["acceptance_timeout_minutes"] == 50
     assert payload["adoption_run_id"] == ADOPTION_RUN_ID
     assert payload["browser_only"] is True
     assert payload["runtime_e2e_required"] is True
@@ -47,7 +55,7 @@ def test_browser_v2_request_cannot_authorize_runtime_mutation() -> None:
     assert payload["live_capital_authorized"] is False
 
 
-def test_browser_v2_binds_to_accepted_v4_target_without_redeployment() -> None:
+def test_browser_v3_binds_to_accepted_v4_target_without_redeployment() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
     assert f"TARGET_AUTHORIZATION_SHA: {TARGET_AUTHORIZATION_SHA}" in workflow
@@ -59,7 +67,7 @@ def test_browser_v2_binds_to_accepted_v4_target_without_redeployment() -> None:
     assert 'web_revision" == "$TARGET_AUTHORIZATION_SHA"' in workflow
 
 
-def test_browser_v2_keeps_zero_authority_and_exact_cleanup() -> None:
+def test_browser_v3_keeps_zero_authority_and_exact_cleanup() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
     assert "roles=(RoleName.USER,)" in workflow

@@ -1,0 +1,30 @@
+name: Request-only #1637 Ruff format output
+
+on:
+  pull_request:
+    branches:
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    if: github.head_ref == 'audit/1637-ruff-format-output'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v6.0.0
+        with:
+          python-version: "3.13"
+      - name: Print exact Ruff formatter diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check ruff==0.15.20
+          target=tests/ci/test_portal_wickhunter_browser_retry_trigger.py
+          ruff format "$target"
+          git diff -- "$target"

@@ -3,11 +3,10 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-WORKFLOW = ROOT / ".github/workflows/portal-wickhunter-wh09-browser-retry-trigger.yml"
-REQUEST = ROOT / (
-    "deploy/synology/portal-oidc/run-requests/"
-    "wickhunter-wh09-browser-acceptance-20260820-v1.json"
-)
+WORKFLOW_DIR = ROOT / ".github/workflows"
+WORKFLOW = WORKFLOW_DIR / "portal-wickhunter-wh09-browser-retry-trigger.yml"
+REQUEST_DIR = ROOT / "deploy/synology/portal-oidc/run-requests"
+REQUEST = REQUEST_DIR / "wickhunter-wh09-browser-acceptance-20260820-v1.json"
 AUTHORIZATION_SHA = "eafc198857c90caf89a5920da60ae7661c1061ba"
 ADOPTION_RUN_ID = 32373954360
 

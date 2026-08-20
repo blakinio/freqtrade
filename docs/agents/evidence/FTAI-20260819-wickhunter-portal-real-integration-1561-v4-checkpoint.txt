@@ -1,0 +1,7 @@
+V4 repair branch checkpoint
+base=3fc65d7da9511e0bd15c0ab924f6d8dacd1829cc
+v3_post_merge_run=32419995064
+v3_synology_job=96591217707
+v3_failure=helper approval producer schema 3 vs consumer schema 2
+v4_request=wickhunter-wh09-browser-acceptance-20260820-v4.json
+real_capital_authority=false

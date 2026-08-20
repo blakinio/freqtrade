@@ -896,6 +896,9 @@ def deploy_approved(args: argparse.Namespace) -> int:
     )
     docker_host_state.install(deploy)
     entrypoint._install_docker_host_liquidations_preflight(deploy)
+    market_evidence.__dict__["MARKET_EVIDENCE_HOST_ROOT"] = (
+        entrypoint._resolve_market_evidence_host_root(deploy)
+    )
     market_evidence.install(deploy)
     copy_on_write.install(deploy)
     archive_root = Path(deploy.PORTAL_STATE_DIR) / ROLLBACK_ARCHIVE_DIRNAME

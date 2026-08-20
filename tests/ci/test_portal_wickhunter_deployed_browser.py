@@ -16,7 +16,7 @@ def test_deployed_browser_acceptance_is_one_shot_and_post_adoption() -> None:
     assert "actions: read" in workflow
     assert "Wait for exact Portal adoption success" in workflow
     assert "portal-wickhunter-wh09-adoption.yml/runs" in workflow
-    assert "wickhunter-wh09-portal-adoption-20260819-v2.json" in workflow
+    assert "wickhunter-wh09-portal-adoption-20260820-v3.json" in workflow
     assert 'git cat-file -e "$AUTHORIZATION_SHA^:$REQUEST_PATH"' in workflow
     assert (
         "deployed-browser acceptance is not bound to a newly introduced one-shot request"

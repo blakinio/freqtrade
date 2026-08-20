@@ -1,0 +1,1 @@
+After v3 failure, the persistent WH09 container remained unchanged and recovered without restart/redeploy to status=healthy, runtime_health=healthy, generation=1674. Zero-authority remained execution_enabled=false, orders_submitted=0, live_capital_authorized=false; immutable container/image/revision remained unchanged.

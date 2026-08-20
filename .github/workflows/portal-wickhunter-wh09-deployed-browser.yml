@@ -5,11 +5,11 @@ on:
     branches:
       - develop
     paths:
-      - deploy/synology/portal-oidc/run-requests/wickhunter-wh09-portal-adoption-20260820-v3.json
+      - deploy/synology/portal-oidc/run-requests/wickhunter-wh09-portal-adoption-20260820-v4.json
   workflow_dispatch:
     inputs:
       authorization_sha:
-        description: Exact develop commit that newly introduced the v3 adoption request
+        description: Exact develop commit that newly introduced the v4 adoption request
         required: true
         type: string
 
@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  REQUEST_PATH: deploy/synology/portal-oidc/run-requests/wickhunter-wh09-portal-adoption-20260820-v3.json
+  REQUEST_PATH: deploy/synology/portal-oidc/run-requests/wickhunter-wh09-portal-adoption-20260820-v4.json
   PORTAL_CONTROL_CONTAINER: freqtrade-portal-control-plane
   PORTAL_WEB_CONTAINER: freqtrade-portal-staging
   PORTAL_ORIGIN: https://quant.molehill.cloud
@@ -79,7 +79,7 @@ jobs:
 
           payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
           required = {
-              "request_id": "wickhunter-wh09-portal-adoption-20260820-v3",
+              "request_id": "wickhunter-wh09-portal-adoption-20260820-v4",
               "portal_origin": "https://quant.molehill.cloud",
               "bot_id": "wickhunter",
               "existing_runtime_adoption_authorized": True,

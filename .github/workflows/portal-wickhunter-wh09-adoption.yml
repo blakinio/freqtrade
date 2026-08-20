@@ -5,7 +5,7 @@ name: Portal WickHunter WH09 Adoption
     branches:
       - develop
     paths:
-      - deploy/synology/portal-oidc/run-requests/wickhunter-wh09-portal-adoption-20260820-v3.json
+      - deploy/synology/portal-oidc/run-requests/wickhunter-wh09-portal-adoption-20260820-v4.json
 
 permissions:
   contents: read
@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  REQUEST_PATH: deploy/synology/portal-oidc/run-requests/wickhunter-wh09-portal-adoption-20260820-v3.json
+  REQUEST_PATH: deploy/synology/portal-oidc/run-requests/wickhunter-wh09-portal-adoption-20260820-v4.json
   LEGACY_DEPLOY_REQUEST: deploy/synology/portal-oidc/run-requests/public-oidc-20260801-v1.json
   WH09_COMPOSE_PROJECT: wickhunter-production-research-runtime
   WH09_COMPOSE_SERVICE: wickhunter-production-research-runtime
@@ -172,7 +172,7 @@ jobs:
           payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
           expected = {
               "schema_version": 1,
-              "request_id": "wickhunter-wh09-portal-adoption-20260820-v3",
+              "request_id": "wickhunter-wh09-portal-adoption-20260820-v4",
               "portal_origin": "https://quant.molehill.cloud",
               "tenant_id": "tenant-local",
               "bot_id": "wickhunter",

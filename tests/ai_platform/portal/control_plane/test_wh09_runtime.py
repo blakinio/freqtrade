@@ -4,6 +4,7 @@ import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
+from typing import Self
 
 import pytest
 
@@ -14,7 +15,9 @@ from ai_platform.portal.control_plane.wh09_runtime import (
     WH09_EXPECTED_MODEL_HASH,
     WH09_EXPECTED_PACKAGE_ID,
     WH09_EXPECTED_PARAMETER_HASH,
+    WH09_OBSERVER_TIMEOUT_SECONDS,
     Wh09RuntimeEvidenceError,
+    Wh09RuntimeEvidenceHttpClient,
     Wh09RuntimeEvidenceReader,
 )
 from ai_platform.wickhunter.canonical import canonical_sha256
@@ -194,3 +197,55 @@ def test_reader_fails_closed_when_source_generation_disagrees(tmp_path: Path) ->
 
     with pytest.raises(Wh09RuntimeEvidenceError, match="source generation"):
         Wh09RuntimeEvidenceReader(root, clock=lambda: NOW).read()
+
+
+def test_reader_health_path_is_bounded_and_skips_decision_inventory(tmp_path: Path) -> None:
+    root = _evidence_root(tmp_path)
+    decision_path = next((root / "journal" / "decisions").glob("*.json"))
+    decision_path.write_text("{not-json", encoding="utf-8")
+
+    health, mode = Wh09RuntimeEvidenceReader(root, clock=lambda: NOW).read_health()
+
+    assert health == "HEALTHY"
+    assert mode.value == "shadow"
+    with pytest.raises(Wh09RuntimeEvidenceError):
+        Wh09RuntimeEvidenceReader(root, clock=lambda: NOW).read()
+
+
+def test_reader_health_path_fails_closed_on_zero_authority_violation(tmp_path: Path) -> None:
+    root = _evidence_root(tmp_path)
+    health_path = root / "operator" / "health.json"
+    health = json.loads(health_path.read_text(encoding="utf-8"))
+    health.pop("health_sha256")
+    health["trading_credentials_present"] = True
+    health["health_sha256"] = canonical_sha256(health)
+    health_path.write_text(json.dumps(health), encoding="utf-8")
+
+    with pytest.raises(Wh09RuntimeEvidenceError, match="trading_credentials_present"):
+        Wh09RuntimeEvidenceReader(root, clock=lambda: NOW).read_health()
+
+
+def test_http_client_uses_bounded_observer_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    evidence = Wh09RuntimeEvidenceReader(_evidence_root(tmp_path), clock=lambda: NOW).read()
+    payload = json.dumps(evidence.model_dump(mode="json")).encode("utf-8")
+    observed: dict[str, float] = {}
+
+    class Response:
+        def __enter__(self) -> Self:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self, _limit: int) -> bytes:
+            return payload
+
+    def fake_urlopen(_request: object, *, timeout: float) -> Response:
+        observed["timeout"] = timeout
+        return Response()
+
+    monkeypatch.setattr("ai_platform.portal.control_plane.wh09_runtime.urlopen", fake_urlopen)
+    assert Wh09RuntimeEvidenceHttpClient().read() == evidence
+    assert observed["timeout"] == WH09_OBSERVER_TIMEOUT_SECONDS

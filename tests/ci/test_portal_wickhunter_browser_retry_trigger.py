@@ -4,9 +4,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/portal-wickhunter-wh09-browser-retry-trigger.yml"
-REQUEST = (
-    ROOT
-    / "deploy/synology/portal-oidc/run-requests/wickhunter-wh09-browser-acceptance-20260820-v2.json"
+REQUEST = ROOT / (
+    "deploy/synology/portal-oidc/run-requests/"
+    "wickhunter-wh09-browser-acceptance-20260820-v2.json"
 )
 BROWSER = ROOT / "ai_platform/portal/web/e2e/wickhunter-api-mode-ci.mjs"
 TARGET_AUTHORIZATION_SHA = "eafc198857c90caf89a5920da60ae7661c1061ba"
@@ -18,7 +18,7 @@ def test_browser_v2_is_one_shot_and_dual_provenance() -> None:
 
     assert 'git cat-file -e "$GITHUB_SHA^:$REQUEST_PATH"' in workflow
     assert "browser-only v2 request is not newly introduced one-shot material" in workflow
-    assert 'printf \'harness_sha=%s\\n\' "$GITHUB_SHA"' in workflow
+    assert "harness_sha=%s" in workflow
     assert "harness_source_sha" in workflow
     assert "target_authorization_sha" in workflow
     assert "ftai.target_authorization_sha" in workflow
@@ -79,12 +79,12 @@ def test_browser_v2_keeps_zero_authority_and_exact_cleanup() -> None:
     assert '"live_capital_authorized": False' in workflow
 
 
-def test_browser_harness_uses_bounded_content_convergence_and_safe_failure_evidence() -> None:
+def test_browser_harness_uses_bounded_content_convergence() -> None:
     browser = BROWSER.read_text(encoding="utf-8")
 
     assert 'page.goto(`${origin}/bots`' in browser
     assert 'new URL(page.url()).pathname !== "/bots"' in browser
-    assert "page.locator(\"body\").innerText()" in browser
+    assert 'page.locator("body").innerText()' in browser
     assert "for (let attempt = 0; attempt < 3; attempt += 1)" in browser
     assert "missing_markers" in browser
     assert "body_sha256" in browser

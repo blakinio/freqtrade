@@ -1,0 +1,147 @@
+name: Request-only #1561 deployed browser hydration diagnostic
+
+on:
+  pull_request:
+    branches:
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose-browser:
+    name: Diagnose visible deployed /bots page
+    if: github.head_ref == 'audit/1561-browser-page-diagnostic'
+    runs-on:
+      - freqtrade-staging
+    environment: synology-staging
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+    env:
+      PORTAL_CONTROL_CONTAINER: freqtrade-portal-control-plane
+      PORTAL_ORIGIN: https://quant.molehill.cloud
+      SOURCE_BROWSER_RUN: "32396795772"
+      SOURCE_BROWSER_ARTIFACT: portal-wh09-browser-image-32396795772-1
+    steps:
+      - name: Checkout diagnostic script only
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Download exact failed-run helper image
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ env.SOURCE_BROWSER_ARTIFACT }}
+          path: ${{ runner.temp }}/wh09-source-browser
+          repository: ${{ github.repository }}
+          run-id: ${{ env.SOURCE_BROWSER_RUN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Seed bounded session, inspect hydrated page, cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/wh09-source-browser/browser-image.tar.gz"
+          approval="$RUNNER_TEMP/wh09-source-browser/approval.json"
+          token_file="$RUNNER_TEMP/wh09-hydration-diag-token"
+          browser_name="wh09-hydration-diag-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          key="$(printf '%s:%s' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" | sha256sum | awk '{print substr($1,1,24)}')"
+          principal_id="wh09-hp-${key}"
+          membership_id="wh09-hm-${key}"
+          subject="urn:freqtrade:wh09-hydration-diag:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}"
+          [[ ${#principal_id} -le 36 && ${#membership_id} -le 36 ]]
+          browser_image="$(python3 - "$approval" <<'PY'
+          import json, pathlib, sys
+          data=json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if data.get("source_sha") != "eafc198857c90caf89a5920da60ae7661c1061ba":
+              raise SystemExit("unexpected helper source")
+          print(data["image_tag"])
+          PY
+          )"
+          gzip -dc "$archive" | docker load >/dev/null
+          umask 077
+          openssl rand -base64 48 | tr -d '\n' > "$token_file"
+          session_token="$(cat "$token_file")"
+          echo "::add-mask::$session_token"
+
+          docker exec -i \
+            --env "PORTAL_WH09_DIAG_TOKEN=$session_token" \
+            --env "PORTAL_WH09_DIAG_PRINCIPAL=$principal_id" \
+            --env "PORTAL_WH09_DIAG_MEMBERSHIP=$membership_id" \
+            --env "PORTAL_WH09_DIAG_SUBJECT=$subject" \
+            "$PORTAL_CONTROL_CONTAINER" python - <<'PY'
+          from datetime import UTC, datetime, timedelta
+          import os
+          from ai_platform.portal.contracts.identity import RoleName
+          from ai_platform.portal.control_plane.database import build_engine, build_session_factory
+          from ai_platform.portal.identity.crypto import IdentityCrypto, IdentitySecrets
+          from ai_platform.portal.identity.repository import IdentityRepository
+          from ai_platform.portal.identity.runtime import IdentityRuntimeConfig
+          cfg=IdentityRuntimeConfig.from_environment()
+          crypto=IdentityCrypto(IdentitySecrets(session_hmac_key=cfg.session_hmac_key, flow_encryption_key=cfg.flow_encryption_key))
+          engine=build_engine(os.environ["PORTAL_DATABASE_URL"]); factory=build_session_factory(engine); now=datetime.now(UTC)
+          try:
+              with factory() as session:
+                  repo=IdentityRepository(session)
+                  principal=repo.create_principal(principal_id=os.environ["PORTAL_WH09_DIAG_PRINCIPAL"], issuer=cfg.issuer, subject=os.environ["PORTAL_WH09_DIAG_SUBJECT"], display_name="WH09 hydration diagnostic", email=None, now=now)
+                  membership=repo.create_membership(membership_id=os.environ["PORTAL_WH09_DIAG_MEMBERSHIP"], principal_id=principal.principal_id, tenant_id="tenant-local", roles=(RoleName.USER,), valid_from=now, valid_until=now+timedelta(minutes=15), now=now)
+                  token=os.environ["PORTAL_WH09_DIAG_TOKEN"]
+                  repo.create_session(session_id_hash=crypto.hash_token(token), csrf_token_hash=crypto.hash_token(token+":csrf"), principal_id=principal.principal_id, membership_id=membership.membership_id, membership_version=membership.membership_version, idp_session_id=None, authentication_time=now, mfa_satisfied=True, created_at=now, idle_expires_at=now+timedelta(minutes=15), absolute_expires_at=now+timedelta(minutes=15))
+                  session.commit()
+          finally:
+              engine.dispose()
+          PY
+
+          browser_rc=0
+          docker run --name "$browser_name" --rm \
+            --read-only --tmpfs /tmp:rw,noexec,nosuid,nodev,size=512m \
+            --cap-drop ALL --security-opt no-new-privileges:true --shm-size 256m \
+            --env WICKHUNTER_BROWSER_ORIGIN="$PORTAL_ORIGIN" \
+            --env WICKHUNTER_SESSION_TOKEN="$session_token" \
+            --mount type=bind,src="$PWD/.github/diagnostics/1561-browser-visible-text.mjs",dst=/tmp/diag.mjs,readonly \
+            --entrypoint node "$browser_image" /tmp/diag.mjs || browser_rc=$?
+
+          cleanup_rc=0
+          docker exec -i \
+            --env "PORTAL_WH09_DIAG_TOKEN=$session_token" \
+            --env "PORTAL_WH09_DIAG_PRINCIPAL=$principal_id" \
+            --env "PORTAL_WH09_DIAG_MEMBERSHIP=$membership_id" \
+            --env "PORTAL_WH09_DIAG_SUBJECT=$subject" \
+            "$PORTAL_CONTROL_CONTAINER" python - <<'PY' || cleanup_rc=$?
+          import os
+          from ai_platform.portal.control_plane.database import build_engine, build_session_factory
+          from ai_platform.portal.identity.crypto import IdentityCrypto, IdentitySecrets
+          from ai_platform.portal.identity.models import IdentityPrincipalRow, PortalSessionRow, TenantMembershipRow
+          from ai_platform.portal.identity.runtime import IdentityRuntimeConfig
+          cfg=IdentityRuntimeConfig.from_environment()
+          crypto=IdentityCrypto(IdentitySecrets(session_hmac_key=cfg.session_hmac_key, flow_encryption_key=cfg.flow_encryption_key))
+          engine=build_engine(os.environ["PORTAL_DATABASE_URL"]); factory=build_session_factory(engine)
+          token_hash=crypto.hash_token(os.environ["PORTAL_WH09_DIAG_TOKEN"]); principal_id=os.environ["PORTAL_WH09_DIAG_PRINCIPAL"]; membership_id=os.environ["PORTAL_WH09_DIAG_MEMBERSHIP"]; subject=os.environ["PORTAL_WH09_DIAG_SUBJECT"]
+          try:
+              with factory() as session:
+                  row=session.get(PortalSessionRow, token_hash)
+                  if row is not None:
+                      if row.principal_id != principal_id or row.membership_id != membership_id: raise SystemExit("refusing non-task session cleanup")
+                      session.delete(row); session.flush()
+                  membership=session.get(TenantMembershipRow, membership_id)
+                  if membership is not None:
+                      if membership.principal_id != principal_id or membership.tenant_id != "tenant-local": raise SystemExit("refusing non-task membership cleanup")
+                      session.delete(membership); session.flush()
+                  principal=session.get(IdentityPrincipalRow, principal_id)
+                  if principal is not None:
+                      if principal.subject != subject: raise SystemExit("refusing non-task principal cleanup")
+                      session.delete(principal)
+                  session.commit()
+                  assert session.get(PortalSessionRow, token_hash) is None
+                  assert session.get(TenantMembershipRow, membership_id) is None
+                  assert session.get(IdentityPrincipalRow, principal_id) is None
+          finally:
+              engine.dispose()
+          PY
+          rm -f "$token_file"
+          docker image rm "$browser_image" >/dev/null 2>&1 || true
+          [[ "$cleanup_rc" -eq 0 ]]
+          [[ "$browser_rc" -eq 0 ]]

@@ -1,0 +1,68 @@
+name: Request-only PR1644 independent Qwen audit
+
+on:
+  pull_request:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+jobs:
+  independent-audit:
+    if: github.head_ref == 'audit/1644-final-qwen'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      AUDIT_BASE: 3fc65d7da9511e0bd15c0ab924f6d8dacd1829cc
+      AUDIT_HEAD: 763a1befec2b14ac170110a7eeade8c6065e6028
+      OLLAMA_VERSION: 0.32.7
+      AUDIT_MODEL: qwen2.5-coder:7b
+    steps:
+      - name: Checkout exact audited head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ env.AUDIT_HEAD }}
+      - name: Materialize exact diff and contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$AUDIT_HEAD" ]]
+          git diff --no-ext-diff --unified=8 "$AUDIT_BASE...$AUDIT_HEAD" > "$RUNNER_TEMP/diff"
+          test -s "$RUNNER_TEMP/diff"
+          cat > "$RUNNER_TEMP/contract" <<'EOF'
+          Audit only the supplied exact BASE...HEAD diff. This is a browser-only acceptance repair for #1561. Persistent Portal/WH09 target authorization stays fixed at eafc198857c90caf89a5920da60ae7661c1061ba and adoption run 32373954360. No Portal deploy, WH09 redeploy/restart, PAPER/LIVE/model activation, private trading credentials, order adapter, order submission, withdrawal, or live-capital authority is allowed. Required zero-authority: trading_credentials_present=false, order_adapter_present=false, execution_enabled=false, orders_submitted=0, live_capital_authorized=false. Review one-shot semantics, dual target/harness provenance, helper schema consistency, meaningful real Chromium /bots assertions, URL-safe bounded USER session, exact task-owned cleanup, secret-free evidence, bounded health convergence without weakening HEALTHY requirement, least privilege, and workflow-registry compatibility. Find only material P0/P1/P2 issues. Output exactly three lines: RESULT=PASS or RESULT=FAIL; FINDINGS=<integer>; SUMMARY=<brief evidence-based summary>.
+          EOF
+      - name: Install bounded Ollama
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/ollama/ollama/releases/download/v${OLLAMA_VERSION}/install.sh" -o "$RUNNER_TEMP/install.sh"
+          OLLAMA_VERSION="$OLLAMA_VERSION" sh "$RUNNER_TEMP/install.sh"
+          nohup ollama serve > "$RUNNER_TEMP/ollama.log" 2>&1 &
+          for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:11434/api/tags >/dev/null && break; sleep 1; done
+          ollama pull "$AUDIT_MODEL"
+      - name: Run independent exact-diff audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP/contract" "$RUNNER_TEMP/diff" "$RUNNER_TEMP/result" <<'PY'
+          import json,pathlib,sys,urllib.request
+          prompt=pathlib.Path(sys.argv[1]).read_text()+"\n\nEXACT DIFF:\n"+pathlib.Path(sys.argv[2]).read_text()
+          data=json.dumps({"model":"qwen2.5-coder:7b","prompt":prompt,"stream":False,"options":{"temperature":0.1,"num_ctx":32768,"num_predict":1400}}).encode()
+          req=urllib.request.Request("http://127.0.0.1:11434/api/generate",data=data,headers={"Content-Type":"application/json"})
+          with urllib.request.urlopen(req,timeout=1800) as r: out=json.load(r).get("response","").strip()
+          pathlib.Path(sys.argv[3]).write_text(out+"\n"); print(out)
+          PY
+          grep -Fx 'RESULT=PASS' "$RUNNER_TEMP/result"
+          grep -Fx 'FINDINGS=0' "$RUNNER_TEMP/result"
+          grep -Eq '^SUMMARY=.+$' "$RUNNER_TEMP/result"
+      - name: Upload audit evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: pr1644-independent-audit-${{ github.run_id }}
+          path: ${{ runner.temp }}/result
+          if-no-files-found: warn
+          retention-days: 30

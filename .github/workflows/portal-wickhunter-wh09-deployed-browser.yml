@@ -348,9 +348,12 @@ jobs:
           token_file="$RUNNER_TEMP/portal-wh09-browser-session-token"
           evidence="$RUNNER_TEMP/portal-wh09-deployed-browser.json"
           browser_name="portal-wh09-deployed-browser-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          principal_id="wh09-browser-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          membership_id="wh09-browser-membership-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          acceptance_key="$(printf '%s:%s' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" | sha256sum | awk '{print substr($1, 1, 24)}')"
+          principal_id="wh09-p-${acceptance_key}"
+          membership_id="wh09-m-${acceptance_key}"
           subject="urn:freqtrade:wh09-browser:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}"
+          [[ ${#principal_id} -le 36 ]]
+          [[ ${#membership_id} -le 36 ]]
           umask 077
           openssl rand -base64 48 | tr -d '\n' > "$token_file"
           session_token="$(cat "$token_file")"

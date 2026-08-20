@@ -43,18 +43,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$GITHUB_REF" == "refs/heads/develop" ]]
-          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$GITHUB_REF" == "refs/heads/develop" && "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
           git cat-file -e "$GITHUB_SHA:$REQUEST_PATH"
-          if git cat-file -e "$GITHUB_SHA^:$REQUEST_PATH" 2>/dev/null; then
-            echo "browser-only v4 request is not newly introduced one-shot material" >&2
-            exit 1
-          fi
+          if git cat-file -e "$GITHUB_SHA^:$REQUEST_PATH" 2>/dev/null; then echo "browser-only v4 request is not newly introduced one-shot material" >&2; exit 1; fi
           python3 - "$REQUEST_PATH" "$TARGET_AUTHORIZATION_SHA" "$ADOPTION_RUN_ID" <<'PY'
-          import json, pathlib, sys
-          payload=json.loads(pathlib.Path(sys.argv[1]).read_text())
-          expected={"schema_version":3,"request_id":"wickhunter-wh09-browser-acceptance-20260820-v4","target_authorization_sha":sys.argv[2],"harness_source":"trigger_merge_sha","session_token_format":"urlsafe","acceptance_timeout_minutes":50,"adoption_run_id":int(sys.argv[3]),"portal_origin":"https://quant.molehill.cloud","browser_only":True,"runtime_e2e_required":True,"portal_deploy_authorized":False,"wh09_redeploy_authorized":False,"paper_activation_authorized":False,"trading_credentials_present":False,"order_adapter_present":False,"execution_enabled":False,"orders_submitted":0,"live_capital_authorized":False}
-          if payload != expected: raise SystemExit("browser-only v4 authorization contract mismatch")
+          import json,pathlib,sys
+          p=json.loads(pathlib.Path(sys.argv[1]).read_text()); expected={"schema_version":3,"request_id":"wickhunter-wh09-browser-acceptance-20260820-v4","target_authorization_sha":sys.argv[2],"harness_source":"trigger_merge_sha","session_token_format":"urlsafe","acceptance_timeout_minutes":50,"adoption_run_id":int(sys.argv[3]),"portal_origin":"https://quant.molehill.cloud","browser_only":True,"runtime_e2e_required":True,"portal_deploy_authorized":False,"wh09_redeploy_authorized":False,"paper_activation_authorized":False,"trading_credentials_present":False,"order_adapter_present":False,"execution_enabled":False,"orders_submitted":0,"live_capital_authorized":False}
+          if p!=expected: raise SystemExit("browser-only v4 authorization contract mismatch")
           PY
           printf 'harness_sha=%s\n' "$GITHUB_SHA" >> "$GITHUB_OUTPUT"
       - name: Verify accepted adoption provenance
@@ -64,8 +59,7 @@ jobs:
         run: |
           set -euo pipefail
           readarray -t a < <(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ADOPTION_RUN_ID" --jq '[.name,.event,.head_branch,.head_sha,.status,.conclusion]|.[]')
-          [[ "${a[0]}" == "Portal WickHunter WH09 Adoption" && "${a[1]}" == "push" && "${a[2]}" == "develop" ]]
-          [[ "${a[3]}" == "$TARGET_AUTHORIZATION_SHA" && "${a[4]}" == "completed" && "${a[5]}" == "success" ]]
+          [[ "${a[0]}" == "Portal WickHunter WH09 Adoption" && "${a[1]}" == push && "${a[2]}" == develop && "${a[3]}" == "$TARGET_AUTHORIZATION_SHA" && "${a[4]}" == completed && "${a[5]}" == success ]]
 
   build-browser-image:
     name: Build exact v4 browser helper image
@@ -90,19 +84,16 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$(git rev-parse HEAD)" == "$HARNESS_SHA" ]]
-          image="portal-wh09-deployed-browser-v4:$HARNESS_SHA"
-          out="$RUNNER_TEMP/portal-wh09-browser-image"; mkdir -p "$out"
-          artifact_name="portal-wh09-browser-v4-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          image="portal-wh09-deployed-browser-v4:$HARNESS_SHA"; out="$RUNNER_TEMP/portal-wh09-browser-image"; mkdir -p "$out"; artifact_name="portal-wh09-browser-v4-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           docker build --pull=false --label "org.opencontainers.image.revision=$HARNESS_SHA" --label "ftai.target_authorization_sha=$TARGET_AUTHORIZATION_SHA" --label "org.opencontainers.image.title=portal-wh09-deployed-browser-v4" -f deploy/synology/portal-oidc/Dockerfile.wickhunter-browser -t "$image" .
-          image_id="$(docker image inspect --format '{{.Id}}' "$image")"
-          [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]
+          image_id="$(docker image inspect --format '{{.Id}}' "$image")"; [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]
           [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")" == "$HARNESS_SHA" ]]
           [[ "$(docker image inspect --format '{{index .Config.Labels "ftai.target_authorization_sha"}}' "$image")" == "$TARGET_AUTHORIZATION_SHA" ]]
-          docker save "$image" | gzip -9 > "$out/browser-image.tar.gz"
-          tar_sha="$(sha256sum "$out/browser-image.tar.gz"|awk '{print $1}')"
-          python3 - "$out/approval.json" "$HARNESS_SHA" "$TARGET_AUTHORIZATION_SHA" "$image_id" "$tar_sha" "$image" <<'PY'
+          docker save "$image"|gzip -9 > "$out/browser-image.tar.gz"; cp deploy/synology/portal-oidc/wickhunter-browser-accept-v4.sh "$out/accept.sh"; chmod 0755 "$out/accept.sh"
+          tar_sha="$(sha256sum "$out/browser-image.tar.gz"|awk '{print $1}')"; script_sha="$(sha256sum "$out/accept.sh"|awk '{print $1}')"
+          python3 - "$out/approval.json" "$HARNESS_SHA" "$TARGET_AUTHORIZATION_SHA" "$image_id" "$tar_sha" "$script_sha" "$image" <<'PY'
           import json,pathlib,sys
-          pathlib.Path(sys.argv[1]).write_text(json.dumps({"schema_version":3,"harness_source_sha":sys.argv[2],"target_authorization_sha":sys.argv[3],"image_id":sys.argv[4],"tar_sha256":sys.argv[5],"image_tag":sys.argv[6],"purpose":"task-owned deployed Chromium acceptance v4","persistent_runtime":False},sort_keys=True)+"\n")
+          pathlib.Path(sys.argv[1]).write_text(json.dumps({"schema_version":3,"harness_source_sha":sys.argv[2],"target_authorization_sha":sys.argv[3],"image_id":sys.argv[4],"tar_sha256":sys.argv[5],"accept_script_sha256":sys.argv[6],"image_tag":sys.argv[7],"persistent_runtime":False},sort_keys=True)+"\n")
           PY
           printf 'artifact_name=%s\n' "$artifact_name" >> "$GITHUB_OUTPUT"
       - name: Upload bounded v4 browser helper image
@@ -134,76 +125,29 @@ jobs:
           HARNESS_SHA: ${{ needs.validate.outputs.harness_sha }}
         run: |
           set -euo pipefail
-          [[ "$GITHUB_SHA" == "$HARNESS_SHA" ]]
-          approval="$RUNNER_TEMP/portal-wh09-browser-image/approval.json"; archive="$RUNNER_TEMP/portal-wh09-browser-image/browser-image.tar.gz"
-          readarray -t x < <(python3 - "$approval" "$HARNESS_SHA" "$TARGET_AUTHORIZATION_SHA" <<'PY'
+          [[ "$GITHUB_SHA" == "$HARNESS_SHA" ]]; dir="$RUNNER_TEMP/portal-wh09-browser-image"
+          readarray -t x < <(python3 - "$dir/approval.json" "$HARNESS_SHA" "$TARGET_AUTHORIZATION_SHA" <<'PY'
           import json,pathlib,sys
           a=json.loads(pathlib.Path(sys.argv[1]).read_text())
-          if a.get("schema_version") != 3: raise SystemExit("browser helper approval schema mismatch")
-          if a.get("harness_source_sha") != sys.argv[2] or a.get("target_authorization_sha") != sys.argv[3] or a.get("persistent_runtime") is not False: raise SystemExit("browser helper provenance mismatch")
-          print(a["image_id"]); print(a["tar_sha256"]); print(a["image_tag"])
+          if a.get("schema_version")!=3 or a.get("harness_source_sha")!=sys.argv[2] or a.get("target_authorization_sha")!=sys.argv[3] or a.get("persistent_runtime") is not False: raise SystemExit("browser helper approval mismatch")
+          print(a["image_id"]); print(a["tar_sha256"]); print(a["accept_script_sha256"]); print(a["image_tag"])
           PY
           )
-          [[ "$(sha256sum "$archive"|awk '{print $1}')" == "${x[1]}" ]]
-          gzip -dc "$archive" | docker load >/dev/null
-          browser_image="${x[2]}"; [[ "$(docker image inspect --format '{{.Id}}' "$browser_image")" == "${x[0]}" ]]
-          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$browser_image")" == "$HARNESS_SHA" ]]
-          [[ "$(docker image inspect --format '{{index .Config.Labels "ftai.target_authorization_sha"}}' "$browser_image")" == "$TARGET_AUTHORIZATION_SHA" ]]
-          printf 'browser_image=%s\n' "$browser_image" >> "$GITHUB_OUTPUT"
-          for _ in $(seq 1 90); do
-            cr="$(docker inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$PORTAL_CONTROL_CONTAINER" 2>/dev/null||true)"; wr="$(docker inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$PORTAL_WEB_CONTAINER" 2>/dev/null||true)"
-            ch="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$PORTAL_CONTROL_CONTAINER" 2>/dev/null||true)"; wh="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$PORTAL_WEB_CONTAINER" 2>/dev/null||true)"
-            [[ "$cr" == "$TARGET_AUTHORIZATION_SHA" && "$wr" == "$TARGET_AUTHORIZATION_SHA" && "$ch" == healthy && "$wh" == healthy ]] && break; sleep 2
-          done
-          [[ "$cr" == "$TARGET_AUTHORIZATION_SHA" && "$wr" == "$TARGET_AUTHORIZATION_SHA" && "$ch" == healthy && "$wh" == healthy ]]
-          docker inspect "$PORTAL_WEB_CONTAINER" > "$RUNNER_TEMP/web.json"
-          python3 - "$RUNNER_TEMP/web.json" <<'PY'
-          import json,sys
-          env=set(json.load(open(sys.argv[1]))[0]["Config"].get("Env") or [])
-          if "PORTAL_WEB_DATA_MODE=api" not in env or "PORTAL_IDENTITY_FIXTURE_MODE=disabled" not in env: raise SystemExit("deployed Portal mode mismatch")
-          PY
-      - name: Verify canonical WickHunter truth with bounded convergence
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker exec -i "$PORTAL_CONTROL_CONTAINER" python - <<'PY'
-          import os,time
-          from uuid import uuid4
-          from fastapi.testclient import TestClient
-          from ai_platform.portal.contracts.identity import ActorType,Permission
-          from ai_platform.portal.control_plane.api import create_app
-          from ai_platform.portal.control_plane.context import RequestContext
-          from ai_platform.portal.control_plane.database import build_engine,build_session_factory
-          c=RequestContext(tenant_id="tenant-local",actor_id="system-wh09-browser-v4-preflight",actor_type=ActorType.SYSTEM,permissions=(Permission.BOT_READ,Permission.AUDIT_READ),request_id=uuid4(),correlation_id=uuid4(),causation_id=None)
-          f=build_session_factory(build_engine(os.environ["PORTAL_DATABASE_URL"])); client=TestClient(create_app(f,identity_context_provider=lambda:c)); last="not sampled"
-          for n in range(12):
-            b=client.get("/v1/bots"); t=client.get("/v1/bots/wickhunter/runtime-truth"); r=client.get("/v1/bots/wickhunter/wickhunter-runtime-evidence")
-            if b.status_code==t.status_code==r.status_code==200:
-              rows=[x for x in b.json() if x.get("bot_id")=="wickhunter"]; e=r.json().get("runtime") or {}
-              if len(rows)!=1: raise SystemExit("canonical WickHunter bot identity is not unique")
-              if e.get("trading_credentials_present") is not False or e.get("order_adapter_present") is not False or e.get("execution_enabled") is not False or e.get("orders_submitted")!=0 or e.get("live_capital_authorized") is not False: raise SystemExit("WickHunter zero-authority invariant changed")
-              if t.json().get("pending_rollout") is False and e.get("health")=="HEALTHY" and e.get("decision_count",0)>0 and e.get("no_trade_count",0)>0: break
-              last=f"health={e.get('health')} pending={t.json().get('pending_rollout')}"
-            else: last=f"status={b.status_code}/{t.status_code}/{r.status_code}"
-            if n<11: time.sleep(5)
-          else: raise SystemExit(f"canonical WickHunter truth did not converge: {last}")
-          PY
-      - name: Seed session, run v4 Chromium, cleanup and verify evidence
+          [[ "$(sha256sum "$dir/browser-image.tar.gz"|awk '{print $1}')" == "${x[1]}" && "$(sha256sum "$dir/accept.sh"|awk '{print $1}')" == "${x[2]}" ]]
+          gzip -dc "$dir/browser-image.tar.gz"|docker load >/dev/null; image="${x[3]}"; [[ "$(docker image inspect --format '{{.Id}}' "$image")" == "${x[0]}" ]]
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")" == "$HARNESS_SHA" && "$(docker image inspect --format '{{index .Config.Labels "ftai.target_authorization_sha"}}' "$image")" == "$TARGET_AUTHORIZATION_SHA" ]]
+          printf 'browser_image=%s\n' "$image" >> "$GITHUB_OUTPUT"
+      - name: Run bounded v4 deployed acceptance
         shell: bash
         env:
           HARNESS_SHA: ${{ needs.validate.outputs.harness_sha }}
           BROWSER_IMAGE: ${{ steps.target.outputs.browser_image }}
-        run: |
-          set -euo pipefail
-          token_file="$RUNNER_TEMP/v4-token"; evidence="$RUNNER_TEMP/portal-wh09-browser-v4.json"; browser_name="portal-wh09-browser-v4-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          key="$(printf '%s:%s' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"|sha256sum|awk '{print substr($1,1,24)}')"; principal_id="wh09-vp-$key"; membership_id="wh09-vm-$key"; subject="urn:freqtrade:wh09-browser-v4:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}"
-          umask 077; python3 -c 'import secrets; print(secrets.token_urlsafe(48))' > "$token_file"; session_token="$(cat "$token_file")"; echo "::add-mask::$session_token"; [[ "$session_token" =~ ^[A-Za-z0-9_-]+$ ]]
-          docker exec -i --env "T=$session_token" --env "P=$principal_id" --env "M=$membership_id" --env "S=$subject" "$PORTAL_CONTROL_CONTAINER" python - <<'PY'
-          from datetime import UTC,datetime,timedelta
-          import os
-          from ai_platform.portal.contracts.identity import RoleName
-          from ai_platform.portal.control_plane.database import build_engine,build_session_factory
-          from ai_platform.portal.identity.crypto import IdentityCrypto,IdentitySecrets
-          from ai_platform.portal.identity.repository import IdentityRepository
-          from ai_platform.portal.identity.runtime import IdentityRuntimeConfig
-          cfg=IdentityRuntimeConfig.from_environment(); cry=IdentityCrypto(IdentitySecrets(session_hmac_key=cfg.session_hmac_key,flow_encryption_key=cfg.flow_encryption_key)); eng=build_engine(os.environ["PORTAL_DATABASE_URL"]);
+        run: ${{ runner.temp }}/portal-wh09-browser-image/accept.sh
+      - name: Upload secret-free v4 deployed browser evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: portal-wh09-deployed-browser-v4-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/portal-wh09-browser-v4.json
+          if-no-files-found: warn
+          retention-days: 30

@@ -45,10 +45,6 @@ def test_deployed_browser_helper_is_exact_and_disposable() -> None:
 
 def test_deployed_browser_session_has_read_only_authority_and_bounded_lifetime() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
-    legacy_membership_template = (
-        'membership_id="wh09-browser-membership-'
-        '${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"'
-    )
 
     assert "secrets.PORTAL_WH09_ACCEPTANCE_SESSION_TOKEN" not in workflow
     assert "openssl rand -base64 48" in workflow
@@ -61,7 +57,7 @@ def test_deployed_browser_session_has_read_only_authority_and_bounded_lifetime()
     assert 'membership_id="wh09-m-${acceptance_key}"' in workflow
     assert '[[ ${#principal_id} -le 36 ]]' in workflow
     assert '[[ ${#membership_id} -le 36 ]]' in workflow
-    assert legacy_membership_template not in workflow
+    assert 'membership_id="wh09-browser-membership-' not in workflow
     for forbidden in (
         "RoleName.TRADER",
         "RoleName.ANALYST",

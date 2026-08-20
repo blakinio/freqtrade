@@ -1,0 +1,144 @@
+name: Request-only PR1632 independent Qwen audit
+
+on:
+  pull_request:
+    branches:
+      - develop
+
+permissions:
+  contents: read
+
+concurrency:
+  group: request-only-pr1632-independent-audit
+  cancel-in-progress: true
+
+env:
+  AUDIT_BASE: eafc198857c90caf89a5920da60ae7661c1061ba
+  AUDIT_HEAD: 10fe632fd0e87f949d60954bf84e5ee7df4c48fd
+  OLLAMA_VERSION: 0.32.7
+  AUDIT_MODEL: qwen2.5-coder:7b
+
+jobs:
+  independent-audit:
+    name: Fresh read-only exact-diff audit
+    if: github.head_ref == 'audit/1632-final-qwen'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - name: Checkout exact audited head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ env.AUDIT_HEAD }}
+
+      - name: Materialize exact diff and audit contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$AUDIT_HEAD" ]]
+          git cat-file -e "$AUDIT_BASE^{commit}"
+          git diff --no-ext-diff --unified=8 "$AUDIT_BASE...$AUDIT_HEAD" > "$RUNNER_TEMP/pr1632.diff"
+          test -s "$RUNNER_TEMP/pr1632.diff"
+          sha256sum "$RUNNER_TEMP/pr1632.diff" | tee "$RUNNER_TEMP/pr1632.diff.sha256"
+          cat > "$RUNNER_TEMP/audit-contract.txt" <<'EOF'
+          You are a fresh independent read-only reviewer. Audit only the exact BASE...HEAD diff supplied below. Do not trust implementer summaries or prior conclusions.
+
+          Acceptance criteria and trust boundaries:
+          - This is a repair/closeout slice of Issue #1561 after the already-successful WH09 -> Portal v4 adoption at base eafc198857c90caf89a5920da60ae7661c1061ba.
+          - The repair must fix the deployed-browser PostgreSQL VARCHAR(36) task-owned identity failure without changing WH09 runtime behavior or granting trading authority.
+          - The browser retry must be browser-only and must bind to the already-successful adoption run 32373954360 and authorization SHA eafc198857c90caf89a5920da60ae7661c1061ba; it must not replay Portal deployment or WH09 adoption/redeploy.
+          - No real exchange order submission, withdrawals, private trading credentials, live capital, paper activation, automatic model activation, or execution authority may be introduced. Required terminal invariants are trading_credentials_present=false, order_adapter_present=false, execution_enabled=false, orders_submitted=0, live_capital_authorized=false.
+          - Any task-owned principal/membership/session/helper resources must have bounded identity/lifetime and fail-closed cleanup ownership checks.
+          - The real user path is authenticated Chromium against https://quant.molehill.cloud in API mode with fixture mode disabled, real WH09 health/decision/NO_TRADE truth, reload persistence, and cleanup.
+          - The new one-shot retry trigger has actions:write only to dispatch the existing deployed-browser workflow after verifying the exact successful adoption provenance and a newly introduced exact authorization request. It must not contain Docker/deployment/restart/runtime mutation authority.
+          - Governance/CI self-change remains governed by the trusted base. Workflow registry metadata must truthfully expose the trigger permissions and risk.
+          - Treat already-passed exact-head CI/E2E as supporting evidence only; independently inspect the final diff for material P0/P1/P2 defects or trust-boundary regressions.
+
+          Find only material P0/P1/P2 issues actually evidenced by the diff. For every finding provide severity, stable ID, exact path/construct, concrete failure or exploit scenario, why current guards do not prevent it, and minimal remediation.
+
+          Output exactly one of:
+          RESULT=PASS
+          FINDINGS=0
+          SUMMARY=<brief evidence-based summary>
+
+          or:
+          RESULT=FAIL
+          FINDINGS=<integer>
+          <findings>
+          EOF
+
+      - name: Install bounded local Ollama runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location \
+            "https://github.com/ollama/ollama/releases/download/v${OLLAMA_VERSION}/install.sh" \
+            --output "$RUNNER_TEMP/ollama-install.sh"
+          test -s "$RUNNER_TEMP/ollama-install.sh"
+          OLLAMA_VERSION="$OLLAMA_VERSION" sh "$RUNNER_TEMP/ollama-install.sh"
+          ollama --version
+          nohup ollama serve > "$RUNNER_TEMP/ollama.log" 2>&1 &
+          for _ in $(seq 1 60); do
+            curl --fail --silent http://127.0.0.1:11434/api/tags >/dev/null && break
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:11434/api/tags >/dev/null
+          ollama pull "$AUDIT_MODEL"
+
+      - name: Run fresh independent model audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP/audit-contract.txt" "$RUNNER_TEMP/pr1632.diff" "$RUNNER_TEMP/audit-result.txt" <<'PY'
+          import json
+          import pathlib
+          import sys
+          import urllib.request
+
+          contract = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+          diff = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
+          prompt = contract + "\n\nEXACT DIFF:\n" + diff
+          payload = json.dumps(
+              {
+                  "model": "qwen2.5-coder:7b",
+                  "prompt": prompt,
+                  "stream": False,
+                  "options": {"temperature": 0.1, "num_ctx": 32768},
+              }
+          ).encode()
+          request = urllib.request.Request(
+              "http://127.0.0.1:11434/api/generate",
+              data=payload,
+              headers={"Content-Type": "application/json"},
+          )
+          with urllib.request.urlopen(request, timeout=1800) as response:
+              result = json.load(response).get("response", "").strip()
+          pathlib.Path(sys.argv[3]).write_text(result + "\n", encoding="utf-8")
+          print(result)
+          PY
+          sha256sum "$RUNNER_TEMP/audit-result.txt"
+          grep -Fx 'RESULT=PASS' "$RUNNER_TEMP/audit-result.txt"
+          grep -Fx 'FINDINGS=0' "$RUNNER_TEMP/audit-result.txt"
+          {
+            echo '### Fresh independent audit'
+            echo
+            echo "- base: \`$AUDIT_BASE\`"
+            echo "- head: \`$AUDIT_HEAD\`"
+            echo "- model: \`$AUDIT_MODEL\`"
+            echo
+            echo '```text'
+            cat "$RUNNER_TEMP/audit-result.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload exact audit evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pr1632-independent-audit-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/pr1632.diff.sha256
+            ${{ runner.temp }}/audit-result.txt
+          if-no-files-found: warn
+          retention-days: 30

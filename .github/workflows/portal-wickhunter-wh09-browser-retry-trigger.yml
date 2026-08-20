@@ -1,0 +1,102 @@
+name: Portal WickHunter WH09 Browser Retry Trigger
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - deploy/synology/portal-oidc/run-requests/wickhunter-wh09-browser-acceptance-20260820-v1.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portal-wickhunter-wh09-browser-retry-trigger
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: deploy/synology/portal-oidc/run-requests/wickhunter-wh09-browser-acceptance-20260820-v1.json
+  BROWSER_WORKFLOW: portal-wickhunter-wh09-deployed-browser.yml
+  AUTHORIZATION_SHA: eafc198857c90caf89a5920da60ae7661c1061ba
+  ADOPTION_RUN_ID: "32373954360"
+
+jobs:
+  dispatch-browser-only-acceptance:
+    name: Dispatch browser-only acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Checkout exact one-shot trigger
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+          ref: ${{ github.sha }}
+
+      - name: Validate browser-only authorization
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == "refs/heads/develop" ]]
+          git cat-file -e "$GITHUB_SHA:$REQUEST_PATH"
+          if git cat-file -e "$GITHUB_SHA^:$REQUEST_PATH" 2>/dev/null; then
+            echo "browser-only retry request is not newly introduced one-shot material" >&2
+            exit 1
+          fi
+          python3 - "$REQUEST_PATH" "$AUTHORIZATION_SHA" "$ADOPTION_RUN_ID" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          expected = {
+              "schema_version": 1,
+              "request_id": "wickhunter-wh09-browser-acceptance-20260820-v1",
+              "authorization_sha": sys.argv[2],
+              "adoption_run_id": int(sys.argv[3]),
+              "portal_origin": "https://quant.molehill.cloud",
+              "browser_only": True,
+              "runtime_e2e_required": True,
+              "portal_deploy_authorized": False,
+              "wh09_redeploy_authorized": False,
+              "paper_activation_authorized": False,
+              "trading_credentials_present": False,
+              "order_adapter_present": False,
+              "execution_enabled": False,
+              "orders_submitted": 0,
+              "live_capital_authorized": False,
+          }
+          if payload != expected:
+              raise SystemExit("browser-only retry authorization contract mismatch")
+          PY
+
+      - name: Verify accepted adoption provenance
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          readarray -t adoption < <(
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ADOPTION_RUN_ID" \
+              --jq '[.name, .event, .head_branch, .head_sha, .status, .conclusion] | .[]'
+          )
+          [[ "${adoption[0]}" == "Portal WickHunter WH09 Adoption" ]]
+          [[ "${adoption[1]}" == "push" ]]
+          [[ "${adoption[2]}" == "develop" ]]
+          [[ "${adoption[3]}" == "$AUTHORIZATION_SHA" ]]
+          [[ "${adoption[4]}" == "completed" ]]
+          [[ "${adoption[5]}" == "success" ]]
+
+      - name: Dispatch existing read-only browser acceptance
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh workflow run "$BROWSER_WORKFLOW" \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref develop \
+            --field "authorization_sha=$AUTHORIZATION_SHA"

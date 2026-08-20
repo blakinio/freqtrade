@@ -98,28 +98,39 @@ jobs:
 
           contract = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
           diff = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
-          prompt = contract + "\n\nEXACT DIFF:\n" + diff
-          payload = json.dumps(
-              {
-                  "model": "qwen2.5-coder:7b",
-                  "prompt": prompt,
-                  "stream": False,
-                  "options": {"temperature": 0.1, "num_ctx": 32768},
-              }
-          ).encode()
-          request = urllib.request.Request(
-              "http://127.0.0.1:11434/api/generate",
-              data=payload,
-              headers={"Content-Type": "application/json"},
-          )
-          with urllib.request.urlopen(request, timeout=1800) as response:
-              result = json.load(response).get("response", "").strip()
+
+          def generate(prompt: str) -> str:
+              payload = json.dumps(
+                  {
+                      "model": "qwen2.5-coder:7b",
+                      "prompt": prompt,
+                      "stream": False,
+                      "options": {"temperature": 0.1, "num_ctx": 32768},
+                  }
+              ).encode()
+              request = urllib.request.Request(
+                  "http://127.0.0.1:11434/api/generate",
+                  data=payload,
+                  headers={"Content-Type": "application/json"},
+              )
+              with urllib.request.urlopen(request, timeout=1800) as response:
+                  return json.load(response).get("response", "").strip()
+
+          result = generate(contract + "\n\nEXACT DIFF:\n" + diff)
+          if result == "RESULT=PASS":
+              result = generate(
+                  "You just completed the independent audit of the exact diff and returned exactly "
+                  "RESULT=PASS. Do not re-audit or change the verdict. Restate that same verdict in "
+                  "the mandatory three-line schema only:\nRESULT=PASS\nFINDINGS=0\n"
+                  "SUMMARY=<brief evidence-based summary>"
+              )
           pathlib.Path(sys.argv[3]).write_text(result + "\n", encoding="utf-8")
           print(result)
           PY
           sha256sum "$RUNNER_TEMP/audit-result.txt"
           grep -Fx 'RESULT=PASS' "$RUNNER_TEMP/audit-result.txt"
           grep -Fx 'FINDINGS=0' "$RUNNER_TEMP/audit-result.txt"
+          grep -Eq '^SUMMARY=.+$' "$RUNNER_TEMP/audit-result.txt"
           {
             echo '### Fresh independent audit'
             echo

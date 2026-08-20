@@ -1,4 +1,4 @@
-﻿name: Request-only PR1641 independent Qwen audit
+name: Request-only PR1641 independent Qwen audit
 
 on:
   pull_request:

@@ -52,11 +52,7 @@ def test_v4_script_is_bounded_read_only_acceptance() -> None:
     assert "secrets.token_urlsafe(48)" in s
     assert "RoleName.USER" in s
     assert "trading_credentials_present" in s and "order_adapter_present" in s
-    assert (
-        "execution_enabled" in s
-        and "orders_submitted" in s
-        and "live_capital_authorized" in s
-    )
+    assert "execution_enabled" in s and "orders_submitted" in s and "live_capital_authorized" in s
     assert "refusing non-task session cleanup" in s
     assert "refusing non-task membership cleanup" in s
     assert "refusing non-task principal cleanup" in s

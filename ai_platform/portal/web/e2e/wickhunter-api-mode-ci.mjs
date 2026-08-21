@@ -4,6 +4,7 @@ import { chromium } from "@playwright/test";
 
 const origin = process.env.WICKHUNTER_BROWSER_ORIGIN ?? "https://127.0.0.1:3443";
 const expectedMode = (process.env.WICKHUNTER_EXPECTED_MODE ?? "shadow").toLowerCase();
+const expectedModelVersion = process.env.WICKHUNTER_EXPECTED_MODEL_VERSION ?? "wh09-h900-v1";
 const expectedDesiredGeneration = process.env.WICKHUNTER_EXPECTED_DESIRED_GENERATION ?? "";
 const expectedObservedGeneration = process.env.WICKHUNTER_EXPECTED_OBSERVED_GENERATION ?? "";
 const sessionToken =
@@ -18,6 +19,9 @@ const maxPageAttempts = 3;
 if (!new Set(["shadow", "paper"]).has(expectedMode)) {
   throw new Error(`unsupported WICKHUNTER_EXPECTED_MODE=${expectedMode}`);
 }
+if (!expectedModelVersion) {
+  throw new Error("WICKHUNTER_EXPECTED_MODEL_VERSION must be non-empty");
+}
 if (Boolean(expectedDesiredGeneration) !== Boolean(expectedObservedGeneration)) {
   throw new Error("both expected generation ids must be provided together");
 }
@@ -26,6 +30,7 @@ if (sessionToken.length < 48) {
 }
 const shortId = (value) => (value.length <= 12 ? value : `${value.slice(0, 12)}…`);
 const expectedBotsUrl = new URL("/bots", origin).toString();
+const expectedModeModelMarker = `${expectedMode.toUpperCase()} · ${expectedModelVersion}`;
 
 const common = [
   "WickHunter",
@@ -37,7 +42,7 @@ const expected =
   expectedMode === "shadow"
     ? [
         ...common,
-        "SHADOW · wh09-h900-v1",
+        expectedModeModelMarker,
         "no_trade_confidence=0.60",
         "PAPER: inactive · LIVE: BLOCKED",
         "Credentials: absent",
@@ -45,11 +50,7 @@ const expected =
         "Execution: disabled · Orders: 0",
         "Live capital: false",
       ]
-    : [
-        ...common,
-        "PAPER · wh09-h900-v1",
-        "Legacy SHADOW evidence: not applicable in PAPER",
-      ];
+    : [...common, expectedModeModelMarker, "Legacy SHADOW evidence: not applicable in PAPER"];
 if (expectedDesiredGeneration) {
   expected.push(
     `D ${shortId(expectedDesiredGeneration)} · O ${shortId(expectedObservedGeneration)}`,
@@ -57,6 +58,7 @@ if (expectedDesiredGeneration) {
 }
 
 const writeEvidence = (payload) => {
+  console.log(`WICKHUNTER_EVIDENCE=${JSON.stringify(payload)}`);
   if (!evidencePath) return;
   fs.writeFileSync(evidencePath, `${JSON.stringify(payload, null, 2)}\n`, {
     encoding: "utf-8",
@@ -140,6 +142,11 @@ try {
   const first = await loadVisibleTruth(page);
   const cookies = await context.cookies();
   const fixtureCookiePresent = cookies.some((cookie) => cookie.name.startsWith("portal_fixture_"));
+  const provenance = {
+    expected_model_version: expectedModelVersion,
+    expected_desired_generation: expectedDesiredGeneration || null,
+    expected_observed_generation: expectedObservedGeneration || null,
+  };
 
   if (!first?.ready || fixtureCookiePresent) {
     const bodyText = first?.bodyText ?? "";
@@ -158,6 +165,7 @@ try {
       body_sha256: crypto.createHash("sha256").update(bodyText).digest("hex"),
       runtime_generation_converged: false,
       reload_persistence: false,
+      ...provenance,
     });
     if (fixtureCookiePresent) {
       throw new Error("fixture authentication cookie appeared in API-mode browser journey");
@@ -189,6 +197,7 @@ try {
       body_sha256: crypto.createHash("sha256").update(bodyText).digest("hex"),
       runtime_generation_converged: false,
       reload_persistence: false,
+      ...provenance,
     });
     throw new Error("deployed WickHunter truth did not persist after bounded reload validation");
   }
@@ -204,6 +213,7 @@ try {
     no_trade_count: reload.counts ? Number(reload.counts[2]) : null,
     runtime_generation_converged: true,
     reload_persistence: true,
+    ...provenance,
   });
 } finally {
   await browser.close();

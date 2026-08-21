@@ -78,4 +78,5 @@ def test_browser_harness_keeps_meaningful_content_checks() -> None:
     assert "WICKHUNTER_EXPECTED_MODEL_VERSION" in b
     assert "WICKHUNTER_EXPECTED_DESIRED_GENERATION" in b
     assert "WICKHUNTER_EXPECTED_OBSERVED_GENERATION" in b
-    assert "SHADOW · ${expectedModelVersion}" in b
+    assert "const expectedModeModelMarker" in b
+    assert "expectedModeModelMarker" in b

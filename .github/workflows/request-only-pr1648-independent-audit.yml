@@ -14,14 +14,14 @@ concurrency:
 
 env:
   AUDIT_BASE: 3fc65d7da9511e0bd15c0ab924f6d8dacd1829cc
-  AUDIT_HEAD: ba7eacbeb309582038c4a7cad2ab9f395de499b2
+  AUDIT_HEAD: 7d8b02fdb0bc4e670a290b088def6890abfaf6d6
   OLLAMA_VERSION: 0.32.7
   AUDIT_MODEL: qwen2.5-coder:7b
 
 jobs:
   independent-audit:
     name: Fresh read-only exact-diff audit PR1648
-    if: github.head_ref == 'audit/1648-final-qwen-v2'
+    if: github.head_ref == 'audit/1648-final-qwen-v3'
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     steps:

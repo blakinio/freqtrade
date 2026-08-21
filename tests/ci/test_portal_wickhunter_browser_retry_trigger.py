@@ -6,17 +6,17 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/portal-wickhunter-wh09-browser-retry-trigger.yml"
 REQUEST = (
     ROOT
-    / "deploy/synology/portal-oidc/run-requests/wickhunter-wh09-browser-acceptance-20260820-v5.json"
+    / "deploy/synology/portal-oidc/run-requests/wickhunter-wh09-browser-acceptance-20260821-v6.json"
 )
-SCRIPT = ROOT / "deploy/synology/portal-oidc/wickhunter-browser-accept-v5.sh"
+SCRIPT = ROOT / "deploy/synology/portal-oidc/wickhunter-browser-accept-v6.sh"
 BROWSER = ROOT / "ai_platform/portal/web/e2e/wickhunter-api-mode-ci.mjs"
 TARGET = "eafc198857c90caf89a5920da60ae7661c1061ba"
 
 
-def test_v5_is_one_shot_and_dual_provenance() -> None:
+def test_v6_is_one_shot_and_dual_provenance() -> None:
     w = WORKFLOW.read_text(encoding="utf-8")
     assert 'git cat-file -e "$GITHUB_SHA^:$REQUEST_PATH"' in w
-    assert "browser-only v5 request is not newly introduced one-shot material" in w
+    assert "browser-only v6 request is not newly introduced one-shot material" in w
     assert '"schema_version":3' in w
     assert 'a.get("schema_version")!=3' in w
     assert "harness_source_sha" in w and "target_authorization_sha" in w
@@ -28,9 +28,9 @@ def test_v5_is_one_shot_and_dual_provenance() -> None:
     assert "docker restart" not in w and "docker compose" not in w
 
 
-def test_v5_request_is_zero_authority() -> None:
+def test_v6_request_is_zero_authority() -> None:
     p = json.loads(REQUEST.read_text(encoding="utf-8"))
-    assert p["request_id"].endswith("20260820-v5")
+    assert p["request_id"].endswith("20260821-v6")
     assert p["target_authorization_sha"] == TARGET
     assert p["adoption_run_id"] == 32373954360
     assert p["session_token_format"] == "urlsafe"
@@ -48,15 +48,22 @@ def test_v5_request_is_zero_authority() -> None:
     assert p["orders_submitted"] == 0
 
 
-def test_v5_script_is_bounded_read_only_acceptance() -> None:
+def test_v6_script_binds_browser_to_canonical_runtime_contract() -> None:
     s = SCRIPT.read_text(encoding="utf-8")
     assert "secrets.token_urlsafe(48)" in s
     assert "RoleName.USER" in s
+    assert 'observed.get("model_version")' in s
+    assert 'observed.get("managed_mode")=="shadow"' in s
+    assert 'desired.get("generation_id")==observed.get("generation_id")' in s
+    assert 'WICKHUNTER_EXPECTED_MODEL_VERSION="$expected_model_version"' in s
+    assert 'WICKHUNTER_EXPECTED_DESIRED_GENERATION="$expected_desired_generation"' in s
+    assert 'WICKHUNTER_EXPECTED_OBSERVED_GENERATION="$expected_observed_generation"' in s
     assert "trading_credentials_present" in s and "order_adapter_present" in s
     assert "execution_enabled" in s and "orders_submitted" in s and "live_capital_authorized" in s
     assert "refusing non-task session cleanup" in s
     assert "refusing non-task membership cleanup" in s
     assert "refusing non-task principal cleanup" in s
+    assert "WICKHUNTER_EVIDENCE=" in BROWSER.read_text(encoding="utf-8")
     assert "docker restart" not in s and "docker compose" not in s
 
 
@@ -68,3 +75,7 @@ def test_browser_harness_keeps_meaningful_content_checks() -> None:
     assert "portal_fixture_" in b
     assert "Live capital: false" in b
     assert r"Decisions: (\d+) · NO_TRADE: (\d+)" in b
+    assert "WICKHUNTER_EXPECTED_MODEL_VERSION" in b
+    assert "WICKHUNTER_EXPECTED_DESIRED_GENERATION" in b
+    assert "WICKHUNTER_EXPECTED_OBSERVED_GENERATION" in b
+    assert "SHADOW · ${expectedModelVersion}" in b

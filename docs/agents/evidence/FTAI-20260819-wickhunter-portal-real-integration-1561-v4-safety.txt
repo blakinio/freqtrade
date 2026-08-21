@@ -1,0 +1,8 @@
+trading_credentials_present=false
+order_adapter_present=false
+execution_enabled=false
+orders_submitted=0
+live_capital_authorized=false
+portal_deploy_authorized=false
+wh09_redeploy_authorized=false
+paper_activation_authorized=false

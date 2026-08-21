@@ -1,0 +1,1 @@
+This repair does not authorize or perform Portal deployment, WH09 redeployment/restart, PAPER/LIVE/model activation, private credential introduction, order adapter introduction, exchange order submission, withdrawals, or live-capital authority.

@@ -1,0 +1,1 @@
+Required before merge: exact-head CI including Component CI Gate; fresh independent exact-head audit PASS/FINDINGS=0. Required after merge: browser-only v4 push run on real Synology, artifact inspection, exact task-owned cleanup, unchanged WH09 identity, and zero-authority verification.

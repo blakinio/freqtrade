@@ -1,0 +1,23 @@
+name: Diagnostic find exact v5 postmerge run
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/diag-find-v5-postmerge-run.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  find:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Find exact post-merge run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: e715edb71ef7166c7e740b3adefd4f834b3b9972
+        run: |
+          set -euo pipefail
+          gh api --paginate 'repos/blakinio/freqtrade/actions/runs?branch=develop&per_page=100' \
+            --jq '.workflow_runs[] | select(.head_sha == env.TARGET_SHA) | [.id,.name,.status,(.conclusion // "null"),.run_attempt] | @tsv'

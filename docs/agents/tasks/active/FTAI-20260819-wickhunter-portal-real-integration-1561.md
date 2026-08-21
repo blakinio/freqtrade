@@ -90,11 +90,11 @@ next_action: Commit this checkpoint, push repair branch, open PR, obtain exact-h
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-21T16:27:15+02:00
+updated_at: 2026-08-21T16:30:51+02:00
 branch: fix/1561-browser-v6-runtime-contract-evidence
 head: d1c8aafc1b5f3a8664e7a876bb75f5c8d90aab97
 pr: 1656
-status: blocked
+status: validating
 context_routes:
   - issue #1561 Developer Quant MVP remains OPEN
   - PR #1656 v6 canonical-runtime-contract repair
@@ -115,10 +115,10 @@ proven:
   - audit artifact 9446325722 (pr1656-independent-audit-v2-32480003641) has digest sha256:7a6026e1f047347c626966240f13037a8afe6c2b6a3678688f4a1585d65b844a and was downloaded and inspected
   - trusted develop run 32476975481 failed the same Binance trade-history call through CI_WEB_PROXY=http://152.67.66.8:13128 after the 300-second pytest timeout
   - direct probe on 2026-08-21T16:27:15+02:00 received HTTP 403 through that proxy and HTTP 200 from the public Binance time endpoint without it
-  - PR #1656 run 32479855573 attempt 3 job 96797477564 has remained in-progress at its Tests step past its configured 30-minute timeout
+  - PR #1656 run 32479855573 attempt 3 completed successfully on the exact head; Online / live compatibility tests job 96797477564 completed successfully at 2026-08-21T14:27:58Z
+  - PR #1656 was squash-merged as 6639d6b25fb23643a0700e50bed3efa7711e55ce; post-merge browser-only v6 run 32492415574 was triggered for that exact merge SHA
   - real_capital remains false; no private trading credentials, order adapter, execution, orders, or capital authority were used
 unknown:
-  - policy-compliant terminal required-CI result after repairing the failed proxy boundary
   - post-merge deployed browser v6 evidence and cleanup
 conflicts:
   - issue #1561 historical ADR-024 dedicated-Linux wording conflicts with binding ADR-025 Synology runtime authority
@@ -128,7 +128,6 @@ first_failure:
 rejected_hypotheses:
   - treat the PR failure as a product regression; rejected because trusted develop reproduces the same external proxy failure and the v6 diff contains no exchange/CCXT code
   - merge while CI is nonterminal; rejected because exact-final-head CI remains a required gate
-blockers:
-  - a smallest-scope CI proxy repair would move the #1656 head and invalidate its audit; repository AGENTS.md prohibits invoking an owner-funded AI audit without explicit current owner authorization for that exact use
-next_action: Obtain explicit current owner authorization to trigger the required fresh independent AI audit after the smallest CI proxy-boundary repair, then update #1656, validate its exact final head, and continue merge and deployed acceptance.
+blockers: []
+next_action: Wait for post-merge browser-only v6 run 32492415574 to complete, download and inspect its deployed Chromium evidence, then continue closeout only if every required runtime and zero-authority assertion passes.
 ```

@@ -1,0 +1,45 @@
+name: Request-only WH09 v4 postmerge run discovery
+
+on:
+  pull_request:
+    branches:
+      - develop
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  discover:
+    name: Discover exact postmerge v4 run
+    if: github.head_ref == 'diag/1561-wh09-v4-postmerge-run'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      TARGET_SHA: affeab4cdfa053e9f9765dd307b6d6ea4b5d6c49
+      TARGET_WORKFLOW: Portal WickHunter WH09 Browser Retry Trigger
+    steps:
+      - name: Query exact push run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 30); do
+            payload="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$TARGET_SHA&event=push&per_page=100")"
+            row="$(printf '%s' "$payload" | jq -c --arg name "$TARGET_WORKFLOW" '.workflow_runs[] | select(.name==$name) | {id,name,status,conclusion,head_sha,run_attempt,created_at,updated_at} ' | head -1)"
+            if [[ -n "$row" ]]; then
+              echo "POSTMERGE_RUN=$row"
+              run_id="$(printf '%s' "$row" | jq -r '.id')"
+              echo "POSTMERGE_JOBS_BEGIN"
+              gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100" --jq '.jobs[] | {id,name,status,conclusion}'
+              echo "POSTMERGE_JOBS_END"
+              echo "POSTMERGE_ARTIFACTS_BEGIN"
+              gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts?per_page=100" --jq '.artifacts[] | {id,name,size_in_bytes,digest,expired}' || true
+              echo "POSTMERGE_ARTIFACTS_END"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "exact postmerge v4 run not found" >&2
+          exit 1

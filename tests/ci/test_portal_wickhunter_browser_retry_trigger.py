@@ -130,6 +130,12 @@ def test_synology_autostart_recovers_existing_wh09_evidence_without_redeploy() -
     assert "docker build" not in u
     assert "new_image_ref" in u
     assert "freqtrade-portal-control-plane@sha256" in u
+    assert 'ports = observer.get("NetworkSettings", {}).get("Ports") or {}' in u
+    assert "for exposed_port, bindings in ports.items()" in u
+    assert "bindings not in (None, [])" in u
+    assert "unexpectedly publishes host port" in u
+    assert 'docker port "$observer_name"' in u
+    assert 'get("Ports") not in ({}, None)' not in u
     for marker in (
         "trading_credentials_present",
         "order_adapter_present",

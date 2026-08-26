@@ -86,7 +86,8 @@ def test_synology_autostart_repairs_full_persistent_portal_stack() -> None:
     assert "wait_running_healthy" in w
     assert "{{.State.Running}}" in w
     assert "docker start" in w
-    assert "secrets." not in w
+    assert "secrets.GITHUB_TOKEN" in w
+    assert "secrets." not in w.replace("secrets.GITHUB_TOKEN", "")
 
 
 def test_synology_autostart_recovers_existing_wh09_evidence_without_redeploy() -> None:
@@ -98,6 +99,13 @@ def test_synology_autostart_recovers_existing_wh09_evidence_without_redeploy() -
     assert 'WH09_EXPECTED_USER: "65531:65531"' in w
     assert "WH09_OBSERVER_CONTAINER: portal-wh09-runtime-observer" in w
     assert f"WH09_OBSERVER_EXPECTED_REVISION: {TARGET}" in w
+    assert "build-wh09-observer-image" in w
+    assert "portal_supply_chain.py build-verify" in w
+    assert "packages: write" in w and "packages: read" in w
+    assert "WH09_OBSERVER_HOSTED_IMAGE_PASS" in w
+    assert "ghcr.io/blakinio/freqtrade-portal-control-plane@sha256:" in w
+    assert 'docker pull "$CONTROL_REF"' in w
+    assert "WH09_OBSERVER_IMAGE_REF" in w
     assert 'docker start "$wh09_runtime"' in w
     assert 'docker start "$wh09_observer"' in w
     assert 'wait_running_healthy "$wh09_runtime" 240' in w
@@ -118,6 +126,9 @@ def test_synology_autostart_recovers_existing_wh09_evidence_without_redeploy() -
     assert "WH09_OBSERVER_V10_DIRECT_EVIDENCE_PASS" in u
     assert "WH09_OBSERVER_V10_HTTP_EVIDENCE_PASS" in u
     assert "WH09_OBSERVER_V10_UPGRADE_PASS" in u
+    assert "docker build" not in u
+    assert "new_image_ref" in u
+    assert "freqtrade-portal-control-plane@sha256" in u
     for marker in (
         "trading_credentials_present",
         "order_adapter_present",

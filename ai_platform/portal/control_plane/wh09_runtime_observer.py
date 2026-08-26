@@ -9,7 +9,9 @@ from pathlib import Path
 from ai_platform.portal.control_plane.wh09_runtime import (
     WH09_RUNTIME_ROOT_ENV,
     Wh09RuntimeEvidenceError,
-    Wh09RuntimeEvidenceReader,
+)
+from ai_platform.portal.control_plane.wh09_runtime_observer_reader import (
+    Wh09ObserverRuntimeEvidenceReader,
 )
 
 
@@ -18,11 +20,11 @@ PORT = 8080
 MAX_RESPONSE_BYTES = 512 * 1024
 
 
-def _reader() -> Wh09RuntimeEvidenceReader:
+def _reader() -> Wh09ObserverRuntimeEvidenceReader:
     root = os.environ.get(WH09_RUNTIME_ROOT_ENV, "").strip()
     if not root:
         raise Wh09RuntimeEvidenceError("WH09 observer runtime root is not configured")
-    return Wh09RuntimeEvidenceReader(Path(root))
+    return Wh09ObserverRuntimeEvidenceReader(Path(root))
 
 
 class Wh09ObserverHandler(BaseHTTPRequestHandler):

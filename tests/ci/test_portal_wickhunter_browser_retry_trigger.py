@@ -102,6 +102,14 @@ def test_synology_autostart_recovers_existing_wh09_evidence_without_redeploy() -
     assert '[[ "$wh09_policy" == "unless-stopped" ]]' in w
     assert '[[ "$observer_policy" == "unless-stopped" ]]' in w
     assert "WH09_ZERO_AUTHORITY_FRESH_EVIDENCE_PASS" in w
+    assert "Wh09RuntimeEvidenceReader" in w
+    assert "WH09_OBSERVER_FULL_EVIDENCE_PASS" in w
+    assert "configured_wh09_source" in w
+    assert "Wh09RuntimeEvidenceHttpClient" in w
+    assert "WH09_CONTROL_TO_OBSERVER_PASS" in w
+    assert "/v1/bots/wickhunter/wickhunter-runtime-evidence" in w
+    assert "WH09 Portal runtime evidence endpoint failed" in w
+    assert "WH09_PORTAL_RUNTIME_EVIDENCE_PASS" in w
     for marker in (
         "trading_credentials_present",
         "order_adapter_present",
@@ -112,8 +120,11 @@ def test_synology_autostart_recovers_existing_wh09_evidence_without_redeploy() -
         assert marker in w
     assert "docker compose" not in w
     assert "--force-recreate" not in w
+    assert "docker network connect" not in w
     assert 'docker update --restart=always "$wh09_runtime"' not in w
     assert 'docker update --restart=always "$wh09_observer"' not in w
+    assert 'docker restart "$wh09_runtime"' not in w
+    assert 'docker restart "$wh09_observer"' not in w
 
 
 def test_browser_harness_keeps_meaningful_content_checks() -> None:

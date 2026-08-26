@@ -188,6 +188,96 @@ jobs:
           fi
           wait_running_healthy "$wh09_observer"
 
+          docker exec -i "$wh09_observer" python - <<'PY'
+          from pathlib import Path
+
+          from ai_platform.portal.control_plane.wh09_runtime import (
+              Wh09RuntimeEvidenceError,
+              Wh09RuntimeEvidenceReader,
+          )
+
+          try:
+              evidence = Wh09RuntimeEvidenceReader(Path('/runtime')).read()
+          except Wh09RuntimeEvidenceError as exc:
+              raise SystemExit(f'WH09 observer full evidence failed: {exc}') from exc
+          if evidence.health != 'HEALTHY':
+              raise SystemExit(f'WH09 observer full evidence health={evidence.health}')
+          if evidence.decision_count <= 0 or evidence.no_trade_count <= 0:
+              raise SystemExit('WH09 observer full evidence has no decision truth')
+          if (
+              evidence.trading_credentials_present is not False
+              or evidence.order_adapter_present is not False
+              or evidence.execution_enabled is not False
+              or evidence.orders_submitted != 0
+              or evidence.live_capital_authorized is not False
+          ):
+              raise SystemExit('WH09 observer full evidence changed zero-authority invariants')
+          print('WH09_OBSERVER_FULL_EVIDENCE_PASS')
+          PY
+
+          docker exec -i "$portal_control" python - <<'PY'
+          from uuid import uuid4
+
+          from fastapi.testclient import TestClient
+
+          from ai_platform.portal.contracts.identity import ActorType, Permission
+          from ai_platform.portal.control_plane.api import create_app
+          from ai_platform.portal.control_plane.context import RequestContext
+          from ai_platform.portal.control_plane.database import build_engine, build_session_factory
+          from ai_platform.portal.control_plane.wh09_runtime import (
+              Wh09RuntimeEvidenceError,
+              Wh09RuntimeEvidenceHttpClient,
+              configured_wh09_source,
+          )
+
+          source = configured_wh09_source()
+          if not isinstance(source, Wh09RuntimeEvidenceHttpClient):
+              raise SystemExit(f'WH09 control-plane source is not private observer HTTP: {type(source).__name__}')
+          try:
+              evidence = source.read()
+          except Wh09RuntimeEvidenceError as exc:
+              raise SystemExit(f'WH09 control-plane observer read failed: {exc}') from exc
+          if evidence.health != 'HEALTHY':
+              raise SystemExit(f'WH09 control-plane observer health={evidence.health}')
+          print('WH09_CONTROL_TO_OBSERVER_PASS')
+
+          context = RequestContext(
+              tenant_id='tenant-local',
+              actor_id='system-wh09-autostart-recovery',
+              actor_type=ActorType.SYSTEM,
+              permissions=(Permission.BOT_READ, Permission.AUDIT_READ),
+              request_id=uuid4(),
+              correlation_id=uuid4(),
+              causation_id=None,
+          )
+          engine = build_engine()
+          try:
+              factory = build_session_factory(engine)
+              client = TestClient(create_app(factory, identity_context_provider=lambda: context))
+              response = client.get('/v1/bots/wickhunter/wickhunter-runtime-evidence')
+              if response.status_code != 200:
+                  try:
+                      detail = response.json().get('detail')
+                  except ValueError:
+                      detail = response.text[:240]
+                  raise SystemExit(
+                      f'WH09 Portal runtime evidence endpoint failed: status={response.status_code} detail={detail}'
+                  )
+              payload = response.json()
+              runtime = payload.get('runtime') or {}
+              if (
+                  runtime.get('trading_credentials_present') is not False
+                  or runtime.get('order_adapter_present') is not False
+                  or runtime.get('execution_enabled') is not False
+                  or runtime.get('orders_submitted') != 0
+                  or runtime.get('live_capital_authorized') is not False
+              ):
+                  raise SystemExit('WH09 Portal runtime evidence changed zero-authority invariants')
+              print('WH09_PORTAL_RUNTIME_EVIDENCE_PASS')
+          finally:
+              engine.dispose()
+          PY
+
           docker start "$portal_web" >/dev/null
           wait_running_healthy "$portal_web"
 

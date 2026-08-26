@@ -32,7 +32,7 @@ jobs:
   repair:
     name: Enforce Docker restart policies and portal health
     runs-on: freqtrade-staging
-    timeout-minutes: 20
+    timeout-minutes: 30
     permissions:
       contents: read
 
@@ -188,16 +188,23 @@ jobs:
           fi
           wait_running_healthy "$wh09_observer"
 
+          bash deploy/synology/portal-oidc/upgrade-wh09-observer-v10.sh \
+            "$WH09_OBSERVER_CONTAINER" \
+            "$GITHUB_SHA" \
+            "$WH09_OBSERVER_EXPECTED_REVISION" \
+            "65531"
+          wh09_observer="$(resolve_named_container "$WH09_OBSERVER_CONTAINER")"
+
           docker exec -i "$wh09_observer" python - <<'PY'
           from pathlib import Path
 
-          from ai_platform.portal.control_plane.wh09_runtime import (
-              Wh09RuntimeEvidenceError,
-              Wh09RuntimeEvidenceReader,
+          from ai_platform.portal.control_plane.wh09_runtime import Wh09RuntimeEvidenceError
+          from ai_platform.portal.control_plane.wh09_runtime_observer_reader import (
+              Wh09ObserverRuntimeEvidenceReader,
           )
 
           try:
-              evidence = Wh09RuntimeEvidenceReader(Path('/runtime')).read()
+              evidence = Wh09ObserverRuntimeEvidenceReader(Path('/runtime')).read()
           except Wh09RuntimeEvidenceError as exc:
               raise SystemExit(f'WH09 observer full evidence failed: {exc}') from exc
           if evidence.health != 'HEALTHY':
@@ -295,6 +302,7 @@ jobs:
           [[ "$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$wh09_observer")" == "unless-stopped" ]]
           [[ "$(docker inspect --format '{{.State.Running}}' "$wh09_observer")" == "true" ]]
           [[ "$(docker inspect --format '{{.State.Health.Status}}' "$wh09_observer")" == "healthy" ]]
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$(docker inspect --format '{{.Image}}' "$wh09_observer")")" == "$GITHUB_SHA" ]]
 
       - name: Recover an unresponsive portal once
         shell: bash

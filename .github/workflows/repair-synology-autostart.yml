@@ -23,7 +23,7 @@ jobs:
   repair:
     name: Enforce Docker restart policies and portal health
     runs-on: freqtrade-staging
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: read
 
@@ -33,50 +33,95 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set persistent services to always restart
+      - name: Recover persistent Portal and Authentik services
         shell: bash
         run: |
           set -Eeuo pipefail
 
-          mapfile -t runner_matches < <(
-            docker ps -aq \
-              --filter 'label=com.docker.compose.project=freqtrade-deploy-runner' \
-              --filter 'label=com.docker.compose.service=runner'
-          )
-          if [[ "${#runner_matches[@]}" -ne 1 ]]; then
-            echo "Expected exactly one Freqtrade runner container, found ${#runner_matches[@]}" >&2
-            exit 1
-          fi
+          resolve_compose_service() {
+            local project="$1"
+            local service="$2"
+            local -a matches=()
+            mapfile -t matches < <(
+              docker ps -aq \
+                --filter "label=com.docker.compose.project=${project}" \
+                --filter "label=com.docker.compose.service=${service}"
+            )
+            if [[ "${#matches[@]}" -ne 1 ]]; then
+              echo "Expected exactly one ${project}/${service} container, found ${#matches[@]}" >&2
+              return 1
+            fi
+            printf '%s\n' "${matches[0]}"
+          }
 
-          declare -a containers=("${runner_matches[0]}")
-          for name in liquid20-live freqtrade-portal-staging; do
+          resolve_named_container() {
+            local name="$1"
+            local container
             if ! container="$(docker inspect --format '{{.Id}}' "$name" 2>/dev/null)"; then
               echo "Required container is missing: ${name}" >&2
-              exit 1
+              return 1
             fi
-            containers+=("$container")
-          done
+            printf '%s\n' "$container"
+          }
 
-          docker update --restart=always "${containers[@]}" >/dev/null
+          wait_running_healthy() {
+            local container="$1"
+            local name running health
+            name="$(docker inspect --format '{{.Name}}' "$container" | sed 's#^/##')"
+            for _ in $(seq 1 60); do
+              running="$(docker inspect --format '{{.State.Running}}' "$container" 2>/dev/null || true)"
+              health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container" 2>/dev/null || true)"
+              if [[ "$running" == "true" && ( "$health" == "healthy" || "$health" == "running" ) ]]; then
+                printf '%s running=%s health=%s\n' "$name" "$running" "$health"
+                return 0
+              fi
+              sleep 2
+            done
+            echo "${name}: did not become running and healthy" >&2
+            docker inspect "$container" >&2 || true
+            docker logs --tail 120 "$container" >&2 || true
+            return 1
+          }
 
-          for container in "${containers[@]}"; do
-            docker start "$container" >/dev/null
-          done
+          runner="$(resolve_compose_service freqtrade-deploy-runner runner)"
+          authentik_postgresql="$(resolve_compose_service portal-authentik-local-test postgresql)"
+          authentik_server="$(resolve_compose_service portal-authentik-local-test server)"
+          authentik_worker="$(resolve_compose_service portal-authentik-local-test worker)"
+          liquid20="$(resolve_named_container liquid20-live)"
+          portal_postgresql="$(resolve_named_container freqtrade-portal-postgresql)"
+          portal_control="$(resolve_named_container freqtrade-portal-control-plane)"
+          portal_web="$(resolve_named_container freqtrade-portal-staging)"
 
-          sleep 3
-          for container in "${containers[@]}"; do
+          declare -a persistent_containers=(
+            "$runner"
+            "$liquid20"
+            "$authentik_postgresql"
+            "$authentik_server"
+            "$authentik_worker"
+            "$portal_postgresql"
+            "$portal_control"
+            "$portal_web"
+          )
+          docker update --restart=always "${persistent_containers[@]}" >/dev/null
+
+          docker start "$runner" "$liquid20" "$authentik_postgresql" "$portal_postgresql" >/dev/null
+          wait_running_healthy "$authentik_postgresql"
+          wait_running_healthy "$portal_postgresql"
+
+          docker start "$authentik_server" "$authentik_worker" "$portal_control" >/dev/null
+          wait_running_healthy "$authentik_server"
+          wait_running_healthy "$authentik_worker"
+          wait_running_healthy "$portal_control"
+
+          docker start "$portal_web" >/dev/null
+          wait_running_healthy "$portal_web"
+
+          for container in "${persistent_containers[@]}"; do
             policy="$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$container")"
-            state="$(docker inspect --format '{{.State.Status}}' "$container")"
+            running="$(docker inspect --format '{{.State.Running}}' "$container")"
             name="$(docker inspect --format '{{.Name}}' "$container")"
-            [[ "$policy" == "always" ]]
-            case "$state" in
-              running|restarting) ;;
-              *)
-                echo "${name}: unexpected state ${state}" >&2
-                exit 1
-                ;;
-            esac
-            printf '%s policy=%s state=%s\n' "$name" "$policy" "$state"
+            [[ "$policy" == "always" && "$running" == "true" ]]
+            printf '%s policy=%s running=%s\n' "$name" "$policy" "$running"
           done
 
       - name: Recover an unresponsive portal once
@@ -97,8 +142,8 @@ jobs:
           docker restart --time 20 freqtrade-portal-staging >/dev/null
 
           for _ in $(seq 1 12); do
-            state="$(docker inspect --format '{{.State.Status}}' freqtrade-portal-staging 2>/dev/null || true)"
-            if [[ "$state" == "running" ]] && bash "$probe_script"; then
+            running="$(docker inspect --format '{{.State.Running}}' freqtrade-portal-staging 2>/dev/null || true)"
+            if [[ "$running" == "true" ]] && bash "$probe_script"; then
               echo "Portal recovered after the bounded restart."
               exit 0
             fi

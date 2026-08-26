@@ -6,17 +6,17 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/portal-wickhunter-wh09-browser-retry-trigger.yml"
 REQUEST = (
     ROOT
-    / "deploy/synology/portal-oidc/run-requests/wickhunter-wh09-browser-acceptance-20260821-v6.json"
+    / "deploy/synology/portal-oidc/run-requests/wickhunter-wh09-browser-acceptance-20260826-v7.json"
 )
 SCRIPT = ROOT / "deploy/synology/portal-oidc/wickhunter-browser-accept-v6.sh"
 BROWSER = ROOT / "ai_platform/portal/web/e2e/wickhunter-api-mode-ci.mjs"
 TARGET = "eafc198857c90caf89a5920da60ae7661c1061ba"
 
 
-def test_v6_is_one_shot_and_dual_provenance() -> None:
+def test_v7_is_one_shot_and_dual_provenance() -> None:
     w = WORKFLOW.read_text(encoding="utf-8")
     assert 'git cat-file -e "$GITHUB_SHA^:$REQUEST_PATH"' in w
-    assert "browser-only v6 request is not newly introduced one-shot material" in w
+    assert "browser-only v7 request is not newly introduced one-shot material" in w
     assert '"schema_version":3' in w
     assert 'a.get("schema_version")!=3' in w
     assert "harness_source_sha" in w and "target_authorization_sha" in w
@@ -28,9 +28,9 @@ def test_v6_is_one_shot_and_dual_provenance() -> None:
     assert "docker restart" not in w and "docker compose" not in w
 
 
-def test_v6_request_is_zero_authority() -> None:
+def test_v7_request_is_zero_authority() -> None:
     p = json.loads(REQUEST.read_text(encoding="utf-8"))
-    assert p["request_id"].endswith("20260821-v6")
+    assert p["request_id"].endswith("20260826-v7")
     assert p["target_authorization_sha"] == TARGET
     assert p["adoption_run_id"] == 32373954360
     assert p["session_token_format"] == "urlsafe"
@@ -80,3 +80,13 @@ def test_browser_harness_keeps_meaningful_content_checks() -> None:
     assert "WICKHUNTER_EXPECTED_OBSERVED_GENERATION" in b
     assert "const expectedModeModelMarker" in b
     assert "expectedModeModelMarker" in b
+
+
+def test_browser_harness_waits_for_rendered_truth_without_network_idle() -> None:
+    b = BROWSER.read_text(encoding="utf-8")
+    assert 'waitUntil: "domcontentloaded"' in b
+    assert 'waitUntil: "networkidle"' not in b
+    assert "const visibleTruthTimeoutMs = 10000" in b
+    assert "const visibleTruthPollMs = 250" in b
+    assert "const waitForVisibleTruth = async" in b
+    assert "snapshot = await waitForVisibleTruth(page, response)" in b

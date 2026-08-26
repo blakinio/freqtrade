@@ -15,6 +15,8 @@ const browserExecutablePath = process.env.WICKHUNTER_BROWSER_EXECUTABLE_PATH ?? 
 const evidencePath = process.env.WICKHUNTER_BROWSER_EVIDENCE_PATH ?? "";
 const noSandbox = process.env.WICKHUNTER_BROWSER_NO_SANDBOX === "1";
 const maxPageAttempts = 3;
+const visibleTruthTimeoutMs = 10000;
+const visibleTruthPollMs = 250;
 
 if (!new Set(["shadow", "paper"]).has(expectedMode)) {
   throw new Error(`unsupported WICKHUNTER_EXPECTED_MODE=${expectedMode}`);
@@ -96,18 +98,25 @@ const inspectVisibleTruth = async (page, response) => {
   };
 };
 
+const waitForVisibleTruth = async (page, response) => {
+  const deadline = Date.now() + visibleTruthTimeoutMs;
+  let snapshot = null;
+  while (true) {
+    snapshot = await inspectVisibleTruth(page, response);
+    if (snapshot.ready || Date.now() >= deadline) return snapshot;
+    await page.waitForTimeout(visibleTruthPollMs);
+  }
+};
+
 const loadVisibleTruth = async (page, reloadOnly = false) => {
   let snapshot = null;
   for (let attempt = 1; attempt <= maxPageAttempts; attempt += 1) {
     const response =
       reloadOnly || attempt > 1
-        ? await page.reload({ waitUntil: "networkidle" })
-        : await page.goto(expectedBotsUrl, { waitUntil: "networkidle" });
-    snapshot = await inspectVisibleTruth(page, response);
+        ? await page.reload({ waitUntil: "domcontentloaded" })
+        : await page.goto(expectedBotsUrl, { waitUntil: "domcontentloaded" });
+    snapshot = await waitForVisibleTruth(page, response);
     if (snapshot.ready) return snapshot;
-    if (attempt < maxPageAttempts) {
-      await page.waitForTimeout(3000);
-    }
   }
   return snapshot;
 };

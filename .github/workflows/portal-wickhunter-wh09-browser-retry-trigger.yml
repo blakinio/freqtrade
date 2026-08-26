@@ -4,7 +4,7 @@ on:
   push:
     branches: [develop]
     paths:
-      - deploy/synology/portal-oidc/run-requests/wickhunter-wh09-browser-acceptance-20260821-v6.json
+      - deploy/synology/portal-oidc/run-requests/wickhunter-wh09-browser-acceptance-20260826-v7.json
 
 permissions:
   contents: read
@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  REQUEST_PATH: deploy/synology/portal-oidc/run-requests/wickhunter-wh09-browser-acceptance-20260821-v6.json
+  REQUEST_PATH: deploy/synology/portal-oidc/run-requests/wickhunter-wh09-browser-acceptance-20260826-v7.json
   TARGET_AUTHORIZATION_SHA: eafc198857c90caf89a5920da60ae7661c1061ba
   ADOPTION_RUN_ID: "32373954360"
   PORTAL_CONTROL_CONTAINER: freqtrade-portal-control-plane
@@ -23,7 +23,7 @@ env:
 
 jobs:
   validate:
-    name: Validate browser-only v6 authorization
+    name: Validate browser-only v7 authorization
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -45,11 +45,11 @@ jobs:
           set -euo pipefail
           [[ "$GITHUB_REF" == "refs/heads/develop" && "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
           git cat-file -e "$GITHUB_SHA:$REQUEST_PATH"
-          if git cat-file -e "$GITHUB_SHA^:$REQUEST_PATH" 2>/dev/null; then echo "browser-only v6 request is not newly introduced one-shot material" >&2; exit 1; fi
+          if git cat-file -e "$GITHUB_SHA^:$REQUEST_PATH" 2>/dev/null; then echo "browser-only v7 request is not newly introduced one-shot material" >&2; exit 1; fi
           python3 - "$REQUEST_PATH" "$TARGET_AUTHORIZATION_SHA" "$ADOPTION_RUN_ID" <<'PY'
           import json,pathlib,sys
-          p=json.loads(pathlib.Path(sys.argv[1]).read_text()); expected={"schema_version":3,"request_id":"wickhunter-wh09-browser-acceptance-20260821-v6","target_authorization_sha":sys.argv[2],"harness_source":"trigger_merge_sha","session_token_format":"urlsafe","acceptance_timeout_minutes":50,"adoption_run_id":int(sys.argv[3]),"portal_origin":"https://quant.molehill.cloud","browser_only":True,"runtime_e2e_required":True,"portal_deploy_authorized":False,"wh09_redeploy_authorized":False,"paper_activation_authorized":False,"trading_credentials_present":False,"order_adapter_present":False,"execution_enabled":False,"orders_submitted":0,"live_capital_authorized":False}
-          if p!=expected: raise SystemExit("browser-only v6 authorization contract mismatch")
+          p=json.loads(pathlib.Path(sys.argv[1]).read_text()); expected={"schema_version":3,"request_id":"wickhunter-wh09-browser-acceptance-20260826-v7","target_authorization_sha":sys.argv[2],"harness_source":"trigger_merge_sha","session_token_format":"urlsafe","acceptance_timeout_minutes":50,"adoption_run_id":int(sys.argv[3]),"portal_origin":"https://quant.molehill.cloud","browser_only":True,"runtime_e2e_required":True,"portal_deploy_authorized":False,"wh09_redeploy_authorized":False,"paper_activation_authorized":False,"trading_credentials_present":False,"order_adapter_present":False,"execution_enabled":False,"orders_submitted":0,"live_capital_authorized":False}
+          if p!=expected: raise SystemExit("browser-only v7 authorization contract mismatch")
           PY
           printf 'harness_sha=%s\n' "$GITHUB_SHA" >> "$GITHUB_OUTPUT"
       - name: Verify accepted adoption provenance
@@ -62,7 +62,7 @@ jobs:
           [[ "${a[0]}" == "Portal WickHunter WH09 Adoption" && "${a[1]}" == push && "${a[2]}" == develop && "${a[3]}" == "$TARGET_AUTHORIZATION_SHA" && "${a[4]}" == completed && "${a[5]}" == success ]]
 
   build-browser-image:
-    name: Build exact v6 browser helper image
+    name: Build exact v7 browser helper image
     needs: validate
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -84,8 +84,8 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$(git rev-parse HEAD)" == "$HARNESS_SHA" ]]
-          image="portal-wh09-deployed-browser-v6:$HARNESS_SHA"; out="$RUNNER_TEMP/portal-wh09-browser-image"; mkdir -p "$out"; artifact_name="portal-wh09-browser-v6-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          docker build --pull=false --label "org.opencontainers.image.revision=$HARNESS_SHA" --label "ftai.target_authorization_sha=$TARGET_AUTHORIZATION_SHA" --label "org.opencontainers.image.title=portal-wh09-deployed-browser-v6" -f deploy/synology/portal-oidc/Dockerfile.wickhunter-browser -t "$image" .
+          image="portal-wh09-deployed-browser-v7:$HARNESS_SHA"; out="$RUNNER_TEMP/portal-wh09-browser-image"; mkdir -p "$out"; artifact_name="portal-wh09-browser-v7-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          docker build --pull=false --label "org.opencontainers.image.revision=$HARNESS_SHA" --label "ftai.target_authorization_sha=$TARGET_AUTHORIZATION_SHA" --label "org.opencontainers.image.title=portal-wh09-deployed-browser-v7" -f deploy/synology/portal-oidc/Dockerfile.wickhunter-browser -t "$image" .
           image_id="$(docker image inspect --format '{{.Id}}' "$image")"; [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]
           [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")" == "$HARNESS_SHA" ]]
           [[ "$(docker image inspect --format '{{index .Config.Labels "ftai.target_authorization_sha"}}' "$image")" == "$TARGET_AUTHORIZATION_SHA" ]]
@@ -96,7 +96,7 @@ jobs:
           pathlib.Path(sys.argv[1]).write_text(json.dumps({"schema_version":3,"harness_source_sha":sys.argv[2],"target_authorization_sha":sys.argv[3],"image_id":sys.argv[4],"tar_sha256":sys.argv[5],"accept_script_sha256":sys.argv[6],"image_tag":sys.argv[7],"persistent_runtime":False},sort_keys=True)+"\n")
           PY
           printf 'artifact_name=%s\n' "$artifact_name" >> "$GITHUB_OUTPUT"
-      - name: Upload bounded v6 browser helper image
+      - name: Upload bounded v7 browser helper image
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ steps.package.outputs.artifact_name }}
@@ -105,7 +105,7 @@ jobs:
           retention-days: 1
 
   accept:
-    name: Real authenticated Chromium v6 against deployed Portal
+    name: Real authenticated Chromium v7 against deployed Portal
     needs: [validate, build-browser-image]
     runs-on: [freqtrade-staging]
     environment: synology-staging
@@ -113,7 +113,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Download exact v6 browser helper image
+      - name: Download exact v7 browser helper image
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: ${{ needs.build-browser-image.outputs.artifact_name }}
@@ -137,7 +137,7 @@ jobs:
           gzip -dc "$dir/browser-image.tar.gz"|docker load >/dev/null; image="${x[3]}"; [[ "$(docker image inspect --format '{{.Id}}' "$image")" == "${x[0]}" ]]
           [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")" == "$HARNESS_SHA" && "$(docker image inspect --format '{{index .Config.Labels "ftai.target_authorization_sha"}}' "$image")" == "$TARGET_AUTHORIZATION_SHA" ]]
           printf 'browser_image=%s\n' "$image" >> "$GITHUB_OUTPUT"
-      - name: Run bounded v6 deployed acceptance
+      - name: Run bounded v7 deployed acceptance
         shell: bash
         env:
           HARNESS_SHA: ${{ needs.validate.outputs.harness_sha }}
@@ -145,11 +145,11 @@ jobs:
         run: |
           set -euo pipefail
           bash "$RUNNER_TEMP/portal-wh09-browser-image/accept.sh"
-      - name: Upload secret-free v6 deployed browser evidence
+      - name: Upload secret-free v7 deployed browser evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: portal-wh09-deployed-browser-v6-${{ github.run_id }}-${{ github.run_attempt }}
+          name: portal-wh09-deployed-browser-v7-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/portal-wh09-browser-v6.json
           if-no-files-found: warn
           retention-days: 30

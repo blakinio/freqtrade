@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "request_id": "portal-real-target-readonly-preflight-20260730-v1",
+  "expected_runner_name": "freqtrade-synology-staging",
+  "expected_runner_label": "freqtrade-staging",
+  "expected_environment": "synology-staging",
+  "mutation_authorized": false,
+  "bootstrap_authorized": false,
+  "restore_authorized": false,
+  "live_capital_authorized": false
+}

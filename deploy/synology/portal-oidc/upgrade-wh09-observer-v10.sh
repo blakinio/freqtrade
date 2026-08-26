@@ -55,16 +55,61 @@ PY
 journal_host="${observer_binding[0]}"
 operator_host="${observer_binding[1]}"
 
+# Derive the new observer from the exact already-accepted observer image.  This avoids
+# re-resolving any OS/Python dependency on the Synology target: the only new filesystem
+# layer contains the two reviewed observer source files from GITHUB_SHA.
+base_tag="local/freqtrade-wh09-observer-v10-base:${expected_old_revision}"
 new_tag="local/freqtrade-wh09-observer-v10:${source_sha}"
+docker tag "$old_image" "$base_tag"
+overlay_sha256="$(cat \
+  ai_platform/portal/control_plane/wh09_runtime_observer.py \
+  ai_platform/portal/control_plane/wh09_runtime_observer_reader.py \
+  | sha256sum | awk '{print $1}')"
+[[ "$overlay_sha256" =~ ^[0-9a-f]{64}$ ]]
+cat > "$RUNNER_TEMP/Dockerfile.wh09-observer-v10" <<'EOF'
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+COPY --chown=10001:10001 ai_platform/portal/control_plane/wh09_runtime_observer.py /app/ai_platform/portal/control_plane/wh09_runtime_observer.py
+COPY --chown=10001:10001 ai_platform/portal/control_plane/wh09_runtime_observer_reader.py /app/ai_platform/portal/control_plane/wh09_runtime_observer_reader.py
+EOF
 docker build \
   --pull=false \
+  --build-arg "BASE_IMAGE=${base_tag}" \
   --label "org.opencontainers.image.revision=${source_sha}" \
-  --file deploy/synology/portal-oidc/Dockerfile.control-plane \
+  --label "io.freqtrade.wh09.observer.base-image=${old_image}" \
+  --label "io.freqtrade.wh09.observer.base-revision=${expected_old_revision}" \
+  --label "io.freqtrade.wh09.observer.overlay-sha256=${overlay_sha256}" \
+  --file "$RUNNER_TEMP/Dockerfile.wh09-observer-v10" \
   --tag "$new_tag" \
   .
 new_image="$(docker image inspect --format '{{.Id}}' "$new_tag")"
 [[ "$new_image" =~ ^sha256:[0-9a-f]{64}$ ]]
 [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$new_image")" == "$source_sha" ]]
+[[ "$(docker image inspect --format '{{index .Config.Labels "io.freqtrade.wh09.observer.base-image"}}' "$new_image")" == "$old_image" ]]
+[[ "$(docker image inspect --format '{{index .Config.Labels "io.freqtrade.wh09.observer.base-revision"}}' "$new_image")" == "$expected_old_revision" ]]
+[[ "$(docker image inspect --format '{{index .Config.Labels "io.freqtrade.wh09.observer.overlay-sha256"}}' "$new_image")" == "$overlay_sha256" ]]
+python3 - "$old_image" "$new_image" <<'PY'
+import json
+import subprocess
+import sys
+
+
+def layers(image: str) -> list[str]:
+    raw = subprocess.check_output(
+        ["docker", "image", "inspect", "--format", "{{json .RootFS.Layers}}", image],
+        text=True,
+    )
+    value = json.loads(raw)
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise SystemExit("WH09 observer layer provenance is invalid")
+    return value
+
+old_layers = layers(sys.argv[1])
+new_layers = layers(sys.argv[2])
+if len(new_layers) != len(old_layers) + 1 or new_layers[: len(old_layers)] != old_layers:
+    raise SystemExit("WH09 observer v10 is not an exact one-layer derivative of the accepted image")
+print("WH09_OBSERVER_V10_IMAGE_PROVENANCE_PASS")
+PY
 
 run_observer() {
   local image="$1"
@@ -113,6 +158,7 @@ rollback() {
     restored_image="$(docker inspect --format '{{.Image}}' "$observer_name")"
     [[ "$restored_image" == "$old_image" ]]
     [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$restored_image")" == "$expected_old_revision" ]]
+    echo "WH09_OBSERVER_V10_ROLLBACK_PASS revision=${expected_old_revision}" >&2
   fi
   exit "$rc"
 }

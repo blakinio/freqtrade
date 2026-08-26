@@ -91,9 +91,7 @@ def test_observer_reader_fails_closed_on_tampered_bounded_candidate(tmp_path: Pa
     tampered.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
 
     with pytest.raises(Wh09RuntimeEvidenceError):
-        Wh09ObserverRuntimeEvidenceReader(tmp_path)._latest_decision(
-            decisions, {"run_id": RUN_ID}
-        )
+        Wh09ObserverRuntimeEvidenceReader(tmp_path)._latest_decision(decisions, {"run_id": RUN_ID})
 
 
 def test_observer_reader_rejects_json_symlink(tmp_path: Path) -> None:
@@ -104,6 +102,4 @@ def test_observer_reader_rejects_json_symlink(tmp_path: Path) -> None:
     (decisions / "decision.json").symlink_to(target)
 
     with pytest.raises(Wh09RuntimeEvidenceError, match="regular file"):
-        Wh09ObserverRuntimeEvidenceReader(tmp_path)._latest_decision(
-            decisions, {"run_id": RUN_ID}
-        )
+        Wh09ObserverRuntimeEvidenceReader(tmp_path)._latest_decision(decisions, {"run_id": RUN_ID})

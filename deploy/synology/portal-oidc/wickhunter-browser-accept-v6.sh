@@ -4,12 +4,14 @@ set -euo pipefail
 for _ in $(seq 1 90); do
   cr="$(docker inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$PORTAL_CONTROL_CONTAINER" 2>/dev/null||true)"
   wr="$(docker inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$PORTAL_WEB_CONTAINER" 2>/dev/null||true)"
+  crun="$(docker inspect -f '{{.State.Running}}' "$PORTAL_CONTROL_CONTAINER" 2>/dev/null||true)"
+  wrun="$(docker inspect -f '{{.State.Running}}' "$PORTAL_WEB_CONTAINER" 2>/dev/null||true)"
   ch="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$PORTAL_CONTROL_CONTAINER" 2>/dev/null||true)"
   wh="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$PORTAL_WEB_CONTAINER" 2>/dev/null||true)"
-  [[ "$cr" == "$TARGET_AUTHORIZATION_SHA" && "$wr" == "$TARGET_AUTHORIZATION_SHA" && "$ch" == healthy && "$wh" == healthy ]] && break
+  [[ "$cr" == "$TARGET_AUTHORIZATION_SHA" && "$wr" == "$TARGET_AUTHORIZATION_SHA" && "$crun" == true && "$wrun" == true && "$ch" == healthy && "$wh" == healthy ]] && break
   sleep 2
 done
-[[ "$cr" == "$TARGET_AUTHORIZATION_SHA" && "$wr" == "$TARGET_AUTHORIZATION_SHA" && "$ch" == healthy && "$wh" == healthy ]]
+[[ "$cr" == "$TARGET_AUTHORIZATION_SHA" && "$wr" == "$TARGET_AUTHORIZATION_SHA" && "$crun" == true && "$wrun" == true && "$ch" == healthy && "$wh" == healthy ]]
 docker inspect "$PORTAL_WEB_CONTAINER" > "$RUNNER_TEMP/web.json"
 python3 - "$RUNNER_TEMP/web.json" <<'PY'
 import json,sys

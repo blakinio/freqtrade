@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import pytest
 
 from ai_platform.portal.control_plane.wh09_runtime import Wh09RuntimeEvidenceError
 from ai_platform.portal.control_plane.wh09_runtime_observer_reader import (
-    WH09_MAX_LATEST_DECISION_CANDIDATES,
+    WH09_MAX_VALIDATED_DECISION_FILES,
     Wh09ObserverRuntimeEvidenceReader,
 )
 from ai_platform.wickhunter.canonical import canonical_sha256
@@ -43,54 +42,53 @@ def _decision(index: int) -> dict[str, object]:
     return payload
 
 
-def _write_decision(path: Path, index: int, *, mtime_ns: int) -> None:
+def _write_decision(path: Path, index: int) -> None:
     path.write_text(json.dumps(_decision(index), sort_keys=True), encoding="utf-8")
-    os.utime(path, ns=(mtime_ns, mtime_ns))
 
 
-def test_observer_reader_handles_more_than_10000_decisions_with_bounded_latest_window(
+def test_observer_reader_omits_latest_instead_of_failing_above_validation_budget(
     tmp_path: Path,
 ) -> None:
     decisions = tmp_path / "decisions"
     decisions.mkdir()
-    total = 10_020
-    selected_start = total - WH09_MAX_LATEST_DECISION_CANDIDATES
 
-    # Historical immutable entries are intentionally not reparsed by the Portal observer.
-    # Their aggregate truth is supplied by self-hashed telemetry; only the newest bounded
-    # window is needed to materialize latest_decision for the UI.
-    for index in range(selected_start):
-        path = decisions / f"{index:064x}.json"
-        path.touch()
-        os.utime(path, ns=(index + 1, index + 1))
+    # The production journal can exceed 10k immutable records. Aggregate truth is supplied by
+    # self-hashed telemetry, so the observer must not parse unbounded history or guess a latest
+    # record from mutable directory metadata.
+    for index in range(WH09_MAX_VALIDATED_DECISION_FILES + 1):
+        (decisions / f"{index:064x}.json").touch()
 
-    for index in range(selected_start, total):
-        _write_decision(
-            decisions / f"{index:064x}.json",
-            index,
-            mtime_ns=10_000_000_000 + index,
-        )
+    latest = Wh09ObserverRuntimeEvidenceReader(tmp_path)._latest_decision(
+        decisions, {"run_id": RUN_ID}
+    )
 
-    reader = Wh09ObserverRuntimeEvidenceReader(tmp_path)
-    latest = reader._latest_decision(decisions, {"run_id": RUN_ID})
-
-    assert latest is not None
-    assert latest.observed_at_ms == 1_800_000_000_000 + total - 1
-    assert latest.final_decision == "NO_TRADE"
-    assert latest.record_sha256 == _decision(total - 1)["record_sha256"]
+    assert latest is None
 
 
-def test_observer_reader_fails_closed_on_tampered_newest_candidate(tmp_path: Path) -> None:
+def test_observer_reader_still_fully_validates_bounded_history(tmp_path: Path) -> None:
     decisions = tmp_path / "decisions"
     decisions.mkdir()
-    valid = decisions / "1.json"
-    _write_decision(valid, 1, mtime_ns=1)
+    _write_decision(decisions / "1.json", 1)
+    _write_decision(decisions / "2.json", 2)
+
+    latest = Wh09ObserverRuntimeEvidenceReader(tmp_path)._latest_decision(
+        decisions, {"run_id": RUN_ID}
+    )
+
+    assert latest is not None
+    assert latest.observed_at_ms == 1_800_000_000_002
+    assert latest.record_sha256 == _decision(2)["record_sha256"]
+
+
+def test_observer_reader_fails_closed_on_tampered_bounded_candidate(tmp_path: Path) -> None:
+    decisions = tmp_path / "decisions"
+    decisions.mkdir()
+    _write_decision(decisions / "1.json", 1)
 
     tampered = decisions / "2.json"
     payload = _decision(2)
     payload["execution_enabled"] = True
     tampered.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
-    os.utime(tampered, ns=(2, 2))
 
     with pytest.raises(Wh09RuntimeEvidenceError):
         Wh09ObserverRuntimeEvidenceReader(tmp_path)._latest_decision(

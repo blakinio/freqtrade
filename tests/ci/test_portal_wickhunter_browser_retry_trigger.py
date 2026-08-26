@@ -10,6 +10,7 @@ REQUEST = (
     / "deploy/synology/portal-oidc/run-requests/wickhunter-wh09-browser-acceptance-20260826-v8.json"
 )
 SCRIPT = ROOT / "deploy/synology/portal-oidc/wickhunter-browser-accept-v6.sh"
+OBSERVER_UPGRADE = ROOT / "deploy/synology/portal-oidc/upgrade-wh09-observer-v10.sh"
 BROWSER = ROOT / "ai_platform/portal/web/e2e/wickhunter-api-mode-ci.mjs"
 TARGET = "eafc198857c90caf89a5920da60ae7661c1061ba"
 WH09_RUNTIME_REVISION = "1af35b4ccef6bbd06c771603a80760c342d334aa"
@@ -90,6 +91,7 @@ def test_synology_autostart_repairs_full_persistent_portal_stack() -> None:
 
 def test_synology_autostart_recovers_existing_wh09_evidence_without_redeploy() -> None:
     w = REPAIR_WORKFLOW.read_text(encoding="utf-8")
+    u = OBSERVER_UPGRADE.read_text(encoding="utf-8")
     assert "WH09_COMPOSE_PROJECT: wickhunter-production-research-runtime" in w
     assert "WH09_COMPOSE_SERVICE: wickhunter-production-research-runtime" in w
     assert f"WH09_EXPECTED_REVISION: {WH09_RUNTIME_REVISION}" in w
@@ -102,7 +104,8 @@ def test_synology_autostart_recovers_existing_wh09_evidence_without_redeploy() -
     assert '[[ "$wh09_policy" == "unless-stopped" ]]' in w
     assert '[[ "$observer_policy" == "unless-stopped" ]]' in w
     assert "WH09_ZERO_AUTHORITY_FRESH_EVIDENCE_PASS" in w
-    assert "Wh09RuntimeEvidenceReader" in w
+    assert "upgrade-wh09-observer-v10.sh" in w
+    assert "Wh09ObserverRuntimeEvidenceReader" in w
     assert "WH09_OBSERVER_FULL_EVIDENCE_PASS" in w
     assert "configured_wh09_source" in w
     assert "Wh09RuntimeEvidenceHttpClient" in w
@@ -110,6 +113,11 @@ def test_synology_autostart_recovers_existing_wh09_evidence_without_redeploy() -
     assert "/v1/bots/wickhunter/wickhunter-runtime-evidence" in w
     assert "WH09 Portal runtime evidence endpoint failed" in w
     assert "WH09_PORTAL_RUNTIME_EVIDENCE_PASS" in w
+    assert "WH09_OBSERVER_V10_IMAGE_PROVENANCE_PASS" in u
+    assert "WH09_OBSERVER_V10_ROLLBACK_PASS" in u
+    assert "WH09_OBSERVER_V10_DIRECT_EVIDENCE_PASS" in u
+    assert "WH09_OBSERVER_V10_HTTP_EVIDENCE_PASS" in u
+    assert "WH09_OBSERVER_V10_UPGRADE_PASS" in u
     for marker in (
         "trading_credentials_present",
         "order_adapter_present",

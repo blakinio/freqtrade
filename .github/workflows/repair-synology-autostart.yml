@@ -11,9 +11,18 @@ name: Repair Synology Autostart
       - deploy/synology/portal/deploy-preview.sh
       - deploy/synology/portal/probe-liquidations-live-operational.sh
       - deploy/synology/portal/prove-liquidations-live.sh
+      - deploy/synology/wickhunter-production-research-runtime/compose.yaml
   workflow_dispatch:
 
 permissions: {}
+
+env:
+  WH09_COMPOSE_PROJECT: wickhunter-production-research-runtime
+  WH09_COMPOSE_SERVICE: wickhunter-production-research-runtime
+  WH09_EXPECTED_REVISION: 1af35b4ccef6bbd06c771603a80760c342d334aa
+  WH09_EXPECTED_USER: "65531:65531"
+  WH09_OBSERVER_CONTAINER: portal-wh09-runtime-observer
+  WH09_OBSERVER_EXPECTED_REVISION: eafc198857c90caf89a5920da60ae7661c1061ba
 
 concurrency:
   group: freqtrade-synology-autostart-repair
@@ -23,7 +32,7 @@ jobs:
   repair:
     name: Enforce Docker restart policies and portal health
     runs-on: freqtrade-staging
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: read
 
@@ -33,7 +42,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Recover persistent Portal and Authentik services
+      - name: Recover persistent Portal Authentik and WickHunter evidence services
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -66,9 +75,10 @@ jobs:
 
           wait_running_healthy() {
             local container="$1"
+            local attempts="${2:-60}"
             local name running health
             name="$(docker inspect --format '{{.Name}}' "$container" | sed 's#^/##')"
-            for _ in $(seq 1 60); do
+            for _ in $(seq 1 "$attempts"); do
               running="$(docker inspect --format '{{.State.Running}}' "$container" 2>/dev/null || true)"
               health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container" 2>/dev/null || true)"
               if [[ "$running" == "true" && ( "$health" == "healthy" || "$health" == "running" ) ]]; then
@@ -91,6 +101,8 @@ jobs:
           portal_postgresql="$(resolve_named_container freqtrade-portal-postgresql)"
           portal_control="$(resolve_named_container freqtrade-portal-control-plane)"
           portal_web="$(resolve_named_container freqtrade-portal-staging)"
+          wh09_runtime="$(resolve_compose_service "$WH09_COMPOSE_PROJECT" "$WH09_COMPOSE_SERVICE")"
+          wh09_observer="$(resolve_named_container "$WH09_OBSERVER_CONTAINER")"
 
           declare -a persistent_containers=(
             "$runner"
@@ -104,14 +116,77 @@ jobs:
           )
           docker update --restart=always "${persistent_containers[@]}" >/dev/null
 
+          wh09_revision="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$wh09_runtime")"
+          wh09_user="$(docker inspect --format '{{.Config.User}}' "$wh09_runtime")"
+          wh09_policy="$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$wh09_runtime")"
+          wh09_read_only="$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "$wh09_runtime")"
+          wh09_privileged="$(docker inspect --format '{{.HostConfig.Privileged}}' "$wh09_runtime")"
+          [[ "$wh09_revision" == "$WH09_EXPECTED_REVISION" ]]
+          [[ "$wh09_user" == "$WH09_EXPECTED_USER" ]]
+          [[ "$wh09_policy" == "unless-stopped" ]]
+          [[ "$wh09_read_only" == "true" && "$wh09_privileged" == "false" ]]
+
+          observer_revision="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$(docker inspect --format '{{.Image}}' "$wh09_observer")")"
+          observer_policy="$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$wh09_observer")"
+          observer_read_only="$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "$wh09_observer")"
+          observer_privileged="$(docker inspect --format '{{.HostConfig.Privileged}}' "$wh09_observer")"
+          observer_ports="$(docker port "$wh09_observer")"
+          [[ "$observer_revision" == "$WH09_OBSERVER_EXPECTED_REVISION" ]]
+          [[ "$observer_policy" == "unless-stopped" ]]
+          [[ "$observer_read_only" == "true" && "$observer_privileged" == "false" ]]
+          [[ -z "$observer_ports" ]]
+
           docker start "$runner" "$liquid20" "$authentik_postgresql" "$portal_postgresql" >/dev/null
           wait_running_healthy "$authentik_postgresql"
           wait_running_healthy "$portal_postgresql"
+
+          if [[ "$(docker inspect --format '{{.State.Running}}' "$wh09_runtime")" != "true" ]]; then
+            docker start "$wh09_runtime" >/dev/null
+          fi
+          wait_running_healthy "$wh09_runtime" 240
+          docker exec -i "$wh09_runtime" python - <<'PY'
+          import json
+          import time
+          from pathlib import Path
+
+          health = json.loads(Path('/runtime/operator/health.json').read_text(encoding='utf-8'))
+          telemetry = json.loads(Path('/runtime/journal/telemetry.json').read_text(encoding='utf-8'))
+          zero_authority = {
+              'trading_credentials_present': False,
+              'order_adapter_present': False,
+              'execution_enabled': False,
+              'orders_submitted': 0,
+              'live_capital_authorized': False,
+          }
+          for label, payload in (('health', health), ('telemetry', telemetry)):
+              if not isinstance(payload, dict):
+                  raise SystemExit(f'{label} payload is not an object')
+              for key, expected in zero_authority.items():
+                  if payload.get(key) != expected:
+                      raise SystemExit(f'{label} zero-authority mismatch: {key}')
+          if health.get('status') != 'healthy':
+              raise SystemExit('WH09 health payload is not healthy')
+          if int(telemetry.get('decision_count', 0)) <= 0:
+              raise SystemExit('WH09 telemetry has no decisions')
+          checked_at_ms = int(telemetry.get('checked_at_ms', 0))
+          health_checked_at_ms = int(health.get('checked_at_ms', 0))
+          now_ms = int(time.time() * 1000)
+          if checked_at_ms <= 0 or health_checked_at_ms < checked_at_ms:
+              raise SystemExit('WH09 evidence timestamps are invalid')
+          if now_ms - checked_at_ms > 600_000:
+              raise SystemExit('WH09 telemetry is stale after recovery')
+          print('WH09_ZERO_AUTHORITY_FRESH_EVIDENCE_PASS')
+          PY
 
           docker start "$authentik_server" "$authentik_worker" "$portal_control" >/dev/null
           wait_running_healthy "$authentik_server"
           wait_running_healthy "$authentik_worker"
           wait_running_healthy "$portal_control"
+
+          if [[ "$(docker inspect --format '{{.State.Running}}' "$wh09_observer")" != "true" ]]; then
+            docker start "$wh09_observer" >/dev/null
+          fi
+          wait_running_healthy "$wh09_observer"
 
           docker start "$portal_web" >/dev/null
           wait_running_healthy "$portal_web"
@@ -123,6 +198,13 @@ jobs:
             [[ "$policy" == "always" && "$running" == "true" ]]
             printf '%s policy=%s running=%s\n' "$name" "$policy" "$running"
           done
+
+          [[ "$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$wh09_runtime")" == "unless-stopped" ]]
+          [[ "$(docker inspect --format '{{.State.Running}}' "$wh09_runtime")" == "true" ]]
+          [[ "$(docker inspect --format '{{.State.Health.Status}}' "$wh09_runtime")" == "healthy" ]]
+          [[ "$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$wh09_observer")" == "unless-stopped" ]]
+          [[ "$(docker inspect --format '{{.State.Running}}' "$wh09_observer")" == "true" ]]
+          [[ "$(docker inspect --format '{{.State.Health.Status}}' "$wh09_observer")" == "healthy" ]]
 
       - name: Recover an unresponsive portal once
         shell: bash

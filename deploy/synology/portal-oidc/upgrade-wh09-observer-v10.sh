@@ -55,7 +55,7 @@ PY
 journal_host="${observer_binding[0]}"
 operator_host="${observer_binding[1]}"
 
-# Derive the new observer from the exact already-accepted observer image.  This avoids
+# Derive the new observer from the exact already-accepted observer image. This avoids
 # re-resolving any OS/Python dependency on the Synology target: the only new filesystem
 # layer contains the two reviewed observer source files from GITHUB_SHA.
 base_tag="local/freqtrade-wh09-observer-v10-base:${expected_old_revision}"
@@ -69,8 +69,10 @@ overlay_sha256="$(cat \
 cat > "$RUNNER_TEMP/Dockerfile.wh09-observer-v10" <<'EOF'
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
-COPY --chown=10001:10001 ai_platform/portal/control_plane/wh09_runtime_observer.py /app/ai_platform/portal/control_plane/wh09_runtime_observer.py
-COPY --chown=10001:10001 ai_platform/portal/control_plane/wh09_runtime_observer_reader.py /app/ai_platform/portal/control_plane/wh09_runtime_observer_reader.py
+COPY --chown=10001:10001 \
+  ai_platform/portal/control_plane/wh09_runtime_observer.py \
+  ai_platform/portal/control_plane/wh09_runtime_observer_reader.py \
+  /app/ai_platform/portal/control_plane/
 EOF
 docker build \
   --pull=false \

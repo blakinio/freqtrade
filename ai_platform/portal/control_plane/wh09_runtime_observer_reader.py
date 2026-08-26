@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
-from heapq import heappush, heapreplace
 from pathlib import Path
 from typing import Any
 
@@ -17,16 +16,17 @@ from ai_platform.portal.control_plane.wh09_runtime import (
 )
 
 
-WH09_MAX_LATEST_DECISION_CANDIDATES = 256
+WH09_MAX_VALIDATED_DECISION_FILES = 10_000
 
 
 class Wh09ObserverRuntimeEvidenceReader(Wh09RuntimeEvidenceReader):
-    """Read WH09 Portal evidence without rescanning the complete immutable decision journal.
+    """Read WH09 Portal evidence without making an unbounded content scan.
 
-    Aggregate decision truth remains bound to the self-hashed telemetry document.  The observer
-    only needs a latest-decision sample for the UI, so it selects a bounded set of the newest
-    immutable decision files by filesystem mtime and then applies the complete schema, authority,
-    run-identity and self-hash validation to every selected candidate.
+    Aggregate decision truth remains bound to the self-hashed telemetry document.  For journals
+    within the bounded validation budget, every immutable decision record is fully validated and
+    the latest record is exposed.  Once the journal exceeds that budget, the observer deliberately
+    omits ``latest_decision`` instead of guessing from mutable filesystem ordering; aggregate counts
+    and all frozen/zero-authority invariants remain available from canonical telemetry.
     """
 
     def _latest_decision(
@@ -37,7 +37,8 @@ class Wh09ObserverRuntimeEvidenceReader(Wh09RuntimeEvidenceReader):
         if decisions_root.is_symlink() or not decisions_root.is_dir():
             return None
 
-        candidates: list[tuple[int, str, Path]] = []
+        paths: list[Path] = []
+        overflow = False
         try:
             for path in decisions_root.iterdir():
                 if path.suffix != ".json":
@@ -46,17 +47,18 @@ class Wh09ObserverRuntimeEvidenceReader(Wh09RuntimeEvidenceReader):
                     raise Wh09RuntimeEvidenceError(
                         "WH09 decision evidence entry is not a regular file"
                     )
-                mtime_ns = path.stat().st_mtime_ns
-                candidate = (mtime_ns, path.name, path)
-                if len(candidates) < WH09_MAX_LATEST_DECISION_CANDIDATES:
-                    heappush(candidates, candidate)
-                elif candidate[:2] > candidates[0][:2]:
-                    heapreplace(candidates, candidate)
+                if len(paths) < WH09_MAX_VALIDATED_DECISION_FILES:
+                    paths.append(path)
+                else:
+                    overflow = True
         except OSError as exc:
             raise Wh09RuntimeEvidenceError("WH09 decision evidence inventory is unreadable") from exc
 
+        if overflow:
+            return None
+
         latest: tuple[int, dict[str, Any]] | None = None
-        for _, _, path in candidates:
+        for path in paths:
             payload = _load_object(path, label="WH09 decision")
             if payload.get("schema_version") != WH09_DECISION_SCHEMA:
                 raise Wh09RuntimeEvidenceError("WH09 decision schema mismatch")

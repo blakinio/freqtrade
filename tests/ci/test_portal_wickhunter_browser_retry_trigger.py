@@ -93,7 +93,7 @@ def test_synology_autostart_recovers_existing_wh09_evidence_without_redeploy() -
     assert "WH09_COMPOSE_PROJECT: wickhunter-production-research-runtime" in w
     assert "WH09_COMPOSE_SERVICE: wickhunter-production-research-runtime" in w
     assert f"WH09_EXPECTED_REVISION: {WH09_RUNTIME_REVISION}" in w
-    assert "WH09_EXPECTED_USER: \"65531:65531\"" in w
+    assert 'WH09_EXPECTED_USER: "65531:65531"' in w
     assert "WH09_OBSERVER_CONTAINER: portal-wh09-runtime-observer" in w
     assert f"WH09_OBSERVER_EXPECTED_REVISION: {TARGET}" in w
     assert 'docker start "$wh09_runtime"' in w

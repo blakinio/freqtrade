@@ -82,7 +82,11 @@ def test_browser_harness_keeps_meaningful_content_checks() -> None:
     assert "expectedModeModelMarker" in b
 
 
-def test_browser_harness_does_not_require_network_idle_for_portal_truth() -> None:
+def test_browser_harness_waits_for_rendered_truth_without_network_idle() -> None:
     b = BROWSER.read_text(encoding="utf-8")
     assert 'waitUntil: "domcontentloaded"' in b
     assert 'waitUntil: "networkidle"' not in b
+    assert "const visibleTruthTimeoutMs = 10000" in b
+    assert "const visibleTruthPollMs = 250" in b
+    assert "const waitForVisibleTruth = async" in b
+    assert "snapshot = await waitForVisibleTruth(page, response)" in b

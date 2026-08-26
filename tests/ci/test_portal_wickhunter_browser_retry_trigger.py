@@ -12,6 +12,7 @@ REQUEST = (
 SCRIPT = ROOT / "deploy/synology/portal-oidc/wickhunter-browser-accept-v6.sh"
 BROWSER = ROOT / "ai_platform/portal/web/e2e/wickhunter-api-mode-ci.mjs"
 TARGET = "eafc198857c90caf89a5920da60ae7661c1061ba"
+WH09_RUNTIME_REVISION = "1af35b4ccef6bbd06c771603a80760c342d334aa"
 
 
 def test_v8_is_one_shot_and_dual_provenance() -> None:
@@ -85,6 +86,34 @@ def test_synology_autostart_repairs_full_persistent_portal_stack() -> None:
     assert "{{.State.Running}}" in w
     assert "docker start" in w
     assert "secrets." not in w
+
+
+def test_synology_autostart_recovers_existing_wh09_evidence_without_redeploy() -> None:
+    w = REPAIR_WORKFLOW.read_text(encoding="utf-8")
+    assert "WH09_COMPOSE_PROJECT: wickhunter-production-research-runtime" in w
+    assert "WH09_COMPOSE_SERVICE: wickhunter-production-research-runtime" in w
+    assert f"WH09_EXPECTED_REVISION: {WH09_RUNTIME_REVISION}" in w
+    assert "WH09_EXPECTED_USER: \"65531:65531\"" in w
+    assert "WH09_OBSERVER_CONTAINER: portal-wh09-runtime-observer" in w
+    assert f"WH09_OBSERVER_EXPECTED_REVISION: {TARGET}" in w
+    assert 'docker start "$wh09_runtime"' in w
+    assert 'docker start "$wh09_observer"' in w
+    assert 'wait_running_healthy "$wh09_runtime" 240' in w
+    assert '[[ "$wh09_policy" == "unless-stopped" ]]' in w
+    assert '[[ "$observer_policy" == "unless-stopped" ]]' in w
+    assert "WH09_ZERO_AUTHORITY_FRESH_EVIDENCE_PASS" in w
+    for marker in (
+        "trading_credentials_present",
+        "order_adapter_present",
+        "execution_enabled",
+        "orders_submitted",
+        "live_capital_authorized",
+    ):
+        assert marker in w
+    assert "docker compose" not in w
+    assert "--force-recreate" not in w
+    assert 'docker update --restart=always "$wh09_runtime"' not in w
+    assert 'docker update --restart=always "$wh09_observer"' not in w
 
 
 def test_browser_harness_keeps_meaningful_content_checks() -> None:

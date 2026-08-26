@@ -37,8 +37,12 @@ if "ALL" not in (host.get("CapDrop") or []):
     raise SystemExit("WH09 observer does not drop all capabilities")
 if not any("no-new-privileges" in value for value in (host.get("SecurityOpt") or [])):
     raise SystemExit("WH09 observer no-new-privileges is absent")
-if observer.get("NetworkSettings", {}).get("Ports") not in ({}, None):
-    raise SystemExit("WH09 observer unexpectedly publishes ports")
+ports = observer.get("NetworkSettings", {}).get("Ports") or {}
+if not isinstance(ports, dict):
+    raise SystemExit("WH09 observer network ports metadata is invalid")
+for exposed_port, bindings in ports.items():
+    if bindings not in (None, []):
+        raise SystemExit(f"WH09 observer unexpectedly publishes host port: {exposed_port}")
 networks = observer.get("NetworkSettings", {}).get("Networks") or {}
 if set(networks) != {"portal_oidc_public"}:
     raise SystemExit("WH09 observer network binding mismatch")

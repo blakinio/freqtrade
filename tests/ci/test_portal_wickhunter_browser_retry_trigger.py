@@ -103,7 +103,8 @@ def test_synology_autostart_recovers_existing_wh09_evidence_without_redeploy() -
     assert "portal_supply_chain.py build-verify" in w
     assert "packages: write" in w and "packages: read" in w
     assert "WH09_OBSERVER_HOSTED_IMAGE_PASS" in w
-    assert "ghcr.io/blakinio/freqtrade-portal-control-plane@sha256:" in w
+    assert 'control_repo="ghcr.io/blakinio/freqtrade-portal-control-plane"' in w
+    assert "@sha256:[0-9a-f]{64}" in w
     assert 'docker pull "$CONTROL_REF"' in w
     assert "WH09_OBSERVER_IMAGE_REF" in w
     assert 'docker start "$wh09_runtime"' in w

@@ -101,8 +101,8 @@ const loadVisibleTruth = async (page, reloadOnly = false) => {
   for (let attempt = 1; attempt <= maxPageAttempts; attempt += 1) {
     const response =
       reloadOnly || attempt > 1
-        ? await page.reload({ waitUntil: "networkidle" })
-        : await page.goto(expectedBotsUrl, { waitUntil: "networkidle" });
+      ? await page.reload({ waitUntil: "domcontentloaded" })
+      : await page.goto(expectedBotsUrl, { waitUntil: "domcontentloaded" });
     snapshot = await inspectVisibleTruth(page, response);
     if (snapshot.ready) return snapshot;
     if (attempt < maxPageAttempts) {

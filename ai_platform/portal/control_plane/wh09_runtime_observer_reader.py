@@ -27,17 +27,13 @@ def _bounded_decision_paths(decisions_root: Path) -> list[Path] | None:
             if path.suffix != ".json":
                 continue
             if path.is_symlink() or not path.is_file():
-                raise Wh09RuntimeEvidenceError(
-                    "WH09 decision evidence entry is not a regular file"
-                )
+                raise Wh09RuntimeEvidenceError("WH09 decision evidence entry is not a regular file")
             if len(paths) < WH09_MAX_VALIDATED_DECISION_FILES:
                 paths.append(path)
             else:
                 overflow = True
     except OSError as exc:
-        raise Wh09RuntimeEvidenceError(
-            "WH09 decision evidence inventory is unreadable"
-        ) from exc
+        raise Wh09RuntimeEvidenceError("WH09 decision evidence inventory is unreadable") from exc
     return None if overflow else paths
 
 

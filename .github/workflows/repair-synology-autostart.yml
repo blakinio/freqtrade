@@ -23,24 +23,133 @@ env:
   WH09_EXPECTED_USER: "65531:65531"
   WH09_OBSERVER_CONTAINER: portal-wh09-runtime-observer
   WH09_OBSERVER_EXPECTED_REVISION: eafc198857c90caf89a5920da60ae7661c1061ba
+  SYFT_VERSION: "1.50.0"
+  SYFT_LINUX_AMD64_SHA256: "bf7b29ff57f06da30918266a0e1c2885a8f99784798d1bdb1628886aa015d788"
+  GRYPE_VERSION: "0.116.1"
+  GRYPE_LINUX_AMD64_SHA256: "0122df7b655981abe547ad3d2190d65551dac6a2bfc80b4dc2a989b5d0587458"
 
 concurrency:
   group: freqtrade-synology-autostart-repair
   cancel-in-progress: false
 
 jobs:
-  repair:
-    name: Enforce Docker restart policies and portal health
-    runs-on: freqtrade-staging
-    timeout-minutes: 20
+  build-wh09-observer-image:
+    name: Build, scan and publish exact WH09 observer image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
     permissions:
       contents: read
+      packages: write
+    outputs:
+      control_ref: ${{ steps.publish.outputs.control_ref }}
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Install checksum-pinned Syft and Grype
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d "$RUNNER_TEMP/portal-tools"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz" \
+            --output "$RUNNER_TEMP/syft.tar.gz"
+          echo "${SYFT_LINUX_AMD64_SHA256}  $RUNNER_TEMP/syft.tar.gz" | sha256sum --check --strict
+          tar --extract --gzip --file "$RUNNER_TEMP/syft.tar.gz" \
+            --directory "$RUNNER_TEMP/portal-tools" syft
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_amd64.tar.gz" \
+            --output "$RUNNER_TEMP/grype.tar.gz"
+          echo "${GRYPE_LINUX_AMD64_SHA256}  $RUNNER_TEMP/grype.tar.gz" | sha256sum --check --strict
+          tar --extract --gzip --file "$RUNNER_TEMP/grype.tar.gz" \
+            --directory "$RUNNER_TEMP/portal-tools" grype
+          echo "$RUNNER_TEMP/portal-tools" >> "$GITHUB_PATH"
+
+      - name: Build, scan and approve exact Portal images
+        shell: bash
+        env:
+          EVIDENCE_DIR: ${{ runner.temp }}/portal-wh09-observer-supply-chain
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          python3 tools/agents/portal_supply_chain.py build-verify \
+            --repository "$GITHUB_WORKSPACE" \
+            --source-sha "$GITHUB_SHA" \
+            --output-dir "$EVIDENCE_DIR" \
+            --approval "$EVIDENCE_DIR/approval.json"
+          python3 tools/agents/portal_supply_chain.py verify-approval \
+            --approval "$EVIDENCE_DIR/approval.json" \
+            --expected-source-sha "$GITHUB_SHA"
+
+      - name: Log in to GHCR
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Publish immutable control-plane image for observer-only delivery
+        id: publish
+        shell: bash
+        env:
+          APPROVAL_PATH: ${{ runner.temp }}/portal-wh09-observer-supply-chain/approval.json
+        run: |
+          set -euo pipefail
+          control_id="$(python3 - "$APPROVAL_PATH" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          approval = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          print(approval["images"]["control-plane"]["digest"])
+          PY
+          )"
+          [[ "$control_id" =~ ^sha256:[0-9a-f]{64}$ ]]
+          control_repo="ghcr.io/blakinio/freqtrade-portal-control-plane"
+          control_tag="${control_repo}:wh09-observer-v10-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_SHA}"
+          docker tag "$control_id" "$control_tag"
+          docker push "$control_tag"
+          docker pull "$control_tag" >/dev/null
+          [[ "$(docker image inspect --format '{{.Id}}' "$control_tag")" == "$control_id" ]]
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$control_tag")" == "$GITHUB_SHA" ]]
+          control_ref="$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$control_tag" \
+            | grep -E "^${control_repo}@sha256:[0-9a-f]{64}$" | head -n 1)"
+          [[ -n "$control_ref" ]]
+          printf 'control_ref=%s\n' "$control_ref" >> "$GITHUB_OUTPUT"
+          echo "WH09_OBSERVER_HOSTED_IMAGE_PASS ref=${control_ref} revision=${GITHUB_SHA}"
+
+  repair:
+    name: Enforce Docker restart policies and portal health
+    needs: build-wh09-observer-image
+    runs-on: freqtrade-staging
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
 
     steps:
       - name: Check out exact source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Materialize exact hosted-built observer image
+        shell: bash
+        env:
+          CONTROL_REF: ${{ needs.build-wh09-observer-image.outputs.control_ref }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          [[ "$CONTROL_REF" =~ ^ghcr\.io/blakinio/freqtrade-portal-control-plane@sha256:[0-9a-f]{64}$ ]]
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker pull "$CONTROL_REF" >/dev/null
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$CONTROL_REF")" == "$GITHUB_SHA" ]]
+          echo "WH09_OBSERVER_IMAGE_REF=$CONTROL_REF" >> "$GITHUB_ENV"
 
       - name: Recover persistent Portal Authentik and WickHunter evidence services
         shell: bash
@@ -188,16 +297,24 @@ jobs:
           fi
           wait_running_healthy "$wh09_observer"
 
+          bash deploy/synology/portal-oidc/upgrade-wh09-observer-v10.sh \
+            "$WH09_OBSERVER_CONTAINER" \
+            "$GITHUB_SHA" \
+            "$WH09_OBSERVER_EXPECTED_REVISION" \
+            "65531" \
+            "$WH09_OBSERVER_IMAGE_REF"
+          wh09_observer="$(resolve_named_container "$WH09_OBSERVER_CONTAINER")"
+
           docker exec -i "$wh09_observer" python - <<'PY'
           from pathlib import Path
 
-          from ai_platform.portal.control_plane.wh09_runtime import (
-              Wh09RuntimeEvidenceError,
-              Wh09RuntimeEvidenceReader,
+          from ai_platform.portal.control_plane.wh09_runtime import Wh09RuntimeEvidenceError
+          from ai_platform.portal.control_plane.wh09_runtime_observer_reader import (
+              Wh09ObserverRuntimeEvidenceReader,
           )
 
           try:
-              evidence = Wh09RuntimeEvidenceReader(Path('/runtime')).read()
+              evidence = Wh09ObserverRuntimeEvidenceReader(Path('/runtime')).read()
           except Wh09RuntimeEvidenceError as exc:
               raise SystemExit(f'WH09 observer full evidence failed: {exc}') from exc
           if evidence.health != 'HEALTHY':
@@ -295,6 +412,7 @@ jobs:
           [[ "$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$wh09_observer")" == "unless-stopped" ]]
           [[ "$(docker inspect --format '{{.State.Running}}' "$wh09_observer")" == "true" ]]
           [[ "$(docker inspect --format '{{.State.Health.Status}}' "$wh09_observer")" == "healthy" ]]
+          [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$(docker inspect --format '{{.Image}}' "$wh09_observer")")" == "$GITHUB_SHA" ]]
 
       - name: Recover an unresponsive portal once
         shell: bash

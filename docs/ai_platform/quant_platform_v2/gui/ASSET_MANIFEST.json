@@ -1,0 +1,375 @@
+{
+  "schema_version": 6,
+  "purpose": "Quant Platform v2 GUI reference and mockup provenance",
+  "generated_at": "2026-08-27",
+  "authority_note": "Design proposal only; ADR-023 and ADR-025 remain binding until separately superseded.",
+  "privacy": {
+    "public_repo_safe_copies": true,
+    "policy": "Only privacy-redacted WebP reference copies are committed."
+  },
+  "storage": {
+    "mode": "committed-webp-assets",
+    "root": "docs/ai_platform/quant_platform_v2/gui/assets",
+    "note": "Direct committed assets replace the inconsistent Base64 shard transport."
+  },
+  "reconstructed_archive": {
+    "filename": "quant-platform-v2-visual-assets-20260827.zip",
+    "encoding": "deterministic-zip-from-committed-assets",
+    "members": [
+      "mockups/00-early-dashboard-concept.webp",
+      "mockups/01-command-center.webp",
+      "mockups/02-bot-detail.webp",
+      "mockups/03-create-bot.webp",
+      "mockups/04-model-registry.webp",
+      "previews/v2-mockups-contact-sheet.webp",
+      "previews/wickhunter-reference-contact-sheet.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-create-bots-2026-07-22-10_10_28.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-create-bots-builtin-signal-2026-07-22-10_10_51.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-create-bots-dynamic-2026-07-22-10_10_56.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-create-bots-manual-entry-bot-2026-07-22-10_10_37.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-create-bots-marketplace-bot-2026-07-22-10_10_43.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-create-bots-optimized-liquidation-bot-2026-07-27-16_45_38.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-create-bots-optimized-liquidation-bot-2026-07-27-16_45_51.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-create-bots-original-liquidation-bot-2026-07-22-10_10_32.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-dashboard-2026-07-22-10_10_18.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-grid-bots-2026-07-22-10_12_08.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-grid-bots-2026-07-22-10_12_16.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-grid-bots-2026-07-22-10_12_27.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-liquidation-logs-2026-07-22-10_12_47.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-marketplace-2026-07-22-10_11_58.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-open-deals-2026-07-22-10_11_09.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-pnl-reporting-2026-07-22-10_11_04.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-profile-2026-07-22-10_13_39.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-signal-logs-2026-07-22-10_12_35.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-signal-wizard-2026-07-22-10_11_38.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-subscription-2026-07-22-10_12_58.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-terminal-2026-07-22-10_11_16.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-terminal-2026-07-22-10_11_21.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-terminal-2026-07-22-10_11_25.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-terminal-2026-07-22-10_11_30.webp",
+      "reference/wickhunter/screencapture-wickhunter-io-view-bots-2026-07-22-10_11_44.webp"
+    ],
+    "member_count": 32,
+    "size_bytes": 358236,
+    "sha256": "afb00d396aa95a7a20b5b86ded7d84ad832b7bb22cb098c46725dae35409647c",
+    "zip_timestamp": "2026-08-26T00:00:00",
+    "compression": "deflate-9"
+  },
+  "omitted_source_members": [
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-profile-2026-07-22-10_13_13.webp",
+      "reason": "Prior shard transport truncated this standalone member; the alternate profile reference and contact-sheet coverage remain preserved."
+    }
+  ],
+  "assets": [
+    {
+      "archive_member": "mockups/00-early-dashboard-concept.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/mockups/00-early-dashboard-concept.webp",
+      "sha256": "3e4e80ceb5c4755e00b937d7f7b015a45e5c7d48d0bf107e41b98627f6e97713",
+      "size_bytes": 42314,
+      "kind": "v2_mockup",
+      "source_filename": "a_clean_dark_theme_ui_ux_dashboard_concept_mockup.png",
+      "source_sha256": "7e28fb304bc2b92fb3e73d648275789f0626b841f2bc851c031aa007fa1fc2a4"
+    },
+    {
+      "archive_member": "mockups/01-command-center.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/mockups/01-command-center.webp",
+      "sha256": "22e666a31737d40b1fbfa59fe18a2f0f438a3cc34303e0313e7924ab6f0f3d46",
+      "size_bytes": 22092,
+      "kind": "v2_mockup",
+      "source_filename": "neon_quant_trading_command_center.png",
+      "source_sha256": "2964ab555cddebf74579edd56d9d50ac648eb942064db43f2f450a4d8facb192"
+    },
+    {
+      "archive_member": "mockups/02-bot-detail.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/mockups/02-bot-detail.webp",
+      "sha256": "6b968745df0203313fbc96e564d1d201650b799a3161ce73544e605349cddda4",
+      "size_bytes": 21268,
+      "kind": "v2_mockup",
+      "source_filename": "dark_trading_bot_control_dashboard.png",
+      "source_sha256": "929ba9db1a633aa5a09de6e60cefd0a9d711df5fe5294027aadb75b8b4338996"
+    },
+    {
+      "archive_member": "mockups/03-create-bot.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/mockups/03-create-bot.webp",
+      "sha256": "6768f40998c9fdee89efe6ca395b6ba3093d0a3fb9ec7895020a0b76794ad0a6",
+      "size_bytes": 20146,
+      "kind": "v2_mockup",
+      "source_filename": "create_bot_trading_dashboard.png",
+      "source_sha256": "348e581aba1006d5ae6a725108393ee61436839f7b3d09e2bba506c0607675b8"
+    },
+    {
+      "archive_member": "mockups/04-model-registry.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/mockups/04-model-registry.webp",
+      "sha256": "c8e1a8cdfadd35102a9c79abbc50180207e73ca535c32c06ee6d4f55f3582af0",
+      "size_bytes": 21540,
+      "kind": "v2_mockup",
+      "source_filename": "futuristic_quant_model_registry_dashboard.png",
+      "source_sha256": "49d0e6d5bcd40afc70fc9144c2161731a1a0428691acb681e14efe068de54e23"
+    },
+    {
+      "archive_member": "previews/v2-mockups-contact-sheet.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/previews/v2-mockups-contact-sheet.webp",
+      "sha256": "d870cbc115ea65518e226813661f940780b5d701c528ecbce5f4cb52e7b01c60",
+      "size_bytes": 19108,
+      "kind": "preview"
+    },
+    {
+      "archive_member": "previews/wickhunter-reference-contact-sheet.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/previews/wickhunter-reference-contact-sheet.webp",
+      "sha256": "2bb5b8d41056de4024f827a2315dcd9fb8e292136d10228647816b7b4b1c7f1e",
+      "size_bytes": 47914,
+      "kind": "preview"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-create-bots-2026-07-22-10_10_28.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-create-bots-2026-07-22-10_10_28.webp",
+      "sha256": "8eb810b929824ed4f0c338a32fc7482b02bc0c1c6803e75ab285436943eb09be",
+      "size_bytes": 9070,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-create-bots-2026-07-22-10_10_28.png",
+      "source_sha256": "c1e3260e0e8293edda175aa8e00edff6a29d0863228b0c19360133bbe97d1daf"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-create-bots-builtin-signal-2026-07-22-10_10_51.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-create-bots-builtin-signal-2026-07-22-10_10_51.webp",
+      "sha256": "4bec578b119ee235189897abba3602128d5f17c4664eb56521de2540e944f839",
+      "size_bytes": 7732,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-create-bots-builtin-signal-2026-07-22-10_10_51.png",
+      "source_sha256": "94e1f53ba2b4e2a3885c68b531a427f4881ba2e696f922d73a1100e24c942db6"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-create-bots-dynamic-2026-07-22-10_10_56.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-create-bots-dynamic-2026-07-22-10_10_56.webp",
+      "sha256": "a3a348ee109fef520b6fa3eceb8357e62ea11593d042558476c6a775a66d0f4a",
+      "size_bytes": 7978,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-create-bots-dynamic-2026-07-22-10_10_56.png",
+      "source_sha256": "e284fd32bc4e11018513359fb2dea5f4fc7c86f4e2a50b7b87d5422f4599b8be"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-create-bots-manual-entry-bot-2026-07-22-10_10_37.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-create-bots-manual-entry-bot-2026-07-22-10_10_37.webp",
+      "sha256": "30c9169cdfee852088a6266d2daffcd01481552688c21a8480beb47344f32b01",
+      "size_bytes": 4560,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-create-bots-manual-entry-bot-2026-07-22-10_10_37.png",
+      "source_sha256": "d5bc6315bfae0e816f1920c2f9e63f2624efb877b8d6fc7448a08293fc2eff95"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-create-bots-marketplace-bot-2026-07-22-10_10_43.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-create-bots-marketplace-bot-2026-07-22-10_10_43.webp",
+      "sha256": "5b1d8677675b2c33176b9987345dffd105e9b08290974a39c28bbdc46486da10",
+      "size_bytes": 3434,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-create-bots-marketplace-bot-2026-07-22-10_10_43.png",
+      "source_sha256": "b07f77fa9c38752d85ffd39e9e83a245c946792ccce59e193076d454723b1a59"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-create-bots-optimized-liquidation-bot-2026-07-27-16_45_38.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-create-bots-optimized-liquidation-bot-2026-07-27-16_45_38.webp",
+      "sha256": "5a2dad23b99808206a133894cbfa73c2d4adfd9d70ea7eb51be1ff32167c4c3f",
+      "size_bytes": 6188,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-create-bots-optimized-liquidation-bot-2026-07-27-16_45_38.png",
+      "source_sha256": "86481c4fb58307af84527f4eaaa46a7ca26810fefb9b0ee0f406b2d99fbef17b"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-create-bots-optimized-liquidation-bot-2026-07-27-16_45_51.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-create-bots-optimized-liquidation-bot-2026-07-27-16_45_51.webp",
+      "sha256": "08e9bf93dd9516546bc1ccc0c8aa873182e21f50ef1e8995418f0864cbdcaf44",
+      "size_bytes": 8500,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-create-bots-optimized-liquidation-bot-2026-07-27-16_45_51.png",
+      "source_sha256": "5af358bfc2bf199e9f810d5bd41e99d98668a7db10a89b0ed5b1902d35d9bcce"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-create-bots-original-liquidation-bot-2026-07-22-10_10_32.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-create-bots-original-liquidation-bot-2026-07-22-10_10_32.webp",
+      "sha256": "57b42664a0aff1d09462012b86b0f2248b67fc9a62cda4cd35c9358b16915d42",
+      "size_bytes": 8102,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-create-bots-original-liquidation-bot-2026-07-22-10_10_32.png",
+      "source_sha256": "5fb657a301ce719e79953e08802fb5f4a4283e3281bb2b51b987ba00b5666b81"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-dashboard-2026-07-22-10_10_18.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-dashboard-2026-07-22-10_10_18.webp",
+      "sha256": "201af728ef0f18403c220381d049a4232eb7c3d67c64822bb74ee61e75804474",
+      "size_bytes": 6676,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-dashboard-2026-07-22-10_10_18.png",
+      "source_sha256": "3097d0921e5715d34a67382d1277ce1a0e1f25b74387befc231b10c072f5bd2e"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-grid-bots-2026-07-22-10_12_08.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-grid-bots-2026-07-22-10_12_08.webp",
+      "sha256": "614068a87ff0e1f3ebcc9463024098d0b642aa6640f6046201070b613f51c10e",
+      "size_bytes": 5176,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-grid-bots-2026-07-22-10_12_08.png",
+      "source_sha256": "2cc63449103314f9c831f14f9f92eed01dc43c0ee2c3808ba5e7e76e19594de1"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-grid-bots-2026-07-22-10_12_16.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-grid-bots-2026-07-22-10_12_16.webp",
+      "sha256": "1030589a53a07bb65e636ea66d18e2dad6ee38101208353a26de9cfcd1cb7414",
+      "size_bytes": 4854,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-grid-bots-2026-07-22-10_12_16.png",
+      "source_sha256": "b2d619883be8af935ce58fe4e0dd5101600a4128164f82cc9913e1b1900b5941"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-grid-bots-2026-07-22-10_12_27.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-grid-bots-2026-07-22-10_12_27.webp",
+      "sha256": "f91f3ff512a0d4541e6ce6556f2517f81c151f6ca6c1351e48dd352e6cea637d",
+      "size_bytes": 4984,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-grid-bots-2026-07-22-10_12_27.png",
+      "source_sha256": "4d13fc2ca169a1026445fd26e3fae9eeecd01d7b3a125da30ddbbbfcd7c23f47"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-liquidation-logs-2026-07-22-10_12_47.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-liquidation-logs-2026-07-22-10_12_47.webp",
+      "sha256": "9fe129f5c74f4077a2ec4edd4f4b01152c62eb8699d07460981b0b0fe8e1cdd0",
+      "size_bytes": 9060,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-liquidation-logs-2026-07-22-10_12_47.png",
+      "source_sha256": "3949a2651296d2217e1bd300250a3d7e09d0e4aff3b280bfafd4b5323b071e90"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-marketplace-2026-07-22-10_11_58.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-marketplace-2026-07-22-10_11_58.webp",
+      "sha256": "a8639c9c9e9381b05cba120b68b0be2f2302f75e24492c61899a81f76a9283c2",
+      "size_bytes": 19012,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-marketplace-2026-07-22-10_11_58.png",
+      "source_sha256": "ac2a05c6991ab438154b589ab158d25818181642c7ca162fd559ddb75f74acb2"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-open-deals-2026-07-22-10_11_09.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-open-deals-2026-07-22-10_11_09.webp",
+      "sha256": "e81b787dd43a0d3aa8cc78126744ba4492c04c16b7fa8d8fdc75fb575779f297",
+      "size_bytes": 2770,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-open-deals-2026-07-22-10_11_09.png",
+      "source_sha256": "cee0c8f91c595029cf50b7f4ceabcd76520b11ce69203d67c40127f3a495c132"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-pnl-reporting-2026-07-22-10_11_04.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-pnl-reporting-2026-07-22-10_11_04.webp",
+      "sha256": "c9a5a2e91fa84691dc37000a56679f21f8ca0fae8495240aa31987332649e5db",
+      "size_bytes": 3220,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-pnl-reporting-2026-07-22-10_11_04.png",
+      "source_sha256": "aa2741bd365c3d422466818c2b5e0a877f3bbe14cedba47a20e28abfb30a53f9"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-profile-2026-07-22-10_13_39.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-profile-2026-07-22-10_13_39.webp",
+      "sha256": "2bbb8d74c9c543c110bd0ba4913ce2aff1f1c78ecd249d74f8a718043b5a40cb",
+      "size_bytes": 5278,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-profile-2026-07-22-10_13_39.png",
+      "source_sha256": "23e479dfae0b00dd4f8c6f2838777722863965b96f8cf4ed0ee76a8345256f28"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-signal-logs-2026-07-22-10_12_35.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-signal-logs-2026-07-22-10_12_35.webp",
+      "sha256": "b6cf876ed81ec861084704af1ed160e604b3f8e5c05337b3ce2878cf8c85bf8d",
+      "size_bytes": 4112,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-signal-logs-2026-07-22-10_12_35.png",
+      "source_sha256": "617dec3c915389b5d6a6046fbae4f30f34864344b33bb6963106256521a84242"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-signal-wizard-2026-07-22-10_11_38.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-signal-wizard-2026-07-22-10_11_38.webp",
+      "sha256": "e0cb1dc3df620ab42c157281a1e480c577778e83aa59e26bbadbdbfec7797e77",
+      "size_bytes": 6724,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-signal-wizard-2026-07-22-10_11_38.png",
+      "source_sha256": "b7394c3af07e5c59dfd8e77f92b3663e1e5a85b4362ec9f62aeebbc11f1eb8d6"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-subscription-2026-07-22-10_12_58.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-subscription-2026-07-22-10_12_58.webp",
+      "sha256": "d46c256c4c32cec69891add8982fcad3827794daf3984a98668f62c8af5302d5",
+      "size_bytes": 7794,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-subscription-2026-07-22-10_12_58.png",
+      "source_sha256": "e7cfae33150530454346b57331c32f15f27d60c6a6d26977ece9b5e611cc846f"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-terminal-2026-07-22-10_11_16.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-terminal-2026-07-22-10_11_16.webp",
+      "sha256": "759e4e3691ff5831389aca629c66fe4cf8f60ee00906676f40f178dd3b24c42f",
+      "size_bytes": 5076,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-terminal-2026-07-22-10_11_16.png",
+      "source_sha256": "d9c70c6f3890f013f65adaff5d9799bdb031dd0489b32039ac63c52fcaaaea87"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-terminal-2026-07-22-10_11_21.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-terminal-2026-07-22-10_11_21.webp",
+      "sha256": "6355d4551c27312ba4e264b4ee9759ce5b61b678655a8a76903098f0f8f197d1",
+      "size_bytes": 4234,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-terminal-2026-07-22-10_11_21.png",
+      "source_sha256": "961b15ead45f923fca1b0fa6179187ca780f2d7ce2b7661e113af7f8994f40ac"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-terminal-2026-07-22-10_11_25.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-terminal-2026-07-22-10_11_25.webp",
+      "sha256": "5884819b256ecb4eaa565ede79ab1695e4219c54c09de9dd469bc059dace10bb",
+      "size_bytes": 4514,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-terminal-2026-07-22-10_11_25.png",
+      "source_sha256": "78047705debfa5686a8afe8db73ebe81fb5ed773ba688b16cc7e96a5d3a4fbb6"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-terminal-2026-07-22-10_11_30.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-terminal-2026-07-22-10_11_30.webp",
+      "sha256": "d1fd613dfd83417695a29244e14f55914a80f04ab3eae69339b1b7776f8abe5b",
+      "size_bytes": 4588,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-terminal-2026-07-22-10_11_30.png",
+      "source_sha256": "d759185b7117d6961b94a4c5840898b726ad1941f3a461d5a8c429a74da74231"
+    },
+    {
+      "archive_member": "reference/wickhunter/screencapture-wickhunter-io-view-bots-2026-07-22-10_11_44.webp",
+      "path": "docs/ai_platform/quant_platform_v2/gui/assets/reference/wickhunter/screencapture-wickhunter-io-view-bots-2026-07-22-10_11_44.webp",
+      "sha256": "704e0eac76c60d328aa5630cf18a0bb9d969aba70954fe1bcdf0fc1b84b17f33",
+      "size_bytes": 4252,
+      "kind": "wickhunter_reference",
+      "privacy_redacted": true,
+      "source_filename": "screencapture-wickhunter-io-view-bots-2026-07-22-10_11_44.png",
+      "source_sha256": "14cde2652f36f22d834140f522d61b1e7d337a8b889bce19adbe38f61e5e3a35"
+    }
+  ]
+}

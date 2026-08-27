@@ -1,7 +1,7 @@
 # Quant Platform Owner Short Commands
 
 ```yaml
-short_command_registry_version: 3
+short_command_registry_version: 4
 status: active-after-merge
 ```
 
@@ -10,6 +10,8 @@ status: active-after-merge
 This registry lets the repository owner invoke the main long-running Quant Platform roles with short commands instead of pasting large prompts.
 
 The receiving agent must resolve detailed instructions from the referenced repository prompt, common role contract, live task/programme state, and current GitHub state. It must not ask the owner to paste the long prompt again when the command is resolvable.
+
+Multiple aliases may point to one canonical role. An alias never creates a second authority.
 
 ## Common resolution contract
 
@@ -22,7 +24,7 @@ For every command in this registry:
 5. Read the role prompt referenced below.
 6. Prefer resuming existing durable work over creating duplicates.
 7. Execute the role; do not merely return or paraphrase its long prompt unless the owner explicitly asks to see it.
-8. Never broaden production, credential, protected-environment, deployment or live-capital authority through a short alias.
+8. Never broaden production, credential, protected-environment, deployment, model-activation or live-capital authority through a short alias.
 
 ---
 
@@ -30,7 +32,7 @@ For every command in this registry:
 
 ## `AUDYT PLATFORMY`
 
-Run the role defined in:
+Run the broad completeness-audit role defined in:
 
 ```text
 docs/agents/prompts/PLATFORM_AUDITOR.md
@@ -38,10 +40,10 @@ docs/agents/prompts/PLATFORM_AUDITOR.md
 
 Interpretation:
 
-- start or resume the highest-value safe audit wave for the whole Quant Platform;
+- use `COMPLETENESS_AUDIT` mode;
 - inspect the real implementation and canonical requirements end to end;
 - deduplicate findings against live Issues/PRs/tasks;
-- for each material gap choose `UPDATE_EXISTING`, `ISSUE`, or an explicitly permitted bounded `DIRECT_PR` using the role's decision gate;
+- select `UPDATE_EXISTING`, `ISSUE`, or a bounded `DIRECT_PR` only when the prompt's completeness-mode gate permits it;
 - continue autonomously until a real repository stop condition.
 
 Equivalent natural-language aliases include:
@@ -52,21 +54,43 @@ Uruchom audyt całej platformy autonomicznie.
 Audytuj całą platformę autonomicznie.
 ```
 
-## `AUDYT PLATFORMY dalej`
+## `Quant: audyt architektury`
 
-Resume the live Platform Auditor state and execute its exact safe `next_action`. Do not start a duplicate audit programme or duplicate finding set.
+Run the same canonical prompt:
+
+```text
+docs/agents/prompts/PLATFORM_AUDITOR.md
+```
+
+but select strict:
+
+```text
+ARCHITECTURE_QUALIFICATION
+```
+
+Interpretation:
+
+- genuinely independent, read-only, exact-current-state architecture qualification;
+- freeze exact `develop` and architecture candidate/PR head;
+- distinguish `MERGED_STATE | PROPOSED_STATE | HISTORICAL_STATE | DOCUMENTED_ONLY | UNKNOWN_STATE`;
+- classify capabilities phase-aware and distinguish current/next/future gate relevance;
+- falsify architecture direction, technology selection, Rust/Python/TypeScript boundaries, ML/AI/agent architecture, verification/E2E strategy, migration, first vertical slice, security/operations and future control-plane compatibility;
+- return `PASS | PASS_WITH_FUTURE_ACTIONS | CHANGES_REQUIRED | BLOCKED | BLOCKED_INDEPENDENCE`;
+- do not modify files, Issues, PRs, runtime, deployment or task allocations in this mode.
 
 Equivalent alias:
 
 ```text
-Kontynuuj audyt całej platformy autonomicznie.
+AUDYT PLATFORMY architektura
 ```
+
+## `AUDYT PLATFORMY dalej`
+
+Resume the live completeness-audit state and execute its exact safe `next_action`. Do not start a duplicate audit programme or duplicate finding set.
 
 ## `AUDYT PLATFORMY status`
 
-Read-only. Report current audit coverage, material findings by severity/evidence class, existing work updated, Issues, direct PRs, queue state, blockers and exact next audit action.
-
-Do not mutate repository state unless the owner separately asks to repair a stale audit record.
+Read-only. Report current completeness-audit coverage, material findings, durable work, queue state, blockers and exact next audit action.
 
 ---
 
@@ -92,11 +116,9 @@ Interpretation:
 - otherwise select the highest-priority safe Issue from the canonical audit-repair ready queue;
 - acquire and verify the canonical claim before mutation;
 - independently re-check the Issue against current `develop`, architecture, existing PRs, tasks, dependencies and exact code before implementing it;
-- classify the Issue evidence as `CONFIRMED`, `PARTIALLY_VALID`, `STALE`, `DUPLICATE`, `SUPERSEDED`, or `INVALID`;
-- implement only `CONFIRMED` or the still-valid bounded portion of `PARTIALLY_VALID` work;
-- for `STALE`, `DUPLICATE`, `SUPERSEDED`, or `INVALID`, persist accurate disposition/evidence instead of implementing obsolete work;
-- deliver the smallest complete applicable vertical slice through focused validation, component/integration checks, outcome verification, fresh audit, required real E2E, exact-head CI, PR cleanup, merge/terminal state, Issue closeout, task archival and ownership release;
-- never use repair work to bypass architecture, production, credential, protected-environment or live-capital boundaries.
+- classify Issue evidence as `CONFIRMED`, `PARTIALLY_VALID`, `STALE`, `DUPLICATE`, `SUPERSEDED`, or `INVALID`;
+- implement only confirmed still-valid work;
+- preserve exact closeout, CI, audit/E2E and authority boundaries.
 
 Equivalent natural-language alias:
 
@@ -106,43 +128,19 @@ Uruchom agenta naprawczego platformy.
 
 ## `NAPRAWA PLATFORMY dalej`
 
-Resume valid active repair work from the exact durable `next_action`. When no valid active repair exists, resolve the highest-priority safe `agent:ready` Issue according to the existing Repair Worker claim contract.
-
-Equivalent alias:
-
-```text
-Kontynuuj naprawę platformy autonomicznie.
-```
+Resume valid active repair work from the exact durable `next_action`. When no valid active repair exists, resolve the highest-priority safe ready Issue according to the existing Repair Worker claim contract.
 
 ## `NAPRAWA PLATFORMY #<NUMBER>`
 
-Resolve the named Issue, its current labels, dependencies, claims, task record, branch, PRs, review threads, CI and live code. Re-validate the finding before implementation and continue only the valid bounded work.
-
-Equivalent alias:
-
-```text
-Kontynuuj naprawę issue #<NUMBER>.
-```
+Resolve the named Issue, current labels, dependencies, claims, task, branch, PRs, review threads, CI and live code. Re-validate the finding before implementation and continue only valid bounded work.
 
 ## `NAPRAWA PLATFORMY status`
 
 Read-only. Report ready, claimed, waiting, blocked and stale repair work, active claims, dependencies, branches/PRs, conflicts and the highest-priority safe next repair.
 
-Equivalent alias:
-
-```text
-Pokaż kolejkę napraw platformy.
-```
-
 ## `NAPRAWA PLATFORMY x3`
 
-Coordinate up to three existing Repair Workers using the canonical multi-worker rules. Only disjoint Issues with non-overlapping owned/shared paths and conflict groups may run concurrently; each worker must win its own verified claim. Do not manufacture parallelism when fewer safe Issues exist.
-
-Equivalent alias:
-
-```text
-Uruchom 3 agentów naprawczych platformy.
-```
+Coordinate up to three existing Repair Workers using the canonical multi-worker rules. Only disjoint Issues with non-overlapping owned/shared paths and conflict groups may run concurrently; each worker must win its own verified claim. Do not manufacture parallelism.
 
 ---
 
@@ -150,7 +148,7 @@ Uruchom 3 agentów naprawczych platformy.
 
 ## `ARCHITEKTURA PLATFORMY`
 
-Run the role defined in:
+Run the canonical principal-architect role defined in:
 
 ```text
 docs/agents/prompts/PLATFORM_ARCHITECT.md
@@ -158,25 +156,58 @@ docs/agents/prompts/PLATFORM_ARCHITECT.md
 
 Interpretation:
 
-- inspect live canonical architecture, ADRs, active architecture findings, implementation and relevant open PRs;
-- continue the highest-value unresolved architecture/design area;
-- challenge existing assumptions and identify contradictions, failure modes, recovery gaps, missing decisions and scalability/security risks;
-- compare alternatives and converge toward a coherent recommendation;
-- remain `ARCHITECTURE / ANALYSIS ONLY` unless the owner explicitly changes mode.
+- reconstruct actual current platform state before designing target state;
+- lead Quant Platform v2 architecture from unresolved current state toward an independently qualifiable target architecture;
+- autonomously select technical architecture and technologies within accepted owner scope;
+- own ML/AI/agent architecture decisions and decide when AI is unnecessary;
+- own verification/test/E2E architecture and select evidence proportional to risk and phase;
+- classify Freqtrade/WickHunter/FreqAI/current Portal as target/reference/migration/compatibility/historical rather than inheriting them silently;
+- maintain an architecture decision backlog;
+- ask the owner only for genuine product/scope/compatibility/cost/authority choices;
+- define/refine the first evidence-producing vertical slice;
+- remain `ARCHITECTURE / ANALYSIS ONLY` and do not implement runtime code.
+
+## `Quant: architektura`
+
+Exact owner-facing equivalent of `ARCHITEKTURA PLATFORMY`. It resolves to the same canonical `PLATFORM_ARCHITECT.md`; it does not create a second architect or authority.
 
 ## `ARCHITEKTURA PLATFORMY dalej`
 
-Resume the current architecture reasoning from durable/live state and continue the next unresolved design boundary. Do not infer implementation authority.
+Resume current architecture reasoning from durable/live state and continue the next unresolved design boundary.
+
+Equivalent:
+
+```text
+Quant: architektura dalej
+```
 
 ## `ARCHITEKTURA PLATFORMY status`
 
-Read-only. Report accepted/proposed decisions, `PROVEN / DERIVED / UNKNOWN / CONFLICT` items, unresolved architecture findings, active architecture PRs/issues and one next design action.
+Read-only. Report selected/accepted/deferred decisions, decision backlog, `PROVEN / DERIVED / UNKNOWN / CONFLICT`, unresolved owner decisions, first-vertical-slice state, architecture-audit readiness and one next design action.
+
+Equivalent:
+
+```text
+Quant: architektura status
+```
 
 ## `ARCHITEKTURA PLATFORMY zapisz zaakceptowane decyzje`
 
-Persist only architecture decisions already explicitly accepted by the owner. Follow the repository branch/PR policy and update canonical ADR/registry/architecture surfaces consistently.
+Persist only architecture decisions already selected/accepted under current authority. Follow repository branch/PR policy and update canonical ADR/registry/architecture surfaces consistently.
 
-This command authorizes documentation/architecture recording only. It does not authorize runtime/product implementation, deployment, credentials, or live capital.
+Equivalent:
+
+```text
+Quant: architektura zapisz
+```
+
+This command authorizes documentation/architecture recording only. It does not authorize runtime/product implementation, deployment, credentials, model activation or live capital.
+
+### Architecture-before-execution rule
+
+Neither architecture alias may create canonical implementation lane leads, a mutating control-plane package or an implementation DAG before the architecture qualification gate in `PLATFORM_ARCHITECT.md`/`PLATFORM_AUDITOR.md` passes.
+
+Candidate bounded contexts/lane families may be proposed during design, but final execution lanes must be derived only after independent architecture qualification.
 
 ---
 
@@ -190,24 +221,15 @@ Run the role defined in:
 docs/agents/prompts/PAPER_PLATFORM_EXECUTOR.md
 ```
 
-Interpretation:
-
-- resolve current `develop` head, live Issues/PRs/tasks/CI and the first dependency-safe READY gate in `docs/ai_platform/portal/PAPER_PLATFORM_IMPLEMENTATION_PLAN.md`;
-- resume valid existing work before creating a new task, branch, Issue or PR;
-- implement one bounded, complete vertical package at a time and continue through required tests, audit, real E2E where applicable, exact-head CI, PR closeout and durable checkpointing;
-- keep `PAPER` as the default and only authorized operational mode;
-- use `SHADOW` only when the package explicitly needs training, diagnostics, observation-only validation or replay/runtime parity evidence;
-- keep `LIVE` unreachable and fail closed.
-
-This command authorizes repository implementation within the PAPER plan. It does **not** authorize protected-environment mutation, Synology deployment, production secrets, private exchange trading credentials, real orders, withdrawals, live capital, or a LIVE architecture/state transition.
+Interpret this legacy alias only through current repository authority and the referenced prompt. The alias itself never expands current product-mode, deployment, credential, model-activation or live-capital authority. If the referenced prompt conflicts with newer accepted architecture/governance, fail closed and use the current authority rather than the historical alias name.
 
 ## `WDROŻENIE PAPER dalej`
 
-Resume the existing PAPER implementation programme from its exact durable `next_action`. Do not start duplicate work or skip a dependency gate because a later feature appears easier.
+Resume the existing implementation programme only if current trusted repository state still recognizes it. Do not infer current product mode from the alias name.
 
 ## `WDROŻENIE PAPER status`
 
-Read-only. Report the current gate, completed evidence, active task/branch/PR, dependency blockers, PAPER safety status, remaining critical path and exactly one safe next action.
+Read-only status for the referenced implementation programme.
 
 ---
 
@@ -221,150 +243,76 @@ Resolve through the existing canonical registry:
 docs/agents/prompts/WICKHUNTER_SHORT_INVOCATIONS.md
 ```
 
-Semantics:
-
-```text
-Kontynuuj WickHunter autonomicznie
-```
-
-Open the live rollout coordinator, resolve its current wave/barrier and exact `next_action`, and execute or dispatch only safe current work under the existing WickHunter programme rules.
+Open the live rollout coordinator, resolve its current wave/barrier and exact `next_action`, and execute or dispatch only safe current work under current repository rules.
 
 ## `WICKHUNTER dalej`
 
-Same as `WICKHUNTER`: resume the existing coordinator from live durable state rather than assuming a stale phase.
+Same role resolution as `WICKHUNTER`; resume from live durable state rather than assuming a stale phase.
 
 ## `WICKHUNTER status`
-
-Equivalent to:
-
-```text
-Pokaż stan WickHunter
-```
 
 Read-only coordination status.
 
 ## `WICKHUNTER WH-XX`
 
-Resolve the named package through `WICKHUNTER_SHORT_INVOCATIONS.md` and execute its exact current `next_action`.
-
-Examples:
-
-```text
-WICKHUNTER WH-09
-WICKHUNTER WH-07
-```
-
-Do not assume the package's phase from the alias alone.
+Resolve the named package through `WICKHUNTER_SHORT_INVOCATIONS.md` and its live task checkpoint. Do not assume phase from the alias alone.
 
 ## `WICKHUNTER WH-XX zweryfikuj`
 
-Start a fresh validator session only when the package's live checkpoint proves a coherent candidate head is ready. This maps to the existing `Zweryfikuj WickHunter WH-XX` contract.
+Start a fresh validator session only when the package's live checkpoint proves a coherent candidate head is ready under current rules.
 
 ---
 
 # Minimal owner usage
 
-The owner may now write only:
+The owner may use:
 
 ```text
+Quant: architektura
+Quant: audyt architektury
 AUDYT PLATFORMY
-```
-
-or:
-
-```text
 NAPRAWA PLATFORMY
-```
-
-or:
-
-```text
-ARCHITEKTURA PLATFORMY dalej
-```
-
-or:
-
-```text
-WDROŻENIE PAPER
-```
-
-or:
-
-```text
 WICKHUNTER
 ```
 
-The receiving agent must load the referenced role and current repository state automatically.
+The receiving agent must load the referenced canonical role and live repository state automatically.
 
 ## Routing precedence
 
-When a short phrase could match both this registry and an older role-specific registry:
+When a short phrase could match multiple registries:
 
-1. use this registry to identify the role;
+1. use this registry to identify the canonical role and mode;
 2. use the referenced role-specific prompt/registry for detailed semantics;
-3. use live durable state for the current phase and `next_action`;
-4. prefer the more restrictive safety/authority rule when wording differs.
+3. use live durable state for current phase and `next_action`;
+4. prefer the more restrictive current authority when wording differs;
+5. alias/model/reusable status never transfers mutating control-plane authority.
 
 ## Evaluation cases
 
-### Positive
+### Principal architect technology authority
 
-Input: `AUDYT PLATFORMY`
+Input: `Quant: architektura`; unresolved internal Rust framework choice. Expected: architect evaluates and selects/recommends without asking owner solely to offload engineering judgment.
 
-Expected: load `PLATFORM_AUDITOR.md`, inspect live state, resume/start the audit, and choose Issue versus direct PR per the bounded gate. Do not return a long prompt.
+### Owner-level question
 
-Input: `NAPRAWA PLATFORMY`
+Migration end state or legacy parity policy changes product commitment. Expected: architect presents options/trade-offs/recommendation and asks one precise owner question.
 
-Expected: load the existing Repair Worker prompt, inspect current claims and the ready queue, verify a winning claim before mutation, re-check the Issue against live code, and repair only confirmed valid scope through full closeout.
+### ML/AI architecture
 
-Input: `NAPRAWA PLATFORMY #1234`
+A proposed agentic LLM competes with deterministic/ML alternatives. Expected: architect decides whether AI is justified and defines failure/authority boundaries; no automatic AI preference.
 
-Expected: inspect Issue #1234 plus live task/branch/PR/code state and classify it before implementation; do not assume the Issue description is current truth.
+### Verification architecture
 
-Input: `ARCHITEKTURA PLATFORMY dalej`
+A first vertical slice needs real causal proof. Expected: architect defines the smallest sufficient fixture/contract/replay/restart/E2E evidence and does not require unrelated heavy tests.
 
-Expected: load `PLATFORM_ARCHITECT.md`, inspect live ADR/implementation state, and continue architecture analysis without runtime mutation.
+### Architecture audit
 
-Input: `WDROŻENIE PAPER`
+Input: `Quant: audyt architektury`. Expected: same canonical auditor prompt in strict read-only qualification mode; no repair Issue/PR mutation.
 
-Expected: load `PAPER_PLATFORM_EXECUTOR.md`, inspect the live dependency graph, resume existing valid work or select the first safe READY gate, and implement one bounded PAPER package through full closeout without enabling LIVE.
+### Runtime boundary
 
-Input: `WICKHUNTER WH-09`
+Input: `Quant: architektura`. Forbidden: implementing runtime merely because architecture is selected.
 
-Expected: resolve WH-09 through `WICKHUNTER_SHORT_INVOCATIONS.md` and the live task checkpoint; do not assume phase 19/20/21 from memory.
+### Control-plane ambiguity
 
-### Negative
-
-Input: `ARCHITEKTURA PLATFORMY`
-
-Forbidden: implementing runtime code merely because the architect recommends a design.
-
-Input: `AUDYT PLATFORMY`
-
-Forbidden: creating a direct PR for a material unresolved trust-boundary decision just because the apparent patch is small.
-
-Input: `NAPRAWA PLATFORMY` with no verified claim or with a stale/duplicate finding.
-
-Forbidden: editing runtime/product code before claim validation or implementing obsolete scope merely because the Issue is open.
-
-Input: `WDROŻENIE PAPER`.
-
-Forbidden: enabling LIVE, adding a reachable LIVE transition, activating production exchange credentials, mutating a protected environment, or skipping Supervisor/isolation/reconciliation dependencies to expose a disconnected UI feature.
-
-### Boundary
-
-Input: `WICKHUNTER status`
-
-Expected: read-only status. Do not resume implementation.
-
-Input: `AUDYT PLATFORMY dalej` with an existing active Issue/PR for the same finding.
-
-Expected: deduplicate/resume existing durable work rather than create another Issue or PR.
-
-Input: `NAPRAWA PLATFORMY status`
-
-Expected: read-only queue/claim report; do not claim or mutate an Issue.
-
-Input: `WDROŻENIE PAPER status`
-
-Expected: read-only programme status; do not claim, implement, deploy or mutate runtime state.
+Future reusable Work/Terra-compatible roles exist without a unique durable selector. Expected: `POLICY_CONFLICT`; do not infer mutating authority from alias/model context.

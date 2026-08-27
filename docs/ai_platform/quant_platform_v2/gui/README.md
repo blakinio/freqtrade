@@ -28,20 +28,19 @@ The v2 Portal is organized around user intent:
 7. **System** — Logs, Integrations, Settings, Audit
 
 ## Asset gallery
-
-Open [`ASSET_GALLERY.md`](ASSET_GALLERY.md) for the complete visual inventory. The images are stored in a reconstructable compressed archive; run `python docs/ai_platform/quant_platform_v2/gui/restore_visual_assets.py --extract <dir>` from a checkout to restore them.
+Open [`ASSET_GALLERY.md`](ASSET_GALLERY.md) for the visual inventory. Repository-safe WebP files are committed directly under `assets/`; run `python docs/ai_platform/quant_platform_v2/gui/restore_visual_assets.py --extract <dir>` to reproduce and verify the deterministic ZIP archive.
 
 ## Asset groups
 
 ### Real WickHunter references
 
-The repository stores optimized WebP copies of the owner-supplied real WickHunter captures inside a reconstructable archive under `reference/wickhunter/`. `previews/wickhunter-reference-contact-sheet.webp` is included inside the archive. These are reference material only. They are not a claim that WickHunter is part of the v2 implementation and are not to be copied pixel-for-pixel.
+Privacy-redacted WebP copies of the supplied WickHunter captures are committed under `assets/reference/wickhunter/`. `assets/previews/wickhunter-reference-contact-sheet.webp` provides a compact overview. These files are reference material only; WickHunter is not part of the v2 implementation and the UI is not intended to be copied pixel-for-pixel.
 
-The reference set covers dashboard, bot creation variants, terminal views, bot list, grid bots, marketplace, open deals, PnL reporting, signal wizard/logs, liquidation logs, profile/subscription and the later optimized-liquidation-bot form.
+The preserved set covers dashboard, bot creation variants, terminal views, bot list, grid bots, marketplace, open deals, PnL reporting, signal wizard/logs, liquidation logs, profile/subscription and the later optimized-liquidation-bot form. One standalone profile capture from the earlier shard transport could not be recovered; the alternate profile reference and contact-sheet coverage remain available and the omission is recorded in `ASSET_MANIFEST.json`.
 
 ### Proposed v2 mockups
 
-The same visual archive contains generated design concepts under `mockups/`, with `previews/v2-mockups-contact-sheet.webp` included inside the archive, for:
+Generated design concepts are committed under `assets/mockups/`, with `assets/previews/v2-mockups-contact-sheet.webp` as the overview, for:
 
 - command center / overview;
 - create-bot workflow;
@@ -51,6 +50,8 @@ The same visual archive contains generated design concepts under `mockups/`, wit
 
 These are directional mockups, not final production specifications. Layout hierarchy and workflow are authoritative only to the degree described by the Markdown design docs.
 
-## Image optimization
+## Image integrity and privacy
 
-The original captures were converted to repository-friendly WebP reference copies (max width 800 px, quality 55) and packed into a deterministic design archive. Before public-repository packaging, authenticated account/avatar regions were blurred on WickHunter references, with the profile identity area additionally redacted; original source hashes remain recorded for provenance and original unredacted captures are not committed. Because this execution path writes repository text reliably but not large binary payloads, the archive is stored losslessly as ordered Base64 text parts under `assets/archive_parts/`; `restore_visual_assets.py` reconstructs and SHA-256 verifies the ZIP. `ASSET_MANIFEST.json` records original-source, archive-member, part and reconstructed-archive hashes. The original 43 MB capture ZIP itself is not committed because all 24 captures are represented in the optimized archive, together with the two later optimized-liquidation captures and five generated v2 mockups.
+`ASSET_MANIFEST.json` records each committed member path, size and SHA-256 plus the deterministic archive size/hash/member list. `restore_visual_assets.py` verifies every committed asset before rebuilding the ZIP with fixed ordering, metadata and compression, then verifies the archive hash, member count and ZIP CRC integrity.
+
+Only privacy-redacted WickHunter copies are committed. The inconsistent Base64 shard transport has been removed rather than treated as evidence of a valid archive. Original source material is not required by the restore path and is not committed.

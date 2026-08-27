@@ -44,13 +44,21 @@ Within already accepted product/scope/authority boundaries, `PLATFORM_ARCHITECT.
 
 This delegation does not grant runtime implementation, deployment, model activation, private-exchange, withdrawal or real-capital authority.
 
+## Independent-review reference clarification
+
+The owner clarified that the Quant Platform v2 agent/governance package was intentionally informed by the already mature, merged agent architecture in `Oteryn/Oteryn-Game`.
+
+For independent review, Oteryn is a **reference implementation / design precedent**, not authority for `blakinio/freqtrade`. The reviewer should compare governance invariants and verify semantic adaptation, while deriving acceptance and authority exclusively from Freqtrade trusted-base rules and current owner scope.
+
+The reviewer must also account for the phase difference: Oteryn already has execution control-plane/lane architecture, while Quant Platform v2 is intentionally still before final implementation-lane/control-plane/DAG derivation. The absence of those execution roles before architecture qualification PASS is expected and must not be treated as a defect by itself.
+
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
 updated_at: 2026-08-27
 branch: docs/quant-platform-v2-architecture-agent-governance
-head: 383c2b8937b20d26c9a5158b710b08a27fff41cf
+head: 5effc2b4cb30996300c04ee092f5787f0d94c86b
 pr: 1675
 status: validating
 context_routes:
@@ -96,21 +104,25 @@ proven:
   - PLATFORM_ARCHITECT.md is role version 2 with autonomous technology, ML/AI and verification architecture authority but no runtime implementation authority.
   - PLATFORM_AUDITOR.md is role version 2 with strict read-only independent ARCHITECTURE_QUALIFICATION mode.
   - AGENT_COMMANDS.md is registry version 4 and routes Quant aliases to the same canonical prompts while preserving unrelated role families.
-  - A documented manual/static regression matrix exists at docs/agents/evals/QUANT_PLATFORM_V2_ARCHITECTURE_ROLES_V1.md.
-  - A concise independent Pro review prompt exists at docs/agents/prompts/FTAI-QUANT-PLATFORM-V2-ARCHITECTURE-ROLES-PRO-REVIEW.md.
+  - The independent Pro review contract now requires full-diff exact-head review, a final head re-read, trusted-base verification and explicit evidence for each material finding.
+  - The independent Pro review contract treats merged Oteryn agent architecture as non-authoritative reference precedent and requires semantic adaptation to Quant/Freqtrade rather than textual/topological parity.
+  - The independent Pro review contract explicitly recognizes that Oteryn is already in execution-governance phase while Quant v2 final implementation lanes/control-plane/DAG remain intentionally deferred until architecture qualification.
+  - The manual/static eval matrix now covers head movement, missing CI evidence, Oteryn reference-vs-authority, phase differences, Quant-specific domain adaptation and the distinct Freqtrade principal-architect versus Oteryn supervising-architect semantics.
   - Draft PR #1675 targets develop from the bounded task branch.
 derived:
   - Final implementation-lane decomposition should remain deferred until accepted architecture plus independent qualification establish bounded contexts and the first vertical-slice DAG.
 unknown:
   - Independent Agent Pro review verdict on the exact current PR head after this checkpoint commit.
-  - Exact-head governance/CI results after PR publication.
+  - Exact-head governance/CI results after the latest prompt/eval/checkpoint changes.
 conflicts: []
 first_failure:
   marker: none
-  evidence: Implementation is coherent on the task branch; independent exact-head qualification has not yet run.
+  evidence: The candidate remains in validation; independent exact-head qualification and required PR CI have not yet supplied terminal evidence for the latest head.
 rejected_hypotheses:
   - Creating separate parallel Quant architecture and architecture-audit prompts is preferable to extending the existing canonical roles.
   - The owner should be asked to choose routine frameworks, internal libraries and other bounded technical details.
+  - Oteryn should either be ignored entirely or treated as Freqtrade authority; the accepted review model uses it only as mature non-authoritative design precedent.
+  - Quant must already contain Oteryn-like final control-plane/lane topology before architecture qualification.
 changed_paths:
   - docs/superpowers/specs/2026-08-27-quant-platform-v2-architecture-agent-governance-design.md
   - docs/superpowers/plans/2026-08-27-quant-platform-v2-architecture-agent-governance.md
@@ -130,11 +142,17 @@ validation:
   - command: manual static scenario matrix authoring
     result: PASS
     evidence: Matrix covers technology authority, owner boundaries, legacy classification, ML/AI/agents, proportional verification/E2E, read-only architecture audit, phase-aware state, control-plane ambiguity and no-real-capital safety.
+  - command: independent review contract refinement against live PR candidate and merged Oteryn reference architecture
+    result: PASS
+    evidence: Review contract now separates Oteryn reference precedent from Freqtrade authority, checks domain adaptation and phase differences, and requires exact-head revalidation before verdict.
+  - command: manual static regression extension for independent-review behavior
+    result: PASS
+    evidence: Added explicit cases for HEAD movement, absent CI evidence, Oteryn reference boundary, execution-phase mismatch, Quant-specific adaptation and principal-vs-supervising architect role semantics.
   - command: compare task branch to develop
     result: PASS
-    evidence: Branch is based on the frozen develop head and changed paths are bounded to prompt/governance/spec/plan/task surfaces.
+    evidence: Changed paths remain bounded to prompt/governance/spec/plan/task surfaces; no runtime/product/deployment/model-activation/capital authority change was introduced by this refinement.
 blockers:
-  - Independent exact-head architecture/governance review and required PR CI are still pending.
+  - Independent exact-head architecture/governance review and required PR CI are still pending on the latest PR head.
 next_action: Run the independent Agent Pro review on draft PR #1675 exact current head using docs/agents/prompts/FTAI-QUANT-PLATFORM-V2-ARCHITECTURE-ROLES-PRO-REVIEW.md.
 ```
 

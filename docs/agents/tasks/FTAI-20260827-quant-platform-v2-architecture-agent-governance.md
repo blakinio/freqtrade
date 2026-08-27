@@ -50,8 +50,8 @@ This delegation does not grant runtime implementation, deployment, model activat
 checkpoint_version: 1
 updated_at: 2026-08-27
 branch: docs/quant-platform-v2-architecture-agent-governance
-head: 3e43ae2f798215338f851ab177804e1142f2b980
-pr: none
+head: 383c2b8937b20d26c9a5158b710b08a27fff41cf
+pr: 1675
 status: validating
 context_routes:
   - docs/superpowers/specs/2026-08-27-quant-platform-v2-architecture-agent-governance-design.md
@@ -98,11 +98,11 @@ proven:
   - AGENT_COMMANDS.md is registry version 4 and routes Quant aliases to the same canonical prompts while preserving unrelated role families.
   - A documented manual/static regression matrix exists at docs/agents/evals/QUANT_PLATFORM_V2_ARCHITECTURE_ROLES_V1.md.
   - A concise independent Pro review prompt exists at docs/agents/prompts/FTAI-QUANT-PLATFORM-V2-ARCHITECTURE-ROLES-PRO-REVIEW.md.
+  - Draft PR #1675 targets develop from the bounded task branch.
 derived:
   - Final implementation-lane decomposition should remain deferred until accepted architecture plus independent qualification establish bounded contexts and the first vertical-slice DAG.
 unknown:
-  - Draft PR number and exact PR head after this checkpoint commit.
-  - Independent Agent Pro review verdict on the exact candidate head.
+  - Independent Agent Pro review verdict on the exact current PR head after this checkpoint commit.
   - Exact-head governance/CI results after PR publication.
 conflicts: []
 first_failure:
@@ -135,7 +135,7 @@ validation:
     evidence: Branch is based on the frozen develop head and changed paths are bounded to prompt/governance/spec/plan/task surfaces.
 blockers:
   - Independent exact-head architecture/governance review and required PR CI are still pending.
-next_action: Open a draft PR to develop, then run the independent Agent Pro review against its exact current head.
+next_action: Run the independent Agent Pro review on draft PR #1675 exact current head using docs/agents/prompts/FTAI-QUANT-PLATFORM-V2-ARCHITECTURE-ROLES-PRO-REVIEW.md.
 ```
 
-The checkpoint `head` records the commit immediately before this checkpoint file commit; a checkpoint commit cannot truthfully self-reference its own not-yet-created SHA.
+The checkpoint `head` records the PR head immediately before this checkpoint commit; a checkpoint commit cannot truthfully self-reference its own not-yet-created SHA.

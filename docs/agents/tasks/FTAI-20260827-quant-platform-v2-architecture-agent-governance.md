@@ -50,7 +50,7 @@ This delegation does not grant runtime implementation, deployment, model activat
 checkpoint_version: 1
 updated_at: 2026-08-27
 branch: docs/quant-platform-v2-architecture-agent-governance
-head: c60c4f707f0f2ab4226290d897487aa7758b6ed0
+head: 3e43ae2f798215338f851ab177804e1142f2b980
 pr: none
 status: validating
 context_routes:
@@ -93,9 +93,9 @@ proven:
   - Owner selected in-place extension of existing canonical roles, not duplicate architecture/audit prompts.
   - Owner approved the written design spec and implementation plan.
   - Owner explicitly delegated technical technology, ML/AI/agent and verification/E2E architecture decisions to the principal architect within accepted owner scope.
-  - PLATFORM_ARCHITECT.md is now role version 2 with autonomous technology, ML/AI and verification architecture authority but no runtime implementation authority.
-  - PLATFORM_AUDITOR.md is now role version 2 with strict read-only independent ARCHITECTURE_QUALIFICATION mode.
-  - AGENT_COMMANDS.md is now registry version 4 and routes Quant aliases to the same canonical prompts.
+  - PLATFORM_ARCHITECT.md is role version 2 with autonomous technology, ML/AI and verification architecture authority but no runtime implementation authority.
+  - PLATFORM_AUDITOR.md is role version 2 with strict read-only independent ARCHITECTURE_QUALIFICATION mode.
+  - AGENT_COMMANDS.md is registry version 4 and routes Quant aliases to the same canonical prompts while preserving unrelated role families.
   - A documented manual/static regression matrix exists at docs/agents/evals/QUANT_PLATFORM_V2_ARCHITECTURE_ROLES_V1.md.
   - A concise independent Pro review prompt exists at docs/agents/prompts/FTAI-QUANT-PLATFORM-V2-ARCHITECTURE-ROLES-PRO-REVIEW.md.
 derived:
@@ -130,6 +130,9 @@ validation:
   - command: manual static scenario matrix authoring
     result: PASS
     evidence: Matrix covers technology authority, owner boundaries, legacy classification, ML/AI/agents, proportional verification/E2E, read-only architecture audit, phase-aware state, control-plane ambiguity and no-real-capital safety.
+  - command: compare task branch to develop
+    result: PASS
+    evidence: Branch is based on the frozen develop head and changed paths are bounded to prompt/governance/spec/plan/task surfaces.
 blockers:
   - Independent exact-head architecture/governance review and required PR CI are still pending.
 next_action: Open a draft PR to develop, then run the independent Agent Pro review against its exact current head.

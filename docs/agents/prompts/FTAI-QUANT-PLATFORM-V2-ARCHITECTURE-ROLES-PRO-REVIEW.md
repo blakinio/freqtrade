@@ -13,10 +13,11 @@ Sprawdź przede wszystkim, czy:
 - `PLATFORM_AUDITOR.md` ma niezależny `ARCHITECTURE_QUALIFICATION`, który jest strict read-only, exact-head i phase-aware;
 - auditor potrafi podważyć technology selection, AI/ML, E2E/test strategy, migration i first vertical slice bez blokowania current gate za future-only brak;
 - finalne implementation lanes/control-plane pozostają niedozwolone przed architecture qualification;
-- `Quant: architektura` i `Quant: audyt architektury` nie tworzą duplikatu authority;
+- `Quant: architektura` i `Quant: audyt architektury` wskazują istniejące canonical prompts i nie tworzą duplikatu authority;
 - future control-plane selection jest fail-closed `POLICY_CONFLICT`, jeśli durable state nie wskazuje dokładnie jednego aktywnego profilu;
 - nic nie rozszerza runtime implementation, deployment, model activation, private-exchange ani real-capital authority;
-- eval matrix rzeczywiście pokrywa positive/negative/boundary cases i nie udaje automated multi-trial evidence.
+- eval matrix rzeczywiście pokrywa positive/negative/boundary cases i nie udaje automated multi-trial evidence;
+- pakiet nie zmienia niepowiązanych semantics istniejących aliasów/role families poza tym, co jest potrzebne do dodania nowych Quant architecture routes.
 
 Wynik zwróć jako:
 

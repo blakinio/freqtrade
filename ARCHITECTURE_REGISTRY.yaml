@@ -338,15 +338,15 @@ documents:
     safety_note: Real-money exchange execution is out of current product scope and requires a separate future owner decision if ever desired.
 
   - path: docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md
-    title: AI Trading Portal architecture decisions through ADR-025
+    title: AI Trading Portal architecture decisions through ADR-027
     classification: accepted_decision_log
-    scope: accepted platform and Portal decisions through ADR-025; later standalone ADR-027 is indexed separately as current v2 promotion authority
+    scope: accepted platform and Portal decisions through the current ADR-027 Quant Platform v2 promotion
     authority: binding_unless_superseded; current Portal product conflicts are superseded by ADR-023, runtime-topology conflicts by ADR-025 and v2 core/Freqtrade-target conflicts by ADR-027
     implementation_status: mixed
     owner_role: architecture-owner
     last_reviewed_at: "2026-08-28"
-    latest_decision_in_file: ADR-025
-    later_standalone_decision: docs/ai_platform/portal/ADR-027_QUANT_PLATFORM_V2_ARCHITECTURE_PROMOTION.md
+    latest_decision_in_file: ADR-027
+    current_quant_v2_promotion: docs/ai_platform/portal/ADR-027_QUANT_PLATFORM_V2_ARCHITECTURE_PROMOTION.md
     current_product_detail: docs/ai_platform/portal/ADR-023_DEVELOPER_QUANT_PORTAL.md
     current_runtime_detail: docs/ai_platform/portal/ADR-025_SYNOLOGY_PERSISTENT_RUNTIME_GITHUB_BUILD_PLANE.md
     current_quant_v2_detail: docs/ai_platform/portal/QUANT_PLATFORM_V2_TARGET_ARCHITECTURE.md

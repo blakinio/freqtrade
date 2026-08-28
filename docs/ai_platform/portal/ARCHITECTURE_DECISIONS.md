@@ -363,7 +363,7 @@ Implementation must proceed in dependency order and remain fail closed between s
 
 1. separate config draft/authored, desired revision and observed runtime generation state;
 2. introduce control-owned `RuntimeGeneration` persistence and trusted storage separation;
-3. make an executable generation bind `RuntimeIsolationProfile` and resolved immutable `RuntimeIsolationPlan` identities;
+3. make an executable generation bind `RuntimeIsolationProfile` and resolved `RuntimeIsolationPlan` identities;
 4. implement capability discovery, plan resolution and effective attestation for the reusable isolation profile;
 5. introduce the narrow Runtime Supervisor boundary;
 6. introduce the generation-bound per-runtime Gateway and generation-local Freqtrade API authentication;

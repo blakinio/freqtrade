@@ -363,7 +363,7 @@ Implementation must proceed in dependency order and remain fail closed between s
 
 1. separate config draft/authored, desired revision and observed runtime generation state;
 2. introduce control-owned `RuntimeGeneration` persistence and trusted storage separation;
-3. make an executable generation bind `RuntimeIsolationProfile` and resolved `RuntimeIsolationPlan` identities;
+3. make an executable generation bind `RuntimeIsolationProfile` and resolved immutable `RuntimeIsolationPlan` identities;
 4. implement capability discovery, plan resolution and effective attestation for the reusable isolation profile;
 5. introduce the narrow Runtime Supervisor boundary;
 6. introduce the generation-bound per-runtime Gateway and generation-local Freqtrade API authentication;
@@ -692,3 +692,42 @@ ADR-025 retains ADR-024's GitHub-hosted build-plane direction and does not autho
 ADR-023 remains authoritative for product semantics, simulation, model lifecycle and the prohibition on real-money exchange execution, withdrawals, private trading credentials and capital authority.
 
 Detailed current placement and migration rules are defined by `ADR-025_SYNOLOGY_PERSISTENT_RUNTIME_GITHUB_BUILD_PLANE.md` and `DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md`.
+
+## ADR-027 — Promote the qualified Quant Platform v2 target
+
+Status: `accepted`
+
+Accepted by owner: `2026-08-28`
+
+Trusted promotion base: `develop@c9bbd17c716162edffd5b695eac4fb197c7bbf38`
+
+Qualified candidate: PR `#1676@5efda8fc9297f9387fffcfc7c81e604baee4e8bf`
+
+Decision:
+
+Promote the exact ADR-026 / `QUANT_PLATFORM_V2_TARGET_ARCHITECTURE.md` design qualified at PR #1676 head to binding Quant Platform v2 target architecture. ADR-023 remains product authority and ADR-025 remains runtime/CI-placement authority.
+
+The promoted target makes Rust Quant Core the target owner of deterministic event/run ordering, idempotent acceptance, simulation state, journal/replay/recovery and causal trace state. Python remains the WickHunter/strategy/ML plane. TypeScript/Next.js plus the FastAPI Portal facade remain the owner-facing boundary. PostgreSQL is the authoritative recovery spine; transport does not outrank durable state.
+
+Freqtrade is not a permanent target v2 state owner. Existing Freqtrade-backed paths remain valid current implementation/migration compatibility while responsibilities are replaced one boundary at a time. Freqtrade may remain a reference oracle, migration input, bounded offline/reference tool and temporary compatibility layer. Retirement from the persistent v2 runtime requires parity or an explicitly accepted intentional difference, deterministic replay, restart/recovery, owner-facing Portal proof and a viable rollback/compatibility path.
+
+`NO_TRADE` is a successful attributable strategy decision. Worker/model unavailability remains the distinct fail-closed `DECISION_ENGINE_UNAVAILABLE` state and must never be converted into `NO_TRADE`.
+
+Supersession/refinement:
+
+- ADR-001 is refined only where it implied permanent Freqtrade target ownership.
+- ADR-002 is refined to permit a separate Rust Quant Core bounded process while retaining the FastAPI modular Portal/control facade.
+- ADR-009 retains versioned events, transactional outbox and durable-state principles but no longer makes NATS/JetStream an unconditional V2-S1 dependency.
+- ADR-010 remains retained for PostgreSQL-first state and large immutable artifact separation.
+- ADR-023 and ADR-025 remain binding within their product and placement scopes.
+- Older `DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md` Freqtrade-persistent-target wording is current/migration compatibility where this ADR defines the v2 end state.
+
+Architecture promotion is not implementation authority. Before mutating v2 implementation begins, a separate execution-governance package must freeze unique implementation lanes, control-plane authority and dependency DAG. V2-S1 entry must verify its required reference/parity oracle and canonical WickHunter/WH09 fixture.
+
+Reason:
+
+The independently qualified design concentrates clean-sheet work in the deterministic state/simulation/replay responsibility instead of rewriting the Portal or Python research ecosystem. This removes permanent dual state semantics while preserving a bounded strangler migration and keeps distributed/AI components evidence-gated rather than ceremonial.
+
+Consequence:
+
+ADR-026 and its detailed target are binding target architecture through ADR-027, but remain `target_only` until exact implementation evidence exists. Promotion grants no runtime mutation, deployment, model/strategy activation, private exchange/account/order credentials, order submission, withdrawal, destructive shared-state operation or real-capital authority. Future real-money execution remains a separate owner-approved Execution/Capital Gateway programme.

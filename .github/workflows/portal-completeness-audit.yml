@@ -43,16 +43,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if grep -Fq "decision: ADR-023" ARCHITECTURE_REGISTRY.yaml \
-            && grep -Fq "ADR-023 is the current product overlay for the entire Portal" ARCHITECTURE_REGISTRY.yaml \
-            && grep -Fq "SHADOW/PAPER/LIVE are historical or compatibility vocabulary only" ARCHITECTURE_REGISTRY.yaml; then
+          if PYTHONPATH=tools/portal_audit python -c \
+            'from validate_issue_states import legacy_issue_state_gate_is_applicable; raise SystemExit(0 if not legacy_issue_state_gate_is_applicable() else 1)'; then
             echo "legacy_gate=false" >> "$GITHUB_OUTPUT"
             echo "mode=adr023_diagnostic" >> "$GITHUB_OUTPUT"
-            echo "ADR-023 is current Portal authority; legacy completeness ledger is diagnostic-only."
+            echo "ADR-023 is current Portal product authority; legacy completeness ledger is diagnostic-only."
           else
             echo "legacy_gate=true" >> "$GITHUB_OUTPUT"
             echo "mode=legacy_gate" >> "$GITHUB_OUTPUT"
-            echo "ADR-023 current-product markers not proven; legacy completeness ledger remains fail-closed."
+            echo "ADR-023 current-product authority not proven; legacy completeness ledger remains fail-closed."
           fi
 
       - name: Reject closed Issue mappings

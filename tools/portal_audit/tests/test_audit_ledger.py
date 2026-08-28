@@ -209,6 +209,28 @@ class AuditLedgerTests(unittest.TestCase):
             )
             self.assertFalse(legacy_issue_state_gate_is_applicable(root))
 
+    def test_adr027_registry_retains_adr023_product_authority(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "ARCHITECTURE_REGISTRY.yaml").write_text(
+                "\n".join(
+                    (
+                        "latest_architecture_change:",
+                        "  decision: ADR-027",
+                        "  product_decision: ADR-023",
+                        "authority:",
+                        "  rules:",
+                        "    - ADR-023 remains the current product overlay for the entire Portal",
+                        (
+                            "    - SHADOW/PAPER/LIVE are historical or compatibility vocabulary "
+                            "only for current Portal work"
+                        ),
+                    )
+                ),
+                encoding="utf-8",
+            )
+            self.assertFalse(legacy_issue_state_gate_is_applicable(root))
+
     def test_pre_adr023_registry_keeps_legacy_issue_state_gate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

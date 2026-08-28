@@ -5,6 +5,7 @@ import argparse
 import http.client
 import json
 import os
+import re
 import urllib.parse
 from collections.abc import Callable
 from pathlib import Path
@@ -87,12 +88,26 @@ def legacy_issue_state_gate_is_applicable(repository_root: Path | None = None) -
     except OSError as exc:
         raise AuditLedgerError(f"cannot read architecture registry: {exc}") from exc
 
-    adr023_markers = (
-        "decision: ADR-023",
-        "ADR-023 is the current product overlay for the entire Portal",
-        "SHADOW/PAPER/LIVE are historical or compatibility vocabulary only",
+    has_adr023_product_decision = (
+        re.search(
+            r"(?m)^\s*(?:decision|product_decision):\s*ADR-023\s*$",
+            registry,
+        )
+        is not None
     )
-    return not all(marker in registry for marker in adr023_markers)
+    has_adr023_portal_overlay = any(
+        marker in registry
+        for marker in (
+            "ADR-023 is the current product overlay for the entire Portal",
+            "ADR-023 remains the current product overlay for the entire Portal",
+        )
+    )
+    has_current_vocabulary = (
+        "SHADOW/PAPER/LIVE are historical or compatibility vocabulary only" in registry
+    )
+    return not (
+        has_adr023_product_decision and has_adr023_portal_overlay and has_current_vocabulary
+    )
 
 
 def main() -> int:

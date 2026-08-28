@@ -22,7 +22,7 @@
 
 ## Purpose
 
-This fork extends upstream Freqtrade with an AI-assisted strategy research and validation platform. The current Portal and WickHunter product are governed by ADR-023 as a private, single-owner Developer Quant Platform working on real public market data, simulation, datasets and local model development, with ADR-025 as the binding runtime/CI-placement overlay. ADR-024 is preserved historical architecture and is superseded by ADR-025 for current runtime placement.
+This fork extends upstream Freqtrade with an AI-assisted strategy research and validation platform. ADR-023 governs the private, single-owner Developer Quant product boundary; ADR-025 is the binding runtime/CI-placement overlay; ADR-026, as promoted by ADR-027, is the binding Quant Platform v2 deterministic-core and Freqtrade-retirement target. ADR-024 is preserved historical architecture and is superseded by ADR-025 for current runtime placement.
 
 The repository, current Git state, active pull requests, CI results, and files in this repository are the source of truth. Do not rely on chat history when repository state can be checked directly.
 
@@ -52,10 +52,11 @@ The repository, current Git state, active pull requests, CI results, and files i
 - Modify upstream core only when the required capability cannot be implemented through supported Freqtrade extension points.
 - Keep changes easy to rebase or merge from `freqtrade/freqtrade`.
 
-## Current Portal product authority — ADR-023 + ADR-025 runtime/CI overlay
+## Current Portal and Quant v2 authority — ADR-023 + ADR-025 + ADR-026/ADR-027
 
 ADR-023 owner decision date: `2026-08-15`.  
-ADR-025 runtime/CI-placement decision date: `2026-08-18`.
+ADR-025 runtime/CI-placement decision date: `2026-08-18`.  
+ADR-027 promotion of the qualified ADR-026 Quant Platform v2 target: `2026-08-28`.
 
 These rules apply to the entire current Portal, including WickHunter integration, Liquid20/market-data consumption, simulation, datasets, model training/challengers, runtime lifecycle, deployment/operations, CI/E2E and Portal-facing observability.
 
@@ -72,6 +73,9 @@ These rules apply to the entire current Portal, including WickHunter integration
 - Real-money exchange execution, private trading credentials for order submission, withdrawals and capital authority are outside the current Portal product. If ever requested, they require a separate owner-approved Execution/Capital Gateway architecture and implementation programme.
 - `quant.molehill.cloud` is the persistent Developer Quant Portal endpoint. Historical use of `production` for that host or Synology deployment does not turn the current product into a real-money production trading system.
 - Existing RuntimeGeneration, Runtime Supervisor, Gateway, risk, evidence and isolation components may be reused where they solve a concrete current problem. They are not universal completion prerequisites unless the current workflow actually needs them.
+- ADR-026 as promoted by ADR-027 makes Rust Quant Core the target owner of deterministic event ordering, simulation, journal/replay/recovery and causal state; Python remains the WickHunter/strategy/ML plane; TypeScript/Next.js plus the FastAPI facade remain the owner-facing Portal boundary; PostgreSQL is the recovery spine.
+- Existing Freqtrade-backed runtime paths are migration/reference compatibility, not permanent v2 target state ownership. Freqtrade may remain a reference oracle, migration input, bounded offline/reference tool and temporary compatibility layer until each replacement boundary proves parity or an accepted intentional difference, deterministic replay, restart/recovery and Portal behavior.
+- Architecture promotion does not activate implementation. Mutating v2 work requires a separate execution-governance package that freezes unique lane/control-plane/DAG authority, and V2-S1 entry must verify its required reference oracle and canonical WickHunter/WH09 fixture.
 - Open Portal/WickHunter work created under superseded PAPER-first, production-like or dedicated-Linux-cutover targets must be reclassified `KEEP_NOW | SIMPLIFY | DEFER | OBSOLETE` before further target-driven implementation.
 
 Current Portal completion is user-workflow based:
@@ -126,7 +130,7 @@ For the current Developer Quant Portal:
 
 ### Integration, release and environment policy
 
-ADR-021 and `docs/agents/BRANCH_POLICY.md` may continue to define repository integration/release routing where independently applicable. ADR-023 supersedes ADR-021/ADR-022 bot-mode semantics for the current Portal; ADR-025 supersedes ADR-024's dedicated-Linux current-target requirement while retaining its GitHub-hosted build-plane direction.
+ADR-021 and `docs/agents/BRANCH_POLICY.md` may continue to define repository integration/release routing where independently applicable. ADR-023 supersedes ADR-021/ADR-022 bot-mode semantics for the current Portal; ADR-025 supersedes ADR-024's dedicated-Linux current-target requirement while retaining its GitHub-hosted build-plane direction; ADR-026/ADR-027 refine deterministic core ownership and the Freqtrade target role without changing ADR-023 product or ADR-025 placement authority.
 
 - `develop` is the controlled integration branch and upstream-sync convergence point.
 - `main` is only a target release branch until exact repository evidence proves its physical migration, protection and workflow routing are complete.
@@ -136,8 +140,8 @@ ADR-021 and `docs/agents/BRANCH_POLICY.md` may continue to define repository int
 - Deployment uses attributable artifacts and durable state, but ordinary developer deployment does not require production-trading certification ceremony.
 
 1. Read this file first.
-2. Read `ARCHITECTURE_REGISTRY.yaml` and the current accepted Portal decisions (`ADR-023` plus the `ADR-025` runtime/CI overlay) before Portal/WickHunter/runtime work. Read ADR-024 only as historical/superseded context when relevant.
-3. For Portal work, read `docs/ai_platform/portal/README.md`, `docs/ai_platform/portal/DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md` and the task-relevant documents; use `docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md` as the current programme boundary.
+2. Read `ARCHITECTURE_REGISTRY.yaml` and the current accepted Portal/Quant decisions: ADR-023 product authority, ADR-025 runtime/CI placement and ADR-027 promotion of the exact ADR-026 v2 target. Read ADR-024 only as historical/superseded context when relevant.
+3. For Portal work, read `docs/ai_platform/portal/README.md`, `docs/ai_platform/portal/DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md`, ADR-027/ADR-026 and the task-relevant documents; use `docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md` as the current programme boundary where not superseded by later accepted architecture.
 4. Inspect current branch, HEAD, open PRs, and relevant CI before editing.
 5. Work on a dedicated feature branch.
 6. Keep commits focused and reviewable.

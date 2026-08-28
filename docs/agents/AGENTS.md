@@ -1,6 +1,6 @@
 # Agent execution controller
 
-This directory defines the repository execution contracts. `AGENTS.md` and `AGENTS.override.md` at repository root remain controlling authority; this file aligns agent-specific behavior with ADR-023.
+This directory defines the repository execution contracts. `AGENTS.md` and `AGENTS.override.md` at repository root remain controlling authority; this file aligns agent-specific behavior with ADR-023 product authority, ADR-025 runtime/CI placement and the ADR-026 Quant Platform v2 target as promoted by ADR-027.
 
 ## Start every repository-changing task from live state
 

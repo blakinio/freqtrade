@@ -46,22 +46,27 @@ review:
       evidence_merge: a51106eb0003910b393dd876ab68f3877eef16dc
 
 latest_architecture_change:
-  accepted_at: "2026-08-18"
-  base_sha: 6510077ea2e7a63c0d489f94391f461a3cab4ac1
-  issue: 1604
-  decision: ADR-025
+  accepted_at: "2026-08-28"
+  base_sha: c9bbd17c716162edffd5b695eac4fb197c7bbf38
+  decision: ADR-027
+  promoted_decision: ADR-026
   product_decision: ADR-023
-  supersedes_runtime_decision: ADR-024
-  decision_document: docs/ai_platform/portal/ADR-025_SYNOLOGY_PERSISTENT_RUNTIME_GITHUB_BUILD_PLANE.md
-  detail_document: docs/ai_platform/portal/DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md
-  status: accepted_target_partial_implementation
+  runtime_placement_decision: ADR-025
+  decision_document: docs/ai_platform/portal/ADR-027_QUANT_PLATFORM_V2_ARCHITECTURE_PROMOTION.md
+  detail_document: docs/ai_platform/portal/QUANT_PLATFORM_V2_TARGET_ARCHITECTURE.md
+  qualification_evidence: docs/ai_platform/reviews/2026-08-28-quant-platform-v2-architecture-qualification.md
+  qualified_pr: 1676
+  qualified_head: 5efda8fc9297f9387fffcfc7c81e604baee4e8bf
+  promotion_task: FTAI-20260828-quant-platform-v2-architecture-promotion
+  status: accepted_target_not_implemented
   affected_domains:
+    - research_and_strategy
     - portal_and_ux
+    - execution_and_risk
     - data_and_observability
     - deployment_and_operations
     - ci_and_quality
-    - portal_research_integration
-  implementation_note: The owner retained Synology as the current persistent Portal/bot/application runtime and durable-storage host while keeping GitHub-hosted Actions as the default stateless CI/test/build/scan/disposable-compute plane. The hosted build-plane work from PR #1609 remains valid; a separate dedicated Linux runtime host is no longer a current completion requirement. Persistent containers run on Synology, while portable images are built/published on GitHub-hosted runners where practical. Retained Synology self-hosted runner access should be deploy-only or equivalently narrow.
+  implementation_note: ADR-027 promotes the independently qualified ADR-026 / Quant Platform v2 target. ADR-023 remains product authority and ADR-025 remains runtime/CI-placement authority. The promoted target selects a deterministic Rust Quant Core, Python WickHunter/ML plane, retained TypeScript/Next.js plus FastAPI Portal boundary, PostgreSQL recovery spine and strangler retirement of Freqtrade from persistent v2 state ownership. Promotion is target authority only; no Rust core, runtime migration, deployment or implementation-lane execution is claimed.
 
 latest_architecture_candidate:
   recorded_at: "2026-08-28"
@@ -70,9 +75,13 @@ latest_architecture_candidate:
   decision_document: docs/ai_platform/portal/ADR-026_QUANT_PLATFORM_V2_CORE_AND_FREQTRADE_RETIREMENT.md
   detail_document: docs/ai_platform/portal/QUANT_PLATFORM_V2_TARGET_ARCHITECTURE.md
   candidate_branch: docs/quant-v2-architecture-candidate
-  status: selected_pending_independent_architecture_qualification
-  binding_effect: none_until_qualified_and_promoted
+  candidate_pr: 1676
+  candidate_head: 5efda8fc9297f9387fffcfc7c81e604baee4e8bf
+  status: qualified_and_promoted
+  binding_effect: promoted_via_ADR-027
+  promotion_decision: ADR-027
   qualification_command: "Quant: audyt architektury"
+  qualification_evidence: docs/ai_platform/reviews/2026-08-28-quant-platform-v2-architecture-qualification.md
   owner_migration_end_state: freqtrade_retired_from_persistent_developer_quant_v2_runtime
   affected_domains:
     - research_and_strategy
@@ -81,7 +90,7 @@ latest_architecture_candidate:
     - data_and_observability
     - deployment_and_operations
     - ci_and_quality
-  implementation_note: ADR-026 records the selected clean-sheet deterministic Rust Quant Core plus strangler migration target while retaining Python ML/WickHunter, the TypeScript/Next.js Portal and the FastAPI Portal facade. It is a non-binding candidate until independent exact-head architecture qualification passes and a separate bounded promotion change updates accepted authority. No runtime implementation is claimed or authorized by this candidate.
+  implementation_note: ADR-026 remains the immutable qualified candidate/design record. ADR-027 promotes that exact design to binding target authority without converting documentation into implementation evidence. Historical candidate lifecycle wording inside the qualified files describes their review-time state and is superseded for current authority status by ADR-027.
 
 classification_values:
   - canonical_registry
@@ -115,18 +124,21 @@ authority:
     - Target-only or mixed documents must never be reported as fully implemented without exact evidence.
     - Historical baselines preserve context but do not override accepted decisions or current-state evidence.
     - Material architecture changes update this registry and the accepted decision authority in the same change set.
-    - A registered architecture candidate is not a material change to binding authority until it is independently qualified and explicitly promoted; candidate documents must not silently supersede latest_architecture_change or accepted ADRs.
-    - ADR-026 is the selected Quant Platform v2 architecture candidate pending independent exact-head ARCHITECTURE_QUALIFICATION. While pending, ADR-023, ADR-025 and DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md remain current binding product/runtime target authority.
-    - ADR-026 records the owner-selected Freqtrade migration end state for qualification: Freqtrade is to leave the persistent Developer Quant v2 runtime after bounded parity/intentional-difference, recovery and owner-facing proof, while remaining available as reference oracle, migration input, temporary compatibility and bounded offline/reference tooling where useful. This selection is not implementation evidence and does not remove current Freqtrade-backed runtime paths before qualification/promotion/migration gates.
-    - ADR-023 is the current product overlay for the entire Portal and supersedes conflicting current-Portal assumptions in ADR-003, ADR-004, ADR-005, ADR-013, ADR-014, ADR-016, ADR-017, ADR-020, ADR-021 and ADR-022 exactly as recorded in its supersession matrix.
-    - ADR-025 is the current runtime/CI-placement overlay. Synology is the normal current persistent application runtime and durable-storage host; GitHub-hosted Actions is the default stateless/disposable CI/test/build/scan/job plane and is not a 24/7 application host.
+    - A registered architecture candidate is not a material change to binding authority until it is independently qualified and explicitly promoted; historical candidate lifecycle text remains evidence of its review-time state after promotion.
+    - ADR-026 was independently qualified at PR #1676 head 5efda8fc9297f9387fffcfc7c81e604baee4e8bf and is promoted by ADR-027 as the binding Quant Platform v2 core/migration target. ADR-027 supersedes ADR-026 candidate/pending lifecycle labels for current authority status without rewriting the qualified design record.
+    - ADR-023 remains the current product overlay for the entire Portal and supersedes conflicting current-Portal assumptions in ADR-003, ADR-004, ADR-005, ADR-013, ADR-014, ADR-016, ADR-017, ADR-020, ADR-021 and ADR-022 exactly as recorded in its supersession matrix.
+    - ADR-025 remains the current runtime/CI-placement overlay. Synology is the normal current persistent application runtime and durable-storage host; GitHub-hosted Actions is the default stateless/disposable CI/test/build/scan/job plane and is not a 24/7 application host.
+    - ADR-027 retains ADR-023 product authority and ADR-025 placement authority while making ADR-026's deterministic Rust Quant Core, Python strategy/ML plane, Portal boundary, PostgreSQL recovery spine and Freqtrade strangler-retirement direction binding target architecture.
+    - ADR-027 refines ADR-001 only where it implied permanent Freqtrade target ownership, refines ADR-002 to permit the Rust Quant Core bounded process alongside the FastAPI facade, and refines ADR-009 by removing NATS/JetStream as an unconditional V2-S1 dependency while retaining versioned events/outbox/durable-state principles. ADR-010 remains retained.
+    - Existing Freqtrade-backed paths are current implementation/migration compatibility, not permanent v2 target state ownership. Freqtrade remains available as reference oracle, migration input, temporary compatibility and bounded offline/reference tooling until each replacement boundary proves parity or an accepted intentional difference, deterministic replay, restart/recovery, Portal behavior and rollback/compatibility.
+    - Architecture promotion is not implementation authority. Before mutating v2 work begins, a separate execution-governance package must freeze unique implementation lanes, control-plane authority and dependency DAG; V2-S1 entry must verify its required reference oracle and canonical WickHunter/WH09 fixture.
     - ADR-025 supersedes ADR-024 only where ADR-024 required a separate dedicated Linux persistent runtime, treated Synology compute as transitional-only, or made dedicated-Linux cutover a current completion requirement. ADR-024 remains historical evidence and its GitHub-hosted build-plane direction is retained.
     - SHADOW/PAPER/LIVE are historical or compatibility vocabulary only for current Portal work; current concepts are REALTIME_PUBLIC/REPLAY data source, LOCAL/SYNOLOGY persistent runtime location, LOCAL/SYNOLOGY storage provider, integrated simulation and BASELINE/CHALLENGER/ACTIVE/ARCHIVED model lifecycle.
     - Persistent application containers run on Synology. GitHub-hosted workflows may build/publish their images and execute short-lived disposable containers, but must not be described as the persistent application runtime.
     - GitHub-hosted Actions runners are the default for stateless CI/build/validation and bounded disposable jobs where compatible. Self-hosted runners on Synology should be disabled or narrowly deploy-only/target-specific rather than serving as general repository CI shells.
     - deploy/runtime/** is an optional portability reference only under ADR-025; it does not make a separate dedicated Linux host current target authority.
     - Real-money exchange execution, private trading credentials, withdrawals and capital authority are out of current Portal scope. A future Execution/Capital Gateway requires a separate owner-approved architecture programme.
-    - Existing RuntimeGeneration, Runtime Supervisor, Gateway, isolation and reconciliation implementation may be reused when it solves a concrete current problem, but ADR-023 removes them as universal completion prerequisites for ordinary developer simulation/research workflows.
+    - Existing RuntimeGeneration, Runtime Supervisor, Gateway, isolation and reconciliation implementation may be reused when it solves a concrete current problem, but ADR-023 removes them as universal completion prerequisites for ordinary developer simulation/research workflows and ADR-027 does not restore them as universal v2 prerequisites.
     - ADR-021 repository integration/release guidance may remain independently applicable, but its Portal bot-mode semantics are superseded by ADR-023.
     - ADR-022 remains historical evidence of the former PAPER-first target and is superseded for the entire current Portal by ADR-023.
 
@@ -141,6 +153,7 @@ system_domains:
     implementation_status: mixed
     portal_integration_overlay: ADR-023
     runtime_location_overlay: ADR-025
+    current_quant_v2_overlay: ADR-027
     historical_mode_overlay: ADR-022
   portal_and_ux:
     code_roots:
@@ -152,6 +165,7 @@ system_domains:
     implementation_status: mixed
     current_product_overlay: ADR-023
     current_runtime_overlay: ADR-025
+    current_quant_v2_overlay: ADR-027
     specialized_runtime_reference: ADR-020
     release_reference: ADR-021
     historical_mode_overlay: ADR-022
@@ -179,6 +193,7 @@ system_domains:
     implementation_status: mixed
     current_product_overlay: ADR-023
     current_runtime_overlay: ADR-025
+    current_quant_v2_overlay: ADR-027
     specialized_runtime_reference: ADR-020
     release_reference: ADR-021
     historical_mode_overlay: ADR-022
@@ -194,6 +209,7 @@ system_domains:
     implementation_status: mixed
     current_product_overlay: ADR-023
     current_runtime_overlay: ADR-025
+    current_quant_v2_overlay: ADR-027
     specialized_runtime_reference: ADR-020
     historical_mode_overlay: ADR-022
   deployment_and_operations:
@@ -207,6 +223,7 @@ system_domains:
     implementation_status: mixed
     current_product_overlay: ADR-023
     current_runtime_overlay: ADR-025
+    current_quant_v2_overlay: ADR-027
     specialized_runtime_reference: ADR-020
     release_reference: ADR-021
     historical_mode_overlay: ADR-022
@@ -220,6 +237,7 @@ system_domains:
     implementation_status: partially_implemented
     current_product_overlay: ADR-023
     current_runtime_overlay: ADR-025
+    current_quant_v2_overlay: ADR-027
     release_reference: ADR-021
     historical_mode_overlay: ADR-022
 
@@ -233,27 +251,48 @@ documents:
     owner_role: A3-architecture-ci-reviewer
     last_reviewed_at: "2026-08-28"
 
-  - path: docs/ai_platform/portal/ADR-026_QUANT_PLATFORM_V2_CORE_AND_FREQTRADE_RETIREMENT.md
-    title: ADR-026 Quant Platform v2 core ownership and Freqtrade retirement candidate
-    classification: domain_architecture
-    scope: selected Quant Platform v2 target direction, technology/ownership split, Freqtrade migration end state, first evidence-producing slice and qualification/promotion gates
-    authority: selected_candidate_pending_independent_architecture_qualification
+  - path: docs/ai_platform/portal/ADR-027_QUANT_PLATFORM_V2_ARCHITECTURE_PROMOTION.md
+    title: ADR-027 Quant Platform v2 architecture promotion
+    classification: accepted_decision_log
+    scope: promotion of the qualified ADR-026 design to binding v2 target authority and explicit refinement/supersession relationships
+    authority: binding_current_quant_v2_architecture_promotion
     implementation_status: target_only
     owner_role: architecture-owner
     last_reviewed_at: "2026-08-28"
-    evidence_rule: This document is the architecture candidate to qualify. It does not supersede accepted current authority, prove implementation, grant runtime mutation or make Freqtrade retirement complete.
-    safety_note: ADR-023/ADR-025 remain binding while qualification is pending; no real-money execution/private exchange authority is introduced.
+    evidence_rule: This decision promotes exact qualified architecture; it does not prove Rust Quant Core/runtime migration implementation or grant implementation/deployment/live authority.
+    safety_note: ADR-023 product and ADR-025 placement boundaries remain binding; no private exchange/order/withdrawal/real-capital authority is introduced.
+
+  - path: docs/ai_platform/portal/ADR-026_QUANT_PLATFORM_V2_CORE_AND_FREQTRADE_RETIREMENT.md
+    title: ADR-026 Quant Platform v2 core ownership and Freqtrade retirement qualified design record
+    classification: domain_architecture
+    scope: selected and qualified Quant Platform v2 target direction, technology/ownership split, Freqtrade migration end state, first evidence-producing slice and qualification/promotion gates
+    authority: qualified_design_record_promoted_by_ADR-027
+    implementation_status: target_only
+    owner_role: architecture-owner
+    last_reviewed_at: "2026-08-28"
+    evidence_rule: This is the immutable candidate/design record qualified at PR #1676 head 5efda8fc9297f9387fffcfc7c81e604baee4e8bf and promoted by ADR-027. Candidate/pending lifecycle wording inside the file is historical review-time metadata; implementation claims still require exact code/test/runtime evidence.
+    safety_note: ADR-023 product and ADR-025 placement authority remain retained; ADR-027 supplies current promotion status; no real-money execution/private exchange authority is introduced.
 
   - path: docs/ai_platform/portal/QUANT_PLATFORM_V2_TARGET_ARCHITECTURE.md
-    title: Quant Platform v2 target architecture candidate
-    classification: domain_architecture
+    title: Quant Platform v2 detailed target architecture
+    classification: canonical_target_state
     scope: detailed target topology, bounded contexts, Rust/Python/TypeScript split, deterministic simulation/replay/state ownership, ML/AI boundaries, migration, V2-S1 and verification architecture
-    authority: detailed_selected_candidate_pending_independent_architecture_qualification
+    authority: binding_detailed_quant_v2_target_via_ADR-027
     implementation_status: target_only
     owner_role: architecture-owner
     last_reviewed_at: "2026-08-28"
-    evidence_rule: Use as the exact candidate under Quant architecture qualification; all implementation claims still require exact code/test/runtime evidence and qualification findings must be resolved before promotion.
-    safety_note: Final implementation lanes/control-plane/DAG remain non-canonical until the independent architecture qualification gate passes.
+    evidence_rule: This exact target was qualified at PR #1676 head and promoted by ADR-027. Its candidate/pending lifecycle labels are historical review-time metadata; exact current code/tests/runtime still determine implementation state.
+    safety_note: A separate execution-governance package is required before mutating implementation lanes/control-plane/DAG; architecture promotion alone grants no runtime or live authority.
+
+  - path: docs/ai_platform/reviews/2026-08-28-quant-platform-v2-architecture-qualification.md
+    title: Quant Platform v2 independent architecture qualification evidence
+    classification: audit_evidence
+    scope: exact-head read-only qualification of PR #1676 candidate architecture
+    authority: evidence_at_recorded_revision_only
+    implementation_status: not_applicable
+    owner_role: architecture-auditor
+    last_reviewed_at: "2026-08-28"
+    evidence_rule: Records the architecture qualification verdict for candidate head 5efda8fc9297f9387fffcfc7c81e604baee4e8bf; it is not implementation or promotion-PR self-audit evidence.
 
   - path: docs/ai_platform/portal/ADR-025_SYNOLOGY_PERSISTENT_RUNTIME_GITHUB_BUILD_PLANE.md
     title: ADR-025 Synology persistent runtime and GitHub-hosted build/disposable-compute decision
@@ -281,34 +320,36 @@ documents:
     title: ADR-023 current Portal developer-quant product decision
     classification: accepted_decision_log
     scope: whole-current-Portal product identity, vocabulary, completion rule, proportionate safety and supersession matrix
-    authority: binding_current_portal_decision_subject_to_ADR-025_runtime_overlay
+    authority: binding_current_portal_decision_subject_to_ADR-025_runtime_and_ADR-027_v2_overlays
     implementation_status: target_only
     owner_role: architecture-owner
-    last_reviewed_at: "2026-08-18"
-    evidence_rule: This decision changes current Portal product authority but does not claim code migration complete; ADR-025 controls current runtime/CI placement. Exact current code, open work and runtime evidence remain authoritative for implementation state.
+    last_reviewed_at: "2026-08-28"
+    evidence_rule: ADR-023 remains product authority; ADR-025 controls runtime/CI placement and ADR-027 controls the accepted v2 deterministic-core/Freqtrade target. Exact current code, open work and runtime evidence remain authoritative for implementation state.
 
   - path: docs/ai_platform/portal/DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md
     title: Developer Quant Portal architecture
     classification: canonical_target_state
-    scope: entire current Portal developer workflow from realtime public data through simulation, datasets, local challenger training, comparison and restart-safe observability, with ADR-025 Synology-runtime/GitHub-build topology
-    authority: binding_refinement_of_ADR-023_with_ADR-025_runtime_overlay
+    scope: current Portal developer workflow and Synology runtime baseline, refined by ADR-027 for Quant v2 deterministic core ownership and Freqtrade end state
+    authority: binding_refinement_of_ADR-023_with_ADR-025_runtime_overlay_and_ADR-027_v2_refinement
     implementation_status: target_only
     owner_role: architecture-owner
-    last_reviewed_at: "2026-08-18"
-    evidence_rule: Completion is proven by the real owner-facing developer workflow and exact runtime/workflow evidence, not by documentation or isolated evidence bundles. Synology persistent-runtime authority does not imply every remaining CI/build job is already GitHub-hosted.
+    last_reviewed_at: "2026-08-28"
+    evidence_rule: Completion is proven by the real owner-facing developer workflow and exact runtime/workflow evidence, not documentation. Freqtrade-persistent wording in this older baseline describes current/migration compatibility where ADR-027 selects a non-Freqtrade persistent v2 end state.
     safety_note: Real-money exchange execution is out of current product scope and requires a separate future owner decision if ever desired.
 
   - path: docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md
     title: AI Trading Portal architecture decisions through ADR-025
     classification: accepted_decision_log
-    scope: accepted platform and Portal decisions through the current ADR-025 runtime/CI-placement overlay
-    authority: binding_unless_superseded; current Portal product conflicts are superseded by ADR-023 and runtime-topology conflicts by ADR-025
+    scope: accepted platform and Portal decisions through ADR-025; later standalone ADR-027 is indexed separately as current v2 promotion authority
+    authority: binding_unless_superseded; current Portal product conflicts are superseded by ADR-023, runtime-topology conflicts by ADR-025 and v2 core/Freqtrade-target conflicts by ADR-027
     implementation_status: mixed
     owner_role: architecture-owner
-    last_reviewed_at: "2026-08-18"
+    last_reviewed_at: "2026-08-28"
     latest_decision_in_file: ADR-025
+    later_standalone_decision: docs/ai_platform/portal/ADR-027_QUANT_PLATFORM_V2_ARCHITECTURE_PROMOTION.md
     current_product_detail: docs/ai_platform/portal/ADR-023_DEVELOPER_QUANT_PORTAL.md
     current_runtime_detail: docs/ai_platform/portal/ADR-025_SYNOLOGY_PERSISTENT_RUNTIME_GITHUB_BUILD_PLANE.md
+    current_quant_v2_detail: docs/ai_platform/portal/QUANT_PLATFORM_V2_TARGET_ARCHITECTURE.md
 
   - path: docs/ai_platform/portal/PAPER_FIRST_PLATFORM_ARCHITECTURE.md
     title: PAPER-first Quant Platform architecture
@@ -354,11 +395,11 @@ documents:
     title: Runtime isolation profile and Runtime Supervisor contract
     classification: domain_architecture
     scope: specialized Portal runtime isolation/Supervisor reference retained where a concrete runtime boundary benefits from it
-    authority: specialized_reference_subject_to_ADR-023_and_ADR-025
+    authority: specialized_reference_subject_to_ADR-023_ADR-025_and_ADR-027
     implementation_status: partially_implemented
     owner_role: architecture-owner
-    last_reviewed_at: "2026-08-18"
-    evidence_rule: Existing implementation remains reusable, but production-grade host attestation and generation ceremony are no longer universal completion gates for current developer workflows; host-specific assumptions must be reconciled with current Synology runtime authority under ADR-025.
+    last_reviewed_at: "2026-08-28"
+    evidence_rule: Existing implementation remains reusable, but production-grade host attestation and generation ceremony are not universal completion gates; host-specific assumptions follow ADR-025 and Freqtrade-specific target ownership is further refined by ADR-027.
     safety_note: Current Portal has no real-money execution capability.
 
   - path: docs/ai_platform/portal/SYSTEM_ARCHITECTURE.md
@@ -368,29 +409,29 @@ documents:
     authority: superseded_current_target_by_ADR-023
     implementation_status: mixed
     owner_role: architecture-owner
-    last_reviewed_at: "2026-08-15"
-    evidence_rule: Use exact current code for implemented components and ADR-023/ADR-025/DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md for current product direction.
-    supersession_note: Multi-tenant production trading, SHADOW/PAPER/LIVE and universal production-grade runtime gates no longer define the current Portal.
+    last_reviewed_at: "2026-08-28"
+    evidence_rule: Use exact current code for implemented components and ADR-023/ADR-025/ADR-027 plus the current Portal/Quant v2 target documents for current direction.
+    supersession_note: Multi-tenant production trading, SHADOW/PAPER/LIVE, permanent Freqtrade-centered v2 ownership and universal production-grade runtime gates do not define the current target.
 
   - path: docs/ai_platform/portal/BOT_MANAGEMENT_PRODUCT_ARCHITECTURE.md
     title: Bot management product architecture
     classification: domain_architecture
     scope: declarative bot lifecycle and management components
-    authority: reusable_domain_reference_subject_to_ADR-023
+    authority: reusable_domain_reference_subject_to_ADR-023_and_ADR-027
     implementation_status: mixed
     owner_role: bot-management-domain-owner
-    last_reviewed_at: "2026-08-15"
-    supersession_note: Current bot management is for single-owner developer runtimes and integrated simulation; mode/tenant/production ceremony must be simplified where it conflicts with ADR-023.
+    last_reviewed_at: "2026-08-28"
+    supersession_note: Current bot management is for single-owner developer runtimes and integrated simulation; mode/tenant/production ceremony must be simplified where it conflicts with ADR-023, and persistent Freqtrade ownership must not be treated as the v2 end state where ADR-027 applies.
 
   - path: docs/ai_platform/portal/AI_ML_AND_LEARNING_ARCHITECTURE.md
     title: AI, ML and learning architecture
     classification: domain_architecture
     scope: model, experiment, learning and training components
-    authority: reusable_domain_reference_subject_to_ADR-023
+    authority: reusable_domain_reference_subject_to_ADR-023_and_ADR-027
     implementation_status: mixed
     owner_role: ai-research-domain-owner
-    last_reviewed_at: "2026-08-15"
-    supersession_note: Keep training separate from deliberate active-model selection; current lifecycle is BASELINE/CHALLENGER/ACTIVE/ARCHIVED and no current SHADOW/PAPER/LIVE promotion path exists.
+    last_reviewed_at: "2026-08-28"
+    supersession_note: Keep training separate from deliberate active-model selection; current lifecycle is BASELINE/CHALLENGER/ACTIVE/ARCHIVED, no current SHADOW/PAPER/LIVE promotion path exists, and Python remains the accepted v2 strategy/ML plane under ADR-027.
 
   - path: docs/ai_platform/ARCHITECTURE.md
     title: Original AI trading platform architecture
@@ -399,8 +440,8 @@ documents:
     authority: historical_context_only
     implementation_status: historical
     owner_role: architecture-owner
-    last_reviewed_at: "2026-08-05"
-    supersession_note: Use ADR-023, ADR-025 and Developer Quant Portal Architecture for current Portal product and runtime decisions.
+    last_reviewed_at: "2026-08-28"
+    supersession_note: Use ADR-023, ADR-025 and ADR-027 plus the current Developer Quant / Quant v2 target documents for current product, runtime placement and v2 core direction.
 
   - path: docs/agents/programs/FTAI_PLATFORM_CONTINUOUS_ASSURANCE_PROGRAM.md
     title: Platform continuous assurance programme
@@ -418,8 +459,8 @@ documents:
     authority: programme_coverage_ledger
     implementation_status: implemented
     owner_role: whole-platform-assurance-owner
-    last_reviewed_at: "2026-08-05"
-    evidence_rule: Coverage status is bounded to the exact head and wave recorded in the ledger; current Portal remediation priorities must be reclassified through ADR-023 and runtime assumptions through ADR-025.
+    last_reviewed_at: "2026-08-28"
+    evidence_rule: Coverage status is bounded to the exact head and wave recorded in the ledger; current Portal remediation priorities must be reclassified through ADR-023, runtime assumptions through ADR-025 and v2 core/Freqtrade target assumptions through ADR-027.
 
   - path: docs/ai_platform/portal/AUDIT_2026-08-02_END_TO_END_COMPLETENESS.md
     title: Portal end-to-end completeness audit
@@ -428,8 +469,8 @@ documents:
     authority: evidence_at_recorded_revision_only
     implementation_status: not_applicable
     owner_role: audit-owner
-    last_reviewed_at: "2026-08-15"
-    evidence_rule: Findings remain factual evidence of code at the audited revision, but whether each finding is still required is decided by ADR-023 backlog reclassification and ADR-025 runtime/CI-placement reconciliation.
+    last_reviewed_at: "2026-08-28"
+    evidence_rule: Findings remain factual evidence of code at the audited revision, but current requirement status is decided by later accepted architecture including ADR-023, ADR-025 and ADR-027.
 
   - path: docs/ai_platform/reviews/2026-08-05-architecture-ci-review.md
     title: Platform architecture and CI review

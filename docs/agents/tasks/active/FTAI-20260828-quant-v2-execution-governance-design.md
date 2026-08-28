@@ -4,7 +4,7 @@ repository: blakinio/freqtrade
 project_lane: freqtrade-core
 branch: docs/quant-v2-execution-governance-design
 status: validating
-phase: audit_remediation_v2
+phase: audit_remediation_v3
 execution_mode: github_only
 task_kind: architecture_design
 implementation_authorized: false
@@ -22,7 +22,7 @@ ownership_released: false
 
 Persist the owner-approved design and a qualified implementation plan for the separate Quant Platform v2 execution-governance package required by ADR-027 before any mutating v2 implementation begins.
 
-This task remains **design/planning only**. It does not implement or activate the coordinator, dynamic programme state, allocation validator, Rust Quant Core, Python v2 strategy plane, Portal trace, deployment, model activation, private exchange access or real-capital behaviour.
+This task is design/planning only. It does not implement or activate the coordinator, programme state, allocation validator, Rust Quant Core, Python v2 strategy plane, Portal trace, deployment, model activation, private exchange access or real-capital behaviour.
 
 ## Authority freeze
 
@@ -35,18 +35,18 @@ Binding authority:
 - ADR-026 as promoted by ADR-027 for Quant Platform v2 core/migration target;
 - repository `PROJECT_LANES.json`, `EXECUTION_PROTOCOL.md`, risk policy and closeout contracts.
 
-The design and plan may narrow future implementation authority but cannot grant implementation by themselves.
+The design/plan may narrow future implementation authority but cannot grant implementation by themselves.
 
 ## Owner-approved design
 
-The exact owner-approved written spec remains unchanged at source commit `47f8c7196c0312a5fb5a013e3db4f4911f1239eb` and blob `9336b6a103a623261da90d3dafd467e478d1e101`.
+The exact owner-approved written spec remains unchanged from source commit `47f8c7196c0312a5fb5a013e3db4f4911f1239eb`, blob `9336b6a103a623261da90d3dafd467e478d1e101`.
 
 Approved direction remains:
 
 - dedicated V2 programme overlay; generic `PROJECT_LANES.json` remains generic authority;
 - exactly one `quant-v2-implementation-coordinator`;
 - fail-closed exact worker allocation authority;
-- hard `V2-ENTRY-EVIDENCE` gate for exact reference/parity oracle plus canonical WickHunter/WH09 fixture before bootstrap;
+- hard `V2-ENTRY-EVIDENCE` gate before bootstrap;
 - serial bootstrap, bounded Core/Strategy/QA parallelism, Durability, Portal trace and serial V2-S1 integration;
 - shared-contract serialization and stale-generation rebind;
 - governance implementation merge ends in `GOVERNANCE_ACCEPTED_STANDBY` with zero V2 allocations;
@@ -71,75 +71,74 @@ Findings:
 - `QV2-1679-002` — dependency admission did not prove current predecessor truth;
 - `QV2-1679-003` — generic 45-minute lease policy was not mechanically inherited.
 
-Generation-1 remediation introduced Task 0, predecessor state/evidence checks and generic lease source/mirror enforcement.
-
 ### Generation 2
 
 Exact audited head: `f83c7a811f198866e048f5ac97252151fe0b71b4`.
 
-Durable independent audit comment: PR #1679 issue comment `5454136040`.
+Durable audit comment: PR #1679 issue comment `5454136040`.
 
-Verdict: `BLOCKED_MATERIAL_FINDINGS` with four material P1 findings.
+Verdict: `BLOCKED_MATERIAL_FINDINGS`.
 
-Status of prior findings:
+New/remaining material findings:
+
+- `QV2-1679-002` — predecessor truth remained caller-supplied;
+- `QV2-1679-004` — programme state/incumbent census not canonical and exhaustive;
+- `QV2-1679-005` — ENTRY-EVIDENCE self-deadlock;
+- `QV2-1679-006` — incomplete legacy PAPER fence.
+
+These were structurally remediated by introducing canonical `PROGRAMME_STATE.json`, complete allocation/task SHA bindings, ENTRY producer semantics, BOOTSTRAP evidence gate and full four-part PAPER fence.
+
+### Generation 3
+
+Exact audited head: `892cee6c4c5727da1d1da7720e43431eb7be9e01`.
+
+Durable audit comment: PR #1679 issue comment `5455400415`.
+
+Verdict: `BLOCKED_MATERIAL_FINDINGS` with one P1.
+
+Prior status at generation 3:
 
 - `QV2-1679-001` — REMEDIATED;
-- `QV2-1679-003` — REMEDIATED;
-- `QV2-1679-002` — PARTIAL / STILL BLOCKING because predecessor truth remained caller-supplied rather than canonical.
+- `QV2-1679-002` — REMEDIATED IN STRUCTURE, subject to currentness issue below;
+- `QV2-1679-003` — REMEDIATED IN STRUCTURE, subject to production-time issue below;
+- `QV2-1679-004` — REMEDIATED IN STRUCTURE, subject to currentness issue below;
+- `QV2-1679-005` — REMEDIATED;
+- `QV2-1679-006` — REMEDIATED.
 
-New findings:
+New finding:
 
-- `QV2-1679-004` — programme state and incumbent allocation census were caller-supplied/incomplete rather than canonical and exhaustive;
-- `QV2-1679-005` — ENTRY-EVIDENCE admission self-deadlocked by requiring its own missing outputs to PASS before the lane could write them;
-- `QV2-1679-006` — planned legacy PAPER fence implemented only `quant_v2_authority:false`, weaker than the approved four-part fence plus reclassification-only behaviour.
+- `QV2-1679-007` — production validator trust anchors remained caller-controlled: worker-selected repository snapshot/root, caller `expected_governance_sha`, caller-injected production `now`, and unsupported one-snapshot monotonic generation allowed stale self-consistent authority to appear current.
 
-## Generation-2 remediation
+## Generation-3 remediation: trusted-current production authority
 
-Plan remediation commit: `7b551628288b05dce5540981c8a07d6614fba9c6`.
+Plan remediation commit: `f7134a696de10c4b492c13a6b8d8b61dbaf57c38`.
 
 The owner-approved spec was not changed.
 
-### QV2-1679-002 / QV2-1679-004 — canonical current-state authority
+The implementation plan now requires production admission to:
 
-The plan no longer allows production validator callers to supply partial `active_allocations`, ad-hoc `predecessor_states`, free-form programme state or activation flags.
+1. accept a repository location only as a Git locator plus candidate task path;
+2. verify repository remote identity is `blakinio/freqtrade`;
+3. fetch and resolve exact current `origin/develop` without changing the worker branch;
+4. read `QUANT_V2_EXECUTION_GOVERNANCE.json`, `PROJECT_LANES.json` and `quant_v2/PROGRAMME_STATE.json` from that exact immutable trusted tree, never from caller-selected worker-tree files;
+5. derive current governance identity from trusted `develop` history as the last commit changing the static governance file;
+6. resolve previous/current `PROGRAMME_STATE.json` versions from trusted history and mechanically require generation `1` on creation or exact previous+1 on mutation;
+7. require every active allocation to bind to current state generation;
+8. obtain production time internally as timezone-aware current UTC;
+9. expose no production CLI authority override for governance SHA, time, programme state, incumbent census, predecessor ledger, activation flags or develop SHA;
+10. fail closed if current `develop`, current governance identity, state history or repository identity cannot be resolved.
 
-It now defines one canonical dynamic state path:
+Mandatory negative regressions now include:
 
-`docs/agents/quant_v2/PROGRAMME_STATE.json`
+- stale worker branch after allocation revoke/rebind on newer current `develop`;
+- self-consistent stale governance snapshot versus newer trusted governance;
+- attempted production `--now`/time override;
+- attempted caller expected-governance-SHA override;
+- regressed/skipped/non-current state generation;
+- active allocation bound to prior generation;
+- unavailable/ambiguous trusted `origin/develop` or wrong repository identity.
 
-Semantics:
-
-- absent on trusted `develop` means only `GOVERNANCE_ACCEPTED_STANDBY` with zero allocations;
-- absence never grants worker write authority;
-- after explicit owner activation the coordinator first persists an immutable activation receipt and canonical programme state;
-- canonical state contains current programme state/generation, activation epoch/receipt binding, the complete active-allocation index and canonical predecessor terminal/evidence ledger;
-- every allocation entry binds to the exact worker task path plus SHA-256 of task bytes;
-- production validator derives all incumbent overlap and predecessor checks from canonical state only;
-- omitted incumbents, forged programme state, incomplete indexes, stale predecessor evidence and state/receipt mismatches are mandatory fail-closed regression cases.
-
-### QV2-1679-005 — ENTRY-EVIDENCE producer admission
-
-The plan now explicitly permits a valid `V2-ENTRY-EVIDENCE` allocation after durable owner activation while the target oracle/WH09 artifacts are initially absent or `UNKNOWN`, provided all other fences pass and `repository_implementation=false`.
-
-Exact immutable independent `PASS` evidence for both artifacts is required for `V2-BOOTSTRAP` and later lanes, not for admitting the ENTRY producer lane itself.
-
-Mandatory regression pair:
-
-- clean activation + ENTRY with missing/UNKNOWN target artifacts -> PASS;
-- BOOTSTRAP while either artifact is not exact independent PASS -> FAIL.
-
-### QV2-1679-006 — complete legacy PAPER fence
-
-The plan now requires machine contract, prompt and routing to enforce exactly:
-
-```yaml
-quant_v2_authority: false
-may_allocate_quant_v2_lanes: false
-may_mutate_quant_v2_governance: false
-treatment: legacy_closeout_or_reclassification_only
-```
-
-`WDROŻENIE PAPER` / `WDROŻENIE PAPER dalej` may close out valid legacy work but may not create/take over V2 allocations, mutate Quant-v2 governance/state, claim V2-owned/shared surfaces, or perform further target-driven mutation without reclassification under ADR-023/025/027.
+This closes the remaining trust-anchor gap without changing the owner-approved architecture.
 
 ## Risk
 
@@ -161,7 +160,7 @@ risk_gates:
   - independent_audit
 ```
 
-Runtime/browser E2E is `NOT_APPLICABLE_WITH_REASON` for this design/planning-only documentation task.
+Runtime/browser E2E is `NOT_APPLICABLE_WITH_REASON` for this design/planning-only task.
 
 ## Owned paths
 
@@ -169,33 +168,37 @@ Runtime/browser E2E is `NOT_APPLICABLE_WITH_REASON` for this design/planning-onl
 - `docs/superpowers/plans/2026-08-28-quant-v2-execution-governance.md`
 - `docs/agents/tasks/active/FTAI-20260828-quant-v2-execution-governance-design.md`
 
-No other path is authorized by this design/planning task.
+No other path is authorized by this task.
 
 ## Acceptance
 
 - owner-approved spec blob remains exact and unchanged;
-- generic repository execution policy remains authoritative and does not contain the V2 DAG;
-- design merge is Task 0 and a hard predecessor of governance implementation;
-- exactly one coordinator and the approved V2-S1 DAG remain explicit;
-- canonical programme state is the sole dynamic programme-state/allocation/predecessor truth after activation;
-- production validator cannot omit incumbents or self-assert programme/predecessor state;
-- activation has a durable epoch/receipt binding;
-- `V2-ENTRY-EVIDENCE` can legally produce missing evidence without self-deadlock;
-- BOOTSTRAP/later lanes require exact independent PASS oracle + canonical WH09 fixture;
-- generic lease policy is inherited mechanically from `PROJECT_LANES.execution.lease_minutes`;
-- legacy PAPER path has the complete four-part fence and reclassification-only behaviour;
-- design/plan creates no V2 implementation/deployment/model/private-exchange/real-capital authority;
-- governance implementation remains blocked until this new exact PR head has fresh exact-head CI, a fresh genuinely independent audit with zero material P0/P1 findings, and guarded merge.
+- generic repository execution policy remains authoritative and contains no V2 DAG;
+- design merge is Task 0 and hard predecessor of governance implementation;
+- exactly one coordinator and approved DAG remain explicit;
+- production worker authority is anchored to exact current trusted `origin/develop`, not a caller snapshot;
+- expected governance identity is derived from trusted current history, not a CLI parameter;
+- production lease expiry uses validator-owned current UTC with no ordinary override;
+- canonical programme state is the sole dynamic state/allocation/predecessor truth after activation;
+- state generation is mechanically bound to trusted Git history and current allocations bind current generation;
+- production validator cannot omit incumbents or self-assert state/predecessor truth;
+- activation has durable epoch/receipt binding;
+- ENTRY can legally produce missing evidence without self-deadlock;
+- BOOTSTRAP/later require exact independent PASS oracle + WH09 fixture;
+- generic lease policy is inherited mechanically from current `PROJECT_LANES.execution.lease_minutes`;
+- legacy PAPER path has complete four-part fence and reclassification-only behaviour;
+- design/plan grants no V2 runtime/deployment/model/private-exchange/real-capital authority;
+- governance implementation remains forbidden until the current exact PR head has fresh exact-head CI, fresh genuinely independent audit with zero material P0/P1 findings, and guarded merge.
 
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 2
+checkpoint_version: 3
 updated_at: 2026-08-28
 branch: docs/quant-v2-execution-governance-design
 pr: 1679
 status: validating
-phase: audit_remediation_v2
+phase: audit_remediation_v3
 risk:
   governance_or_ci: true
 authority_freeze:
@@ -208,20 +211,20 @@ owned_paths:
   - docs/agents/tasks/active/FTAI-20260828-quant-v2-execution-governance-design.md
 proven:
   - ADR-027 is merged binding Quant Platform v2 promotion authority
-  - prior architecture-promotion lifecycle is terminal
   - owner-approved spec is unchanged
+  - generation-2 audit is durable as PR comment 5454136040
+  - generation-3 audit is durable as PR comment 5455400415
   - QV2-1679-001 is remediated
-  - QV2-1679-003 is remediated
-  - generation-2 independent audit is durable as PR comment 5454136040
-  - generation-2 plan remediation commit is 7b551628288b05dce5540981c8a07d6614fba9c6
+  - QV2-1679-005 is remediated
+  - QV2-1679-006 is remediated
 validation:
   - owner-approved spec unchanged: PASS
-  - QV2-1679-002 canonical predecessor truth remediation: PASS_SELF_REVIEW
-  - QV2-1679-004 canonical programme/allocation census remediation: PASS_SELF_REVIEW
-  - QV2-1679-005 ENTRY self-deadlock remediation: PASS_SELF_REVIEW
-  - QV2-1679-006 complete legacy PAPER fence remediation: PASS_SELF_REVIEW
+  - QV2-1679-002 trusted-current predecessor truth remediation: PASS_SELF_REVIEW
+  - QV2-1679-003 validator-owned UTC lease expiry remediation: PASS_SELF_REVIEW
+  - QV2-1679-004 trusted-current programme/allocation census remediation: PASS_SELF_REVIEW
+  - QV2-1679-007 production trust-anchor remediation: PASS_SELF_REVIEW
 blockers:
   - new exact head requires fresh repository CI and genuinely independent exact-head re-audit
   - governance implementation remains forbidden until this design PR is qualified and merged
-next_action: Require exact-head CI plus a fresh independent audit explicitly retesting QV2-1679-001..006; guarded squash-merge only on zero material findings, then create the post-merge governance implementation task/branch.
+next_action: Require exact-head CI plus fresh independent audit explicitly retesting QV2-1679-001..007; guarded squash-merge only on zero material findings, then create post-merge governance implementation task/branch.
 ```

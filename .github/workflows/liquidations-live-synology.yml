@@ -94,7 +94,7 @@ jobs:
           EXPECTED_IMAGE_ID: ${{ steps.build.outputs.image_id }}
         run: |
           set -euo pipefail
-          image_repo="ghcr.io/blakinio/liquid20-collector"
+          image_repo="ghcr.io/blakinio/freqtrade-liquid20-collector"
           image_tag="${image_repo}:deploy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_SHA}"
           docker tag "$LOCAL_IMAGE" "$image_tag"
           docker push "$image_tag"
@@ -173,7 +173,7 @@ jobs:
             echo "Hosted collector image is linux/amd64; refusing incompatible Synology runner architecture: $RUNNER_ARCH_VALUE" >&2
             exit 64
           fi
-          [[ "$BUILT_IMAGE_REF" =~ ^ghcr\.io/blakinio/liquid20-collector@sha256:[0-9a-f]{64}$ ]]
+          [[ "$BUILT_IMAGE_REF" =~ ^ghcr\.io/blakinio/freqtrade-liquid20-collector@sha256:[0-9a-f]{64}$ ]]
           [[ "$BUILT_IMAGE_ID" =~ ^sha256:[0-9a-f]{64}$ ]]
           printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
           docker pull "$BUILT_IMAGE_REF" >/dev/null

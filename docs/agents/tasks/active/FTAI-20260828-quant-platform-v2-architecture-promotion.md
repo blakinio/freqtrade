@@ -2,11 +2,11 @@
 task_id: FTAI-20260828-quant-platform-v2-architecture-promotion
 repository: blakinio/freqtrade
 branch: docs/quant-v2-architecture-promotion
-status: implementing
+status: validating
 execution_mode: github_only
 trusted_base: c9bbd17c716162edffd5b695eac4fb197c7bbf38
 candidate_pr: 1676
-promotion_pr: null
+promotion_pr: 1677
 ---
 
 # Quant Platform v2 bounded architecture promotion
@@ -54,10 +54,11 @@ E2E: `NOT_APPLICABLE` for the promotion itself because it changes architecture/g
 - `ARCHITECTURE_REGISTRY.yaml`
 - `AGENTS.md`
 - `docs/agents/AGENTS.md`
+- `docs/agents/tasks/active/FTAI-20260828-quant-platform-v2-architecture-promotion.md`
 - `docs/ai_platform/portal/README.md`
+- `docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md`
 - `docs/ai_platform/portal/ADR-027_QUANT_PLATFORM_V2_ARCHITECTURE_PROMOTION.md`
 - `docs/ai_platform/reviews/2026-08-28-quant-platform-v2-architecture-qualification.md`
-- this task record
 
 ## Acceptance
 
@@ -78,26 +79,33 @@ E2E: `NOT_APPLICABLE` for the promotion itself because it changes architecture/g
 checkpoint_version: 1
 updated_at: 2026-08-28T08:37:00Z
 branch: docs/quant-v2-architecture-promotion
-head: 0c1babddf497176602c546ed4fe548a6b482f033
-pr: null
-status: implementing
+head_before_checkpoint_commit: a68ed48f23ea5e99ea2eae88e5743278a1014e27
+pr: 1677
+status: validating
 authority_freeze:
   current_base_commit: c9bbd17c716162edffd5b695eac4fb197c7bbf38
 proven:
   - PR #1676 exact candidate head is 5efda8fc9297f9387fffcfc7c81e604baee4e8bf and merged candidate commit is c9bbd17c716162edffd5b695eac4fb197c7bbf38
-  - exact candidate changed three architecture files
-  - exact candidate checks are terminal with no observed failure/in-progress; CI Gate and CodeQL succeeded
-  - read-only exact-state candidate qualification found no unresolved current-gate P0/P1 architecture blocker
-  - ADR-027 now records the bounded promotion relationship without implementation/live authority
+  - exact candidate changed three architecture files and was independently qualified with no unresolved current-gate P0/P1 architecture blocker
+  - PR #1677 is the separate bounded promotion PR targeting frozen develop@c9bbd17c716162edffd5b695eac4fb197c7bbf38
+  - PR #1677 final authored scope contains exactly eight expected governance/documentation paths
+  - accepted decision log changes only by appending ADR-027; historical ADR-020 wording was restored after self-review
+  - canonical registry points latest_architecture_change to ADR-027 and records ADR-026 as qualified_and_promoted while keeping implementation target_only/unproven
+  - ADR-023 product and ADR-025 placement authority remain explicit; ADR-027 adds only v2 core/migration target authority
+  - architecture promotion leaves implementation lanes/control-plane/DAG behind a separate execution-governance gate and leaves V2-S1 reference-oracle/WH09 fixture entry evidence gated
 unknown:
-  - final promotion diff/validation and exact-head CI
-  - fresh independent audit result for the promotion PR itself
+  - exact-final-head relevant CI result after this checkpoint commit
+  - fresh independent audit result for promotion PR #1677
 conflicts: []
 validation:
   - candidate architecture qualification: QUALIFIED
-  - promotion policy regression: NOT_RUN
-  - trusted-base self-validation: NOT_RUN
-  - exact-final-head CI: NOT_RUN
-blockers: []
-next_action: Synchronize canonical registry and agent/Portal authority routing with ADR-027, then run focused governance validation and open the promotion PR.
+  - promotion full-diff self-review: PASS
+  - architecture-registry guard compatibility: PASS_BY_INSPECTION; exact-head CI pending
+  - trusted-base self-validation: PASS_BY_INSPECTION; frozen governance preserved and no self-waiver observed
+  - promotion policy regression: PENDING_EXACT_HEAD_CI
+  - exact-final-head CI: PENDING
+  - promotion independent audit: PENDING
+blockers:
+  - merge remains gated on exact-final-head CI and a fresh independent promotion audit
+next_action: Verify exact-final-head CI for PR #1677 and obtain a fresh independent audit; merge only if both gates pass with no unresolved material finding.
 ```

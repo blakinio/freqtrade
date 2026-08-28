@@ -63,6 +63,26 @@ latest_architecture_change:
     - portal_research_integration
   implementation_note: The owner retained Synology as the current persistent Portal/bot/application runtime and durable-storage host while keeping GitHub-hosted Actions as the default stateless CI/test/build/scan/disposable-compute plane. The hosted build-plane work from PR #1609 remains valid; a separate dedicated Linux runtime host is no longer a current completion requirement. Persistent containers run on Synology, while portable images are built/published on GitHub-hosted runners where practical. Retained Synology self-hosted runner access should be deploy-only or equivalently narrow.
 
+latest_architecture_candidate:
+  recorded_at: "2026-08-28"
+  base_sha: 2a85a4ba54a55bb3312262e0a600a9a889ce31ce
+  decision: ADR-026
+  decision_document: docs/ai_platform/portal/ADR-026_QUANT_PLATFORM_V2_CORE_AND_FREQTRADE_RETIREMENT.md
+  detail_document: docs/ai_platform/portal/QUANT_PLATFORM_V2_TARGET_ARCHITECTURE.md
+  candidate_branch: docs/quant-v2-architecture-candidate
+  status: selected_pending_independent_architecture_qualification
+  binding_effect: none_until_qualified_and_promoted
+  qualification_command: "Quant: audyt architektury"
+  owner_migration_end_state: freqtrade_retired_from_persistent_developer_quant_v2_runtime
+  affected_domains:
+    - research_and_strategy
+    - portal_and_ux
+    - execution_and_risk
+    - data_and_observability
+    - deployment_and_operations
+    - ci_and_quality
+  implementation_note: ADR-026 records the selected clean-sheet deterministic Rust Quant Core plus strangler migration target while retaining Python ML/WickHunter, the TypeScript/Next.js Portal and the FastAPI Portal facade. It is a non-binding candidate until independent exact-head architecture qualification passes and a separate bounded promotion change updates accepted authority. No runtime implementation is claimed or authorized by this candidate.
+
 classification_values:
   - canonical_registry
   - accepted_decision_log
@@ -95,6 +115,9 @@ authority:
     - Target-only or mixed documents must never be reported as fully implemented without exact evidence.
     - Historical baselines preserve context but do not override accepted decisions or current-state evidence.
     - Material architecture changes update this registry and the accepted decision authority in the same change set.
+    - A registered architecture candidate is not a material change to binding authority until it is independently qualified and explicitly promoted; candidate documents must not silently supersede latest_architecture_change or accepted ADRs.
+    - ADR-026 is the selected Quant Platform v2 architecture candidate pending independent exact-head ARCHITECTURE_QUALIFICATION. While pending, ADR-023, ADR-025 and DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md remain current binding product/runtime target authority.
+    - ADR-026 records the owner-selected Freqtrade migration end state for qualification: Freqtrade is to leave the persistent Developer Quant v2 runtime after bounded parity/intentional-difference, recovery and owner-facing proof, while remaining available as reference oracle, migration input, temporary compatibility and bounded offline/reference tooling where useful. This selection is not implementation evidence and does not remove current Freqtrade-backed runtime paths before qualification/promotion/migration gates.
     - ADR-023 is the current product overlay for the entire Portal and supersedes conflicting current-Portal assumptions in ADR-003, ADR-004, ADR-005, ADR-013, ADR-014, ADR-016, ADR-017, ADR-020, ADR-021 and ADR-022 exactly as recorded in its supersession matrix.
     - ADR-025 is the current runtime/CI-placement overlay. Synology is the normal current persistent application runtime and durable-storage host; GitHub-hosted Actions is the default stateless/disposable CI/test/build/scan/job plane and is not a 24/7 application host.
     - ADR-025 supersedes ADR-024 only where ADR-024 required a separate dedicated Linux persistent runtime, treated Synology compute as transitional-only, or made dedicated-Linux cutover a current completion requirement. ADR-024 remains historical evidence and its GitHub-hosted build-plane direction is retained.
@@ -208,7 +231,29 @@ documents:
     authority: canonical_index
     implementation_status: not_applicable
     owner_role: A3-architecture-ci-reviewer
-    last_reviewed_at: "2026-08-18"
+    last_reviewed_at: "2026-08-28"
+
+  - path: docs/ai_platform/portal/ADR-026_QUANT_PLATFORM_V2_CORE_AND_FREQTRADE_RETIREMENT.md
+    title: ADR-026 Quant Platform v2 core ownership and Freqtrade retirement candidate
+    classification: domain_architecture
+    scope: selected Quant Platform v2 target direction, technology/ownership split, Freqtrade migration end state, first evidence-producing slice and qualification/promotion gates
+    authority: selected_candidate_pending_independent_architecture_qualification
+    implementation_status: target_only
+    owner_role: architecture-owner
+    last_reviewed_at: "2026-08-28"
+    evidence_rule: This document is the architecture candidate to qualify. It does not supersede accepted current authority, prove implementation, grant runtime mutation or make Freqtrade retirement complete.
+    safety_note: ADR-023/ADR-025 remain binding while qualification is pending; no real-money execution/private exchange authority is introduced.
+
+  - path: docs/ai_platform/portal/QUANT_PLATFORM_V2_TARGET_ARCHITECTURE.md
+    title: Quant Platform v2 target architecture candidate
+    classification: domain_architecture
+    scope: detailed target topology, bounded contexts, Rust/Python/TypeScript split, deterministic simulation/replay/state ownership, ML/AI boundaries, migration, V2-S1 and verification architecture
+    authority: detailed_selected_candidate_pending_independent_architecture_qualification
+    implementation_status: target_only
+    owner_role: architecture-owner
+    last_reviewed_at: "2026-08-28"
+    evidence_rule: Use as the exact candidate under Quant architecture qualification; all implementation claims still require exact code/test/runtime evidence and qualification findings must be resolved before promotion.
+    safety_note: Final implementation lanes/control-plane/DAG remain non-canonical until the independent architecture qualification gate passes.
 
   - path: docs/ai_platform/portal/ADR-025_SYNOLOGY_PERSISTENT_RUNTIME_GITHUB_BUILD_PLANE.md
     title: ADR-025 Synology persistent runtime and GitHub-hosted build/disposable-compute decision

@@ -106,9 +106,7 @@ def legacy_issue_state_gate_is_applicable(repository_root: Path | None = None) -
         "SHADOW/PAPER/LIVE are historical or compatibility vocabulary only" in registry
     )
     return not (
-        has_adr023_product_decision
-        and has_adr023_portal_overlay
-        and has_current_vocabulary
+        has_adr023_product_decision and has_adr023_portal_overlay and has_current_vocabulary
     )
 
 

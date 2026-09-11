@@ -3,45 +3,79 @@
 Date: 2026-09-11  
 Repository baseline: `develop@f52a38d102f37888271816897494cab45cbff80a`  
 Alias: `FREQTRADE_WICKHUNTER_REVERSE_PRODUCT_AUDIT_V1`  
-Terminal state: `WICKHUNTER_VS_FREQTRADE_DECISION_READY`
+Remediation alias: `FREQTRADE_WICKHUNTER_AUDIT_PR1708_REMEDIATION`  
+Audit terminal state: `WICKHUNTER_VS_FREQTRADE_DECISION_READY`
 
 ## Scope and evidence rules
 
-This document records the completed read-only reverse-product and architecture audit of the official WickHunter beta runtime against:
+This document records a read-only reverse-product and architecture audit of the official WickHunter beta runtime against:
 
-- the current `blakinio/freqtrade` implementation,
-- the currently accepted Quant Platform target architecture,
-- historical/internal WH09 work that may now overlap with the vendor product.
+- the `blakinio/freqtrade` implementation at the recorded audit baseline,
+- the accepted Quant Platform target architecture,
+- historical/internal WH09 work that may overlap with the vendor product.
 
-The audit did **not** mutate the repository, Synology runtime, Docker state, WickHunter configuration, credentials, models, exchange state, orders, withdrawals, or capital. Proprietary vendor code was not copied. Secret values were not printed or persisted.
+The audit and PR #1708 remediation do **not** authorize or perform repository-runtime deployment, Synology mutation, WickHunter modification, proprietary-bundle patching, credential testing, private exchange calls, order placement/cancellation, withdrawals, or capital use. Proprietary vendor code is not copied. Secret values are not printed or persisted.
 
-Evidence terminology used here:
+### Claim taxonomy
 
-- **FACT** — directly verified from repository state, public WickHunter source, or read-only runtime inspection.
+- **FACT** — directly verified from repository state, public vendor material, or the bounded read-only runtime observations recorded by the audit.
 - **INFERENCE** — conclusion derived from verified facts but not directly demonstrated end-to-end.
 - **UNKNOWN** — not safely or sufficiently proven.
-- **RECOMMENDATION** — proposed product/architecture action.
+- **RECOMMENDATION** — proposed product/architecture action, not proof of implementation.
+- **POST-AUDIT EVIDENCE** — evidence supplied after the original inspection and used to correct an earlier interpretation; it is evidence, not repository architecture authority.
 
-WickHunter evidence levels:
+### WickHunter product-readiness taxonomy
 
-- `WH-E3`: direct runtime behavior demonstrated.
-- `WH-E2`: direct runtime interface/state/schema evidence.
-- `WH-E1`: public/static source evidence.
+- `SUPPORTED_UI` — capability is exposed by the current WickHunter UI as ready for use.
+- `VENDOR_DOCUMENTED` — capability/interface is described by official vendor material as supported.
+- `OBSERVED_RUNTIME` — behavior was directly observed in the bounded runtime inspection.
+- `INTERNAL/DORMANT` — code, route, schema, string, feature gate, or state shape exists, but current supported product exposure was not established.
+- `UNKNOWN` — evidence is insufficient to classify support/readiness.
 
-Gap classes:
+**Hard rule:** internal implementation evidence does not establish product readiness or integration authority.
 
-- `A` — WickHunter has it; ours has it.
-- `B` — WickHunter has it; ours is incomplete.
-- `C` — WickHunter has it; ours is planned but not implemented.
-- `D` — ours has it; WickHunter does not appear to.
-- `E` — both have it but semantics materially differ.
+For product-readiness claims, `SUPPORTED_UI` and `VENDOR_DOCUMENTED` are the relevant vendor support signals. `OBSERVED_RUNTIME` proves only the behavior actually observed. `INTERNAL/DORMANT` evidence may explain implementation shape but must not be promoted into a supported capability claim.
+
+**POST-AUDIT EVIDENCE — vendor feedback:** “Things that are ready are displayed in the UI.” This statement is treated as vendor evidence that UI exposure is a readiness signal; it does not override repository authority or prove any capability that was not displayed/documented.
+
+### WickHunter inspection evidence levels
+
+- `WH-E3`: direct bounded runtime behavior demonstrated.
+- `WH-E2`: direct runtime interface/state/schema observation; may still be `INTERNAL/DORMANT` for product readiness.
+- `WH-E1`: public/static vendor-source evidence.
+
+### Gap classes
+
+- `A` — supported/observed WickHunter capability and ours has a comparable capability.
+- `B` — supported/observed WickHunter capability and ours is incomplete.
+- `C` — supported/observed WickHunter capability and ours is planned but not implemented.
+- `D` — ours has it; equivalent WickHunter product capability was not established.
+- `E` — both have relevant capability but semantics materially differ.
 - `F` — neither current implementation has it, but the accepted target requires it.
 - `G` — WickHunter evidence is insufficient.
-- `H` — our authority/evidence is insufficient.
+- `H` — our repository evidence/authority is insufficient.
 
 Allowed recommendation vocabulary:
 
 `USE_WICKHUNTER`, `INTEGRATE_AROUND`, `BUILD_OURS`, `KEEP_OURS`, `ADOPT_PATTERN`, `DEFER`, `DROP`, `REQUIRES_DECISION`, `UNKNOWN`.
+
+### Remediation risk record
+
+```yaml
+risk:
+  persistent_data: false
+  research_integrity: true
+  model_activation: false
+  auth_or_secrets: true
+  shared_synology_mutation: false
+  deployment: false
+  user_workflow_change: false
+  destructive_operation: false
+  real_capital: false
+  governance_or_ci: false
+```
+
+The associated gates are secret-value exclusion, no private exchange calls, no orders, no Synology mutation, no expansion into a real-capital architecture, and no further proprietary-runtime investigation beyond evidence needed to correct this document.
 
 ---
 
@@ -49,22 +83,22 @@ Allowed recommendation vocabulary:
 
 ### Decision
 
-**RECOMMENDATION — adopt a hybrid architecture.**
+**RECOMMENDATION — keep the hybrid direction, defined as coexistence plus clear ownership boundaries.**
 
-Do not build a second WickHunter product, and do not collapse the platform into WickHunter-only ownership.
+Do not build a second WickHunter product merely to duplicate vendor-facing trader UX. Do not collapse our platform into WickHunter-only ownership either.
 
-The vendor product already covers a broad class of trader-facing capabilities that would be expensive and duplicative to reproduce: bot configuration, exchange-account handling, execution-oriented surfaces, multiple strategy/bot families, diagnostics, P&L/history surfaces, licensing, signed distribution/update, and a central Hub/community boundary.
+The evidence supports a material WickHunter advantage in trader-facing product surface: current UI-visible bot/strategy controls, observed login/session behavior, local product state, diagnostics/health surfaces, and vendor-documented licensing/update/Hub responsibilities. Internal routes or dormant implementation are explicitly excluded from this readiness claim.
 
-Our platform should continue to own the capabilities that are strategically distinct and already central to the accepted Quant v2 target: research/data lineage, evaluation integrity, model lifecycle, deterministic simulation/replay/recovery, causal state, PostgreSQL evidence, Portal/BFF workflow, Liquid20/public market data, vendor-independent validation, and an explicit vendor-exit boundary.
+Our platform should continue to own capabilities that are strategically distinct and central to the accepted Quant v2 target: research/data lineage, evaluation integrity, model lifecycle, deterministic simulation/replay/recovery, causal state, PostgreSQL evidence, Portal/BFF workflow, Liquid20/public market data, independent validation, and vendor exit/reproducibility.
 
 ### Stop or defer duplicate work
 
-- duplicate trader console parity,
-- generic bot configuration UI intended to mirror WickHunter,
-- independent first-class Grid/Manual/TV/Hedge product parity,
-- permanent Freqtrade execution/state ownership,
+- duplicate trader-console parity for capabilities already `SUPPORTED_UI` or `VENDOR_DOCUMENTED` in WickHunter,
+- generic bot-configuration UI whose only purpose is vendor-product parity,
+- first-class Grid/Manual/TV/Hedge parity unless a distinct Developer Quant requirement justifies it,
+- permanent Freqtrade execution/state ownership contrary to the accepted v2 migration target,
 - WH09 paper runtime as an enduring product runtime,
-- current Portal paths whose only value is recreating vendor trading features.
+- Portal paths whose only value is recreating vendor trading-product behavior.
 
 ### Keep and strengthen
 
@@ -79,11 +113,13 @@ Our platform should continue to own the capabilities that are strategically dist
 - independent simulation/risk validation,
 - vendor-exit and reproducibility boundary.
 
-### Recommended high-level boundary
+### Corrected integration stance
 
-`our data/research/evaluation/models -> versioned decision contract -> WickHunter/Python decision plane -> Rust deterministic Quant Core -> PostgreSQL causal evidence -> Portal`
+**RECOMMENDATION — coexistence first; integrate only through vendor-supported/documented interfaces.**
 
-The official WickHunter UI may remain a separate vendor console. The current Developer Quant Portal must not become a browser surface for storing or exercising WickHunter private exchange credentials.
+The official WickHunter UI may remain a separate vendor console. Our Developer Quant platform remains independently useful and keeps its own research/evidence/deterministic ownership.
+
+A technical WickHunter adapter is **OPTIONAL / FUTURE / REQUIRES_SUPPORTED_VENDOR_INTERFACE**. The audit did not establish a stable vendor-supported decision API or contract. Internal/dormant routes are not an integration contract, and the document does not recommend patching the proprietary bundle or bypassing feature gates.
 
 ---
 
@@ -91,95 +127,64 @@ The official WickHunter UI may remain a separate vendor console. The current Dev
 
 ### Repository
 
-**FACT** — the exact repository baseline used for final authority readback was:
+**FACT** — the exact repository baseline used for the original final authority readback was:
 
 `develop@f52a38d102f37888271816897494cab45cbff80a`
 
-The associated Git tree SHA is:
+The associated Git tree SHA was:
 
 `7e29902675ba7199ceed9fdeaaeed4db67f2f9f3`
 
 The tree SHA is not the branch/commit HEAD.
 
-### Current accepted authority
+### Accepted repository authority
 
-**FACT** — current product and target architecture remain layered:
+**FACT** — product and target architecture are layered:
 
 - ADR-023: private single-owner Developer Quant product boundary,
-- ADR-025: Synology persistent runtime + GitHub-hosted CI/build/disposable compute,
+- ADR-025: Synology persistent runtime plus GitHub-hosted CI/build/disposable compute,
 - ADR-026 as promoted by ADR-027: Quant Platform v2 target architecture.
 
-**FACT** — current Portal authority excludes real-money execution, private trading credentials for order submission, withdrawals, and capital authority. Any future real-capital capability requires a separate owner-approved Execution/Capital Gateway architecture/programme.
+**FACT** — ADR-023/ADR-027 do not authorize real-money execution, private trading credentials for order submission, withdrawals, or capital authority. A future real-capital system would require a separate owner-approved Execution/Capital Gateway architecture/programme.
 
 ### Official WickHunter runtime
 
-**FACT / WH-E3** — official runtime returned:
+**FACT / `OBSERVED_RUNTIME` / WH-E3** — the official runtime returned:
 
 `GET http://127.0.0.1:8090/api/health -> 200 {"ok":true,"version":"0.90.63"}`
 
-Observed official containers:
+Observed official containers included:
 
 - `wickhunter-official-wickhunter-1` using `local/wickhunter-official:0.90.63`,
 - `wickhunter-official-https-proxy-1` using `local/wickhunter-caddy:2.10.2`.
 
-Observed hardening/runtime properties included:
+Observed hardening/runtime properties included a non-root runtime user, read-only root filesystem, non-privileged container configuration, bounded mounts, restart policy, and a local health contract.
 
-- non-root runtime user `1032:100`,
-- `ReadonlyRootfs=true`,
-- `Privileged=false`,
-- restart policy `unless-stopped`,
-- read-only secrets mount,
-- writable application-data mount,
-- local health contract.
+### Credential/environment correction
 
-### Credential-boundary correction
+**FACT / `OBSERVED_RUNTIME` / WH-E2** — a redacted state scan found nonempty encrypted exchange credential fields. No credential values were printed or retained.
 
-**FACT / WH-E2** — a redacted state scan found nonempty encrypted credential fields in `accounts.json`:
+**FACT / `OBSERVED_RUNTIME` / WH-E2** — the local WickHunter account record classified the inspected Bitget account with `testnet=false`.
 
-- `apiKeyEnc`,
-- `apiSecretEnc`,
-- `apiPassphraseEnc`,
-- a nonempty masked key field.
+**POST-AUDIT EVIDENCE** — a separate Bitget Demo test supplied after the original audit showed that WickHunter `0.90.63` can persist a Bitget Demo account in local state as `env: mainnet` / `testnet:false` because Bitget Demo is not exposed as a ready/supported UI environment in that version.
 
-The scanned account was configured for `bitget` with `testnet=false`.
+**UNKNOWN** — the actual exchange-side environment, permissions, funds, or capital status of the encrypted credentials observed during the audit was not independently proven.
 
-No credential values were printed or retained.
+Therefore the local `testnet=false` classification must **not** be described as proof that the credentials were live, production, mainnet-funded, or real-capital credentials.
 
-**FACT** — this invalidates any assumption that the official runtime is merely a no-credential or non-trading demo instance.
+**FACT** — all inspected positions files had zero open and zero closed positions at the final original readback.
 
-**FACT** — all inspected positions files had zero currently open and zero closed positions at final readback.
-
-**SAFETY DECISION** — private exchange endpoints, order placement/cancellation, credential mutation, and real-execution proof were intentionally not exercised.
+**SAFETY DECISION** — private exchange endpoints, order placement/cancellation, credential mutation, and real-execution proof were intentionally not exercised and are not part of this remediation.
 
 ---
 
 ## 3. OFFICIAL WICKHUNTER — WHAT IT ACTUALLY IS
 
-### Product shape
+### Supported versus internal evidence
 
-**FACT / WH-E2** — the installed package exposed product/interface families for:
+The original static/runtime inventory showed a broad set of routes, schemas, labels, and state families. That evidence is useful for understanding product shape but must be separated from supported readiness.
 
-- authentication/session,
-- accounts and active-account selection,
-- bot creation/update/retirement,
-- AI draft/apply/recommend/replay/status,
-- config export,
-- deal controls including close/add-funds/DCA operations,
-- diagnostics/logs,
-- grid creation/update/delete/backtest/fills/restart/stop/suggest,
-- hedge controls and simulations,
-- Hub FAQ/feedback/community strategy publishing/voting,
-- license check-in and lease challenge,
-- liquidation screener/history/sources,
-- market caps,
-- P&L summary/trades/verification,
-- replay and what-if,
-- strategy save/eval/backtest/visualize/AI critique/draft/explain,
-- terminal/order/deal/hedge/plan surfaces,
-- TradingView bot/signals,
-- private-looking exchange route families.
-
-**FACT / WH-E2** — static product labels included:
+**`SUPPORTED_UI` / observed labels** included current product-facing families such as:
 
 - `AI Strategy`,
 - `Grid`,
@@ -189,100 +194,72 @@ No credential values were printed or retained.
 - `Strategy Builder`,
 - `TV Signal`.
 
+Where the UI exposes a capability as ready, it may be treated as a supported product surface for this audit. Exact end-to-end semantics still require separate evidence when material.
+
+**`INTERNAL/DORMANT` / WH-E2** evidence included route or implementation families for authentication, accounts, bot lifecycle, AI draft/apply/replay/status, deal controls, grids, hedging, P&L, replay/what-if, strategy evaluation, terminal/order/deal operations, TradingView signals, and exchange-specific paths. Their existence alone does not prove that each feature is supported, ready, stable, or vendor-authorized for integration.
+
+### Bitget Demo
+
+**POST-AUDIT EVIDENCE** — WickHunter `0.90.63` contains internal Bitget Demo-related implementation elements, but Bitget is classified with `hasDemo: false` in the relevant feature readiness path.
+
+**POST-AUDIT EVIDENCE — vendor feedback** — Bitget Demo is not ready in this version, consistent with the broader vendor statement that ready features are displayed in the UI.
+
+**CONCLUSION** — Bitget Demo is `NOT READY / NOT SUPPORTED` for WickHunter `0.90.63`. Internal implementation elements do not change that classification.
+
+No recommendation is made to patch the bundle, flip hidden/demo flags, or bypass the feature gate.
+
 ### Persistence shape
 
-**FACT / WH-E2** — runtime data included local persistent state for:
+**FACT / `OBSERVED_RUNTIME` / WH-E2** — local runtime state included structures for deal/DCA/hedge/entry activity, liquidation history, contexts, positions, installation/update metadata, and licensing/subscription/lease state.
 
-- DCA, hedge, deal and entry events,
-- liquidation history,
-- activity events,
-- bot contexts,
-- positions,
-- percentile/materialized data,
-- install identity,
-- latest-version/update metadata,
-- licensing/subscription/lease state.
-
-Observed runtime JSON schemas showed bot configuration, runtime contexts, deal overrides, entry state, filters, hedge state, notifications, strategy state, open/closed positions, decision/feature/skip metadata and liquidation records.
+This proves local persistence structures exist. It does not by itself prove all UI features using those structures are supported or prove crash/reconciliation semantics for exchange-side state.
 
 ### Hub / distribution / updates
 
-**FACT / WH-E1** — public source repository: `WickHunter/wickhunter-hub`.
+**FACT / `VENDOR_DOCUMENTED` / WH-E1** — public Hub/release material documents signed release manifests, tarball hashes, release-key verification, update compatibility behavior, and Hub license/check-in/lease surfaces.
 
-At audit time the public Hub `main` head was `be0944b881c0d10dfa85ae87e3b6f2284f2ea497`.
+**FACT / WH-E1** — public Hub hosting policy contains reachability probes for seven venue families: Bybit, Binance USD-M, Bitget, Bitunix, BloFin, WEEX, and Aster.
 
-**FACT / WH-E1** — public hosting policy exposed reachability/support probes for seven venues:
+That is **reachability/public-source evidence**, not proof that all seven venues are fully supported for trading in the current WickHunter UI.
 
-- Bybit,
-- Binance USD-M,
-- Bitget,
-- Bitunix,
-- BloFin,
-- WEEX,
-- Aster.
+### What remains unproven
 
-**FACT / WH-E1** — the release contract uses signed manifests and tarball hashes. Public release-key material is separated from the offline private release key. Both Hub and installer/updater independently verify relevant update integrity properties. Rollback can be represented by moving `latest.json` to an older signed tarball.
+**UNKNOWN** — an exhaustive supported-venue matrix for `0.90.63` was not established by this audit.
 
-### What is not proven
+**UNKNOWN** — internal route/adapter presence does not prove exchange-specific order semantics, partial-fill handling, reconciliation, restart behavior, or failure recovery.
 
-**UNKNOWN** — route existence does not prove complete live-execution correctness.
-
-**UNKNOWN** — end-to-end semantics for real order submission, restart recovery with live positions, reconciliation, partial-fill handling, disconnect recovery, exchange-specific failure handling, and long-term license outage behavior were not safely demonstrated.
+**UNKNOWN** — long-term/offline license behavior, full configuration portability, and disaster-recovery semantics were not proven.
 
 ---
 
 ## 4. OUR CURRENT PLATFORM — WHAT ACTUALLY EXISTS
 
-### Portal implementation
+### Portal implementation snapshot
 
-**FACT** — the living Portal ledger reported approximately:
+**FACT** — the living exact-head Portal ledger at the recorded baseline reported:
 
 - 32 backend modules,
 - 95 backend routes,
 - 29 BFF handlers,
 - 33 frontend pages.
 
-**FACT** — Portal documentation describes the product as partially implemented and actively evolving.
+**FACT** — the product is partially implemented. The exact-head route ledger contains many `PARTIAL`, `DISCONNECTED`, and externally gated entries.
 
-**FACT** — a Synology package candidate existed, but protected target acceptance remained external/incomplete, and broader real API-mode browser E2E remained incomplete.
+Examples include disconnected bot-builder materialization, command activation/submission, exchange verification, grid policy storage/provider composition, signal processing, terminal intents, order/position/trade reconciliation, and runtime observability sources.
 
-### Material disconnected/partial areas
-
-Examples observed in the exact-head ledger:
-
-- bot builder drafts/finalize/preview/revise — disconnected,
-- command lifecycle/order/position control — disconnected,
-- exchange verification — disconnected,
-- grid policies/preview — disconnected,
-- signal endpoints/process — disconnected,
-- terminal intents — disconnected,
-- orders/positions/trades/execution activity — disconnected,
-- real runtime observability source — disconnected,
-- browser-to-BFF-to-backend API-mode closure — partial.
-
-Issue `#1098` remained open for real composed API-mode browser E2E. Fixture-only coverage does not prove browser -> BFF -> backend -> persistence/provider behavior.
+**FACT** — issue `#1098` remains an explicit gap for API-mode browser E2E against the real composed FastAPI/database path; fixture-only browser evidence does not prove browser -> BFF -> backend -> persistence/provider behavior.
 
 ### Research/ML/evaluation strength
 
-**FACT** — the repository contains substantial WickHunter/quant research infrastructure including:
+**FACT** — the repository contains substantial quant/WickHunter research infrastructure including baseline strategy, bounded optimization, candidate evaluation/activation support, deterministic replay, datasets/features/materialization, LightGBM scoring, paper-validation history, production-research evidence modules, replay price paths, and extensive research-integrity/model-comparison tests.
 
-- baseline strategy,
-- bounded optimization,
-- candidate activation/evaluation,
-- deterministic replay,
-- dataset/features/materialization,
-- LightGBM scoring,
-- paper validation,
-- production evaluation and market evidence,
-- replay price paths,
-- production research/runtime support,
-- extensive research-integrity and model-comparison tests.
+**FACT** — tests include protected/final holdout guards, model comparison suites, candidate identity checks, runtime-mode checks, health checks, and other provenance/evaluation controls.
 
-Tests include protected/final holdout guards, model comparison suites, candidate identity checks, runtime-mode checks, health checks and other research integrity controls.
+### Implementation-status evidence boundary
 
-### Current implementation authority
+**FACT** — `tools/portal_audit/ledger/index.json` is the living exact-head implementation inventory referenced by the repository's Portal status contract. At the recorded baseline that contract grants no live trading, real capital, withdrawals, private-trading credential use, automatic model/strategy promotion, protected-target mutation, or deployment authority.
 
-**FACT** — the living status authority explicitly does not grant live trading, real capital, withdrawals, private-trading credential use, model/strategy promotion beyond the defined lifecycle, protected mutation, or production deployment authority.
+This audit is evidence and analysis; it does not create a second implementation-status source.
 
 ---
 
@@ -290,213 +267,202 @@ Tests include protected/final holdout guards, model comparison suites, candidate
 
 ### Product workflow
 
-**FACT** — ADR-023 defines the current canonical Developer Quant vertical slice as:
+**FACT** — ADR-023 defines the Developer Quant vertical slice as:
 
 `REALTIME_PUBLIC -> bot/model decisions including NO_TRADE -> simulated positions/outcomes -> durable chronological dataset/labels -> local challenger training -> active/challenger/baseline comparison -> deliberate active-model selection -> restart-safe continued observation`
 
 ### Runtime placement
 
-**FACT** — ADR-025 places persistent application runtime and durable storage on Synology while using GitHub-hosted Actions for CI, tests, scanning, packaging, image builds and bounded disposable jobs.
+**FACT** — ADR-025 places persistent application runtime and durable storage on Synology and uses GitHub-hosted Actions for stateless/disposable CI, tests, scans, packaging, image builds, and bounded jobs.
 
 ### Quant v2 target
 
-**FACT** — ADR-027/ADR-026 define the target ownership split:
+**FACT** — ADR-026 as promoted by ADR-027 selects:
 
-- Rust Quant Core: deterministic event ordering, simulation, journal/replay/recovery and causal state,
-- Python: WickHunter/strategy/ML plane,
-- PostgreSQL: recovery spine,
-- FastAPI + Next.js: owner-facing Portal boundary,
-- Freqtrade: reference oracle, migration input, temporary compatibility layer, bounded offline reference.
+- Rust Quant Core for deterministic ordering, simulation, journal/replay/recovery, and causal state,
+- Python for strategy/ML semantics,
+- PostgreSQL as the recovery spine,
+- FastAPI + Next.js as the owner-facing Portal boundary,
+- Freqtrade as reference oracle/migration input/temporary compatibility rather than permanent v2 state owner.
 
-The first target slice is:
+The promoted target includes a first-slice concept using frozen canonical public market/WickHunter evidence and a Python WickHunter decision producer.
 
-`Frozen canonical public market/WickHunter input -> Rust Quant Core acceptance/order -> Python WickHunter decision -> Rust deterministic simulation -> PostgreSQL causal persistence -> Portal causal-trace view`
-
-**FACT** — `NO_TRADE` is a successful attributable decision and must not be fabricated when the decision engine is unavailable.
-
-**FACT** — architecture promotion did not activate implementation. Quant v2 execution governance remains a separate prerequisite.
+**IMPORTANT INTERPRETATION** — the target's use of “WickHunter”/“Python WickHunter decision” describes the repository's selected strategy/reference plane and fixtures. It does **not** prove that the proprietary official WickHunter runtime exposes a stable supported vendor decision API. ADR-027 also states that architecture promotion does not activate implementation.
 
 ---
 
 ## 6. ARCHITECTURE COMPARISON
 
-### Official WickHunter — observed
+### Official WickHunter — observed product shape
 
-Approximate observed product topology:
+Approximate observed shape:
 
-`Browser -> HTTPS proxy -> Node WickHunter runtime -> bot/strategy/exchange adapters -> local persistent files`
+`Browser -> HTTPS proxy -> proprietary WickHunter runtime -> vendor bot/strategy/state surfaces -> local product data`
 
-with a separate Hub boundary for licensing, lease/check-in, updates and community/distribution concerns.
+with a separate Hub boundary for licensing, updates, distribution, and community concerns.
+
+This is an observational topology, not a declaration that every internal exchange/terminal route is a supported product interface.
 
 ### Our current platform
 
-Approximate current topology:
+Approximate current shape:
 
 `Next.js -> BFF/FastAPI -> platform/control packages -> Freqtrade/simulator/WH09/reference paths -> mixed persistence + public market data`
 
-alongside a relatively strong research/evaluation/provenance subsystem.
+with a comparatively strong research/evaluation/provenance subsystem.
 
 ### Accepted target
 
-`Next.js -> FastAPI -> Rust Quant Core <-> Python decision/ML -> PostgreSQL`
+`Next.js -> FastAPI -> Rust Quant Core <-> Python strategy/ML -> PostgreSQL`
 
-with public data inputs, deterministic simulation/recovery, causal evidence, and explicit vendor/reference boundaries.
+with public data inputs, deterministic simulation/recovery, causal evidence, and explicit migration/reference boundaries.
 
 ### Architectural interpretation
 
-**INFERENCE** — official WickHunter is already a vertically integrated trading-product runtime, while our accepted target is increasingly an evidence-first deterministic quant/research platform. The products overlap at bot/strategy/control surfaces but have materially different long-term ownership goals.
+**INFERENCE** — WickHunter is materially ahead in trader-facing productization, while the accepted Quant v2 target is intentionally stronger around reproducible research, deterministic simulation/recovery, causal evidence, and owned data/model lifecycle.
+
+**RECOMMENDATION** — preserve those distinct ownership strengths and use coexistence as the default architecture. Any later technical bridge to official WickHunter must be based on a supported/documented vendor interface, not reverse-inferred from internal routes.
 
 ---
 
 ## 7. MASTER CAPABILITY MATRIX
 
-| Capability | Gap | Assessment | Recommendation |
-|---|---:|---|---|
-| Login/auth/session | B | WickHunter has working product auth; ours has Portal auth but broader workflow closure remains incomplete | `KEEP_OURS` |
-| Bot configuration UI | B | WickHunter appears materially ahead | `USE_WICKHUNTER` |
-| Grid/Manual/TV/Hedge product surfaces | B/C | Vendor product already exposes them; ours is incomplete/planned | `DEFER` |
-| Private exchange account management | E | Both boundaries exist conceptually, but current Portal authority forbids private execution credentials | `REQUIRES_DECISION` |
-| Multi-venue exchange support | B/E | WickHunter exposes broad venue support; our target should not duplicate every adapter | `INTEGRATE_AROUND` |
-| Liquidation/public market data | A/E | Both have relevant data capability with different semantics/ownership | `KEEP_OURS` |
-| Liquidation strategy semantics | E | Comparable domain, not proven identical | `ADOPT_PATTERN` |
-| DCA/TP/SL/hedge execution | E | WickHunter exposes execution-oriented surfaces; our current product should remain simulation-only | `DEFER` |
-| Durable product state / P&L / history | E | WickHunter has local product state; our target requires causal evidence/recovery semantics | `BUILD_OURS` |
-| Diagnostics / replay | G/D | WickHunter exposes diagnostic/replay surfaces; ours has stronger deterministic/research evidence goals | `KEEP_OURS` |
-| Research provenance | D/G | Strong direct evidence ours; insufficient proof vendor matches this standard | `KEEP_OURS` |
-| Protected holdout / no-lookahead controls | D | Ours has explicit tests and controls | `KEEP_OURS` |
-| Model lifecycle | D/G | Ours has explicit BASELINE/CHALLENGER/ACTIVE/ARCHIVED authority | `KEEP_OURS` |
-| Deterministic simulation/recovery | G/F | Vendor semantics insufficiently proven; accepted target still requires ours | `BUILD_OURS` |
-| Portal causal trace | D/F | Current partial, target requires full causal trace | `BUILD_OURS` |
-| Signed update chain | E | WickHunter pattern is mature and explicit | `ADOPT_PATTERN` |
-| Community / Hub distribution | C | Vendor already provides this class of product capability | `USE_WICKHUNTER` |
-| Vendor independence / exit | D | Our architecture can preserve this | `KEEP_OURS` |
+| Capability | WickHunter evidence/readiness | Gap | Assessment | Recommendation |
+|---|---|---:|---|---|
+| Login/auth/session | `OBSERVED_RUNTIME` plus UI exposure | B | Working vendor product boundary observed; our broader workflow closure remains incomplete | `KEEP_OURS` |
+| Bot configuration UI | `SUPPORTED_UI` | B | Vendor is materially ahead in trader-facing configuration | `USE_WICKHUNTER` |
+| Grid/Manual/TV/Hedge product families | `SUPPORTED_UI` for displayed families; exact semantics vary | B/C | Do not duplicate solely for parity | `DEFER` |
+| Bitget Demo environment | `INTERNAL/DORMANT`; `hasDemo: false`; vendor says not ready | G | **NOT READY / NOT SUPPORTED** in `0.90.63` | `DEFER` |
+| Private exchange account state | `OBSERVED_RUNTIME` encrypted state exists | E/G | Local state existence proven; exchange-side environment/capital status of inspected credentials is `UNKNOWN`; current Portal forbids private execution credentials | `REQUIRES_DECISION` |
+| Seven-venue reachability probes | `VENDOR_DOCUMENTED` public Hub source | G | Reachability probes are not a trading-support matrix | `UNKNOWN` |
+| Supported multi-venue trading | UI/documentation must decide readiness | G | Exhaustive current supported venue set and semantics not established here | `UNKNOWN` |
+| Exchange adapter/route strings | `INTERNAL/DORMANT` | G | Presence does not establish readiness or integration contract | `UNKNOWN` |
+| Liquidation/public market data | public/vendor and our direct evidence | A/E | Both have relevant capability with different semantics/ownership | `KEEP_OURS` |
+| Liquidation strategy semantics | mixed observed/internal evidence | E/G | Comparable domain; equivalence not proven | `ADOPT_PATTERN` |
+| DCA/TP/SL/hedge execution semantics | UI/internal evidence, no safe E2E execution proof | E/G | Do not infer live correctness from route/UI presence; ours remains simulation-only | `DEFER` |
+| Durable product state / P&L / history | `OBSERVED_RUNTIME` local state plus visible product surfaces | E | Vendor local product state differs from our target causal/recovery model | `BUILD_OURS` |
+| Diagnostics / replay | UI/runtime/internal evidence | G/D | Vendor has useful product surfaces; deterministic/research equivalence not proven | `KEEP_OURS` |
+| Research provenance | insufficient vendor evidence; strong repo evidence ours | D/G | Differentiator remains ours | `KEEP_OURS` |
+| Protected holdout / no-lookahead | strong repo evidence ours | D/G | Equivalent vendor controls not established | `KEEP_OURS` |
+| Model lifecycle | strong explicit repo authority ours | D/G | Vendor-equivalent lifecycle not established | `KEEP_OURS` |
+| Deterministic simulation/recovery | insufficient vendor evidence; target-only ours | G/F | Accepted target still requires owned deterministic core semantics | `BUILD_OURS` |
+| Portal causal trace | current partial; accepted target requires it | D/F | Finish as our evidence surface | `BUILD_OURS` |
+| Signed update chain | `VENDOR_DOCUMENTED` | E | Mature vendor pattern worth learning from | `ADOPT_PATTERN` |
+| Hub/community distribution | `VENDOR_DOCUMENTED` / visible vendor boundary | C | Vendor already owns this product class | `USE_WICKHUNTER` |
+| Supported vendor integration API | not established | G | No stable vendor-authorized decision contract proven | `UNKNOWN` |
+| Vendor independence / exit | our architectural property | D | Preserve independent data/research/evidence and migration fixtures | `KEEP_OURS` |
 
 ---
 
 ## 8. WHAT WICKHUNTER ALREADY SOLVES
 
-**FACT / RECOMMENDATION** — WickHunter already supplies credible product value in areas we should not automatically duplicate:
+The strategic conclusion remains, but only at evidence-calibrated scope.
 
-- trader-facing configuration and control surfaces,
-- multiple bot families,
-- exchange-account plumbing,
-- execution-oriented interfaces,
-- product-local persistence/history,
-- diagnostics/P&L/replay surfaces,
-- licensing/subscription/lease lifecycle,
-- distribution/update lifecycle,
-- a central Hub/community boundary,
-- signed release/update integrity.
+**FACT / `SUPPORTED_UI` or `OBSERVED_RUNTIME` where noted** — WickHunter provides meaningful trader-facing product value through visible bot/strategy configuration families, authentication/session behavior, local application state, health/diagnostic surfaces, and other UI-visible workflows.
 
-**INFERENCE** — even without proving every live-trading edge case, the breadth and integration density are sufficient to justify treating WickHunter as a serious vendor dependency rather than merely an inspiration/reference implementation.
+**FACT / `VENDOR_DOCUMENTED`** — the vendor ecosystem also owns licensing/check-in/lease, signed update/distribution behavior, and Hub/community concerns documented in public vendor material.
+
+**RECOMMENDATION** — we should not automatically recreate those classes of product surface when a vendor-supported WickHunter workflow already satisfies the user need.
+
+**LIMIT** — internal terminal/order/exchange routes, adapter strings, dormant feature gates, or local schemas are not counted as “already solved” unless the capability is also supported/documented or directly observed at the required product level.
+
+The durable strategic differentiators for our platform remain:
+
+- research provenance and evaluation integrity,
+- deterministic replay/simulation/recovery,
+- data and feature lineage,
+- explicit model lifecycle,
+- causal evidence and PostgreSQL recovery semantics,
+- independent public-market-data evidence,
+- vendor exit and reproducibility.
 
 ---
 
 ## 9. WHAT WE CAN STOP OR DEFER BUILDING
 
-The following current work should be reclassified before further implementation if its purpose is substantially vendor parity:
+**RECOMMENDATION** — stop or defer work whose only goal is direct parity with supported vendor trader UX:
 
-- Portal bot-builder parity (`#1090`) — `DEFER`,
-- grid-control parity (`#1096`) — `DEFER`,
-- signal-control parity (`#1095`) — `DEFER`,
-- generic execution-submission / terminal execution paths (`#1086`, `#1091`) — stop as current-product live-execution work,
-- exchange-management parity (`#1097`) — `DEFER`,
-- permanent Freqtrade state/execution ownership — stop as target architecture,
-- WH09 candidate paper runtime as enduring product runtime — retirement candidate,
-- WH09 paper egress/runtime pair — retirement candidate after evidence freeze,
-- obsolete first-generation market-evidence runtime — retirement candidate.
+- duplicate bot-builder UX (`#1090`) when it adds no Developer Quant-specific research value,
+- generic Grid parity (`#1096`),
+- generic signal/TradingView parity (`#1095`),
+- exchange-management parity (`#1097`) unless a safe Developer Quant requirement remains,
+- generic terminal/order submission surfaces (`#1086`, `#1091`) as a current product objective,
+- permanent Freqtrade state/execution ownership in the v2 end state,
+- WH09 paper-runtime productization as a permanent user product.
 
-**RECOMMENDATION** — do not delete evidence or code merely because a runtime is now duplicative. Freeze useful fixtures/evidence first, then retire operational ownership deliberately.
+This is prioritization, not destructive authority. It does not authorize deleting code, closing runtimes, removing evidence, or changing open issues without a separate bounded task.
+
+Do **not** defer capabilities that are unique to our research/evidence target merely because an internal WickHunter route with a similar name exists.
 
 ---
 
 ## 10. WHAT WE SHOULD STILL OWN
 
-The strategic core that remains ours:
+Keep ownership of:
 
-1. **Research integrity** — protected holdout, no-lookahead, reproducible evaluation.
-2. **Data lineage** — canonical datasets, feature schemas, provenance and immutable identity.
-3. **Model lifecycle** — `BASELINE | CHALLENGER | ACTIVE | ARCHIVED`, deliberate attributable activation.
-4. **Deterministic core** — ordering, simulation, replay, restart/recovery, causal state.
-5. **PostgreSQL evidence spine** — durable causal records independent of vendor-local files.
-6. **Portal owner workflow** — especially causal trace, model comparison, research state and recovery evidence.
-7. **Independent simulation/risk validation** — vendor claims should remain testable externally.
-8. **Liquid20/public-data capability** — keep public-data evidence and market-observation ownership.
-9. **Vendor-exit boundary** — preserve canonical contracts and data so the platform is not trapped by one proprietary runtime.
+- research experiments and evaluation methodology,
+- dataset/feature/model/config identities and lineage,
+- no-lookahead/holdout integrity,
+- deliberate `BASELINE | CHALLENGER | ACTIVE | ARCHIVED` lifecycle,
+- deterministic simulation, replay, idempotency, snapshot/recovery, and causal tracing,
+- PostgreSQL evidence/recovery spine,
+- Portal/BFF presentation of our causal research truth,
+- Liquid20/public data collection and attributable market evidence,
+- independent risk/simulation verification,
+- vendor-exit fixtures and reproducibility.
+
+**RECOMMENDATION** — official WickHunter should not become the sole owner of data, evidence, model identity, or reproducibility required to evaluate our platform independently.
 
 ---
 
 ## 11. HISTORICAL WH09 WORK — KEEP / REPURPOSE / RETIRE
 
-### Keep / repurpose
+The original read-only runtime inventory showed mixed health. Classification remains evidence-preserving and non-destructive:
 
-- `portal-wh09-runtime-observer` — healthy; keep temporarily as read-only reference/evidence observer.
-- production research runtime — healthy; repurpose as reference oracle/fixture source, not target product runtime.
-- `wickhunter-market-evidence-v2` — healthy; keep temporarily where it supplies unique evidence.
-- `binance-v3-acceptance-sampler` — healthy; keep as provider/public-market acceptance evidence where still relevant.
-- `liquid20-live` — keep; strategically distinct public-data capability.
+| Historical/internal asset | Observation | Recommendation |
+|---|---|---|
+| WH09 runtime observer | healthy read-only observer | `KEEP_OURS` as bounded reference/evidence adapter |
+| production-research runtime | healthy research/reference path | `KEEP_OURS` / repurpose as reference oracle and fixture source |
+| candidate paper runtime v12 | unhealthy; healthcheck import failure | `DEFER` as product, retire candidate only after evidence freeze and separate authority |
+| WH09 egress v12 | running companion to paper path | retire candidate with paper path only under separate task |
+| market-evidence v2 | healthy | keep temporarily as evidence input |
+| older market-evidence runtime | unhealthy | retire candidate after provenance/evidence needs are frozen |
+| `liquid20-live` | running public-data capability | `KEEP_OURS` |
+| Binance v3 acceptance sampler | healthy acceptance evidence | keep while it remains useful for provider evidence |
 
-### Retire candidates after evidence freeze
-
-- `wickhunter-paper-runtime-v12` — running but unhealthy with `ModuleNotFoundError: No module named 'ai_platform'` in its healthcheck.
-- `wickhunter-wh09-egress-v12` — no healthcheck; retire with the paper-runtime path if no unique evidence dependency remains.
-- older `wickhunter-market-evidence` — unhealthy; retire after confirming no surviving acceptance/evidence dependency.
-- obsolete exited collector instances — classify individually before cleanup; do not infer deletability merely from age/stopped state.
-
-**RECOMMENDATION** — historical WH09 work should become reference/migration/evidence infrastructure, not a second vendor-like product stack.
+“Retire candidate” here is classification, not permission to stop/remove a container or delete persistent data.
 
 ---
 
 ## 12. SECURITY + VENDOR-DEPENDENCY ANALYSIS
 
-### Positive vendor security signals
+### Positive observations
 
-**FACT** — official runtime demonstrated useful container hardening:
+**FACT / `OBSERVED_RUNTIME`** — the inspected official container used useful hardening properties such as non-root execution, non-privileged mode, read-only root filesystem, and bounded mounts.
 
-- non-root execution,
-- read-only root filesystem,
-- no privileged mode,
-- bounded secrets/data mounts,
-- healthcheck,
-- dedicated HTTPS proxy.
+**FACT / `VENDOR_DOCUMENTED`** — the public release design uses signed release metadata and artifact hashing, with public verification material separated from the private signing key.
 
-**FACT / WH-E1** — signed release/update chain uses explicit manifest signing and hash verification with offline private signing material.
+### Credential interpretation
 
-### Material risks
+**FACT** — encrypted exchange credential fields existed locally.
 
-**FACT** — encrypted non-testnet exchange credentials are present in official runtime state.
+**FACT** — the local account record used `testnet=false`.
 
-This is a material trust-boundary change compared with treating WickHunter as a public-data-only research tool.
+**POST-AUDIT EVIDENCE** — Bitget Demo can still be represented locally with that classification in `0.90.63` because Demo is not a supported UI environment.
 
-**UNKNOWN** — audit did not prove:
+**UNKNOWN** — whether the inspected credential set was exchange-side demo, test, mainnet, funded, unfunded, read-only, or order-capable was not proven.
 
-- long-term offline license behavior,
-- credential portability,
-- disaster-recovery restore semantics,
-- behavior during Hub outage while positions are open,
-- live exchange reconciliation correctness,
-- private endpoint fail-closed behavior across every supported venue.
+Accordingly this audit treats credential presence as an `auth_or_secrets` risk boundary, not as evidence of real-capital operation.
 
-### Vendor dependency impact
+### Vendor dependency
 
-If the vendor disappears or Hub/update/licensing becomes unavailable, we may lose:
+If the vendor or Hub became unavailable, likely affected classes include future updates, licensing/check-in behavior, proprietary trader UI/runtime capabilities, and vendor community/distribution features. Exact degradation under prolonged Hub/license outage remains `UNKNOWN`.
 
-- proprietary runtime updates,
-- some license/lease capability,
-- vendor bot/strategy implementations,
-- vendor exchange UI/control semantics,
-- vendor community/Hub distribution.
+Our owned research datasets, model/evaluation evidence, public-data pipelines, Portal code, accepted deterministic-core target, and frozen migration/reference fixtures remain the strategic vendor-exit boundary.
 
-We can retain, if we preserve our own boundary:
+### Security conclusion
 
-- datasets and provenance,
-- research/evaluation assets,
-- our models and feature schemas,
-- public-data collectors/Liquid20,
-- Portal research/causal views,
-- target Rust deterministic core,
-- PostgreSQL causal history,
-- WH09/reference fixtures already lawfully captured as our own generated evidence.
+Do not copy vendor credentials into Portal, do not expose proprietary internal routes to the browser, and do not promote dormant/private internals into integration contracts.
 
 ---
 
@@ -504,247 +470,175 @@ We can retain, if we preserve our own boundary:
 
 ### Option A — WickHunter-only
 
-**REJECT.**
+Reject as the platform end state.
 
-Pros: fastest path to mature trader-facing features.  
-Cons: excessive vendor dependency, weak control over research integrity/evidence semantics, incompatible with our accepted deterministic-core and causal-state goals.
+Reason: it would make proprietary vendor behavior too central to research/evidence/model lifecycle and weaken independent reproducibility/vendor exit.
 
-### Option B — ours-only full duplication
+### Option B — build our own full trader-product parity
 
-**REJECT.**
+Reject as the default programme.
 
-Pros: maximal ownership.  
-Cons: high duplication cost, repeated exchange/bot/UI work, unnecessary implementation risk, slower progress on unique quant/research capabilities.
+Reason: it duplicates a substantial vendor-facing product surface without clear differentiation and spends effort outside the strongest Developer Quant value.
 
-### Option C — hybrid
+### Option C — coexistence + clear ownership boundaries
 
-**RECOMMEND.**
+**RECOMMENDED.**
 
-Use WickHunter where it is already a strong product; integrate around it with explicit versioned boundaries; keep deterministic evidence/research/model/data ownership on our side.
+- WickHunter remains a standalone vendor/trader console for its supported product workflows.
+- Our platform owns public-data research, evaluation, model lifecycle, deterministic simulation/recovery, causal evidence, and Portal research workflows.
+- No direct technical coupling is assumed.
+- A future adapter is permitted only after an official supported/documented interface exists and a separate bounded integration task validates that contract.
+- Internal/dormant endpoints are explicitly not sufficient.
+
+This is the corrected meaning of “hybrid”.
 
 ---
 
 ## 14. RECOMMENDED TARGET ARCHITECTURE AFTER THIS DISCOVERY
 
-Recommended architecture:
+The accepted Quant v2 architecture remains the repository target; this audit does not amend ADR-027.
+
+Recommended product boundary after the WickHunter discovery:
 
 ```text
-GitHub CI/build
-    |
-    v
-Synology persistent runtime
-    |
-    +--> Public market collectors / Liquid20
-    |         |
-    |         v
-    |    Canonical public market input
-    |         |
-    |         v
-    |    Python vendor adapter / WickHunter decision boundary
-    |         |
-    |         +--> NO_TRADE / SIGNAL / bounded decision payload
-    |                        |
-    |                        v
-    |                 Rust Quant Core
-    |          deterministic ordering/simulation
-    |             replay/recovery/causal state
-    |                        |
-    |                        v
-    |                   PostgreSQL
-    |                        |
-    |                        v
-    +-----------------> FastAPI/BFF
-                             |
-                             v
-                         Next.js Portal
+GitHub-hosted CI/build/test
+          |
+          v
+Synology Developer Quant runtime
+          |
+          +--> public collectors / Liquid20
+          |          |
+          |          v
+          |    canonical public market input
+          |          |
+          |          v
+          |    Python strategy/ML plane
+          |          |
+          |          v
+          |    Rust deterministic Quant Core   [target, not yet implemented]
+          |          |
+          |          v
+          |      PostgreSQL causal state
+          |          |
+          |          v
+          |     FastAPI/BFF -> Next.js Portal
+          |
+          +--> WickHunter standalone vendor console
+                    |
+                    +--> future optional bounded integration
+                         ONLY via a vendor-supported/documented interface
 ```
 
-### Boundary rules
+**RECOMMENDATION** — the direct path `our platform -> proprietary WickHunter decision adapter -> Rust Quant Core` is **not** an established contract and must not be treated as the default implementation plan.
 
-- Official WickHunter UI can remain a standalone vendor console.
-- Portal should not copy or persist WickHunter private exchange credentials.
-- Current Portal should not expose a Portal -> WickHunter -> real exchange order path.
-- The vendor adapter should use a versioned decision contract and must preserve attributable `NO_TRADE` vs unavailable/error states.
-- Rust Quant Core remains authoritative for deterministic simulation/recovery and causal evidence in the accepted target.
-- PostgreSQL remains the system-of-record/recovery spine for our target state.
+If a supported vendor interface later appears, a separate task may evaluate:
+
+`vendor-supported contract -> bounded adapter -> explicitly versioned internal contract`
+
+until then, coexistence is the correct architecture.
 
 ---
 
 ## 15. P0 / P1 / P2 / P3 ROADMAP
 
-### P0 — architecture and scope freeze
+### P0 — evidence calibration and product boundary
 
-1. Freeze official WickHunter `0.90.63` as the canonical observed vendor reference for this audit, using only secret-free behavioral evidence.
-2. Reclassify duplicate Portal/WH09 workstreams as `KEEP_NOW | SIMPLIFY | DEFER | OBSOLETE`.
-3. Formalize the vendor boundary: reference/decision dependency versus separate capital/execution authority.
-4. Preserve useful WH09 evidence/fixtures before retiring broken duplicate runtimes.
+- keep official WickHunter `0.90.63` as a secret-free behavioral/reference baseline where lawful and useful,
+- distinguish `SUPPORTED_UI` / `VENDOR_DOCUMENTED` / `OBSERVED_RUNTIME` / `INTERNAL/DORMANT` / `UNKNOWN`,
+- classify Bitget Demo as `NOT READY / NOT SUPPORTED`,
+- reclassify duplicate Portal/WH09 work before further target-driven implementation,
+- keep private credentials and exchange execution outside the Developer Quant product.
 
-### P1 — integration and workflow proof
+### P1 — close our own evidence gaps
 
-1. Define a versioned WickHunter decision adapter contract.
-2. Complete real API-mode causal-trace E2E (`#1098`) for our Portal path.
-3. Preserve and strengthen research provenance/model lifecycle/Liquid20 ownership.
-4. Turn WH09 reference outputs into bounded regression/parity fixtures where lawful and useful.
-5. Prove that vendor-local state is not silently promoted to our authoritative causal state.
+- complete the real API-mode causal-trace/browser closure represented by issue `#1098`,
+- preserve research/provenance/Liquid20 capabilities,
+- freeze useful WH09 fixtures/reference evidence before any separately authorized retirement,
+- document a vendor integration surface **only if** the vendor publishes/supports one; do not implement an adapter from internal/dormant endpoints.
 
-### P2 — Quant v2 implementation after governance activation
+### P2 — Quant v2 target implementation after governance activation
 
-1. Activate the separate Quant v2 execution-governance package.
-2. Implement V2-S1 Rust Quant Core target slice.
-3. Demonstrate deterministic replay, restart/recovery and causal persistence.
-4. Exercise vendor-exit/restore using safe, no-private-credential fixtures.
+- implement V2-S1 only under the separate execution-governance authority required by ADR-027,
+- preserve deterministic parity/intentional-difference evidence, replay, restart/recovery, and Portal proof,
+- perform vendor-exit/restore exercises using secret-free fixtures/reference evidence.
 
-### P3 — optional expansion
+### P3 — optional vendor ecosystem integration
 
-1. Optional Hub/community integration if product value justifies it.
-2. Optional richer vendor decision adapters.
-3. Any real-capital gateway only as a separate owner-approved architecture/programme.
+- consider Hub/community or other vendor integration only where a supported contract and product benefit exist,
+- any future real-capital Execution/Capital Gateway remains an entirely separate owner-approved programme.
 
 ---
 
 ## 16. OPEN QUESTIONS + SAFE EXPERIMENTS
 
-The following are useful but were intentionally not executed during the audit:
+### Open questions
 
-1. **License outage behavior** — cloned/isolation environment with exchange credentials removed.
-2. **Restart/recovery semantics** — isolated no-credential fixture.
-3. **Config export/import portability** — verify whether product configuration can be moved without secret leakage.
-4. **Decision-only output** — public-data input with no configured private account.
-5. **Multi-account reconciliation** — testnet only if future authority requires it.
-6. **Open-position + Hub/license disconnect behavior** — testnet only.
-7. **Update rollback behavior** — verify signed rollback on isolated clone.
+1. What exact WickHunter `0.90.63` venue/features are `SUPPORTED_UI` versus merely present internally?
+2. Does the vendor publish a stable supported machine-to-machine decision/configuration interface suitable for third-party integration?
+3. What are the documented semantics for configuration export/import, backup/restore, and license outage?
+4. Which vendor-facing product capabilities materially replace planned Portal work, and which Portal capabilities remain uniquely research/evidence oriented?
+5. Which WH09 fixtures are still required for v2 reference/parity work before historical runtime retirement can be considered?
 
-Explicitly outside this audit:
+### Safe future evidence work
 
-- live private exchange execution,
-- placing/cancelling orders,
-- modifying account credentials,
-- withdrawals,
-- testing with real capital.
+No additional proprietary-runtime experiment is required for PR #1708 remediation.
+
+If later separately authorized, safe work should prefer:
+
+- official vendor documentation/UI inspection,
+- secret-free config export/import portability checks if supported,
+- restart/recovery exercises on an isolated secret-free clone,
+- license-outage behavior on an isolated clone with exchange credentials removed,
+- supported public-data or non-capital test interfaces documented by the vendor.
+
+Do not use Bitget Demo as a currently supported WickHunter `0.90.63` environment, do not enable hidden/demo flags, and do not test real/private exchange execution under this audit.
 
 ---
 
 ## 17. EVIDENCE INDEX
 
-### Repository authority
+### Repository authority and implementation evidence
 
-- `AGENTS.md`
-- `ARCHITECTURE_REGISTRY.yaml`
-- `docs/agents/PROMPTING_STANDARD.md`
-- `docs/agents/PROMPTING_HANDOVER.md`
-- `docs/agents/RISK_BASED_EXECUTION_POLICY.json`
-- `docs/ai_platform/portal/ADR-023_DEVELOPER_QUANT_PORTAL.md`
-- `docs/ai_platform/portal/ADR-025_SYNOLOGY_PERSISTENT_RUNTIME_GITHUB_BUILD_PLANE.md`
-- `docs/ai_platform/portal/ADR-027_QUANT_PLATFORM_V2_ARCHITECTURE_PROMOTION.md`
-- `docs/ai_platform/portal/ADR-026_QUANT_PLATFORM_V2_CORE_AND_FREQTRADE_RETIREMENT.md`
-- `docs/ai_platform/portal/QUANT_PLATFORM_V2_TARGET_ARCHITECTURE.md`
-- `docs/ai_platform/portal/DEVELOPER_QUANT_PORTAL_ARCHITECTURE.md`
-- `docs/ai_platform/portal/README.md`
-- `tools/portal_audit/ledger/index.json`
-- `tools/portal_audit/ledger/runtime.json`
-- `tools/portal_audit/ledger/status_authority.json`
-- `tools/portal_audit/ledger/backend_routes.json`
-- `ai_platform/wickhunter/**`
-- `tests/ai_platform/**`
+- `AGENTS.md` at the recorded baseline.
+- `ARCHITECTURE_REGISTRY.yaml` — ADR-027 latest accepted architecture change, `accepted_target_not_implemented`.
+- `docs/ai_platform/portal/ADR-023_DEVELOPER_QUANT_PORTAL.md`.
+- `docs/ai_platform/portal/ADR-025_SYNOLOGY_PERSISTENT_RUNTIME_GITHUB_BUILD_PLANE.md`.
+- `docs/ai_platform/portal/ADR-027_QUANT_PLATFORM_V2_ARCHITECTURE_PROMOTION.md` and promoted ADR-026 target.
+- `docs/ai_platform/portal/QUANT_PLATFORM_V2_TARGET_ARCHITECTURE.md`.
+- `tools/portal_audit/ledger/index.json` and task-relevant ledger sections.
+- Issue `#1098` for API-mode browser E2E gap.
 
-### Repository state references
+### Official WickHunter evidence recorded by the original audit
 
-- `develop@f52a38d102f37888271816897494cab45cbff80a`
-- PR `#1681` — Quant v2 execution-governance design lifecycle closeout; programme remains unactivated.
-- Issue `#1098` — real composed API-mode browser E2E gap.
+- bounded runtime health and container-property observations for version `0.90.63`,
+- redacted credential-field presence and local account metadata without secret values,
+- local persistent-state schema/file-family observations,
+- static/internal route and label inventory, explicitly reclassified by this remediation where support was not established,
+- public `WickHunter/wickhunter-hub` source and release/update documentation.
 
-### Official WickHunter direct runtime evidence
+### Post-audit corrective evidence
 
-- version `0.90.63`, healthy local `/api/health`,
-- official runtime and proxy container metadata,
-- authenticated versus unauthenticated route behavior,
-- installed application/static route inventory,
-- local runtime-state filenames and secret-free schema inspection,
-- presence of encrypted non-testnet credential fields,
-- zero open/closed positions in inspected position files at final readback,
-- no mutation performed.
+- owner-supplied Bitget Demo test: a Demo credential/account can be persisted by WickHunter `0.90.63` with local `env: mainnet` / `testnet:false`; this remediation did not repeat credential testing,
+- owner-supplied/vendor feedback: “Things that are ready are displayed in the UI.”,
+- owner-supplied/vendor feedback that Bitget Demo is not ready,
+- internal readiness evidence supplied for review: Bitget `hasDemo: false`.
 
-### Public WickHunter evidence
+These post-audit items correct product-readiness/environment interpretation. They do not expand repository architecture authority and do not prove any exchange-side capital status.
 
-- `WickHunter/wickhunter-hub`,
-- current Hub branch inspected during audit,
-- public hosting policy / venue probes,
-- `releases/README.md` signed-release contract,
-- public license/check-in and lease challenge interfaces,
-- historical `WickHunter/Wick-Hunter` repository treated as deprecated, not current product authority.
+### CI evidence for PR #1708 remediation
 
-### Internal Synology reference evidence
+Before remediation, exact PR head `b93a0f3d546fce1f4f872746cbfcf4d2e8e6b139` had one failing `Freqtrade CI` lightweight routing-contract test because this audit document used wording reserved for the repository's Portal status source. Documentation build and pre-commit were green on that head. The remediation changes the document wording rather than governance/tests/workflows.
 
-Observed read-only runtime state included:
-
-- healthy WH09 observer,
-- healthy production research/reference runtime,
-- unhealthy WH09 paper runtime with missing `ai_platform` module in healthcheck,
-- running WH09 egress path without healthcheck,
-- healthy market-evidence-v2,
-- unhealthy older market-evidence runtime,
-- healthy Binance v3 acceptance sampler,
-- running Liquid20 live capability,
-- obsolete exited collector requiring individual evidence review before cleanup.
+Final exact-head CI is evaluated on the PR after this document update; no result is pre-claimed inside the audit.
 
 ---
 
 ## 18. HANDOVER
 
-```yaml
-checkpoint_version: 1
-updated_at: 2026-09-11T18:33:15+02:00
-branch: develop
-head: f52a38d102f37888271816897494cab45cbff80a
-status: ready
-context_routes:
-  - FREQTRADE_WICKHUNTER_REVERSE_PRODUCT_AUDIT_V1
-  - ADR-023 Developer Quant product authority
-  - ADR-025 Synology persistent runtime / GitHub build plane
-  - ADR-027 promotion of ADR-026 Quant Platform v2 target
-risk:
-  persistent_data: false
-  research_integrity: true
-  model_activation: false
-  auth_or_secrets: true
-  shared_synology_mutation: false
-  deployment: false
-  user_workflow_change: false
-  destructive_operation: false
-  real_capital: false
-  governance_or_ci: false
-risk_gates:
-  - preserve protected research/evaluation evidence and avoid stronger claims than direct evidence supports
-  - do not print, copy, export or exercise private credential values
-  - do not test private/live exchange execution in this task
-proven:
-  - official WickHunter 0.90.63 was healthy at final readback
-  - vendor runtime exposes broad bot, account, strategy, diagnostics, replay, licensing and update surfaces
-  - encrypted non-testnet private exchange credentials exist in vendor state
-  - current Portal remains partially implemented with material disconnected execution/control surfaces
-  - current accepted Quant v2 target retains Rust deterministic core, Python decision/ML, PostgreSQL causal state and Portal boundary
-  - current product authority excludes real-capital execution
-  - hybrid architecture is sufficient for a bounded strategic decision
-unknown:
-  - live order/reconciliation semantics across supported venues
-  - long-term offline license behavior
-  - disaster-recovery portability of vendor-local state
-  - open-position behavior during Hub/license outage
-conflicts:
-  - prior no-credential/non-trading assumption for official runtime was disproved by direct state inspection
-validation:
-  - command: read-only repository/runtime/public-source verification
-    result: PASS
-    evidence: exact repository head, direct runtime health, route/state inventory, public Hub/release contract
-blockers:
-  - private/live execution proof intentionally blocked by credential and real-capital safety boundary
-next_action: >
-  Formalize one bounded architecture decision that designates official WickHunter
-  as a third-party decision/console dependency, freezes it as the canonical V2
-  reference fixture, and reclassifies duplicate Portal/WH09 workstreams before
-  any Quant V2 implementation is activated.
-```
+PR #1708 is the durable handover for this documentation remediation.
 
-## Final terminal state
+Per `docs/agents/PROMPTING_HANDOVER.md`, a separate continuation checkpoint is unnecessary when the bounded documentation task reaches terminal PR closeout. The previous audit YAML checkpoint that named `branch: develop` and the baseline commit as if they were the PR branch/head has therefore been removed.
 
-`WICKHUNTER_VS_FREQTRADE_DECISION_READY`
+The `develop@f52a38d102f37888271816897494cab45cbff80a` value retained near the top of this document is the **historical audit evidence baseline**, not a claim about the current PR head.
+
+Final PR readiness must be decided from live GitHub state on the exact final PR head. No runtime, Synology, WickHunter, credential, exchange, deployment, model, or capital mutation is part of this PR.

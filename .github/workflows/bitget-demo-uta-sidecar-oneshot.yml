@@ -1,0 +1,221 @@
+name: One-shot deploy Bitget Demo UTA sidecar
+
+"on":
+  push:
+    branches:
+      - ops/bitget-demo-uta-sidecar-deploy-20260912
+    paths:
+      - .github/workflows/bitget-demo-uta-sidecar-oneshot.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bitget-demo-uta-sidecar-oneshot-20260912
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy isolated Bitget Demo UTA sidecar
+    runs-on:
+      - freqtrade-staging
+    timeout-minutes: 15
+    steps:
+      - name: Validate bounded one-shot authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == "refs/heads/ops/bitget-demo-uta-sidecar-deploy-20260912" ]]
+          [[ "$GITHUB_EVENT_NAME" == "push" ]]
+      - name: Validate host files and protected runtime health
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=/volume1/docker/bitget-demo-uta-sidecar
+          [[ -d "$ROOT/app" && -d "$ROOT/control" ]]
+          [[ -f "$ROOT/app/bitget_demo_uta.py" ]]
+          [[ -f "$ROOT/app/bitget_demo_sidecar.py" ]]
+          [[ -f "$ROOT/credentials.json" && ! -L "$ROOT/credentials.json" ]]
+          [[ "$(sha256sum "$ROOT/app/bitget_demo_uta.py" | awk '{print $1}')" == "6d7d3086edd07dfa597f063f0dd86a9e05e8b4c2fbeeaaf4e7fa90fc3e685bb8" ]]
+          [[ "$(sha256sum "$ROOT/app/bitget_demo_sidecar.py" | awk '{print $1}')" == "cafd8c1815c4f642855a7fd084e2cbf991cc9db7d79e6b8f4dd4504b7bfc621f" ]]
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = json.loads(Path('/volume1/docker/bitget-demo-uta-sidecar/credentials.json').read_text())
+          assert set(p) == {'api_key', 'api_secret', 'passphrase'}
+          assert all(isinstance(v, str) and v for v in p.values())
+          print('credential schema ok')
+          PY
+          curl -kfsS https://192.168.1.2:8443/api/health >/tmp/wickhunter-health-before.json
+      - name: Start hardened sidecar for acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=/volume1/docker/bitget-demo-uta-sidecar
+          NAME=bitget-demo-uta-sidecar
+          uid="$(stat -c '%u' "$ROOT/credentials.json")"
+          gid="$(stat -c '%g' "$ROOT/credentials.json")"
+          [[ "$uid" =~ ^[0-9]+$ && "$gid" =~ ^[0-9]+$ && "$uid" != "0" ]]
+          [[ "$(stat -c '%u' "$ROOT/control")" == "$uid" ]]
+          existing="$(docker ps -aq --filter "name=^/${NAME}$")"
+          if [[ -n "$existing" ]]; then
+            [[ "$(docker inspect --format '{{index .Config.Labels "com.blakinio.service"}}' "$existing")" == "$NAME" ]]
+            docker rm -f "$existing" >/dev/null
+          fi
+          rm -f "$ROOT/control/ready.json" "$ROOT/control/inbox/"*.json "$ROOT/control/outbox/"*.json "$ROOT/control/processing/"*.json 2>/dev/null || true
+          docker pull python:3.12-slim >/dev/null
+          image_ref="$(docker image inspect python:3.12-slim --format '{{index .RepoDigests 0}}')"
+          [[ "$image_ref" =~ ^python@sha256:[0-9a-f]{64}$ ]]
+          echo "SIDECAR_IMAGE_REF=$image_ref" >> "$GITHUB_ENV"
+          docker run -d \
+            --name "$NAME" \
+            --label com.blakinio.service="$NAME" \
+            --label com.blakinio.real_capital=false \
+            --user "$uid:$gid" \
+            --read-only \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --pids-limit 64 \
+            --memory 128m \
+            --cpus 0.50 \
+            --restart no \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
+            --mount type=bind,src="$ROOT/app",dst=/app,readonly \
+            --mount type=bind,src="$ROOT/credentials.json",dst=/run/secrets/bitget_demo.json,readonly \
+            --mount type=bind,src="$ROOT/control",dst=/control \
+            --env PYTHONDONTWRITEBYTECODE=1 \
+            --env PYTHONUNBUFFERED=1 \
+            --env BITGET_DEMO_SYMBOL=BTCUSDT \
+            --env BITGET_DEMO_MAX_QTY=0.001 \
+            --workdir /app \
+            "$image_ref" python /app/bitget_demo_sidecar.py >/dev/null
+      - name: Prove ready and initial clean demo state
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=/volume1/docker/bitget-demo-uta-sidecar
+          for _ in $(seq 1 40); do
+            [[ -f "$ROOT/control/ready.json" ]] && break
+            [[ "$(docker inspect --format '{{.State.Running}}' bitget-demo-uta-sidecar 2>/dev/null || true)" == "true" ]] || { docker logs --tail 50 bitget-demo-uta-sidecar; exit 1; }
+            sleep 0.5
+          done
+          [[ -f "$ROOT/control/ready.json" ]]
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('/volume1/docker/bitget-demo-uta-sidecar/control/ready.json').read_text())
+          assert p['ok'] is True and p['real_capital'] is False
+          d=p['data']
+          assert d['accountMode'] in {'hybrid','unified'}
+          assert d['holdMode']=='hedge_mode'
+          assert float(d['usdtEquity']) > 0
+          assert d['symbol']=='BTCUSDT'
+          assert d['positions']==[]
+          assert d['openOrders']==0
+          print(json.dumps({'ready':True,'accountMode':d['accountMode'],'holdMode':d['holdMode'],'usdtEquity':d['usdtEquity']}))
+          PY
+      - name: Bounded Bitget Demo BTCUSDT open-close smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, time
+          from pathlib import Path
+          root=Path('/volume1/docker/bitget-demo-uta-sidecar/control')
+          inbox=root/'inbox'; outbox=root/'outbox'
+          def call(payload):
+              rid=payload['request_id']
+              tmp=inbox/f'{rid}.tmp'; dest=inbox/f'{rid}.json'; result=outbox/f'{rid}.json'
+              tmp.write_text(json.dumps(payload,separators=(',',':')),encoding='utf-8')
+              os.replace(tmp,dest)
+              deadline=time.time()+20
+              while time.time()<deadline and not result.exists(): time.sleep(0.2)
+              if not result.exists(): raise SystemExit(f'timeout waiting for {rid}')
+              data=json.loads(result.read_text(encoding='utf-8'))
+              if data.get('ok') is not True: raise SystemExit(f"sidecar request failed: {data.get('error')}")
+              return data
+          stamp=str(int(time.time()*1000))
+          opened=call({'request_id':'smoke-open-'+stamp,'action':'open','confirm_demo':True,'symbol':'BTCUSDT','pos_side':'long','quantity':'0.0001'})
+          assert any(p['posSide']=='long' and float(p['qty'])>0 for p in opened['positions'])
+          closed=call({'request_id':'smoke-close-'+stamp,'action':'close','confirm_demo':True,'symbol':'BTCUSDT','pos_side':'long'})
+          assert not any(p['posSide']=='long' and float(p['qty'])>0 for p in closed['remainingPositions'])
+          final=call({'request_id':'smoke-status-'+stamp,'action':'status'})['data']
+          assert final['positions']==[] and final['openOrders']==0
+          print(json.dumps({'demo_smoke':'PASS','openOrderId':opened['orderId'],'closeOrderId':closed['orderId'],'remainingPositions':final['positions'],'openOrders':final['openOrders']}))
+          PY
+      - name: Ensure no task-created demo exposure remains
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=/volume1/docker/bitget-demo-uta-sidecar
+          [[ "$(docker inspect --format '{{.State.Running}}' bitget-demo-uta-sidecar 2>/dev/null || true)" == "true" ]] || exit 0
+          [[ -f "$ROOT/control/ready.json" ]] || exit 0
+          python3 - <<'PY'
+          import json, os, time
+          from pathlib import Path
+          root=Path('/volume1/docker/bitget-demo-uta-sidecar/control'); inbox=root/'inbox'; outbox=root/'outbox'
+          def call(p):
+              rid=p['request_id']; tmp=inbox/f'{rid}.tmp'; dest=inbox/f'{rid}.json'; result=outbox/f'{rid}.json'
+              tmp.write_text(json.dumps(p,separators=(',',':')),encoding='utf-8'); os.replace(tmp,dest)
+              end=time.time()+15
+              while time.time()<end and not result.exists(): time.sleep(0.2)
+              if not result.exists(): raise SystemExit('cleanup request timeout')
+              d=json.loads(result.read_text());
+              if d.get('ok') is not True: raise SystemExit(f"cleanup request failed: {d.get('error')}")
+              return d
+          stamp=str(int(time.time()*1000)); state=call({'request_id':'cleanup-status-'+stamp,'action':'status'})['data']
+          for pos in list(state.get('positions') or []):
+              side=pos.get('posSide')
+              if side in {'long','short'}:
+                  call({'request_id':f'cleanup-{side}-'+stamp,'action':'close','confirm_demo':True,'symbol':'BTCUSDT','pos_side':side})
+          final=call({'request_id':'cleanup-final-'+stamp,'action':'status'})['data']
+          assert final['positions']==[] and final['openOrders']==0
+          print(json.dumps({'cleanup':'PASS','positions':final['positions'],'openOrders':final['openOrders']}))
+          PY
+      - name: Promote accepted sidecar to persistent restart policy
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker update --restart unless-stopped bitget-demo-uta-sidecar >/dev/null
+          python3 - <<'PY'
+          import json, subprocess
+          d=json.loads(subprocess.check_output(['docker','inspect','bitget-demo-uta-sidecar']))[0]
+          h=d['HostConfig']; c=d['Config']
+          assert d['State']['Running'] is True
+          assert h['ReadonlyRootfs'] is True
+          assert h['CapDrop']==['ALL']
+          assert 'no-new-privileges:true' in h['SecurityOpt']
+          assert h['PidsLimit']==64
+          assert h['Memory']==134217728
+          assert h['RestartPolicy']['Name']=='unless-stopped'
+          assert c['User'] not in {'','0','0:0','root'}
+          assert c['Labels']['com.blakinio.real_capital']=='false'
+          assert not h.get('PortBindings')
+          print(json.dumps({'persistent':True,'running':True,'user':c['User'],'restart':h['RestartPolicy']['Name'],'readOnly':h['ReadonlyRootfs'],'pidsLimit':h['PidsLimit'],'memory':h['Memory']}))
+          PY
+      - name: Remove failed task-owned sidecar
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          id="$(docker ps -aq --filter 'name=^/bitget-demo-uta-sidecar$')"
+          [[ -z "$id" ]] && exit 0
+          [[ "$(docker inspect --format '{{index .Config.Labels "com.blakinio.service"}}' "$id")" == "bitget-demo-uta-sidecar" ]]
+          docker rm -f "$id" >/dev/null
+      - name: Verify WickHunter health after bounded mutation
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -kfsS https://192.168.1.2:8443/api/health >/tmp/wickhunter-health-after.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          before=json.loads(Path('/tmp/wickhunter-health-before.json').read_text())
+          after=json.loads(Path('/tmp/wickhunter-health-after.json').read_text())
+          assert before.get('ok') is True and after.get('ok') is True
+          assert before.get('version') == after.get('version') == '0.90.63'
+          print(json.dumps({'wickhunter_health':'PASS','version':after['version']}))
+          PY

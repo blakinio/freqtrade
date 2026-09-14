@@ -11,6 +11,7 @@ name: Repair Synology Autostart
       - deploy/synology/portal/deploy-preview.sh
       - deploy/synology/portal/probe-liquidations-live-operational.sh
       - deploy/synology/portal/prove-liquidations-live.sh
+      - deploy/synology/portal-oidc/upgrade-wh09-observer-v10.sh
       - deploy/synology/wickhunter-production-research-runtime/compose.yaml
   workflow_dispatch:
 

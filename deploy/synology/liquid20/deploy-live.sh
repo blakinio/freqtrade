@@ -383,7 +383,7 @@ test -S /var/run/docker.sock
 test -f "$defaults_file"
 
 if [[ -n "$prebuilt_image" ]]; then
-    if [[ ! "$prebuilt_image" =~ ^ghcr\.io/blakinio/liquid20-collector@sha256:[0-9a-f]{64}$ ]]; then
+    if [[ ! "$prebuilt_image" =~ ^ghcr\.io/blakinio/freqtrade-liquid20-collector@sha256:[0-9a-f]{64}$ ]]; then
         echo "LIQUID20_PREBUILT_IMAGE must be an immutable approved GHCR digest reference" >&2
         exit 64
     fi

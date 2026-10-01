@@ -5,7 +5,7 @@ jsonschema==4.26.0
 numpy==2.4.6
 pandas==3.0.3
 psycopg[binary]==3.2.9
-PyJWT==2.13.0
+PyJWT==2.15.0
 PyYAML==6.0.3
 pydantic==2.11.7
 SQLAlchemy==2.0.41
